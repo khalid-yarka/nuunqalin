@@ -1,0 +1,76 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}{{ pdf.title }} - Student Platform{% endblock %}
+
+{% block page_title %}{{ pdf.title }}{% endblock %}
+
+{% block dashboard_content %}
+
+<div style="max-width: 100%;">
+    <!-- Navigation -->
+    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+        <a href="{{ url_for('pdfs.list_pdfs') }}" 
+           style="display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); text-decoration: none; font-weight: 500; transition: var(--transition);">
+            <i class="fas fa-arrow-left"></i> Back to PDFs
+        </a>
+        <span style="color: var(--text-muted);">|</span>
+        <span style="color: var(--text-secondary); font-size: 14px;">
+            <i class="fas fa-eye" style="color: var(--text-muted);"></i> {{ pdf.view_count or 0 }} views
+        </span>
+    </div>
+
+    <!-- PDF Viewer -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);">
+        <!-- Header -->
+        <div style="padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h2 style="font-size: 18px; font-weight: 700; color: var(--text);">{{ pdf.title }}</h2>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px;">
+                    {% if pdf.subject %}
+                        <span style="font-size: 12px; color: var(--text-secondary); background: var(--background); padding: 2px 12px; border-radius: 10px;">📚 {{ pdf.subject }}</span>
+                    {% endif %}
+                    {% if pdf.grade %}
+                        <span style="font-size: 12px; color: var(--text-secondary); background: var(--background); padding: 2px 12px; border-radius: 10px;">🎓 {{ pdf.grade }}</span>
+                    {% endif %}
+                    {% if pdf.category %}
+                        <span style="font-size: 12px; color: var(--text-secondary); background: var(--background); padding: 2px 12px; border-radius: 10px;">📁 {{ pdf.category }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <a href="{{ pdf.file_url }}" target="_blank" 
+                   style="padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; transition: var(--transition);">
+                    <i class="fas fa-external-link-alt"></i> Open PDF
+                </a>
+                <a href="{{ pdf.telegram_download_url }}" target="_blank" 
+                   style="padding: 10px 20px; background: #0088CC; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; transition: var(--transition);">
+                    <i class="fab fa-telegram-plane"></i> Download
+                </a>
+            </div>
+        </div>
+
+        <!-- PDF Embed -->
+        <div style="padding: 20px; background: #F8F6F5; min-height: 600px; display: flex; align-items: center; justify-content: center;">
+            <iframe src="{{ pdf.file_url }}" 
+                    style="width: 100%; height: 700px; border: none; border-radius: var(--radius-sm); background: white; box-shadow: var(--shadow-sm);"
+                    allow="autoplay">
+                Your browser does not support PDF viewing. 
+                <a href="{{ pdf.file_url }}" target="_blank">Click here to view PDF</a>
+            </iframe>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; background: var(--background);">
+            <span style="color: var(--text-secondary); font-size: 13px;">
+                <i class="fas fa-download" style="color: var(--text-muted);"></i> 
+                Download available via Telegram Channel
+            </span>
+            <a href="{{ pdf.telegram_download_url }}" target="_blank" 
+               style="color: #0088CC; text-decoration: none; font-weight: 500; font-size: 13px;">
+                <i class="fab fa-telegram-plane"></i> Join Telegram to Download
+            </a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

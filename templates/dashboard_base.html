@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Student Platform{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+<style>
+    /* Quick stats cards - used on home page */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+
+    .stat-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 20px 16px;
+        text-align: center;
+        transition: var(--transition);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .stat-card .stat-icon {
+        font-size: 28px;
+        display: block;
+        margin-bottom: 4px;
+    }
+
+    .stat-card .stat-number {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .stat-card .stat-number.primary {
+        color: var(--primary);
+    }
+
+    .stat-card .stat-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 2px;
+    }
+
+    .stat-card .stat-change {
+        font-size: 11px;
+        font-weight: 600;
+        margin-top: 4px;
+        display: inline-block;
+        padding: 1px 10px;
+        border-radius: 10px;
+    }
+
+    .stat-card .stat-change.positive {
+        color: #10B981;
+        background: #ECFDF5;
+    }
+
+    .stat-card .stat-change.negative {
+        color: #EF4444;
+        background: #FEF2F2;
+    }
+
+    /* Quick Actions Grid */
+    .quick-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-bottom: 28px;
+    }
+
+    .quick-action-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        text-decoration: none;
+        color: var(--text);
+        font-weight: 500;
+        transition: var(--transition);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .quick-action-card:hover {
+        border-color: var(--primary);
+        background: var(--primary-light);
+        transform: translateX(4px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .quick-action-card .qa-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: var(--primary-light);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        color: var(--primary);
+        flex-shrink: 0;
+    }
+
+    .quick-action-card .qa-text {
+        flex: 1;
+    }
+
+    .quick-action-card .qa-text .qa-title {
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .quick-action-card .qa-text .qa-sub {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .quick-action-card .qa-arrow {
+        color: var(--text-muted);
+        font-size: 14px;
+        transition: var(--transition);
+    }
+
+    .quick-action-card:hover .qa-arrow {
+        color: var(--primary);
+        transform: translateX(4px);
+    }
+
+    /* Activity Feed */
+    .activity-feed {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px 24px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .activity-feed .feed-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+
+    .activity-feed .feed-header h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .activity-feed .feed-header a {
+        font-size: 13px;
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .activity-feed .feed-header a:hover {
+        text-decoration: underline;
+    }
+
+    .activity-item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-item .ai-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    .activity-item .ai-icon.green {
+        background: #ECFDF5;
+        color: #10B981;
+    }
+
+    .activity-item .ai-icon.orange {
+        background: #FFFBEB;
+        color: #F59E0B;
+    }
+
+    .activity-item .ai-icon.red {
+        background: #FEF2F2;
+        color: #EF4444;
+    }
+
+    .activity-item .ai-icon.blue {
+        background: #EFF6FF;
+        color: #3B82F6;
+    }
+
+    .activity-item .ai-content {
+        flex: 1;
+    }
+
+    .activity-item .ai-content .ai-title {
+        font-size: 14px;
+        color: var(--text);
+    }
+
+    .activity-item .ai-content .ai-title .highlight {
+        color: var(--primary);
+        font-weight: 600;
+    }
+
+    .activity-item .ai-content .ai-meta {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .activity-item .ai-time {
+        font-size: 12px;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-secondary);
+    }
+
+    .empty-state .empty-icon {
+        font-size: 48px;
+        opacity: 0.4;
+        margin-bottom: 12px;
+    }
+
+    .empty-state .empty-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 4px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .stat-card {
+            padding: 14px 10px;
+        }
+
+        .stat-card .stat-number {
+            font-size: 22px;
+        }
+
+        .quick-actions-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .activity-feed {
+            padding: 16px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .stats-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .stat-card {
+            padding: 12px 8px;
+        }
+
+        .stat-card .stat-number {
+            font-size: 18px;
+        }
+
+        .stat-card .stat-label {
+            font-size: 11px;
+        }
+
+        .activity-item {
+            flex-wrap: wrap;
+        }
+
+        .activity-item .ai-time {
+            width: 100%;
+            padding-left: 50px;
+        }
+    }
+</style>
+{% block dashboard_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<!-- Sidebar Overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div class="dashboard-wrapper">
+    <!-- ============================================ -->
+    <!-- SIDEBAR -->
+    <!-- ============================================ -->
+    <aside class="sidebar" id="sidebar">
+        <!-- Brand -->
+        <div class="sidebar-brand">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="logo" />
+            <span class="brand-text">Nuun<span>Platform</span></span>
+        </div>
+
+        <!-- User Info -->
+        <div class="sidebar-user">
+            <div class="avatar">
+                {{ session.user_name[0] if session.user_name else 'U' }}
+            </div>
+            <div class="user-details">
+                <span class="user-name">{{ session.user_name or 'User' }}</span>
+                {% if session.public_id and session.public_id != '----' %}
+                    <span class="user-id">#{{ session.public_id }}</span>
+                {% else %}
+                    <span class="user-id" style="background:#FEF3C7;color:#92400E;">⏳ PENDING</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="sidebar-nav">
+            <div class="nav-label">Main</div>
+            
+            <a href="{{ url_for('dashboard.home') }}" class="nav-item {% if request.endpoint == 'dashboard.home' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-home"></i></span>
+                Dashboard
+            </a>
+            
+            <a href="{{ url_for('dashboard.profile') }}" class="nav-item {% if request.endpoint == 'dashboard.profile' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-user"></i></span>
+                Profile
+            </a>
+            
+            <!-- QUIZ LINK -->
+            <a href="{{ url_for('quiz.index') }}" class="nav-item {% if request.endpoint.startswith('quiz.') %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-pencil-alt"></i></span>
+                Quizzes
+            </a>
+            
+            <a href="{{ url_for('groups.list_groups') }}" class="nav-item {% if request.endpoint == 'groups.list_groups' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-users"></i></span>
+                Groups
+            </a>
+            
+            <a href="{{ url_for('pdfs.list_pdfs') }}" class="nav-item {% if request.endpoint == 'pdfs.list_pdfs' or request.endpoint == 'pdfs.view_pdf' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-file-pdf"></i></span>
+                PDFs
+            </a>
+            
+            <div class="nav-label" style="margin-top:12px;">Community</div>
+            
+            <!-- LEADERBOARD LINK -->
+            <a href="{{ url_for('quiz.leaderboard') }}" class="nav-item {% if request.endpoint == 'quiz.leaderboard' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-trophy"></i></span>
+                Leaderboard
+            </a>
+            
+            <!-- ADMIN PANEL (only for admins) -->
+            {% if session.is_admin %}
+                <div class="nav-label" style="margin-top:12px;">Admin</div>
+                
+                <a href="{{ url_for('admin.dashboard') }}" class="nav-item {% if request.endpoint.startswith('admin.') %}active{% endif %}">
+                    <span class="nav-icon"><i class="fas fa-cog"></i></span>
+                    Admin Panel
+                </a>
+            {% endif %}
+        </nav>
+
+        <!-- Sidebar Footer - ALWAYS VISIBLE -->
+        <div class="sidebar-footer">
+            <a href="{{ url_for('dashboard.profile') }}" class="nav-item">
+                <span class="nav-icon"><i class="fas fa-user-circle"></i></span>
+                Profile
+            </a>
+            <a href="{{ url_for('logout') }}" class="nav-item logout">
+                <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
+                Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- ============================================ -->
+    <!-- MAIN CONTENT -->
+    <!-- ============================================ -->
+    <main class="main-content">
+        <!-- Top Navbar -->
+        <header class="top-navbar">
+            <div class="navbar-left">
+                <button class="menu-toggle" id="menuToggle" aria-label="Toggle sidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <span class="page-title">{% block page_title %}Dashboard{% endblock %}</span>
+            </div>
+            <div class="navbar-right">
+                <button class="nav-btn" aria-label="Notifications">
+                    <i class="fas fa-bell"></i>
+                    <span class="dot"></span>
+                </button>
+                <span class="nav-divider"></span>
+                <a href="{{ url_for('dashboard.profile') }}" class="user-menu">
+                    <div class="avatar-sm">
+                        {{ session.user_name[0] if session.user_name else 'U' }}
+                    </div>
+                    <span class="user-name-sm">{{ session.user_name or 'User' }}</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="page-content">
+            {% block dashboard_content %}{% endblock %}
+        </div>
+        <!-- ============================================ -->
+        <!-- FOOTER -->
+        <!-- ============================================ -->
+        <footer style="margin-top: 40px; padding-top: 40px; border-top: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 32px 24px 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 32px; max-width: 1200px; margin: 0 auto;">
+                <!-- Brand -->
+                <div>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" style="height: 32px;" />
+                        <span style="font-size: 18px; font-weight: 700; color: var(--text);">Nuun<span style="color: var(--primary);">Platform</span></span>
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.6;">Learn together, grow together. Empowering students through collaborative learning.</p>
+                </div>
+        
+                <!-- Quick Links -->
+                <div>
+                    <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px;">Quick Links</h4>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <a href="{{ url_for('dashboard.home') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Home</a>
+                        <a href="{{ url_for('dashboard.profile') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Profile</a>
+                        <a href="{{ url_for('groups.list_groups') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Groups</a>
+                        <a href="{{ url_for('pdfs.list_pdfs') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">PDFs</a>
+                    </div>
+                </div>
+        
+                <!-- Social -->
+                <div>
+                    <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px;">Connect With Us</h4>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <a href="#" target="_blank" style="color: #25D366; text-decoration: none; font-size: 13px; transition: var(--transition);">
+                            <i class="fab fa-whatsapp"></i> WhatsApp
+                        </a>
+                        <a href="#" target="_blank" style="color: #0088CC; text-decoration: none; font-size: 13px; transition: var(--transition);">
+                            <i class="fab fa-telegram-plane"></i> Telegram
+                        </a>
+                        <a href="#" target="_blank" style="color: #1877F2; text-decoration: none; font-size: 13px; transition: var(--transition);">
+                            <i class="fab fa-facebook"></i> Facebook
+                        </a>
+                        <a href="#" target="_blank" style="color: #1DA1F2; text-decoration: none; font-size: 13px; transition: var(--transition);">
+                            <i class="fab fa-twitter"></i> Twitter
+                        </a>
+                    </div>
+                </div>
+        
+                <!-- Support -->
+                <div>
+                    <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px;">Support</h4>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <a href="#" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Help Center</a>
+                        <a href="#" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">FAQ</a>
+                        <a href="#" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Contact Us</a>
+                        <a href="#" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Privacy Policy</a>
+                    </div>
+                </div>
+            </div>
+        
+            <!-- Copyright -->
+            <div style="text-align: center; padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--border);">
+                <span style="color: var(--text-muted); font-size: 12px;">© 2026 NuunPlatform. All rights reserved. Made with Nuun for students.</span>
+            </div>
+        </footer>
+    </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% block dashboard_js %}{% endblock %}
+{% endblock %}

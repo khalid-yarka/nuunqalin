@@ -1,0 +1,82 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block page_title %}Admin Dashboard{% endblock %}
+
+{% block dashboard_content %}
+<div style="max-width: 100%;">
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+        <span class="current">Admin Dashboard</span>
+    </div>
+
+    <!-- Header -->
+    <div style="margin-bottom: 24px;">
+        <h1 style="font-size: 24px; font-weight: 700; color: var(--text);">
+            ⚙️ Admin Dashboard
+        </h1>
+        <p style="color: var(--text-secondary); font-size: 15px; margin-top: 2px;">
+            Manage your platform content
+        </p>
+    </div>
+
+    <!-- Stats -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 28px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 28px;">👥</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--text);">{{ users_count }}</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">Users</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 28px;">📚</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--text);">{{ subjects_count }}</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">Subjects</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 28px;">❓</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--text);">{{ questions_count }}</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">Questions</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 28px;">📄</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--text);">{{ pdfs_count }}</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">PDFs</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 28px;">👥</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--text);">{{ groups_count }}</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">Groups</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 28px;">📝</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--text);">{{ quiz_attempts }}</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">Quiz Attempts</div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 28px;">
+        <a href="{{ url_for('admin.admin_groups') }}" style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); transition: var(--transition);">
+            <span style="font-size: 20px;">👥</span>
+            <span style="font-weight: 600;">Manage Groups</span>
+        </a>
+        <a href="{{ url_for('admin.admin_pdfs') }}" style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); transition: var(--transition);">
+            <span style="font-size: 20px;">📄</span>
+            <span style="font-weight: 600;">Manage PDFs</span>
+        </a>
+        <a href="{{ url_for('admin.admin_subjects') }}" style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); transition: var(--transition);">
+            <span style="font-size: 20px;">📚</span>
+            <span style="font-weight: 600;">Manage Subjects</span>
+        </a>
+        <a href="{{ url_for('admin.admin_questions') }}" style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); transition: var(--transition);">
+            <span style="font-size: 20px;">❓</span>
+            <span style="font-weight: 600;">Manage Questions</span>
+        </a>
+        <a href="{{ url_for('admin.admin_users') }}" style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); transition: var(--transition);">
+            <span style="font-size: 20px;">👥</span>
+            <span style="font-weight: 600;">Manage Users</span>
+        </a>
+    </div>
+</div>
+{% endblock %}

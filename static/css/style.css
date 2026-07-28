@@ -1,0 +1,146 @@
+/* ============================================
+   MAIN STYLES
+   ============================================ */
+
+/* Brand Colors */
+:root {
+    --primary: #FF3138;
+    --primary-hover: #E62B32;
+    --accent: #F8D96B;
+    --accent-dark: #D8B84A;
+    --background: #FFF8F6;
+    --surface: #FFFFFF;
+    --surface-alt: #FFF0EC;
+    --text: #2A2A2A;
+    --text-secondary: #6B7280;
+    --white: #FFFFFF;
+    --border: #F1D9D2;
+    --error: #FF3138;
+    --success: #10B981;
+}
+
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--background);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+/* ============================================
+   FLASH MESSAGES
+   ============================================ */
+.flash-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    width: 90%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.flash-message {
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: auto;
+    animation: slideDown 0.4s ease;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.flash-message i {
+    font-size: 18px;
+}
+
+.flash-message .flash-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0.6;
+    color: inherit;
+}
+
+.flash-message .flash-close:hover {
+    opacity: 1;
+}
+
+.flash-success {
+    background: #ECFDF5;
+    color: #065F46;
+    border: 1px solid #A7F3D0;
+}
+
+.flash-success i {
+    color: #10B981;
+}
+
+.flash-error {
+    background: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FCA5A5;
+}
+
+.flash-error i {
+    color: #EF4444;
+}
+
+.flash-info {
+    background: #EFF6FF;
+    color: #1E40AF;
+    border: 1px solid #93C5FD;
+}
+
+.flash-info i {
+    color: #3B82F6;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 480px) {
+    body {
+        padding: 12px;
+    }
+
+    .flash-container {
+        top: 12px;
+        width: 95%;
+    }
+
+    .flash-message {
+        font-size: 13px;
+        padding: 12px 14px;
+    }
+}

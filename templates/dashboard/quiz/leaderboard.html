@@ -1,0 +1,55 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Leaderboard{% endblock %}
+
+{% block page_title %}Leaderboard{% endblock %}
+
+{% block dashboard_content %}
+<div style="max-width: 640px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="font-size: 24px; font-weight: 700; color: var(--text);">
+            🏆 Leaderboard
+        </h2>
+        <p style="color: var(--text-secondary); font-size: 14px;">Top performers on the platform</p>
+    </div>
+
+    <!-- User Rank -->
+    {% if user_rank %}
+        <div style="background: var(--primary-light); border: 1px solid var(--primary); border-radius: var(--radius-sm); padding: 12px 20px; margin-bottom: 20px; text-align: center;">
+            <span style="color: var(--text-secondary); font-size: 14px;">Your Rank: </span>
+            <span style="font-weight: 700; color: var(--primary); font-size: 18px;">#{{ user_rank }}</span>
+        </div>
+    {% endif %}
+
+    <!-- Leaderboard -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);">
+        <div style="padding: 12px 20px; background: var(--background); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 50px 1fr 80px; font-weight: 600; color: var(--text-secondary); font-size: 13px;">
+            <span>#</span>
+            <span>Student</span>
+            <span style="text-align: right;">Points</span>
+        </div>
+
+        {% if leaders %}
+            {% for student in leaders %}
+                <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 50px 1fr 80px; align-items: center;">
+                    <span style="font-weight: 700; color: {% if loop.index == 1 %}#F59E0B{% elif loop.index == 2 %}#9CA3AF{% elif loop.index == 3 %}#D97706{% else %}var(--text-secondary){% endif %};">
+                        {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
+                    </span>
+                    <span style="color: var(--text); font-weight: 500;">
+                        #{{ student.public_id }} {{ student.first_name }} {{ student.last_name or '' }}
+                        {% if student.school %}
+                            <span style="font-size: 11px; color: var(--text-secondary); display: block;">{{ student.school }}</span>
+                        {% endif %}
+                    </span>
+                    <span style="text-align: right; font-weight: 700; color: var(--primary);">{{ student.total_points or 0 }}</span>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                <div style="font-size: 40px; opacity: 0.3; margin-bottom: 8px;">🏆</div>
+                <p>No scores yet. Be the first to play!</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

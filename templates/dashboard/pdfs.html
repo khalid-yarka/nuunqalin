@@ -1,0 +1,154 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}PDFs - Student Platform{% endblock %}
+
+{% block page_title %}PDFs{% endblock %}
+
+{% block dashboard_content %}
+<div style="max-width: 100%;">
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+        <a href="{{ url_for('dashboard.home') }}">Dashboard</a>
+        <span class="separator">/</span>
+        <span class="current">PDFs</span>
+    </div>
+
+    <!-- Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
+                <i class="fas fa-file-pdf" style="color: #E74C3C;"></i> Study Materials
+            </h2>
+            <p style="color: var(--text-secondary); font-size: 14px;">Browse and view educational PDFs</p>
+        </div>
+    </div>
+
+    <!-- Search & Filters -->
+    <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
+        <form method="GET" id="searchForm" style="flex: 1; min-width: 200px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 150px;">
+                    <input type="text" name="search" id="searchInput" placeholder="🔍 Search PDFs..." 
+                           value="{{ search_query }}" 
+                           style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
+                </div>
+                <select name="subject" id="subjectFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
+                    <option value="">All Subjects</option>
+                    {% for sub in subjects %}
+                        <option value="{{ sub }}" {% if subject_filter == sub %}selected{% endif %}>{{ sub }}</option>
+                    {% endfor %}
+                </select>
+                <select name="grade" id="gradeFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
+                    <option value="">All Grades</option>
+                    {% for g in grades %}
+                        <option value="{{ g }}" {% if grade_filter == g %}selected{% endif %}>{{ g }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" style="padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
+                    <i class="fas fa-search"></i> Search
+                </button>
+                {% if search_query or subject_filter or grade_filter %}
+                    <a href="{{ url_for('pdfs.list_pdfs') }}" style="padding: 10px 16px; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text-secondary); font-weight: 500; transition: var(--transition);">
+                        <i class="fas fa-times"></i> Clear
+                    </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- PDFs Grid -->
+    {% if pdfs %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+            {% for pdf in pdfs %}
+                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); transition: var(--transition); display: flex; flex-direction: column;">
+                    <!-- PDF Icon & Title -->
+                    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: #FEF2F2; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #E74C3C;">
+                            <i class="fas fa-file-pdf"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <h3 style="font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ pdf.title }}</h3>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px;">
+                                {% if pdf.subject %}
+                                    <span style="font-size: 11px; color: var(--text-secondary); background: var(--background); padding: 1px 8px; border-radius: 8px;">{{ pdf.subject }}</span>
+                                {% endif %}
+                                {% if pdf.grade %}
+                                    <span style="font-size: 11px; color: var(--text-secondary); background: var(--background); padding: 1px 8px; border-radius: 8px;">{{ pdf.grade }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    {% if pdf.description %}
+                        <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; line-height: 1.5; flex: 1;">{{ pdf.description }}</p>
+                    {% endif %}
+
+                    <!-- View Count -->
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 14px;">
+                        <i class="fas fa-eye" style="color: var(--text-muted); font-size: 13px;"></i>
+                        <span style="color: var(--text-secondary); font-size: 13px;">{{ pdf.view_count or 0 }} views</span>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 10px; margin-top: auto;">
+                        <a href="{{ url_for('pdfs.view_pdf', pdf_id=pdf.id) }}" 
+                           style="flex: 1; padding: 10px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; text-align: center; transition: var(--transition);">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                        <a href="{{ pdf.telegram_download_url }}" target="_blank" 
+                           style="flex: 1; padding: 10px; background: #0088CC; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; text-align: center; transition: var(--transition);">
+                            <i class="fab fa-telegram-plane"></i> Download
+                        </a>
+                    </div>
+                    <div style="text-align: center; margin-top: 6px; font-size: 10px; color: var(--text-muted);">
+                        <i class="fab fa-telegram"></i> Download from Telegram Channel
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <!-- Empty State -->
+        <div style="text-align: center; padding: 60px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+            <div style="font-size: 64px; opacity: 0.3; margin-bottom: 16px;">📄</div>
+            <h3 style="font-size: 18px; font-weight: 600; color: var(--text);">No PDFs available</h3>
+            <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">Study materials will be added soon!</p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-submit search on input change (with debounce)
+    const searchInput = document.getElementById('searchInput');
+    const subjectFilter = document.getElementById('subjectFilter');
+    const gradeFilter = document.getElementById('gradeFilter');
+    const searchForm = document.getElementById('searchForm');
+    
+    let debounceTimer;
+    
+    function autoSubmit() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() {
+            searchForm.submit();
+        }, 500);
+    }
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', autoSubmit);
+    }
+    
+    if (subjectFilter) {
+        subjectFilter.addEventListener('change', function() {
+            searchForm.submit();
+        });
+    }
+    
+    if (gradeFilter) {
+        gradeFilter.addEventListener('change', function() {
+            searchForm.submit();
+        });
+    }
+});
+</script>
+{% endblock %}

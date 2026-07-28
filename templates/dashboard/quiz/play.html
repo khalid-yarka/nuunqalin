@@ -1,0 +1,166 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Quiz - Student Platform{% endblock %}
+
+{% block page_title %}Quiz{% endblock %}
+
+{% block dashboard_content %}
+<div id="quiz-container" style="max-width: 640px; margin: 0 auto;">
+    <!-- Progress -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <span style="color: var(--text-secondary); font-size: 14px;">Question <span id="current-num">{{ current + 1 }}</span>/<span id="total-num">{{ total }}</span></span>
+        <span style="color: var(--primary); font-weight: 600; font-size: 14px;">⭐ <span id="score-display">0</span> points</span>
+    </div>
+    
+    <!-- Progress Bar -->
+    <div style="width: 100%; height: 6px; background: var(--border); border-radius: 10px; margin-bottom: 24px; overflow: hidden;">
+        <div id="progress-bar" style="width: {{ ((current + 1) / total * 100)|round(1) }}%; height: 100%; background: var(--primary); transition: width 0.5s ease; border-radius: 10px;"></div>
+    </div>
+
+    <!-- Question Card -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; box-shadow: var(--shadow-sm);">
+        <div id="question-text" style="font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 24px; line-height: 1.4;">
+            {{ question.question_text }}
+        </div>
+
+        <!-- Options -->
+        <div id="options-container" style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="option-btn" data-value="A" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.3s ease; font-size: 16px; color: var(--text); width: 100%; text-align: left;">
+                <span style="font-weight: 700; color: var(--text-secondary); min-width: 28px;">A.</span>
+                <span>{{ question.options.A }}</span>
+            </button>
+            <button class="option-btn" data-value="B" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.3s ease; font-size: 16px; color: var(--text); width: 100%; text-align: left;">
+                <span style="font-weight: 700; color: var(--text-secondary); min-width: 28px;">B.</span>
+                <span>{{ question.options.B }}</span>
+            </button>
+            <button class="option-btn" data-value="C" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.3s ease; font-size: 16px; color: var(--text); width: 100%; text-align: left;">
+                <span style="font-weight: 700; color: var(--text-secondary); min-width: 28px;">C.</span>
+                <span>{{ question.options.C }}</span>
+            </button>
+        </div>
+
+        <!-- Feedback Area -->
+        <div id="feedback-area" style="display: none; margin-top: 20px; padding: 16px 20px; border-radius: var(--radius-sm);">
+            <div id="feedback-message" style="font-weight: 600;"></div>
+            <div id="feedback-explanation" style="font-size: 14px; margin-top: 6px; color: var(--text-secondary);"></div>
+            <div style="margin-top: 14px;">
+                <p style="font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 8px;">Malaga Yaba in Suashan mid uso micna dhaw lagu keeno imtixaanaadka wasaarada:</p>
+                <div style="display: flex; gap: 10px;">
+                    <button id="rate-haa" style="padding: 8px 20px; background: #10B981; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
+                        ✅ HAA
+                    </button>
+                    <button id="rate-may" style="padding: 8px 20px; background: #EF4444; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
+                        ❌ MAY
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading/Next Indicator -->
+    <div id="next-indicator" style="display: none; text-align: center; margin-top: 16px; color: var(--text-secondary); font-size: 14px;">
+        <i class="fas fa-spinner fa-spin"></i> Loading next question...
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const optionsContainer = document.getElementById('options-container');
+    const feedbackArea = document.getElementById('feedback-area');
+    const feedbackMessage = document.getElementById('feedback-message');
+    const feedbackExplanation = document.getElementById('feedback-explanation');
+    const progressBar = document.getElementById('progress-bar');
+    const scoreDisplay = document.getElementById('score-display');
+    const nextIndicator = document.getElementById('next-indicator');
+    const currentNum = document.getElementById('current-num');
+    const totalNum = document.getElementById('total-num');
+    
+    let score = 0;
+    let current = 0;
+    const total = parseInt(totalNum.textContent);
+    let answered = false;
+
+    // Option buttons
+    document.querySelectorAll('.option-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (answered) return;
+            answered = true;
+            
+            const answer = this.dataset.value;
+            const allBtns = document.querySelectorAll('.option-btn');
+            allBtns.forEach(b => b.style.pointerEvents = 'none');
+            
+            // Show feedback
+            fetch('{{ url_for("quiz.submit_answer") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ answer: answer })
+            })
+            .then(res => res.json())
+            .then(data => {
+                // Highlight correct/incorrect
+                allBtns.forEach(b => {
+                    if (b.dataset.value === data.correct_answer) {
+                        b.style.borderColor = '#10B981';
+                        b.style.background = '#ECFDF5';
+                    }
+                    if (b.dataset.value === answer && !data.correct) {
+                        b.style.borderColor = '#EF4444';
+                        b.style.background = '#FEF2F2';
+                    }
+                });
+                
+                // Update score
+                if (data.correct) {
+                    score++;
+                    scoreDisplay.textContent = score;
+                }
+                
+                // Show feedback
+                feedbackArea.style.display = 'block';
+                if (data.correct) {
+                    feedbackMessage.innerHTML = '✅ <span style="color: #10B981;">CORRECT! +1 point</span>';
+                } else {
+                    feedbackMessage.innerHTML = '❌ <span style="color: #EF4444;">WRONG! Correct answer was: ' + data.correct_answer + '</span>';
+                }
+                if (data.explanation) {
+                    feedbackExplanation.textContent = '💡 ' + data.explanation;
+                }
+            });
+        });
+    });
+
+    // Rating buttons
+    document.getElementById('rate-haa').addEventListener('click', function() {
+        submitRating('HAA');
+    });
+    document.getElementById('rate-may').addEventListener('click', function() {
+        submitRating('MAY');
+    });
+
+    function submitRating(rating) {
+        const btn = document.getElementById('rate-' + (rating === 'HAA' ? 'haa' : 'may'));
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        
+        fetch('{{ url_for("quiz.submit_rating") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: rating })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.complete) {
+                window.location.href = '{{ url_for("quiz.results") }}';
+            } else {
+                // Advance to next question
+                nextIndicator.style.display = 'block';
+                setTimeout(() => {
+                    window.location.reload();
+                }, 800);
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
