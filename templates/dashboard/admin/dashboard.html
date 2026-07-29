@@ -77,6 +77,11 @@
             <span style="font-size: 20px;">👥</span>
             <span style="font-weight: 600;">Manage Users</span>
         </a>
+        <!-- Deleted Users Link -->
+        <a href="{{ url_for('admin.deleted_users') }}" style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); transition: var(--transition);">
+            <span style="font-size: 20px;">🗑️</span>
+            <span style="font-weight: 600;">Deleted Users</span>
+        </a>
     </div>
 </div>
 {% endblock %}

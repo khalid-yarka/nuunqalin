@@ -72,6 +72,7 @@
                             <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Name</th>
                             <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Platform</th>
                             <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Category</th>
+                            <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Clicks</th>
                             <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Actions</th>
                         </tr>
                     </thead>
@@ -86,6 +87,12 @@
                                     </span>
                                 </td>
                                 <td style="padding: 12px 16px; color: var(--text);">{{ group.category or '-' }}</td>
+                                <td style="padding: 12px 16px; text-align: center; color: var(--text-secondary);">
+                                    <span style="font-size: 13px; font-weight: 600;">
+                                        <i class="fas fa-mouse-pointer" style="color: var(--primary);"></i>
+                                        {{ group.click_count or 0 }}
+                                    </span>
+                                </td>
                                 <td style="padding: 12px 16px; text-align: center;">
                                     <form method="POST" action="{{ url_for('admin.delete_group', group_id=group.id) }}" style="display: inline;" onsubmit="return confirm('Delete this group?');">
                                         <button type="submit" style="padding: 4px 12px; background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; transition: var(--transition);">

@@ -20,29 +20,29 @@
 <div class="stats-grid">
     <div class="stat-card">
         <span class="stat-icon">📚</span>
-        <div class="stat-number primary">0</div>
+        <div class="stat-number primary">{{ quiz_count or 0 }}</div>
         <div class="stat-label">Quizzes Taken</div>
     </div>
     <div class="stat-card">
         <span class="stat-icon">🏆</span>
-        <div class="stat-number primary">0</div>
+        <div class="stat-number primary">{{ total_points or 0 }}</div>
         <div class="stat-label">Total Points</div>
     </div>
     <div class="stat-card">
         <span class="stat-icon">✅</span>
-        <div class="stat-number primary">0%</div>
+        <div class="stat-number primary">{{ success_rate or 0 }}%</div>
         <div class="stat-label">Success Rate</div>
     </div>
     <div class="stat-card">
         <span class="stat-icon">🔥</span>
-        <div class="stat-number primary">0</div>
+        <div class="stat-number primary">{{ streak or 0 }}</div>
         <div class="stat-label">Day Streak</div>
     </div>
 </div>
 
 <!-- Quick Actions -->
 <div class="quick-actions-grid">
-    <a href="#" class="quick-action-card">
+    <a href="{{ url_for('quiz.index') }}" class="quick-action-card">
         <span class="qa-icon"><i class="fas fa-pencil-alt"></i></span>
         <span class="qa-text">
             <span class="qa-title">Start a Quiz</span>
@@ -58,7 +58,7 @@
         </span>
         <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
     </a>
-    <a href="#" class="quick-action-card">
+    <a href="{{ url_for('quiz.leaderboard') }}" class="quick-action-card">
         <span class="qa-icon"><i class="fas fa-trophy"></i></span>
         <span class="qa-text">
             <span class="qa-title">Leaderboard</span>
@@ -72,15 +72,29 @@
 <div class="activity-feed">
     <div class="feed-header">
         <h3><i class="fas fa-clock" style="color: var(--primary); margin-right: 8px;"></i> Recent Activity</h3>
-        <a href="#">View All</a>
+        <a href="{{ url_for('quiz.history') }}">View All</a>
     </div>
 
-    <!-- Empty State -->
-    <div class="empty-state">
-        <div class="empty-icon">🚀</div>
-        <div class="empty-title">No activity yet</div>
-        <p style="font-size: 14px;">Start your first quiz to track your progress!</p>
-    </div>
+    {% if recent_activity %}
+        {% for activity in recent_activity %}
+            <div class="activity-item">
+                <span class="ai-icon {{ activity.icon_class or 'blue' }}">
+                    <i class="fas {{ activity.icon or 'fa-check' }}"></i>
+                </span>
+                <div class="ai-content">
+                    <div class="ai-title">{{ activity.title|safe }}</div>
+                    <div class="ai-meta">{{ activity.meta or '' }}</div>
+                </div>
+                <span class="ai-time">{{ activity.time or 'Just now' }}</span>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🚀</div>
+            <div class="empty-title">No activity yet</div>
+            <p style="font-size: 14px;">Start your first quiz to track your progress!</p>
+        </div>
+    {% endif %}
 </div>
 
 {% endblock %}

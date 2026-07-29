@@ -1,0 +1,77 @@
+# ========== DATABASE FILES ==========
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ========== BACKUP FOLDER ==========
+backups/
+backups/*
+!backups/.gitkeep
+
+# ========== PYTHON ==========
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.coverage
+htmlcov/
+newfile.py
+
+# ========== IDE ==========
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ========== LOGS ==========
+*.log
+logs/
+
+# ========== TEMPORARY FILES ==========
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+
+# ========== ENVIRONMENT ==========
+.env
+.env.local
+.env.production
+
+# ========== DUMP FILES ==========
+*.sql
+dump.sql
+recovered_data.sql
+
+# ========== CORRUPTED FILES ==========
+ardayda_corrupted_*.db
+corrupted_*.db
+before_restore_*.db
+
+# ========== MIGRATION BACKUPS ==========
+ardayda_backup_*.db
+
+# ========== SECRETS ==========
+config_local.py
+secrets.py
+*.key
+*.pem
+
+# ========== OS FILES ==========
+.DS_Store
+.directory
+Desktop.ini
+$RECYCLE.BIN/

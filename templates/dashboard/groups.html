@@ -91,8 +91,9 @@
                         </span>
                     </div>
 
-                    <!-- Join Button -->
+                    <!-- Join Button with Click Tracking -->
                     <a href="{{ group.invite_link }}" target="_blank" 
+                       onclick="trackGroupClick('{{ group.id }}')"
                        style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; 
                               background: {% if group.platform == 'whatsapp' %}#25D366{% else %}#0088CC{% endif %}; 
                               color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; 
@@ -115,7 +116,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-submit search on input change (with debounce)
     const searchInput = document.getElementById('searchInput');
     const platformFilter = document.getElementById('platformFilter');
     const categoryFilter = document.getElementById('categoryFilter');
@@ -146,5 +146,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Track group click
+function trackGroupClick(groupId) {
+    fetch('/groups/track-click/' + groupId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    }).catch(function(err) {
+        console.log('Error tracking group click:', err);
+    });
+}
 </script>
 {% endblock %}

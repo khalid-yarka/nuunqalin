@@ -21,6 +21,9 @@
             </h2>
             <p style="color: var(--text-secondary); font-size: 14px;">View and manage platform users</p>
         </div>
+        <a href="{{ url_for('admin.deleted_users') }}" style="padding: 8px 16px; background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; border-radius: var(--radius-sm); text-decoration: none; font-size: 13px; font-weight: 500; transition: var(--transition);">
+            <i class="fas fa-trash"></i> Deleted Users
+        </a>
     </div>
 
     <!-- Users List -->
@@ -39,7 +42,7 @@
                             <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">School</th>
                             <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Points</th>
                             <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Admin</th>
-                            <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Actions</th>
+                            <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Delete</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -59,12 +62,10 @@
                                 </td>
                                 <td style="padding: 12px 16px; text-align: center;">
                                     {% if user.id != session.user_id %}
-                                        <form method="POST" action="{{ url_for('admin.toggle_user_admin', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Toggle admin status for this user?');">
-                                            <button type="submit" style="padding: 4px 12px; background: {% if user.is_admin %}#FEF2F2; color: #DC2626; border: 1px solid #FCA5A5{% else %}#ECFDF5; color: #10B981; border: 1px solid #A7F3D0{% endif %}; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; transition: var(--transition);">
-                                                <i class="fas {% if user.is_admin %}fa-user-minus{% else %}fa-user-plus{% endif %}"></i>
-                                                {% if user.is_admin %}Remove Admin{% else %}Make Admin{% endif %}
-                                            </button>
-                                        </form>
+                                        <button onclick="showDeleteModal('{{ user.id }}', '{{ user.first_name }} {{ user.last_name or '' }}', '{{ user.public_id }}')" 
+                                                style="padding: 4px 12px; background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; transition: var(--transition);">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
                                     {% else %}
                                         <span style="font-size: 12px; color: var(--text-muted);">(You)</span>
                                     {% endif %}
@@ -82,4 +83,58 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Delete Modal -->
+<div id="deleteModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+    <div style="background: var(--surface); border-radius: var(--radius); padding: 32px; max-width: 480px; width: 90%; box-shadow: var(--shadow-lg);">
+        <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 8px;">⚠️ Delete User</h3>
+        <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">
+            Are you sure you want to delete <strong id="deleteUserName">this user</strong>?
+        </p>
+        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
+            This action will back up the user data and remove them permanently.
+        </p>
+        <form id="deleteForm" method="POST" action="">
+            <div style="margin-bottom: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer;">
+                    <input type="checkbox" name="keep_ratings" checked>
+                    Keep ratings (HAA/MAY) in the system
+                </label>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer;">
+                    <input type="checkbox" name="delete_attempts" checked>
+                    Delete quiz attempts and scores
+                </label>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" onclick="closeDeleteModal()" style="flex: 1; padding: 10px; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; transition: var(--transition);">
+                    Cancel
+                </button>
+                <button type="submit" style="flex: 1; padding: 10px; background: #DC2626; color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; transition: var(--transition);">
+                    <i class="fas fa-trash"></i> Delete Permanently
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showDeleteModal(userId, userName, publicId) {
+    document.getElementById('deleteUserName').textContent = userName + ' (#' + publicId + ')';
+    document.getElementById('deleteForm').action = '/admin/users/delete/' + userId;
+    document.getElementById('deleteModal').style.display = 'flex';
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+}
+
+// Close modal on click outside
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDeleteModal();
+    }
+});
+</script>
 {% endblock %}

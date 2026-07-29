@@ -15,12 +15,19 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <!-- Flash Messages -->
+    <!-- ============================================ -->
+    <!-- TOAST NOTIFICATIONS -->
+    <!-- ============================================ -->
+    <div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; gap: 10px; max-width: 380px; width: 100%; pointer-events: none;"></div>
+
+    <!-- ============================================ -->
+    <!-- FLASH MESSAGES (Legacy - will be replaced by toasts) -->
+    <!-- ============================================ -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            <div class="flash-container">
+            <div class="flash-container" id="flashContainer">
                 {% for category, message in messages %}
-                    <div class="flash-message flash-{{ category }}">
+                    <div class="flash-message flash-{{ category }}" data-toast>
                         <i class="fas {% if category == 'success' %}fa-check-circle{% elif category == 'error' %}fa-exclamation-circle{% elif category == 'info' %}fa-info-circle{% else %}fa-bell{% endif %}"></i>
                         {{ message }}
                         <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>

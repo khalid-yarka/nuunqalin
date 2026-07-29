@@ -324,3 +324,103 @@ def get_leaderboard(limit: int = 20):
     except Exception as e:
         print(f"Error fetching leaderboard: {e}")
         return []
+
+# ============================================
+# DELETED USERS / RECOVERY FUNCTIONS
+# ============================================
+
+def delete_user(student_id: str, admin_id: str, keep_ratings: bool = True, delete_attempts: bool = True):
+    """Delete a user and backup their data"""
+    try:
+        # Get user data first
+        user = get_student_by_id(student_id)
+        if not user:
+            return None, 'User not found'
+        
+        # Don't allow deleting yourself
+        if student_id == admin_id:
+            return None, 'You cannot delete your own account'
+        
+        # Backup user data to deleted_users table
+        backup_data = {
+            'original_id': user['id'],
+            'public_id': user.get('public_id'),
+            'first_name': user.get('first_name'),
+            'last_name': user.get('last_name'),
+            'phone_number': user.get('phone_number'),
+            'school': user.get('school'),
+            'grade': user.get('grade'),
+            'total_points': user.get('total_points', 0),
+            'is_admin': user.get('is_admin', False),
+            'location': user.get('location'),
+            'city': user.get('city'),
+            'deleted_by': admin_id,
+            'data': user  # Full backup as JSON
+        }
+        
+        supabase.table('deleted_users').insert(backup_data).execute()
+        
+        # Delete quiz attempts if requested
+        if delete_attempts:
+            supabase.table('quiz_attempts').delete().eq('student_id', student_id).execute()
+        
+        # Delete ratings if NOT keeping them
+        if not keep_ratings:
+            supabase.table('quiz_ratings').delete().eq('student_id', student_id).execute()
+        
+        # Delete the user
+        supabase.table('students').delete().eq('id', student_id).execute()
+        
+        return True, 'User deleted successfully'
+        
+    except Exception as e:
+        print(f"Error deleting user: {e}")
+        return False, str(e)
+
+
+def get_deleted_users(limit: int = 50):
+    """Get list of deleted users for admin recovery"""
+    try:
+        response = supabase.table('deleted_users')\
+            .select('*, deleted_by_data:students(first_name, last_name, public_id)')\
+            .order('deleted_at', desc=True)\
+            .limit(limit)\
+            .execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"Error fetching deleted users: {e}")
+        return []
+
+
+def restore_deleted_user(deleted_id: str):
+    """Restore a deleted user from backup"""
+    try:
+        # Get backup data
+        response = supabase.table('deleted_users')\
+            .select('*')\
+            .eq('id', deleted_id)\
+            .execute()
+        
+        if not response.data:
+            return False, 'Deleted user not found'
+        
+        backup = response.data[0]
+        user_data = backup.get('data', {})
+        
+        # Remove id to let Supabase generate new one
+        user_data.pop('id', None)
+        user_data.pop('created_at', None)
+        
+        # Re-insert user
+        result = supabase.table('students').insert(user_data).execute()
+        
+        if result.data:
+            # Remove from deleted_users
+            supabase.table('deleted_users').delete().eq('id', deleted_id).execute()
+            return True, 'User restored successfully'
+        
+        return False, 'Failed to restore user'
+        
+    except Exception as e:
+        print(f"Error restoring user: {e}")
+        return False, str(e)

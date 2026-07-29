@@ -1,0 +1,54 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Live Quiz - Student Platform{% endblock %}
+
+{% block page_title %}Live Quiz{% endblock %}
+
+{% block dashboard_content %}
+<div style="max-width: 100%;">
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+        <a href="{{ url_for('dashboard.home') }}">Dashboard</a>
+        <span class="separator">/</span>
+        <span class="current">Live Quiz</span>
+    </div>
+
+    <!-- Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h2 style="font-size: 24px; font-weight: 700; color: var(--text);">
+                ⚡ Live Quiz
+            </h2>
+            <p style="color: var(--text-secondary); font-size: 15px; margin-top: 2px;">
+                Host real-time quizzes or join ongoing ones
+            </p>
+        </div>
+    </div>
+
+    <!-- Two Column Layout -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 900px; margin: 0 auto;">
+        
+        <!-- Create Quiz Card -->
+        <a href="{{ url_for('live_quiz.create') }}" 
+           style="background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); padding: 40px 32px; text-align: center; text-decoration: none; transition: all 0.3s ease; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 48px; margin-bottom: 12px;">🎯</div>
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text);">Create a Quiz</h3>
+            <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">Host a live quiz and invite participants</p>
+            <div style="margin-top: 16px; display: inline-block; padding: 8px 24px; background: var(--primary); color: white; border-radius: var(--radius-sm); font-weight: 600; font-size: 14px;">
+                Get Started
+            </div>
+        </a>
+
+        <!-- Join Quiz Card -->
+        <a href="{{ url_for('live_quiz.join') }}" 
+           style="background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); padding: 40px 32px; text-align: center; text-decoration: none; transition: all 0.3s ease; box-shadow: var(--shadow-sm);">
+            <div style="font-size: 48px; margin-bottom: 12px;">🔑</div>
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text);">Join a Quiz</h3>
+            <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">Enter a join code to participate</p>
+            <div style="margin-top: 16px; display: inline-block; padding: 8px 24px; background: var(--success); color: white; border-radius: var(--radius-sm); font-weight: 600; font-size: 14px;">
+                Enter Code
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}

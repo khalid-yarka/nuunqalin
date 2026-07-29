@@ -90,12 +90,14 @@
                         <span style="color: var(--text-secondary); font-size: 13px;">{{ pdf.view_count or 0 }} views</span>
                     </div>
 
-                    <!-- Action Buttons -->
+                    <!-- Action Buttons - View Button Only if file_url exists -->
                     <div style="display: flex; gap: 10px; margin-top: auto;">
-                        <a href="{{ url_for('pdfs.view_pdf', pdf_id=pdf.id) }}" 
-                           style="flex: 1; padding: 10px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; text-align: center; transition: var(--transition);">
-                            <i class="fas fa-eye"></i> View
-                        </a>
+                        {% if pdf.file_url %}
+                            <a href="{{ url_for('pdfs.view_pdf', pdf_id=pdf.id) }}" 
+                               style="flex: 1; padding: 10px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; text-align: center; transition: var(--transition);">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                        {% endif %}
                         <a href="{{ pdf.telegram_download_url }}" target="_blank" 
                            style="flex: 1; padding: 10px; background: #0088CC; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; text-align: center; transition: var(--transition);">
                             <i class="fab fa-telegram-plane"></i> Download
@@ -119,7 +121,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-submit search on input change (with debounce)
     const searchInput = document.getElementById('searchInput');
     const subjectFilter = document.getElementById('subjectFilter');
     const gradeFilter = document.getElementById('gradeFilter');

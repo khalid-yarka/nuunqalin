@@ -2,6 +2,7 @@
    DASHBOARD LAYOUT - Sidebar + Top Nav
    ============================================ */
 
+/* Light Mode (Default) */
 :root {
     --sidebar-width: 260px;
     --sidebar-collapsed: 72px;
@@ -21,6 +22,20 @@
     --radius: 16px;
     --radius-sm: 10px;
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark Mode - IMPORTANT: These override the light mode */
+[data-theme="dark"] {
+    --background: #1A1A2E !important;
+    --surface: #252540 !important;
+    --surface-alt: #2D2D4A !important;
+    --text: #F1F1F1 !important;
+    --text-secondary: #B0B0C8 !important;
+    --text-muted: #7A7A9A !important;
+    --border: #3A3A5A !important;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+    --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
 /* ============================================
@@ -50,10 +65,11 @@ body {
     width: 100%;
     max-width: 100%;
     overflow: hidden;
+    transition: background 0.3s ease;
 }
 
 /* ============================================
-   SIDEBAR
+   SIDEBAR - FIXED LAYOUT WITH STICKY FOOTER
    ============================================ */
 
 .sidebar {
@@ -67,9 +83,7 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 1000;
-    transition: var(--transition);
-    overflow-y: auto;
-    overflow-x: hidden;
+    transition: all 0.3s ease;
     flex-shrink: 0;
 }
 
@@ -82,7 +96,7 @@ body {
     border-radius: 10px;
 }
 
-/* Sidebar Brand */
+/* Sidebar Brand - FIXED at top */
 .sidebar-brand {
     padding: 20px 24px;
     display: flex;
@@ -110,7 +124,7 @@ body {
     color: var(--primary);
 }
 
-/* Sidebar User Info */
+/* Sidebar User Info - FIXED */
 .sidebar-user {
     padding: 20px 24px;
     border-bottom: 1px solid var(--border);
@@ -161,11 +175,12 @@ body {
     display: inline-block;
 }
 
-/* Sidebar Navigation */
+/* Sidebar Navigation - SCROLLABLE */
 .sidebar-nav {
-    flex: 1;
+    flex: 1 1 auto;
     padding: 16px 12px;
     overflow-y: auto;
+    min-height: 0;
 }
 
 .sidebar-nav .nav-label {
@@ -187,7 +202,7 @@ body {
     text-decoration: none;
     font-weight: 500;
     font-size: 14px;
-    transition: var(--transition);
+    transition: all 0.3s ease;
     margin-bottom: 2px;
     position: relative;
 }
@@ -213,7 +228,7 @@ body {
     text-align: center;
     flex-shrink: 0;
     color: var(--text-muted);
-    transition: var(--transition);
+    transition: all 0.3s ease;
 }
 
 .sidebar-nav .nav-item:hover .nav-icon {
@@ -240,7 +255,7 @@ body {
 }
 
 /* ============================================
-   SIDEBAR FOOTER (Sticky at bottom)
+   SIDEBAR FOOTER - ALWAYS AT BOTTOM
    ============================================ */
 
 .sidebar-footer {
@@ -248,7 +263,11 @@ body {
     border-top: 1px solid var(--border);
     flex-shrink: 0;
     background: var(--surface);
+    /* This is the key - pushes footer to bottom */
     margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .sidebar-footer .nav-item {
@@ -261,7 +280,7 @@ body {
     text-decoration: none;
     font-weight: 500;
     font-size: 14px;
-    transition: var(--transition);
+    transition: all 0.3s ease;
 }
 
 .sidebar-footer .nav-item:hover {
@@ -304,16 +323,13 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    transition: var(--transition);
+    transition: all 0.3s ease;
     width: calc(100% - var(--sidebar-width));
     max-width: calc(100% - var(--sidebar-width));
     overflow-x: hidden;
 }
 
-/* ============================================
-   TOP NAVBAR
-   ============================================ */
-
+/* Top Navbar */
 .top-navbar {
     position: sticky;
     top: 0;
@@ -329,6 +345,12 @@ body {
     background: rgba(255, 255, 255, 0.92);
     width: 100%;
     flex-shrink: 0;
+    transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .top-navbar {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
 }
 
 .top-navbar .navbar-left {
@@ -347,7 +369,7 @@ body {
     cursor: pointer;
     padding: 4px;
     border-radius: 8px;
-    transition: var(--transition);
+    transition: all 0.3s ease;
 }
 
 .top-navbar .navbar-left .menu-toggle:hover {
@@ -370,6 +392,26 @@ body {
     flex-shrink: 0;
 }
 
+.top-navbar .navbar-right .dark-mode-toggle {
+    background: none;
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.top-navbar .navbar-right .dark-mode-toggle:hover {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
 .top-navbar .navbar-right .nav-btn {
     background: none;
     border: none;
@@ -382,7 +424,7 @@ body {
     color: var(--text-secondary);
     font-size: 18px;
     cursor: pointer;
-    transition: var(--transition);
+    transition: all 0.3s ease;
     position: relative;
 }
 
@@ -416,7 +458,7 @@ body {
     padding: 6px 12px 6px 6px;
     border-radius: 50px;
     cursor: pointer;
-    transition: var(--transition);
+    transition: all 0.3s ease;
     text-decoration: none;
     color: var(--text);
 }
@@ -457,10 +499,6 @@ body {
     overflow-x: hidden;
 }
 
-/* ============================================
-   BREADCRUMB
-   ============================================ */
-
 .breadcrumb {
     display: flex;
     align-items: center;
@@ -475,7 +513,7 @@ body {
     color: var(--primary);
     text-decoration: none;
     font-weight: 500;
-    transition: var(--transition);
+    transition: all 0.3s ease;
 }
 
 .breadcrumb a:hover {
@@ -506,7 +544,6 @@ body {
 }
 
 @media (max-width: 768px) {
-    /* Sidebar becomes overlay */
     .sidebar {
         transform: translateX(-100%);
         width: 280px;
@@ -517,7 +554,6 @@ body {
         transform: translateX(0);
     }
 
-    /* Overlay */
     .sidebar-overlay {
         display: none;
         position: fixed;
@@ -593,18 +629,10 @@ body {
     }
 }
 
-/* ============================================
-   RESPONSIVE IMAGES & EMBEDS
-   ============================================ */
-
 img, iframe, video, embed {
     max-width: 100%;
     height: auto;
 }
-
-/* ============================================
-   UTILITY - Prevent Overflow
-   ============================================ */
 
 .overflow-hidden {
     overflow: hidden !important;
@@ -620,4 +648,108 @@ img, iframe, video, embed {
 
 .w-100 {
     width: 100% !important;
+}
+
+/* ============================================
+   DARK MODE OVERRIDES
+   ============================================ */
+
+[data-theme="dark"] .sidebar {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .sidebar-brand {
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .sidebar-user {
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .sidebar-footer {
+    border-color: var(--border) !important;
+    background: var(--surface) !important;
+}
+
+[data-theme="dark"] .stat-card {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .quick-action-card {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .activity-feed {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .activity-item {
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] footer {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .breadcrumb a {
+    color: #FF6B70 !important;
+}
+
+[data-theme="dark"] .pdf-viewer-card {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .pdf-header {
+    background: var(--surface-alt) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .pdf-container {
+    background: #1A1A2E !important;
+}
+
+[data-theme="dark"] .pdf-container .page-wrapper {
+    background: white !important;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-theme="dark"] .pdf-controls {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .pdf-topbar {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .pdf-controls button {
+    background: var(--surface-alt) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .pdf-controls button:hover:not(:disabled) {
+    background: var(--primary-light) !important;
+    border-color: var(--primary) !important;
+    color: var(--primary) !important;
+}
+
+[data-theme="dark"] .pdf-reader-wrapper {
+    background: #1A1A2E !important;
+}
+
+[data-theme="dark"] .dark-mode-toggle {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .dark-mode-toggle:hover {
+    background: var(--primary-light) !important;
+    color: var(--primary) !important;
 }

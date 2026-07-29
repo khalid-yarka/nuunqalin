@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify
-from supabase_client import supabase, is_admin, get_all_students, get_all_subjects, get_all_questions, toggle_admin
+from supabase_client import supabase, is_admin, get_all_students, get_all_subjects, get_all_questions, toggle_admin, delete_user as supabase_delete_user, get_deleted_users, restore_deleted_user as supabase_restore_user
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -27,7 +27,6 @@ def admin_required(f):
 @admin_required
 def dashboard():
     """Admin dashboard"""
-    # Get counts
     try:
         users_count = len(supabase.table('students').select('id', count='exact').execute().data)
         groups_count = len(supabase.table('groups').select('id', count='exact').execute().data)
@@ -45,6 +44,58 @@ def dashboard():
                          subjects_count=subjects_count,
                          questions_count=questions_count,
                          quiz_attempts=quiz_attempts)
+
+
+# ============================================
+# DELETE USER
+# ============================================
+
+@admin_bp.route('/users/delete/<user_id>', methods=['POST'])
+@admin_required
+def delete_user(user_id):
+    """Delete a user permanently with options"""
+    if user_id == session['user_id']:
+        flash('You cannot delete your own account.', 'error')
+        return redirect(url_for('admin.admin_users'))
+    
+    keep_ratings = request.form.get('keep_ratings') == 'on'
+    delete_attempts = request.form.get('delete_attempts') == 'on'
+    
+    # Use the renamed imported function
+    success, message = supabase_delete_user(user_id, session['user_id'], keep_ratings, delete_attempts)
+    
+    if success:
+        flash('User deleted successfully!', 'success')
+    else:
+        flash(f'Error deleting user: {message}', 'error')
+    
+    return redirect(url_for('admin.admin_users'))
+
+
+@admin_bp.route('/deleted-users')
+@admin_required
+def deleted_users():
+    """View deleted users (recovery)"""
+    try:
+        deleted = get_deleted_users()
+    except Exception:
+        deleted = []
+    
+    return render_template('dashboard/admin/deleted_users.html', deleted=deleted)
+
+
+@admin_bp.route('/deleted-users/restore/<deleted_id>', methods=['POST'])
+@admin_required
+def restore_deleted_user(deleted_id):
+    """Restore a deleted user"""
+    success, message = supabase_restore_user(deleted_id)
+    
+    if success:
+        flash('User restored successfully!', 'success')
+    else:
+        flash(f'Error restoring user: {message}', 'error')
+    
+    return redirect(url_for('admin.deleted_users'))
 
 
 # ============================================
@@ -231,7 +282,6 @@ def admin_questions():
     except Exception:
         questions = []
     
-    # Get subjects for dropdown
     try:
         subjects_response = supabase.table('subjects').select('id, name').order('name').execute()
         subjects = subjects_response.data if subjects_response.data else []

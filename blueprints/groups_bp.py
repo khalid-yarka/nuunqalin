@@ -11,12 +11,10 @@ def list_groups():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
-    # Get platform filter from query string
     platform_filter = request.args.get('platform', '')
     category_filter = request.args.get('category', '')
     search_query = request.args.get('search', '').strip()
     
-    # Build query
     query = supabase.table('groups').select('*').eq('is_active', True)
     
     if platform_filter:
@@ -28,7 +26,6 @@ def list_groups():
     if search_query:
         query = query.ilike('name', f'%{search_query}%')
     
-    # Get groups
     try:
         response = query.order('created_at', desc=True).execute()
         groups = response.data if response.data else []
@@ -37,7 +34,6 @@ def list_groups():
         groups = []
         flash('Error loading groups. Please try again.', 'error')
     
-    # Get distinct categories for filter
     try:
         cat_response = supabase.table('groups')\
             .select('category')\
@@ -53,3 +49,34 @@ def list_groups():
                          platform_filter=platform_filter,
                          category_filter=category_filter,
                          search_query=search_query)
+
+
+@groups_bp.route('/track-click/<group_id>', methods=['POST'])
+def track_group_click(group_id):
+    """Track when a user clicks the Join button"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    try:
+        # Get current click count
+        response = supabase.table('groups')\
+            .select('click_count')\
+            .eq('id', group_id)\
+            .execute()
+        
+        if not response.data:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        current_count = response.data[0].get('click_count', 0)
+        new_count = current_count + 1
+        
+        # Update click count
+        supabase.table('groups')\
+            .update({'click_count': new_count})\
+            .eq('id', group_id)\
+            .execute()
+        
+        return jsonify({'success': True, 'clicks': new_count})
+    except Exception as e:
+        print(f"Error tracking group click: {e}")
+        return jsonify({'error': str(e)}), 500

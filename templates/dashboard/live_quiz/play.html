@@ -1,0 +1,535 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Live Quiz - {{ quiz.title or 'Quiz' }}{% endblock %}
+
+{% block page_title %}Live Quiz{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
+<style>
+    .quiz-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+        padding: 16px 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+    }
+    .timer-display {
+        font-size: 28px;
+        font-weight: 700;
+        font-family: monospace;
+        transition: color 0.3s ease;
+    }
+    .timer-display.warning {
+        color: #F59E0B;
+    }
+    .timer-display.danger {
+        color: #EF4444;
+        animation: pulse 0.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    .question-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 32px;
+        box-shadow: var(--shadow-sm);
+    }
+    .question-text {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text);
+        line-height: 1.5;
+        margin-bottom: 24px;
+    }
+    .option-btn {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 18px;
+        background: var(--surface);
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 16px;
+        color: var(--text);
+        width: 100%;
+        text-align: left;
+        margin-bottom: 10px;
+    }
+    .option-btn:hover:not(:disabled) {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+    .option-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+    .option-btn .letter {
+        font-weight: 700;
+        color: var(--text-secondary);
+        min-width: 28px;
+    }
+    .option-btn.correct {
+        border-color: #10B981;
+        background: #ECFDF5;
+    }
+    .option-btn.correct .letter {
+        color: #10B981;
+    }
+    .option-btn.wrong {
+        border-color: #EF4444;
+        background: #FEF2F2;
+    }
+    .option-btn.wrong .letter {
+        color: #EF4444;
+    }
+    .option-btn.skipped {
+        border-color: #F59E0B;
+        background: #FFFBEB;
+    }
+    .feedback-area {
+        margin-top: 20px;
+        padding: 16px 20px;
+        border-radius: var(--radius-sm);
+    }
+    .feedback-area.success {
+        background: #ECFDF5;
+        border: 1px solid #A7F3D0;
+    }
+    .feedback-area.error {
+        background: #FEF2F2;
+        border: 1px solid #FCA5A5;
+    }
+    .feedback-area.skipped {
+        background: #FFFBEB;
+        border: 1px solid #FDE68A;
+    }
+    .rating-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+    }
+    .rating-buttons button {
+        padding: 8px 20px;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .rating-buttons .haa {
+        background: #10B981;
+        color: white;
+    }
+    .rating-buttons .haa:hover {
+        background: #059669;
+    }
+    .rating-buttons .may {
+        background: #EF4444;
+        color: white;
+    }
+    .rating-buttons .may:hover {
+        background: #DC2626;
+    }
+    .leaderboard-mini {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 16px 20px;
+    }
+    .lb-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+        font-size: 14px;
+    }
+    .lb-item.you {
+        background: var(--primary-light);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+    }
+    .lb-item .rank {
+        font-weight: 600;
+        color: var(--text-secondary);
+        min-width: 28px;
+    }
+    .lb-item .name {
+        color: var(--text);
+        flex: 1;
+        margin-left: 8px;
+    }
+    .lb-item .score {
+        font-weight: 700;
+        color: var(--primary);
+    }
+    .skip-btn {
+        padding: 8px 16px;
+        background: #FEF2F2;
+        color: #DC2626;
+        border: 1px solid #FCA5A5;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        margin-top: 12px;
+    }
+    .skip-btn:hover {
+        background: #FEE2E2;
+    }
+    .skip-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div style="max-width: 720px; margin: 0 auto;">
+    <!-- Quiz Header -->
+    <div class="quiz-header">
+        <div>
+            <h3 style="font-size: 16px; font-weight: 600; color: var(--text);">
+                {{ quiz.title or 'Live Quiz' }}
+            </h3>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 2px;">
+                <span style="font-size: 13px; color: var(--text-secondary);">
+                    📚 {{ quiz.subjects.name if quiz.subjects else 'Unknown' }}
+                </span>
+                <span style="font-size: 13px; color: var(--text-secondary);" id="questionCounter">
+                    Question <span id="currentQ">1</span>/<span id="totalQ">{{ quiz.question_count }}</span>
+                </span>
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div class="timer-display" id="timerDisplay">30</div>
+            <div style="font-size: 12px; color: var(--text-muted);">seconds left</div>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div style="width: 100%; height: 4px; background: var(--border); border-radius: 4px; margin-bottom: 20px; overflow: hidden;">
+        <div id="progressBar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.5s ease; border-radius: 4px;"></div>
+    </div>
+
+    <!-- Leaderboard (Top 5) -->
+    <div class="leaderboard-mini" style="margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">🏆 Live Leaderboard</span>
+            <span style="font-size: 13px; color: var(--text-secondary);">Your Rank: <strong id="userRank">-</strong></span>
+        </div>
+        <div id="leaderboardList">
+            <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 8px 0;">
+                Waiting for results...
+            </div>
+        </div>
+    </div>
+
+    <!-- Question Card -->
+    <div class="question-card" id="questionCard">
+        <div id="questionContainer">
+            <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                <div style="font-size: 48px; margin-bottom: 12px;">⏳</div>
+                <h3 style="font-size: 18px; font-weight: 600; color: var(--text);">Waiting for quiz to start...</h3>
+                <p style="font-size: 14px;">The host will start the quiz shortly</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const quizId = '{{ quiz.id }}';
+    const totalQuestions = {{ quiz.question_count }};
+    let currentQuestionIndex = 0;
+    let timer = 30;
+    let timerInterval = null;
+    let isAnswered = false;
+    let isRated = false;
+    let questionData = null;
+    let participantId = null;
+
+    // Get participant ID
+    fetch('/live-quiz/my-participant/' + quizId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.id) {
+                participantId = data.id;
+                loadQuestion();
+            }
+        })
+        .catch(() => {});
+
+    function loadQuestion() {
+        fetch('/live-quiz/get-question/' + quizId)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    if (data.completed) {
+                        window.location.href = '/live-quiz/results/' + quizId;
+                    } else {
+                        showToast(data.error, 'error');
+                    }
+                    return;
+                }
+                
+                if (data.question) {
+                    questionData = data;
+                    currentQuestionIndex = data.index;
+                    renderQuestion(data);
+                    startTimer();
+                } else if (data.waiting) {
+                    // Still waiting
+                    setTimeout(loadQuestion, 3000);
+                }
+            })
+            .catch(() => {
+                setTimeout(loadQuestion, 3000);
+            });
+    }
+
+    function renderQuestion(data) {
+        const question = data.question;
+        const index = data.index;
+        const total = data.total;
+        
+        isAnswered = false;
+        isRated = false;
+        
+        // Update counter
+        document.getElementById('currentQ').textContent = index + 1;
+        document.getElementById('totalQ').textContent = total;
+        document.getElementById('progressBar').style.width = ((index / total) * 100) + '%';
+        
+        // Render question
+        const container = document.getElementById('questionContainer');
+        container.innerHTML = `
+            <div class="question-text">${question.question_text}</div>
+            <div id="optionsContainer">
+                <button class="option-btn" data-value="A" onclick="selectOption('A')">
+                    <span class="letter">A.</span>
+                    <span>${question.options.A}</span>
+                </button>
+                <button class="option-btn" data-value="B" onclick="selectOption('B')">
+                    <span class="letter">B.</span>
+                    <span>${question.options.B}</span>
+                </button>
+                <button class="option-btn" data-value="C" onclick="selectOption('C')">
+                    <span class="letter">C.</span>
+                    <span>${question.options.C}</span>
+                </button>
+            </div>
+            <button class="skip-btn" onclick="skipQuestion()" id="skipBtn">
+                <i class="fas fa-forward"></i> Skip Question
+            </button>
+            <div id="feedbackContainer"></div>
+        `;
+        
+        // Reset timer
+        timer = 30;
+        updateTimerDisplay();
+    }
+
+    function selectOption(value) {
+        if (isAnswered) return;
+        isAnswered = true;
+        
+        const buttons = document.querySelectorAll('.option-btn');
+        buttons.forEach(b => b.disabled = true);
+        document.getElementById('skipBtn').disabled = true;
+        
+        // Submit answer
+        fetch('/live-quiz/submit-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                quiz_id: quizId,
+                question_id: questionData.question.id,
+                answer: value
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Highlight correct/incorrect
+            buttons.forEach(b => {
+                if (b.dataset.value === data.correct_answer) {
+                    b.classList.add('correct');
+                }
+                if (b.dataset.value === value && !data.correct) {
+                    b.classList.add('wrong');
+                }
+            });
+            
+            // Show feedback
+            const container = document.getElementById('feedbackContainer');
+            container.innerHTML = `
+                <div class="feedback-area ${data.correct ? 'success' : 'error'}">
+                    <div style="font-weight: 600;">
+                        ${data.correct ? '✅ CORRECT! +2 points' : '❌ WRONG! 0 points'}
+                    </div>
+                    ${data.explanation ? `<div style="font-size: 14px; margin-top: 4px; color: var(--text-secondary);">💡 ${data.explanation}</div>` : ''}
+                    <div style="margin-top: 12px;">
+                        <p style="font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 8px;">Rate this question:</p>
+                        <div class="rating-buttons">
+                            <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
+                            <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Stop timer
+            clearInterval(timerInterval);
+            
+            // Update score display
+            updateLeaderboard();
+        });
+    }
+
+    function skipQuestion() {
+        if (isAnswered) return;
+        isAnswered = true;
+        
+        const buttons = document.querySelectorAll('.option-btn');
+        buttons.forEach(b => b.disabled = true);
+        document.getElementById('skipBtn').disabled = true;
+        
+        fetch('/live-quiz/skip-question', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                quiz_id: quizId,
+                question_id: questionData.question.id
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Show skipped feedback
+            const container = document.getElementById('feedbackContainer');
+            container.innerHTML = `
+                <div class="feedback-area skipped">
+                    <div style="font-weight: 600;">⏭️ Skipped! 0 points</div>
+                    <div style="margin-top: 12px;">
+                        <p style="font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 8px;">Rate this question:</p>
+                        <div class="rating-buttons">
+                            <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
+                            <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            clearInterval(timerInterval);
+            updateLeaderboard();
+        });
+    }
+
+    function submitRating(rating) {
+        if (isRated) return;
+        isRated = true;
+        
+        const buttons = document.querySelectorAll('.rating-buttons button');
+        buttons.forEach(b => b.disabled = true);
+        
+        fetch('/live-quiz/submit-rating', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                quiz_id: quizId,
+                question_id: questionData.question.id,
+                rating: rating
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Load next question after short delay
+            setTimeout(() => {
+                loadQuestion();
+            }, 1000);
+        });
+    }
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        timer = 30;
+        updateTimerDisplay();
+        
+        timerInterval = setInterval(() => {
+            timer--;
+            updateTimerDisplay();
+            
+            if (timer <= 0) {
+                clearInterval(timerInterval);
+                if (!isAnswered) {
+                    // Auto-skip
+                    skipQuestion();
+                }
+            }
+        }, 1000);
+    }
+
+    function updateTimerDisplay() {
+        const display = document.getElementById('timerDisplay');
+        display.textContent = timer;
+        display.className = 'timer-display';
+        if (timer <= 5) {
+            display.classList.add('danger');
+        } else if (timer <= 10) {
+            display.classList.add('warning');
+        }
+    }
+
+    function updateLeaderboard() {
+        fetch('/live-quiz/leaderboard/' + quizId)
+            .then(response => response.json())
+            .then(data => {
+                const list = document.getElementById('leaderboardList');
+                const top5 = data.leaderboard || [];
+                const userRank = data.user_rank || '-';
+                
+                document.getElementById('userRank').textContent = userRank;
+                
+                if (top5.length === 0) {
+                    list.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 8px 0;">No scores yet</div>';
+                    return;
+                }
+                
+                let html = '';
+                top5.forEach((item, i) => {
+                    const isYou = item.student_id === '{{ session.user_id }}';
+                    html += `
+                        <div class="lb-item ${isYou ? 'you' : ''}">
+                            <span class="rank">#${i + 1}</span>
+                            <span class="name">${item.name || 'Player'}${isYou ? ' (You)' : ''}</span>
+                            <span class="score">${item.score} pts</span>
+                        </div>
+                    `;
+                });
+                list.innerHTML = html;
+            })
+            .catch(() => {});
+    }
+
+    // Update leaderboard every 5 seconds
+    setInterval(updateLeaderboard, 5000);
+    
+    // Initial leaderboard load
+    updateLeaderboard();
+
+    // Expose functions globally
+    window.selectOption = selectOption;
+    window.skipQuestion = skipQuestion;
+    window.submitRating = submitRating;
+});
+</script>
+{% endblock %}
