@@ -4,73 +4,682 @@
 
 {% block page_title %}{{ pdf.title }}{% endblock %}
 
+{% block extra_css %}
+<!-- PDF.js CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.css" />
+
+<style>
+    /* ============================================
+       PDF VIEWER CUSTOM STYLES
+       ============================================ */
+
+    .pdf-viewer-wrapper {
+        max-width: 100%;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+
+    /* Header */
+    .pdf-viewer-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        background: var(--background);
+    }
+
+    .pdf-viewer-header .title-section h2 {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+    }
+
+    .pdf-viewer-header .title-section .tags {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+    }
+
+    .pdf-viewer-header .title-section .tags span {
+        font-size: 12px;
+        color: var(--text-secondary);
+        background: var(--surface);
+        padding: 2px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+    }
+
+    .pdf-viewer-header .actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .pdf-viewer-header .actions a {
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        text-decoration: none;
+        transition: var(--transition);
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .pdf-viewer-header .actions .btn-telegram {
+        background: #0088CC;
+        color: white;
+    }
+
+    .pdf-viewer-header .actions .btn-telegram:hover {
+        background: #006699;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(0, 136, 204, 0.30);
+    }
+
+    /* PDF Container */
+    .pdf-container {
+        position: relative;
+        background: #e9e9e9;
+        min-height: 600px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        overflow: auto;
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+    }
+
+    .pdf-container canvas {
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+        background: white;
+        max-width: 100%;
+        height: auto !important;
+        display: block;
+        margin: 0 auto;
+        image-rendering: auto;
+        pointer-events: none;
+    }
+
+    /* Loading State */
+    .pdf-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: var(--text-secondary);
+    }
+
+    .pdf-loading .spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid var(--border);
+        border-top: 4px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 12px;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Controls Bar */
+    .pdf-controls {
+        padding: 12px 24px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        background: var(--background);
+    }
+
+    .pdf-controls .nav-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .pdf-controls .nav-controls button {
+        padding: 6px 14px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: var(--transition);
+        font-size: 14px;
+        color: var(--text);
+        font-weight: 500;
+    }
+
+    .pdf-controls .nav-controls button:hover {
+        background: var(--primary-light);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .pdf-controls .nav-controls button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .pdf-controls .nav-controls .page-info {
+        font-size: 14px;
+        color: var(--text-secondary);
+        min-width: 80px;
+        text-align: center;
+        font-weight: 500;
+    }
+
+    .pdf-controls .zoom-controls {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .pdf-controls .zoom-controls button {
+        padding: 6px 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: var(--transition);
+        font-size: 14px;
+        color: var(--text);
+        font-weight: 500;
+    }
+
+    .pdf-controls .zoom-controls button:hover {
+        background: var(--primary-light);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .pdf-controls .zoom-controls .zoom-level {
+        font-size: 13px;
+        color: var(--text-secondary);
+        min-width: 50px;
+        text-align: center;
+        font-weight: 500;
+    }
+
+    .pdf-controls .fullscreen-btn {
+        padding: 6px 14px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: var(--transition);
+        font-size: 14px;
+        color: var(--text);
+        font-weight: 500;
+    }
+
+    .pdf-controls .fullscreen-btn:hover {
+        background: var(--primary-light);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    /* Read-only Notice */
+    .pdf-readonly-notice {
+        text-align: center;
+        padding: 8px 16px;
+        background: #FEF3C7;
+        color: #92400E;
+        font-size: 12px;
+        font-weight: 500;
+        border-top: 1px solid var(--border);
+    }
+
+    .pdf-readonly-notice i {
+        margin-right: 6px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .pdf-viewer-header {
+            padding: 12px 16px;
+        }
+
+        .pdf-viewer-header .title-section h2 {
+            font-size: 16px;
+        }
+
+        .pdf-container {
+            min-height: 400px;
+            padding: 12px;
+        }
+
+        .pdf-controls {
+            padding: 10px 16px;
+            justify-content: center;
+        }
+
+        .pdf-controls .nav-controls button {
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+
+        .pdf-controls .zoom-controls button {
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+
+        .pdf-viewer-header .actions a {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .pdf-container {
+            min-height: 300px;
+            padding: 8px;
+        }
+
+        .pdf-controls {
+            gap: 6px;
+        }
+
+        .pdf-controls .nav-controls .page-info {
+            font-size: 12px;
+            min-width: 60px;
+        }
+
+        .pdf-controls .zoom-controls .zoom-level {
+            font-size: 12px;
+            min-width: 40px;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block dashboard_content %}
 
-<div style="max-width: 100%;">
-    <!-- Navigation -->
-    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
-        <a href="{{ url_for('pdfs.list_pdfs') }}" 
-           style="display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); text-decoration: none; font-weight: 500; transition: var(--transition);">
-            <i class="fas fa-arrow-left"></i> Back to PDFs
-        </a>
-        <span style="color: var(--text-muted);">|</span>
-        <span style="color: var(--text-secondary); font-size: 14px;">
-            <i class="fas fa-eye" style="color: var(--text-muted);"></i> {{ pdf.view_count or 0 }} views
-        </span>
-    </div>
+<!-- Navigation -->
+<div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+    <a href="{{ url_for('pdfs.list_pdfs') }}" 
+       style="display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); text-decoration: none; font-weight: 500; transition: var(--transition);">
+        <i class="fas fa-arrow-left"></i> Back to PDFs
+    </a>
+    <span style="color: var(--text-muted);">|</span>
+    <span style="color: var(--text-secondary); font-size: 14px;">
+        <i class="fas fa-eye" style="color: var(--text-muted);"></i> {{ pdf.view_count or 0 }} views
+    </span>
+</div>
 
-    <!-- PDF Viewer -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);">
-        <!-- Header -->
-        <div style="padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-            <div>
-                <h2 style="font-size: 18px; font-weight: 700; color: var(--text);">{{ pdf.title }}</h2>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px;">
-                    {% if pdf.subject %}
-                        <span style="font-size: 12px; color: var(--text-secondary); background: var(--background); padding: 2px 12px; border-radius: 10px;">📚 {{ pdf.subject }}</span>
-                    {% endif %}
-                    {% if pdf.grade %}
-                        <span style="font-size: 12px; color: var(--text-secondary); background: var(--background); padding: 2px 12px; border-radius: 10px;">🎓 {{ pdf.grade }}</span>
-                    {% endif %}
-                    {% if pdf.category %}
-                        <span style="font-size: 12px; color: var(--text-secondary); background: var(--background); padding: 2px 12px; border-radius: 10px;">📁 {{ pdf.category }}</span>
-                    {% endif %}
-                </div>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <a href="{{ pdf.file_url }}" target="_blank" 
-                   style="padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; transition: var(--transition);">
-                    <i class="fas fa-external-link-alt"></i> Open PDF
-                </a>
-                <a href="{{ pdf.telegram_download_url }}" target="_blank" 
-                   style="padding: 10px 20px; background: #0088CC; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; transition: var(--transition);">
-                    <i class="fab fa-telegram-plane"></i> Download
-                </a>
+<!-- PDF Viewer -->
+<div class="pdf-viewer-wrapper" id="pdfViewerWrapper">
+
+    <!-- Header -->
+    <div class="pdf-viewer-header">
+        <div class="title-section">
+            <h2><i class="fas fa-file-pdf" style="color: #E74C3C; margin-right: 8px;"></i> {{ pdf.title }}</h2>
+            <div class="tags">
+                {% if pdf.subject %}
+                    <span>📚 {{ pdf.subject }}</span>
+                {% endif %}
+                {% if pdf.grade %}
+                    <span>🎓 {{ pdf.grade }}</span>
+                {% endif %}
+                {% if pdf.category %}
+                    <span>📁 {{ pdf.category }}</span>
+                {% endif %}
             </div>
         </div>
-
-        <!-- PDF Embed -->
-        <div style="padding: 20px; background: #F8F6F5; min-height: 600px; display: flex; align-items: center; justify-content: center;">
-            <iframe src="{{ pdf.file_url }}" 
-                    style="width: 100%; height: 700px; border: none; border-radius: var(--radius-sm); background: white; box-shadow: var(--shadow-sm);"
-                    allow="autoplay">
-                Your browser does not support PDF viewing. 
-                <a href="{{ pdf.file_url }}" target="_blank">Click here to view PDF</a>
-            </iframe>
-        </div>
-
-        <!-- Footer -->
-        <div style="padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; background: var(--background);">
-            <span style="color: var(--text-secondary); font-size: 13px;">
-                <i class="fas fa-download" style="color: var(--text-muted);"></i> 
-                Download available via Telegram Channel
-            </span>
-            <a href="{{ pdf.telegram_download_url }}" target="_blank" 
-               style="color: #0088CC; text-decoration: none; font-weight: 500; font-size: 13px;">
-                <i class="fab fa-telegram-plane"></i> Join Telegram to Download
+        <div class="actions">
+            <a href="{{ pdf.telegram_download_url }}" target="_blank" class="btn-telegram">
+                <i class="fab fa-telegram-plane"></i> Download from Telegram
             </a>
         </div>
     </div>
+
+    <!-- PDF Container -->
+    <div class="pdf-container" id="pdfContainer">
+        <!-- Loading State -->
+        <div class="pdf-loading" id="pdfLoading">
+            <div class="spinner"></div>
+            <p>Loading PDF...</p>
+        </div>
+        <!-- Canvas will be inserted here by PDF.js -->
+        <div id="pdfCanvasContainer"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="pdf-controls" id="pdfControls" style="display: none;">
+        <div class="nav-controls">
+            <button id="prevPage" disabled>
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <span class="page-info" id="pageInfo">1 / 1</span>
+            <button id="nextPage" disabled>
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <div class="zoom-controls">
+            <button id="zoomOut" disabled>
+                <i class="fas fa-search-minus"></i>
+            </button>
+            <span class="zoom-level" id="zoomLevel">100%</span>
+            <button id="zoomIn" disabled>
+                <i class="fas fa-search-plus"></i>
+            </button>
+        </div>
+
+        <button class="fullscreen-btn" id="fullscreenBtn" disabled>
+            <i class="fas fa-expand"></i> Fullscreen
+        </button>
+    </div>
+
+    <!-- Read-only Notice -->
+    <div class="pdf-readonly-notice">
+        <i class="fas fa-lock"></i> This document is read-only. No download available.
+        <i class="fab fa-telegram-plane" style="margin-left: 8px;"></i> Download via Telegram channel above.
+    </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<!-- PDF.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ============================================
+    // PDF.JS VIEWER CONFIGURATION
+    // ============================================
+
+    const PDF_URL = "{{ pdf.file_url }}";
+    
+    // Set worker source
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // DOM Elements
+    const container = document.getElementById('pdfContainer');
+    const canvasContainer = document.getElementById('pdfCanvasContainer');
+    const loading = document.getElementById('pdfLoading');
+    const controls = document.getElementById('pdfControls');
+    
+    const prevBtn = document.getElementById('prevPage');
+    const nextBtn = document.getElementById('nextPage');
+    const pageInfo = document.getElementById('pageInfo');
+    const zoomInBtn = document.getElementById('zoomIn');
+    const zoomOutBtn = document.getElementById('zoomOut');
+    const zoomLevel = document.getElementById('zoomLevel');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+    // State
+    let pdfDoc = null;
+    let currentPage = 1;
+    let totalPages = 0;
+    let scale = 1.0;
+    const MIN_SCALE = 0.5;
+    const MAX_SCALE = 2.5;
+    const SCALE_STEP = 0.1;
+    let canvas = null;
+    let ctx = null;
+
+    // ============================================
+    // SECURITY MEASURES
+    // ============================================
+
+    // Disable right-click on container
+    document.getElementById('pdfViewerWrapper').addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    // Disable keyboard shortcuts (Ctrl+S, Ctrl+P, Ctrl+Shift+I, F12)
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+S (Save)
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            showToast('Saving is disabled for this document.');
+            return false;
+        }
+        // Ctrl+P (Print)
+        if (e.ctrlKey && e.key === 'p') {
+            e.preventDefault();
+            showToast('Printing is disabled for this document.');
+            return false;
+        }
+        // F12 (Dev Tools)
+        if (e.key === 'F12') {
+            e.preventDefault();
+            return false;
+        }
+        // Ctrl+Shift+I (Dev Tools)
+        if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+            e.preventDefault();
+            return false;
+        }
+        // Ctrl+U (View Source)
+        if (e.ctrlKey && e.key === 'u') {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    // ============================================
+    // TOAST NOTIFICATION
+    // ============================================
+
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1A1A2E;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 9999;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+            animation: fadeIn 0.3s ease;
+            max-width: 90%;
+            text-align: center;
+        `;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(function() {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.4s ease';
+            setTimeout(function() {
+                toast.remove();
+            }, 400);
+        }, 3000);
+    }
+
+    // ============================================
+    // PDF LOADING & RENDERING
+    // ============================================
+
+    function loadPDF(url) {
+        loading.style.display = 'block';
+        controls.style.display = 'none';
+
+        pdfjsLib.getDocument(url).promise
+            .then(function(pdf) {
+                pdfDoc = pdf;
+                totalPages = pdf.numPages;
+                currentPage = 1;
+                scale = 1.0;
+                
+                // Show controls
+                controls.style.display = 'flex';
+                updateControls();
+                
+                // Render first page
+                renderPage(currentPage);
+                
+                loading.style.display = 'none';
+            })
+            .catch(function(error) {
+                loading.innerHTML = `
+                    <div style="font-size: 48px; opacity: 0.4; margin-bottom: 12px;">⚠️</div>
+                    <h3 style="font-size: 18px; font-weight: 600; color: var(--text);">Failed to load PDF</h3>
+                    <p style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">${error.message}</p>
+                    <a href="{{ pdf.telegram_download_url }}" target="_blank" 
+                       style="display: inline-block; margin-top: 16px; padding: 10px 24px; background: #0088CC; color: white; border-radius: var(--radius-sm); text-decoration: none; font-weight: 600; transition: var(--transition);">
+                        <i class="fab fa-telegram-plane"></i> Download from Telegram
+                    </a>
+                `;
+                controls.style.display = 'none';
+                console.error('Error loading PDF:', error);
+            });
+    }
+
+    function renderPage(pageNum) {
+        if (!pdfDoc) return;
+
+        pdfDoc.getPage(pageNum).then(function(page) {
+            // Get viewport
+            const viewport = page.getViewport({ scale: scale });
+            
+            // Create or resize canvas
+            if (!canvas) {
+                canvas = document.createElement('canvas');
+                canvasContainer.appendChild(canvas);
+                ctx = canvas.getContext('2d');
+            }
+            
+            // Set canvas dimensions
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            canvas.style.width = viewport.width + 'px';
+            canvas.style.height = viewport.height + 'px';
+            
+            // Render page
+            const renderContext = {
+                canvasContext: ctx,
+                viewport: viewport
+            };
+            
+            page.render(renderContext).promise.then(function() {
+                updateControls();
+            });
+        });
+    }
+
+    // ============================================
+    // NAVIGATION CONTROLS
+    // ============================================
+
+    function updateControls() {
+        pageInfo.textContent = currentPage + ' / ' + totalPages;
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
+        zoomLevel.textContent = Math.round(scale * 100) + '%';
+        
+        // Enable/disable zoom buttons
+        zoomInBtn.disabled = scale >= MAX_SCALE;
+        zoomOutBtn.disabled = scale <= MIN_SCALE;
+    }
+
+    function goToPage(pageNum) {
+        if (pageNum < 1 || pageNum > totalPages) return;
+        currentPage = pageNum;
+        renderPage(currentPage);
+    }
+
+    function changeZoom(delta) {
+        let newScale = scale + delta;
+        newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+        if (newScale !== scale) {
+            scale = newScale;
+            renderPage(currentPage);
+        }
+    }
+
+    // ============================================
+    // EVENT LISTENERS
+    // ============================================
+
+    // Page navigation
+    prevBtn.addEventListener('click', function() {
+        goToPage(currentPage - 1);
+    });
+
+    nextBtn.addEventListener('click', function() {
+        goToPage(currentPage + 1);
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', function(e) {
+        // Left arrow = previous page
+        if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            e.preventDefault();
+            goToPage(currentPage - 1);
+        }
+        // Right arrow = next page
+        else if (e.key === 'ArrowRight' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            e.preventDefault();
+            goToPage(currentPage + 1);
+        }
+        // Escape = exit fullscreen
+        else if (e.key === 'Escape' && document.fullscreenElement) {
+            document.exitFullscreen();
+        }
+    });
+
+    // Zoom controls
+    zoomInBtn.addEventListener('click', function() {
+        changeZoom(SCALE_STEP);
+    });
+
+    zoomOutBtn.addEventListener('click', function() {
+        changeZoom(-SCALE_STEP);
+    });
+
+    // Fullscreen
+    fullscreenBtn.addEventListener('click', function() {
+        const wrapper = document.getElementById('pdfViewerWrapper');
+        if (!document.fullscreenElement) {
+            wrapper.requestFullscreen().catch(function(err) {
+                showToast('Fullscreen mode not supported.');
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    });
+
+    // Update fullscreen button icon
+    document.addEventListener('fullscreenchange', function() {
+        if (document.fullscreenElement) {
+            fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i> Exit';
+        } else {
+            fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i> Fullscreen';
+        }
+    });
+
+    // ============================================
+    // INITIALIZE
+    // ============================================
+
+    loadPDF(PDF_URL);
+});
+</script>
 {% endblock %}
