@@ -7,6 +7,15 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
+    /* Override dashboard logo for this page only */
+    .sidebar-brand .logo {
+        height: 28px !important;
+        width: auto !important;
+    }
+    .sidebar-brand .brand-text {
+        font-size: 14px !important;
+    }
+
     .join-code-display {
         background: var(--background);
         border: 2px dashed var(--border);
@@ -277,7 +286,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Send notification to all participants
                         window.location.href = '/live-quiz/play/' + quizId;
                     } else {
                         showToast(data.error || 'Error starting quiz.', 'error');
