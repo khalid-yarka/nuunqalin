@@ -5,9 +5,9 @@
 {% block page_title %}Live Quiz{% endblock %}
 
 {% block extra_css %}
+{{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    /* Additional styles for notification banner */
     .quiz-notification {
         background: var(--primary);
         color: white;
@@ -117,10 +117,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let previousStatus = 'waiting';
     let notificationShown = false;
 
-    // ============================================
-    // NOTIFICATION HELPERS
-    // ============================================
-
     function showNotification(text) {
         const banner = document.getElementById('notificationBanner');
         const textEl = document.getElementById('notificationText');
@@ -159,14 +155,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 osc2.start(audioCtx.currentTime);
                 osc2.stop(audioCtx.currentTime + 0.2);
             }, 200);
-        } catch (e) {
-            // Silently fail
-        }
+        } catch (e) {}
     }
-
-    // ============================================
-    // SINGLE POLLING FUNCTION - THE FIX!
-    // ============================================
 
     function pollQuizState() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
@@ -177,15 +167,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // Update total timer
                 if (data.remaining_time !== undefined) {
                     updateTotalTimer(data.remaining_time);
                 }
                 
-                // Check status changes
                 const currentStatus = data.status;
                 
-                // If quiz finished
                 if (currentStatus === 'finished') {
                     if (!quizEnded) {
                         quizEnded = true;
@@ -194,9 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // If quiz became active (started)
                 if (currentStatus === 'active' && previousStatus === 'waiting') {
-                    // Quiz just started!
                     if (!notificationShown) {
                         notificationShown = true;
                         showNotification('🚀 Quiz has started! Get ready!');
@@ -205,25 +190,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     if (!quizStarted) {
                         quizStarted = true;
-                        // Load the first question immediately
                         loadQuestion();
                         return;
                     }
                 }
                 
-                // If quiz is active and we haven't loaded a question yet
                 if (currentStatus === 'active' && quizStarted && !questionData) {
                     loadQuestion();
                     return;
                 }
                 
-                // Check if participant completed all questions
                 if (data.is_completed) {
                     showCompletedState(data);
                     return;
                 }
                 
-                // If quiz is active and we have a question but it's stale, reload
                 if (currentStatus === 'active' && quizStarted && questionData) {
                     if (data.current_question_index !== undefined && 
                         data.current_question_index !== currentQuestionIndex) {
@@ -231,13 +212,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 
-                // Update completed count in waiting state
                 if (data.all_completed && currentStatus === 'active') {
                     window.location.href = '/live-quiz/results/' + quizId;
                     return;
                 }
                 
-                // Update leaderboard periodically
                 if (currentStatus === 'active' || currentStatus === 'finished') {
                     updateLeaderboard();
                 }
@@ -250,27 +229,19 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // ============================================
-    // TOTAL TIMER MANAGEMENT
-    // ============================================
-
     function updateTotalTimer(remaining) {
         const display = document.getElementById('totalTimerDisplay');
         const progress = document.getElementById('totalProgressFill');
-        
         if (!display || !progress) return;
-        
         if (remaining <= 0) {
             display.textContent = '00:00';
             display.className = 'time-display danger';
             progress.style.width = '0%';
             return;
         }
-        
         const minutes = Math.floor(remaining / 60);
         const seconds = Math.floor(remaining % 60);
         display.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
-        
         if (remaining < 60) {
             display.className = 'time-display danger';
         } else if (remaining < 300) {
@@ -278,22 +249,15 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             display.className = 'time-display';
         }
-        
         const pct = Math.max(0, (remaining / totalDuration) * 100);
         progress.style.width = pct + '%';
     }
 
-    // ============================================
-    // COMPLETED STATE
-    // ============================================
-
     function showCompletedState(data) {
         if (isCompleted) return;
         isCompleted = true;
-        
         const container = document.getElementById('questionContainer');
         if (!container) return;
-        
         container.innerHTML = `
             <div class="completed-state">
                 <div class="icon">🎉</div>
@@ -311,7 +275,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
         `;
-        
         if (data.remaining_time) {
             let remaining = data.remaining_time;
             const timerDisplay = document.getElementById('waitingTimer');
@@ -335,13 +298,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     }
 
-    // ============================================
-    // QUESTION LOADING
-    // ============================================
-
     function loadQuestion() {
         if (isCompleted) return;
-        
         fetch('/live-quiz/get-question/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
@@ -354,7 +312,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     return;
                 }
-                
                 if (data.question) {
                     questionData = data;
                     currentQuestionIndex = data.index;
@@ -372,26 +329,18 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // ============================================
-    // RENDER QUESTION
-    // ============================================
-
     function renderQuestion(data) {
         const question = data.question;
         const index = data.index;
         const total = data.total;
-        
         isAnswered = false;
         isRated = false;
-        
         const currentQ = document.getElementById('currentQ');
         const totalQ = document.getElementById('totalQ');
         if (currentQ) currentQ.textContent = index + 1;
         if (totalQ) totalQ.textContent = total;
-        
         const container = document.getElementById('questionContainer');
         if (!container) return;
-        
         container.innerHTML = `
             <div class="question-text">${question.question_text}</div>
             <div class="options-container" id="optionsContainer">
@@ -413,24 +362,17 @@ document.addEventListener('DOMContentLoaded', function() {
             </button>
             <div id="feedbackContainer"></div>
         `;
-        
         timer = timePerQuestion;
         updateTimerDisplay();
     }
-
-    // ============================================
-    // TIMER
-    // ============================================
 
     function startTimer() {
         clearInterval(timerInterval);
         timer = timePerQuestion;
         updateTimerDisplay();
-        
         timerInterval = setInterval(() => {
             timer--;
             updateTimerDisplay();
-            
             if (timer <= 0) {
                 clearInterval(timerInterval);
                 if (!isAnswered) {
@@ -452,19 +394,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // ============================================
-    // ANSWER ACTIONS
-    // ============================================
-
     window.selectOption = function(value) {
         if (isAnswered) return;
         isAnswered = true;
-        
         const buttons = document.querySelectorAll('.option-btn');
         buttons.forEach(b => b.disabled = true);
         const skipBtn = document.getElementById('skipBtn');
         if (skipBtn) skipBtn.disabled = true;
-        
         fetch('/live-quiz/submit-answer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -484,7 +420,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     b.classList.add('wrong');
                 }
             });
-            
             const container = document.getElementById('feedbackContainer');
             if (container) {
                 container.innerHTML = `
@@ -500,7 +435,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
             }
-            
             clearInterval(timerInterval);
             updateLeaderboard();
         })
@@ -515,12 +449,10 @@ document.addEventListener('DOMContentLoaded', function() {
     window.skipQuestion = function() {
         if (isAnswered) return;
         isAnswered = true;
-        
         const buttons = document.querySelectorAll('.option-btn');
         buttons.forEach(b => b.disabled = true);
         const skipBtn = document.getElementById('skipBtn');
         if (skipBtn) skipBtn.disabled = true;
-        
         fetch('/live-quiz/skip-question', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -543,7 +475,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
             }
-            
             clearInterval(timerInterval);
             updateLeaderboard();
         })
@@ -558,10 +489,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.submitRating = function(rating) {
         if (isRated) return;
         isRated = true;
-        
         const buttons = document.querySelectorAll('.rating-buttons button');
         buttons.forEach(b => b.disabled = true);
-        
         fetch('/live-quiz/submit-rating', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -585,10 +514,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
-    // ============================================
-    // LEADERBOARD
-    // ============================================
-
     function updateLeaderboard() {
         fetch('/live-quiz/leaderboard/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
@@ -596,17 +521,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const list = document.getElementById('leaderboardList');
                 const top5 = data.leaderboard || [];
                 const userRank = data.user_rank || '-';
-                
                 const rankBadge = document.getElementById('userRank');
                 if (rankBadge) rankBadge.textContent = userRank;
-                
                 if (!list) return;
-                
                 if (top5.length === 0) {
                     list.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 8px 0;">No scores yet</div>';
                     return;
                 }
-                
                 let html = '';
                 top5.forEach((item, i) => {
                     const isYou = item.student_id === '{{ session.user_id }}';
@@ -625,20 +546,11 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // ============================================
-    // INITIALIZATION - SINGLE POLLING LOOP
-    // ============================================
-
     // Start polling every 2 seconds
     setInterval(pollQuizState, 2000);
-    
-    // Initial poll immediately
     setTimeout(pollQuizState, 100);
-    
-    // Update leaderboard every 5 seconds
     setInterval(updateLeaderboard, 5000);
 
-    // Expose functions globally
     window.selectOption = selectOption;
     window.skipQuestion = skipQuestion;
     window.submitRating = submitRating;

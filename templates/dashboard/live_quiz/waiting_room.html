@@ -5,9 +5,9 @@
 {% block page_title %}Waiting Room{% endblock %}
 
 {% block extra_css %}
+{{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    /* Additional waiting room specific styles */
     .waiting-room-container {
         max-width: 560px;
         margin: 0 auto;
@@ -306,7 +306,48 @@
         margin-top: 8px;
     }
 
-    /* Responsive */
+    .share-buttons {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 10px;
+        flex-wrap: wrap;
+    }
+
+    .share-buttons a {
+        padding: 6px 14px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 13px;
+        text-decoration: none;
+        transition: var(--transition);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .share-buttons .whatsapp {
+        background: #25D366;
+        color: white;
+    }
+
+    .share-buttons .whatsapp:hover {
+        background: #1DA851;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35);
+    }
+
+    .share-buttons .telegram {
+        background: #0088CC;
+        color: white;
+    }
+
+    .share-buttons .telegram:hover {
+        background: #006699;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 136, 204, 0.35);
+    }
+
     @media (max-width: 480px) {
         .waiting-room-container {
             padding: 0 4px;
@@ -456,18 +497,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const isCreator = {{ 'true' if is_creator else 'false' }};
     const quizId = '{{ quiz.id }}';
     
-    // Copy join code
     function copyCode(code) {
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(code).then(function() {
-                if (window.showToast) {
-                    window.showToast('Join code copied!', 'success');
-                } else {
-                    alert('Join code copied: ' + code);
-                }
-            }).catch(function() {
-                fallbackCopy(code);
-            });
+                if (window.showToast) window.showToast('Join code copied!', 'success');
+                else alert('Join code copied: ' + code);
+            }).catch(function() { fallbackCopy(code); });
         } else {
             fallbackCopy(code);
         }
@@ -480,11 +515,8 @@ document.addEventListener('DOMContentLoaded', function() {
         input.select();
         try {
             document.execCommand('copy');
-            if (window.showToast) {
-                window.showToast('Join code copied!', 'success');
-            } else {
-                alert('Join code copied: ' + code);
-            }
+            if (window.showToast) window.showToast('Join code copied!', 'success');
+            else alert('Join code copied: ' + code);
         } catch (e) {
             alert('Failed to copy. Code: ' + code);
         }
@@ -492,7 +524,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     window.copyCode = copyCode;
     
-    // Share functions
     function shareWhatsApp(code) {
         const url = window.location.origin + '/live-quiz/join';
         const text = '🎯 Join my live quiz!\n📌 Join Code: ' + code + '\n🔗 ' + url;
@@ -507,7 +538,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     window.shareTelegram = shareTelegram;
     
-    // Start Quiz
     const startBtn = document.getElementById('startQuizBtn');
     if (startBtn) {
         startBtn.addEventListener('click', function() {
@@ -524,21 +554,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.success) {
                         window.location.href = '/live-quiz/play/' + quizId;
                     } else {
-                        if (window.showToast) {
-                            window.showToast(data.error || 'Error starting quiz.', 'error');
-                        } else {
-                            alert(data.error || 'Error starting quiz.');
-                        }
+                        if (window.showToast) window.showToast(data.error || 'Error starting quiz.', 'error');
+                        else alert(data.error || 'Error starting quiz.');
                         startBtn.disabled = false;
                         startBtn.innerHTML = '<i class="fas fa-play"></i> Start Quiz';
                     }
                 })
                 .catch(function() {
-                    if (window.showToast) {
-                        window.showToast('Error starting quiz. Please try again.', 'error');
-                    } else {
-                        alert('Error starting quiz. Please try again.');
-                    }
+                    if (window.showToast) window.showToast('Error starting quiz. Please try again.', 'error');
+                    else alert('Error starting quiz. Please try again.');
                     startBtn.disabled = false;
                     startBtn.innerHTML = '<i class="fas fa-play"></i> Start Quiz';
                 });
@@ -546,7 +570,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Auto-refresh participants every 10 seconds
     let lastCount = {{ participant_count }};
     setInterval(function() {
         fetch(window.location.href)
@@ -556,7 +579,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const doc = parser.parseFromString(html, 'text/html');
                 const newItems = doc.querySelectorAll('.participant-item');
                 const newCount = newItems.length;
-                
                 if (newCount !== lastCount) {
                     location.reload();
                 }

@@ -5,11 +5,9 @@
 {% block page_title %}Live Quiz{% endblock %}
 
 {% block extra_css %}
+{{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    /* ============================================
-       LIVE QUIZ LANDING PAGE STYLES
-       ============================================ */
     .live-quiz-landing {
         max-width: 900px;
         margin: 0 auto;
@@ -160,7 +158,6 @@
         letter-spacing: 0.5px;
     }
 
-    /* Info Section */
     .live-quiz-landing .info-section {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -224,7 +221,6 @@
         font-size: 12px;
     }
 
-    /* Responsive */
     @media (max-width: 768px) {
         .live-quiz-landing .action-grid {
             grid-template-columns: 1fr;
@@ -293,7 +289,6 @@
         }
     }
 
-    /* Dark Mode Overrides */
     [data-theme="dark"] .live-quiz-landing .action-card {
         background: var(--surface);
         border-color: var(--border);

@@ -5,6 +5,7 @@
 {% block page_title %}Results{% endblock %}
 
 {% block extra_css %}
+{{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 {% endblock %}
 
@@ -154,16 +155,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const quizId = '{{ quiz.id }}';
     const isCreator = {{ 'true' if is_creator else 'false' }};
     
-    // Load question analysis (creator only)
     if (isCreator) {
         fetch('/live-quiz/analysis/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
                 const container = document.getElementById('analysisContent');
                 if (!container) return;
-                
                 let html = '';
-                
                 if (data.most_correct && data.most_correct.length > 0) {
                     html += `<div style="margin-bottom: 4px; font-weight: 600; color: #10B981;">✅ Most Correct Questions</div>`;
                     data.most_correct.slice(0, 3).forEach(q => {
@@ -175,7 +173,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         `;
                     });
                 }
-                
                 if (data.most_wrong && data.most_wrong.length > 0) {
                     html += `<div style="margin-top: 8px; margin-bottom: 4px; font-weight: 600; color: #EF4444;">❌ Most Wrong Questions</div>`;
                     data.most_wrong.slice(0, 3).forEach(q => {
@@ -187,11 +184,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         `;
                     });
                 }
-                
                 if (!html) {
                     html = '<div style="text-align: center; color: var(--text-muted); padding: 8px 0; font-size: 13px;">No data available</div>';
                 }
-                
                 container.innerHTML = html;
             })
             .catch(function() {
@@ -202,7 +197,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
-    // Export results
     function exportResults() {
         window.location.href = '/live-quiz/export/' + quizId;
     }

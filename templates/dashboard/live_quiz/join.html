@@ -5,6 +5,7 @@
 {% block page_title %}Join Live Quiz{% endblock %}
 
 {% block extra_css %}
+{{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 {% endblock %}
 
@@ -54,16 +55,12 @@
 document.addEventListener('DOMContentLoaded', function() {
     const input = document.querySelector('input[name="join_code"]');
     if (input) {
-        // Auto-uppercase
         input.addEventListener('input', function() {
             this.value = this.value.toUpperCase();
-            // Auto-add hyphen after 4 characters
             if (this.value.length === 4 && !this.value.includes('-')) {
                 this.value = this.value + '-';
             }
         });
-        
-        // Remove spaces
         input.addEventListener('blur', function() {
             this.value = this.value.replace(/\s/g, '');
         });

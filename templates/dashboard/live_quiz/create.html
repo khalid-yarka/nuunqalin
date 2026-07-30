@@ -5,6 +5,7 @@
 {% block page_title %}Create Live Quiz{% endblock %}
 
 {% block extra_css %}
+{{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 {% endblock %}
 
@@ -113,7 +114,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Radio button styling
     document.querySelectorAll('.question-count-options label').forEach(function(label) {
         label.addEventListener('click', function() {
             const siblings = this.parentElement.querySelectorAll('label');
