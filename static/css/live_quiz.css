@@ -1,8 +1,29 @@
 /* ============================================
-   LIVE QUIZ STYLES
+   LIVE QUIZ STYLES - COMPLETE REDESIGN
    ============================================ */
 
-/* Waiting Room */
+/* ============================================
+   GENERAL
+   ============================================ */
+
+.live-quiz-container {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.live-quiz-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 16px;
+}
+
+/* ============================================
+   WAITING ROOM
+   ============================================ */
+
 .waiting-room-pulse {
     animation: pulse 2s ease-in-out infinite;
 }
@@ -12,72 +33,808 @@
     50% { opacity: 0.5; }
 }
 
-/* Timer */
-.timer-ring {
-    transition: stroke-dashoffset 0.5s ease;
+.join-code-display {
+    background: var(--background);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
 }
 
-/* Notification Badge */
-.notification-badge {
+.join-code-display .code {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: monospace;
+    letter-spacing: 2px;
+    color: var(--primary);
+}
+
+.participant-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.participant-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--background);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+}
+
+.participant-item .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.participant-item .status-dot.active {
+    background: #10B981;
+}
+
+.participant-item .status-dot.left {
+    background: #EF4444;
+}
+
+.participant-item .badge-creator {
+    font-size: 10px;
+    background: var(--primary);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.participant-item .badge-you {
+    font-size: 10px;
+    background: #3B82F6;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.btn-start {
+    padding: 14px 32px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 18px;
+    cursor: pointer;
+    transition: var(--transition);
+    width: 100%;
+}
+
+.btn-start:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 49, 56, 0.35);
+}
+
+.btn-start:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.participant-count-badge {
+    background: var(--primary-light);
+    color: var(--primary);
+    padding: 2px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+/* ============================================
+   PLAY PAGE - QUIZ HEADER
+   ============================================ */
+
+.quiz-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.quiz-header .title-section {
+    flex: 1;
+    min-width: 0;
+}
+
+.quiz-header .title-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quiz-header .title-section .meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.quiz-header .timer-section {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.quiz-header .timer-section .question-timer {
+    font-size: 24px;
+    font-weight: 700;
+    font-family: monospace;
+    transition: color 0.3s ease;
+}
+
+.quiz-header .timer-section .question-timer.warning {
+    color: #F59E0B;
+}
+
+.quiz-header .timer-section .question-timer.danger {
+    color: #EF4444;
+    animation: pulse 0.5s ease-in-out infinite;
+}
+
+.quiz-header .timer-section .label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ============================================
+   PLAY PAGE - TOTAL QUIZ PROGRESS
+   ============================================ */
+
+.total-timer-progress {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.total-timer-progress .progress-bar-wrap {
+    flex: 1;
+    min-width: 100px;
+    height: 6px;
+    background: var(--border);
+    border-radius: 10px;
+    overflow: hidden;
     position: relative;
 }
 
-.notification-badge .badge {
-    position: absolute;
-    top: -6px;
-    right: -6px;
+.total-timer-progress .progress-bar-wrap .fill {
+    height: 100%;
     background: var(--primary);
-    color: white;
-    font-size: 10px;
+    border-radius: 10px;
+    transition: width 0.5s ease;
+}
+
+.total-timer-progress .time-display {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: monospace;
+    white-space: nowrap;
+    min-width: 60px;
+    text-align: right;
+}
+
+.total-timer-progress .time-display.warning {
+    color: #F59E0B;
+}
+
+.total-timer-progress .time-display.danger {
+    color: #EF4444;
+    animation: pulse 0.5s ease-in-out infinite;
+}
+
+.total-timer-progress .status-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* ============================================
+   PLAY PAGE - QUESTION CARD
+   ============================================ */
+
+.question-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+}
+
+.question-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 20px;
+}
+
+.options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.option-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 15px;
+    color: var(--text);
+    width: 100%;
+    text-align: left;
+}
+
+.option-btn:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.option-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.option-btn .letter {
     font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 50%;
-    min-width: 18px;
+    color: var(--text-secondary);
+    min-width: 28px;
+    flex-shrink: 0;
+}
+
+.option-btn.correct {
+    border-color: #10B981;
+    background: #ECFDF5;
+}
+
+.option-btn.correct .letter {
+    color: #10B981;
+}
+
+.option-btn.wrong {
+    border-color: #EF4444;
+    background: #FEF2F2;
+}
+
+.option-btn.wrong .letter {
+    color: #EF4444;
+}
+
+.skip-btn {
+    padding: 8px 16px;
+    background: #FEF2F2;
+    color: #DC2626;
+    border: 1px solid #FCA5A5;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    margin-top: 12px;
+    font-size: 13px;
+}
+
+.skip-btn:hover:not(:disabled) {
+    background: #FEE2E2;
+}
+
+.skip-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   PLAY PAGE - FEEDBACK
+   ============================================ */
+
+.feedback-area {
+    margin-top: 16px;
+    padding: 14px 18px;
+    border-radius: var(--radius-sm);
+}
+
+.feedback-area.success {
+    background: #ECFDF5;
+    border: 1px solid #A7F3D0;
+}
+
+.feedback-area.error {
+    background: #FEF2F2;
+    border: 1px solid #FCA5A5;
+}
+
+.feedback-area.skipped {
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+}
+
+.feedback-area .feedback-title {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.rating-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.rating-buttons button {
+    padding: 6px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.rating-buttons .haa {
+    background: #10B981;
+    color: white;
+}
+
+.rating-buttons .haa:hover:not(:disabled) {
+    background: #059669;
+}
+
+.rating-buttons .may {
+    background: #EF4444;
+    color: white;
+}
+
+.rating-buttons .may:hover:not(:disabled) {
+    background: #DC2626;
+}
+
+.rating-buttons button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   PLAY PAGE - COMPLETED STATE
+   ============================================ */
+
+.completed-state {
+    text-align: center;
+    padding: 30px 20px;
+}
+
+.completed-state .icon {
+    font-size: 56px;
+    margin-bottom: 12px;
+}
+
+.completed-state h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.completed-state p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-top: 4px;
+}
+
+.completed-state .waiting-info {
+    margin-top: 16px;
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    flex-wrap: wrap;
+}
+
+.completed-state .waiting-info .stat {
     text-align: center;
 }
 
-/* Animations */
-@keyframes slideIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
+.completed-state .waiting-info .stat .number {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary);
 }
 
-.slide-in {
-    animation: slideIn 0.3s ease;
+.completed-state .waiting-info .stat .label {
+    font-size: 12px;
+    color: var(--text-secondary);
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+/* ============================================
+   PLAY PAGE - LEADERBOARD MINI
+   ============================================ */
+
+.leaderboard-mini {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
 }
 
-.fade-in {
-    animation: fadeIn 0.4s ease;
+.leaderboard-mini .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
 }
 
-/* Confetti (for results) */
-.confetti-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 9998;
+.leaderboard-mini .header .title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.leaderboard-mini .header .rank-badge {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 2px 10px;
+    border-radius: 10px;
+}
+
+.lb-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 13px;
+}
+
+.lb-item .rank {
+    font-weight: 600;
+    color: var(--text-secondary);
+    min-width: 24px;
+}
+
+.lb-item .name {
+    color: var(--text);
+    flex: 1;
+    margin-left: 8px;
+}
+
+.lb-item .score {
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.lb-item.you {
+    background: var(--primary-light);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.lb-item .status-badge {
+    font-size: 10px;
+    padding: 1px 8px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.lb-item .status-badge.completed {
+    background: #ECFDF5;
+    color: #10B981;
+}
+
+.lb-item .status-badge.playing {
+    background: #EFF6FF;
+    color: #3B82F6;
+}
+
+.lb-item .status-badge.left {
+    background: #FEF2F2;
+    color: #EF4444;
+}
+
+/* ============================================
+   RESULTS PAGE
+   ============================================ */
+
+.result-hero {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+    border-radius: var(--radius);
+    padding: 32px 24px;
+    text-align: center;
+    color: white;
+    margin-bottom: 20px;
+}
+
+.result-hero .score {
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+.result-hero .percentage {
+    font-size: 24px;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.result-hero .rank {
+    margin-top: 8px;
+    font-size: 18px;
+    opacity: 0.9;
+}
+
+.result-hero .rank strong {
+    font-weight: 700;
+}
+
+.result-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.result-stats .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    text-align: center;
+}
+
+.result-stats .stat .number {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.result-stats .stat .label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.result-stats .stat.correct .number { color: #10B981; }
+.result-stats .stat.wrong .number { color: #EF4444; }
+.result-stats .stat.skipped .number { color: #F59E0B; }
+
+/* ============================================
+   RESULTS PAGE - ANALYSIS
+   ============================================ */
+
+.result-analysis {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.result-analysis .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 10px;
+}
+
+.result-analysis .qa-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 13px;
+}
+
+.result-analysis .qa-item:last-child {
+    border-bottom: none;
+}
+
+.result-analysis .qa-item .correct-rate {
+    color: #10B981;
+    font-weight: 600;
+}
+
+.result-analysis .qa-item .wrong-rate {
+    color: #EF4444;
+    font-weight: 600;
+}
+
+/* ============================================
+   RESULTS PAGE - LEADERBOARD FULL
+   ============================================ */
+
+.leaderboard-full {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 20px;
 }
 
-.confetti {
-    position: absolute;
-    width: 10px;
-    height: 10px;
-    top: -10px;
-    animation: confettiFall linear forwards;
+.leaderboard-full .header {
+    padding: 12px 16px;
+    background: var(--background);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-secondary);
+    display: grid;
+    grid-template-columns: 40px 1fr 60px 60px 60px 70px;
+    gap: 8px;
 }
 
-@keyframes confettiFall {
-    to {
-        transform: translateY(100vh) rotate(720deg);
-        opacity: 0;
+.leaderboard-full .row {
+    display: grid;
+    grid-template-columns: 40px 1fr 60px 60px 60px 70px;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 13px;
+    align-items: center;
+}
+
+.leaderboard-full .row:last-child {
+    border-bottom: none;
+}
+
+.leaderboard-full .row.you {
+    background: var(--primary-light);
+    font-weight: 600;
+}
+
+.leaderboard-full .row .rank-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 12px;
+    text-align: center;
+}
+
+.leaderboard-full .row .rank-badge.gold { background: #FEF3C7; color: #92400E; }
+.leaderboard-full .row .rank-badge.silver { background: #F3F4F6; color: #4B5563; }
+.leaderboard-full .row .rank-badge.bronze { background: #FEF3C7; color: #B45309; }
+.leaderboard-full .row .rank-badge.normal { background: var(--background); color: var(--text-secondary); }
+
+.leaderboard-full .row .status-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.leaderboard-full .row .status-tag.completed { background: #ECFDF5; color: #10B981; }
+.leaderboard-full .row .status-tag.left { background: #FEF2F2; color: #EF4444; }
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+    .result-stats {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .result-stats .stat .number {
+        font-size: 22px;
+    }
+
+    .leaderboard-full .header,
+    .leaderboard-full .row {
+        grid-template-columns: 30px 1fr 40px 40px 40px 50px;
+        font-size: 12px;
+        gap: 4px;
+        padding: 8px 12px;
+    }
+
+    .quiz-header .timer-section .question-timer {
+        font-size: 20px;
+    }
+
+    .question-text {
+        font-size: 16px;
+    }
+
+    .result-hero .score {
+        font-size: 40px;
+    }
+
+    .total-timer-progress {
+        padding: 8px 12px;
+        gap: 8px;
+    }
+
+    .total-timer-progress .time-display {
+        font-size: 12px;
+        min-width: 50px;
+    }
+
+    .total-timer-progress .status-label {
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .result-stats {
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 6px;
+    }
+
+    .result-stats .stat {
+        padding: 10px;
+    }
+
+    .result-stats .stat .number {
+        font-size: 18px;
+    }
+
+    .result-hero {
+        padding: 20px 16px;
+    }
+
+    .result-hero .score {
+        font-size: 32px;
+    }
+
+    .leaderboard-full .header,
+    .leaderboard-full .row {
+        grid-template-columns: 25px 1fr 30px 30px 30px 40px;
+        font-size: 11px;
+        gap: 2px;
+        padding: 6px 8px;
+    }
+
+    .live-quiz-card {
+        padding: 16px;
+    }
+
+    .question-card {
+        padding: 16px;
+    }
+
+    .option-btn {
+        padding: 10px 12px;
+        font-size: 14px;
     }
 }

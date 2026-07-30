@@ -6,125 +6,6 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
-<style>
-    .result-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 32px;
-        box-shadow: var(--shadow-sm);
-        margin-bottom: 20px;
-        text-align: center;
-    }
-    .result-score {
-        font-size: 48px;
-        font-weight: 700;
-        color: var(--primary);
-    }
-    .result-percentage {
-        font-size: 24px;
-        font-weight: 600;
-        color: var(--text-secondary);
-    }
-    .result-rank {
-        font-size: 20px;
-        font-weight: 600;
-        color: var(--text);
-    }
-    .stat-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 16px;
-        margin-top: 16px;
-    }
-    .stat-item {
-        background: var(--background);
-        padding: 16px;
-        border-radius: var(--radius-sm);
-        text-align: center;
-    }
-    .stat-item .number {
-        font-size: 24px;
-        font-weight: 700;
-    }
-    .stat-item .label {
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin-top: 2px;
-    }
-    .stat-item.correct .number { color: #10B981; }
-    .stat-item.wrong .number { color: #EF4444; }
-    .stat-item.skipped .number { color: #F59E0B; }
-    
-    .leaderboard-full {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        overflow: hidden;
-        box-shadow: var(--shadow-sm);
-    }
-    .leaderboard-full table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 14px;
-    }
-    .leaderboard-full th {
-        padding: 12px 16px;
-        text-align: left;
-        background: var(--background);
-        color: var(--text-secondary);
-        font-weight: 600;
-        border-bottom: 1px solid var(--border);
-    }
-    .leaderboard-full td {
-        padding: 10px 16px;
-        border-bottom: 1px solid var(--border);
-        color: var(--text);
-    }
-    .leaderboard-full tr.you {
-        background: var(--primary-light);
-        font-weight: 600;
-    }
-    .leaderboard-full tr:last-child td {
-        border-bottom: none;
-    }
-    .badge-rank {
-        display: inline-block;
-        padding: 2px 10px;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 12px;
-    }
-    .badge-rank.gold { background: #FEF3C7; color: #92400E; }
-    .badge-rank.silver { background: #F3F4F6; color: #4B5563; }
-    .badge-rank.bronze { background: #FEF3C7; color: #B45309; }
-    .badge-rank.normal { background: var(--background); color: var(--text-secondary); }
-    .question-analysis {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 20px 24px;
-        box-shadow: var(--shadow-sm);
-    }
-    .qa-item {
-        display: flex;
-        justify-content: space-between;
-        padding: 8px 0;
-        border-bottom: 1px solid var(--border);
-        font-size: 14px;
-    }
-    .qa-item:last-child {
-        border-bottom: none;
-    }
-    .qa-item .correct-rate {
-        color: #10B981;
-        font-weight: 600;
-    }
-    .qa-item .wrong-rate {
-        color: #EF4444;
-        font-weight: 600;
-    }
-</style>
 {% endblock %}
 
 {% block dashboard_content %}
@@ -136,7 +17,7 @@
         <span class="current">Results</span>
     </div>
 
-    <!-- Quiz Title -->
+    <!-- Quiz Info -->
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
         <div>
             <h2 style="font-size: 22px; font-weight: 700; color: var(--text);">
@@ -146,35 +27,47 @@
                 📚 {{ quiz.subjects.name if quiz.subjects else 'Unknown Subject' }} · {{ quiz.question_count }} questions
             </p>
         </div>
-        <div style="font-size: 14px; color: var(--text-secondary);">
+        <div style="font-size: 14px; color: var(--text-secondary); background: var(--background); padding: 4px 14px; border-radius: 10px;">
             👥 {{ participants|length }} participants
         </div>
     </div>
 
-    <!-- Your Score -->
+    <!-- Your Score Hero -->
     {% if user_participant %}
-    <div class="result-card">
-        <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 4px;">Your Score</div>
-        <div class="result-score">{{ user_participant.score }}</div>
-        <div class="result-percentage">
+    <div class="result-hero">
+        <div class="score">{{ user_participant.score }}</div>
+        <div class="percentage">
             {{ ((user_participant.score / (quiz.question_count * 2)) * 100)|round(0) }}%
         </div>
-        <div class="result-rank" style="margin-top: 8px;">
-            🏅 Rank: #{{ user_participant.ranking or '-' }} of {{ participants|length }}
+        <div class="rank">
+            🏅 Rank: <strong>#{{ user_participant.ranking or '-' }}</strong> of {{ participants|length }} participants
         </div>
-        
-        <div class="stat-grid">
-            <div class="stat-item correct">
-                <div class="number">✅ {{ user_participant.correct_count or 0 }}</div>
-                <div class="label">Correct</div>
-            </div>
-            <div class="stat-item wrong">
-                <div class="number">❌ {{ user_participant.wrong_count or 0 }}</div>
-                <div class="label">Wrong</div>
-            </div>
-            <div class="stat-item skipped">
-                <div class="number">⏭️ {{ user_participant.skipped_count or 0 }}</div>
-                <div class="label">Skipped</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="result-stats">
+        <div class="stat correct">
+            <div class="number">✅ {{ user_participant.correct_count or 0 }}</div>
+            <div class="label">Correct</div>
+        </div>
+        <div class="stat wrong">
+            <div class="number">❌ {{ user_participant.wrong_count or 0 }}</div>
+            <div class="label">Wrong</div>
+        </div>
+        <div class="stat skipped">
+            <div class="number">⏭️ {{ user_participant.skipped_count or 0 }}</div>
+            <div class="label">Skipped</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Question Analysis (Creator only) -->
+    {% if is_creator %}
+    <div class="result-analysis" id="analysisContainer">
+        <div class="title">📊 Question Analysis</div>
+        <div id="analysisContent">
+            <div style="text-align: center; color: var(--text-muted); padding: 8px 0; font-size: 13px;">
+                Loading analysis...
             </div>
         </div>
     </div>
@@ -186,99 +79,70 @@
             🏆 Full Leaderboard
         </h3>
         <div class="leaderboard-full">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 50px;">#</th>
-                        <th>Player</th>
-                        <th style="text-align: center;">Score</th>
-                        <th style="text-align: center;">Correct</th>
-                        <th style="text-align: center;">Wrong</th>
-                        <th style="text-align: center;">Skipped</th>
-                        <th style="text-align: center;">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in participants %}
-                        {% set isYou = p.student_id == session.user_id %}
-                        <tr class="{% if isYou %}you{% endif %}">
-                            <td>
-                                {% if loop.index == 1 %}
-                                    <span class="badge-rank gold">🥇</span>
-                                {% elif loop.index == 2 %}
-                                    <span class="badge-rank silver">🥈</span>
-                                {% elif loop.index == 3 %}
-                                    <span class="badge-rank bronze">🥉</span>
-                                {% else %}
-                                    <span class="badge-rank normal">#{{ loop.index }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {{ p.student.first_name if p.student else 'Unknown' }}
-                                {{ p.student.last_name if p.student else '' }}
-                                {% if isYou %}<span style="color: var(--primary); font-weight: 600;"> (You)</span>{% endif %}
-                                <span style="font-size: 11px; color: var(--text-muted); display: block;">
-                                    #{{ p.student.public_id if p.student else '----' }}
-                                </span>
-                            </td>
-                            <td style="text-align: center; font-weight: 700; color: var(--primary);">
-                                {{ p.score }}
-                            </td>
-                            <td style="text-align: center; color: #10B981;">
-                                {{ p.correct_count or 0 }}
-                            </td>
-                            <td style="text-align: center; color: #EF4444;">
-                                {{ p.wrong_count or 0 }}
-                            </td>
-                            <td style="text-align: center; color: #F59E0B;">
-                                {{ p.skipped_count or 0 }}
-                            </td>
-                            <td style="text-align: center;">
-                                {% if p.status == 'left' %}
-                                    <span style="font-size: 12px; color: #EF4444;">Left early</span>
-                                {% elif p.status == 'completed' %}
-                                    <span style="font-size: 12px; color: #10B981;">✅ Completed</span>
-                                {% else %}
-                                    <span style="font-size: 12px; color: var(--text-muted);">Active</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Question Analysis (Creator only) -->
-    {% if is_creator %}
-    <div style="margin-bottom: 20px;">
-        <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 12px;">
-            📊 Question Analysis
-        </h3>
-        <div class="question-analysis">
-            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">
-                Most correct and wrong questions from this quiz
+            <div class="header">
+                <span>#</span>
+                <span>Player</span>
+                <span style="text-align: center;">Score</span>
+                <span style="text-align: center;">✅</span>
+                <span style="text-align: center;">❌</span>
+                <span style="text-align: center;">Status</span>
             </div>
-            <div id="questionAnalysis">
-                <!-- Will be populated by JS -->
-                <div style="text-align: center; color: var(--text-muted); padding: 16px;">
-                    Loading analysis...
+            {% for p in participants %}
+                {% set isYou = p.student_id == session.user_id %}
+                <div class="row {% if isYou %}you{% endif %}">
+                    <span>
+                        {% if loop.index == 1 %}
+                            <span class="rank-badge gold">🥇</span>
+                        {% elif loop.index == 2 %}
+                            <span class="rank-badge silver">🥈</span>
+                        {% elif loop.index == 3 %}
+                            <span class="rank-badge bronze">🥉</span>
+                        {% else %}
+                            <span class="rank-badge normal">#{{ loop.index }}</span>
+                        {% endif %}
+                    </span>
+                    <span>
+                        {% set student = p.student or {} %}
+                        {{ student.get('first_name', 'Unknown') }}
+                        {{ student.get('last_name', '') }}
+                        {% if isYou %}<span style="color: var(--primary); font-weight: 600;"> (You)</span>{% endif %}
+                        <span style="font-size: 10px; color: var(--text-muted); display: block;">
+                            #{{ student.get('public_id', '----') }}
+                        </span>
+                    </span>
+                    <span style="text-align: center; font-weight: 700; color: var(--primary);">
+                        {{ p.score }}
+                    </span>
+                    <span style="text-align: center; color: #10B981;">
+                        {{ p.correct_count or 0 }}
+                    </span>
+                    <span style="text-align: center; color: #EF4444;">
+                        {{ p.wrong_count or 0 }}
+                    </span>
+                    <span style="text-align: center;">
+                        {% if p.status == 'left' %}
+                            <span class="status-tag left">Left early</span>
+                        {% elif p.status == 'completed' %}
+                            <span class="status-tag completed">✅ Done</span>
+                        {% else %}
+                            <span class="status-tag playing">🔄 Active</span>
+                        {% endif %}
+                    </span>
                 </div>
-            </div>
+            {% endfor %}
         </div>
     </div>
-    {% endif %}
 
     <!-- Actions -->
     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-        <a href="{{ url_for('dashboard.home') }}" style="padding: 10px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); font-weight: 500; transition: var(--transition);">
+        <a href="{{ url_for('dashboard.home') }}" style="padding: 10px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); font-weight: 500; transition: var(--transition);">
             <i class="fas fa-home"></i> Home
         </a>
-        <a href="{{ url_for('live_quiz.index') }}" style="padding: 10px 24px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); text-decoration: none; font-weight: 600; transition: var(--transition);">
+        <a href="{{ url_for('live_quiz.index') }}" style="padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); text-decoration: none; font-weight: 600; transition: var(--transition);">
             <i class="fas fa-plus"></i> New Quiz
         </a>
         {% if is_creator %}
-        <button onclick="exportResults()" style="padding: 10px 24px; background: var(--success); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
+        <button onclick="exportResults()" style="padding: 10px 20px; background: var(--success); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
             <i class="fas fa-download"></i> Export CSV
         </button>
         {% endif %}
@@ -295,38 +159,41 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/live-quiz/analysis/' + quizId)
             .then(response => response.json())
             .then(data => {
-                const container = document.getElementById('questionAnalysis');
-                if (data.most_correct || data.most_wrong) {
-                    let html = '';
-                    if (data.most_correct && data.most_correct.length > 0) {
-                        html += `<div style="margin-bottom: 8px; font-weight: 600; color: #10B981;">✅ Most Correct Questions</div>`;
-                        data.most_correct.slice(0, 3).forEach(q => {
-                            html += `
-                                <div class="qa-item">
-                                    <span>Q${q.index + 1}: ${q.text}</span>
-                                    <span class="correct-rate">${q.rate}% correct</span>
-                                </div>
-                            `;
-                        });
-                    }
-                    if (data.most_wrong && data.most_wrong.length > 0) {
-                        html += `<div style="margin-top: 12px; margin-bottom: 8px; font-weight: 600; color: #EF4444;">❌ Most Wrong Questions</div>`;
-                        data.most_wrong.slice(0, 3).forEach(q => {
-                            html += `
-                                <div class="qa-item">
-                                    <span>Q${q.index + 1}: ${q.text}</span>
-                                    <span class="wrong-rate">${q.rate}% wrong</span>
-                                </div>
-                            `;
-                        });
-                    }
-                    container.innerHTML = html;
-                } else {
-                    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 16px;">No data available</div>';
+                const container = document.getElementById('analysisContent');
+                let html = '';
+                
+                if (data.most_correct && data.most_correct.length > 0) {
+                    html += `<div style="margin-bottom: 4px; font-weight: 600; color: #10B981;">✅ Most Correct Questions</div>`;
+                    data.most_correct.slice(0, 3).forEach(q => {
+                        html += `
+                            <div class="qa-item">
+                                <span>Q${q.index + 1}: ${q.text}</span>
+                                <span class="correct-rate">${q.correct_rate}% correct</span>
+                            </div>
+                        `;
+                    });
                 }
+                
+                if (data.most_wrong && data.most_wrong.length > 0) {
+                    html += `<div style="margin-top: 8px; margin-bottom: 4px; font-weight: 600; color: #EF4444;">❌ Most Wrong Questions</div>`;
+                    data.most_wrong.slice(0, 3).forEach(q => {
+                        html += `
+                            <div class="qa-item">
+                                <span>Q${q.index + 1}: ${q.text}</span>
+                                <span class="wrong-rate">${q.wrong_rate}% wrong</span>
+                            </div>
+                        `;
+                    });
+                }
+                
+                if (!html) {
+                    html = '<div style="text-align: center; color: var(--text-muted); padding: 8px 0; font-size: 13px;">No data available</div>';
+                }
+                
+                container.innerHTML = html;
             })
             .catch(() => {
-                document.getElementById('questionAnalysis').innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 16px;">Analysis not available</div>';
+                document.getElementById('analysisContent').innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 8px 0; font-size: 13px;">Analysis not available</div>';
             });
     }
     

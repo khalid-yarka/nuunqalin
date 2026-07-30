@@ -6,6 +6,7 @@ import random
 import json
 import csv
 from io import StringIO
+import datetime
 
 live_quiz_bp = Blueprint('live_quiz', __name__, url_prefix='/live-quiz')
 
@@ -380,7 +381,7 @@ def start_quiz(quiz_id):
         supabase.table('live_quizzes')\
             .update({
                 'status': 'active',
-                'started_at': 'now()'
+                'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
             })\
             .eq('id', quiz_id)\
             .execute()
@@ -806,6 +807,23 @@ def results(quiz_id):
                 .execute()
             p['ranking'] = i
         
+        # Check if quiz should be marked as finished
+        quiz_status = quiz.get('status')
+        if quiz_status != 'finished':
+            # Check if all participants completed
+            all_completed = True
+            total_questions = quiz.get('question_count', 0)
+            for p in all_participants:
+                if p.get('current_question_index', 0) < total_questions:
+                    all_completed = False
+                    break
+            
+            if all_completed and len(all_participants) > 0:
+                supabase.table('live_quizzes')\
+                    .update({'status': 'finished', 'ended_at': datetime.datetime.now(datetime.timezone.utc).isoformat()})\
+                    .eq('id', quiz_id)\
+                    .execute()
+        
         return render_template('dashboard/live_quiz/results.html',
                              quiz=quiz,
                              is_creator=is_creator,
@@ -816,6 +834,111 @@ def results(quiz_id):
         print(f"Error loading results: {e}")
         flash('Error loading results.', 'error')
         return redirect(url_for('live_quiz.index'))
+
+
+# ============================================
+# QUIZ STATE (For participants to poll)
+# ============================================
+
+@live_quiz_bp.route('/quiz-state/<quiz_id>')
+def quiz_state(quiz_id):
+    """Get current quiz state including total timer"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    try:
+        # Get quiz
+        quiz_response = supabase.table('live_quizzes')\
+            .select('*')\
+            .eq('id', quiz_id)\
+            .execute()
+        
+        if not quiz_response.data:
+            return jsonify({'error': 'Quiz not found'}), 404
+        
+        quiz = quiz_response.data[0]
+        
+        # Check if user is participant
+        participant_response = supabase.table('live_quiz_participants')\
+            .select('*')\
+            .eq('quiz_id', quiz_id)\
+            .eq('student_id', session['user_id'])\
+            .execute()
+        
+        if not participant_response.data:
+            return jsonify({'error': 'Not a participant'}), 404
+        
+        participant = participant_response.data[0]
+        
+        # Calculate total timer
+        total_questions = quiz.get('question_count', 0)
+        time_per_question = quiz.get('time_per_question', 30)
+        rating_time = 10  # 10 seconds for rating
+        total_duration = total_questions * (time_per_question + rating_time)
+        
+        # Calculate remaining time
+        started_at = quiz.get('started_at')
+        remaining = total_duration
+        if started_at:
+            try:
+                # Handle different timestamp formats
+                if isinstance(started_at, str):
+                    started_at = started_at.replace('Z', '+00:00')
+                    started = datetime.datetime.fromisoformat(started_at)
+                else:
+                    started = started_at
+                elapsed = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds()
+                remaining = max(0, total_duration - elapsed)
+            except Exception as e:
+                print(f"Error calculating time: {e}")
+                remaining = total_duration
+        
+        # Check if timer expired
+        if remaining <= 0 and quiz.get('status') == 'active':
+            # End the quiz
+            supabase.table('live_quizzes')\
+                .update({'status': 'finished', 'ended_at': datetime.datetime.now(datetime.timezone.utc).isoformat()})\
+                .eq('id', quiz_id)\
+                .execute()
+            return jsonify({'status': 'finished', 'remaining_time': 0})
+        
+        # Get participant progress
+        current_index = participant.get('current_question_index', 0)
+        is_completed = current_index >= total_questions
+        
+        # Get all participants for leaderboard
+        all_participants = supabase.table('live_quiz_participants')\
+            .select('*, student:student_id(first_name, last_name, public_id)')\
+            .eq('quiz_id', quiz_id)\
+            .order('score', desc=True)\
+            .execute()
+        
+        participants_data = all_participants.data if all_participants.data else []
+        
+        # Calculate completed count
+        completed_count = 0
+        for p in participants_data:
+            if p.get('current_question_index', 0) >= total_questions:
+                completed_count += 1
+        
+        # Check if all participants completed
+        all_completed = completed_count == len(participants_data) and len(participants_data) > 0
+        
+        return jsonify({
+            'status': quiz.get('status'),
+            'total_duration': total_duration,
+            'remaining_time': int(remaining),
+            'completed_count': completed_count,
+            'total_participants': len(participants_data),
+            'is_completed': is_completed,
+            'current_question_index': current_index,
+            'total_questions': total_questions,
+            'all_completed': all_completed
+        })
+        
+    except Exception as e:
+        print(f"Error getting quiz state: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @live_quiz_bp.route('/analysis/<quiz_id>')
