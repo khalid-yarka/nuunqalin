@@ -27,6 +27,24 @@
         from { opacity: 0; transform: translateY(-20px); }
         to { opacity: 1; transform: translateY(0); }
     }
+    .rating-reminder {
+        margin-top: 8px;
+        padding: 8px 14px;
+        background: #FEF3C7;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        color: #92400E;
+        text-align: center;
+        border: 1px solid #FDE68A;
+    }
+    [data-theme="dark"] .rating-reminder {
+        background: #3A2E1A;
+        color: #FCD34D;
+        border-color: #92400E;
+    }
+    .question-timer.stopped {
+        color: var(--text-muted);
+    }
 </style>
 {% endblock %}
 
@@ -102,7 +120,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const quizId = '{{ quiz.id }}';
     const totalQuestions = {{ quiz.question_count }};
     const timePerQuestion = {{ quiz.time_per_question or 30 }};
-    const ratingTime = 10;
+    const ratingTime = 10; // 10 seconds for rating
     const totalDuration = totalQuestions * (timePerQuestion + ratingTime);
     
     let currentQuestionIndex = 0;
@@ -116,6 +134,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let quizEnded = false;
     let previousStatus = 'waiting';
     let notificationShown = false;
+    let answerData = null; // Store answer data for rating
+
+    // ============================================
+    // NOTIFICATION HELPERS
+    // ============================================
 
     function showNotification(text) {
         const banner = document.getElementById('notificationBanner');
@@ -158,6 +181,10 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {}
     }
 
+    // ============================================
+    // SINGLE POLLING FUNCTION
+    // ============================================
+
     function pollQuizState() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
@@ -167,12 +194,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
+                // Update total timer
                 if (data.remaining_time !== undefined) {
                     updateTotalTimer(data.remaining_time);
                 }
                 
                 const currentStatus = data.status;
                 
+                // If quiz finished - redirect to results
                 if (currentStatus === 'finished') {
                     if (!quizEnded) {
                         quizEnded = true;
@@ -181,13 +210,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
+                // If quiz became active (started) - IMMEDIATE notification + question
                 if (currentStatus === 'active' && previousStatus === 'waiting') {
+                    // Show notification with sound IMMEDIATELY
                     if (!notificationShown) {
                         notificationShown = true;
                         showNotification('🚀 Quiz has started! Get ready!');
                         playNotificationSound();
                     }
                     
+                    // Load question IMMEDIATELY
                     if (!quizStarted) {
                         quizStarted = true;
                         loadQuestion();
@@ -195,28 +227,36 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 
+                // If quiz is active and we haven't loaded a question yet
                 if (currentStatus === 'active' && quizStarted && !questionData) {
                     loadQuestion();
                     return;
                 }
                 
-                if (data.is_completed) {
+                // If quiz is active and we have a question but need to refresh
+                if (currentStatus === 'active' && quizStarted && questionData) {
+                    // Check if participant advanced (rated/skipped)
+                    if (data.current_question_index !== undefined && 
+                        data.current_question_index !== currentQuestionIndex) {
+                        // Participant advanced, load new question
+                        loadQuestion();
+                        return;
+                    }
+                }
+                
+                // Check if participant completed all questions
+                if (data.is_completed && !isCompleted) {
                     showCompletedState(data);
                     return;
                 }
                 
-                if (currentStatus === 'active' && quizStarted && questionData) {
-                    if (data.current_question_index !== undefined && 
-                        data.current_question_index !== currentQuestionIndex) {
-                        loadQuestion();
-                    }
-                }
-                
+                // If all participants completed, redirect to results
                 if (data.all_completed && currentStatus === 'active') {
                     window.location.href = '/live-quiz/results/' + quizId;
                     return;
                 }
                 
+                // Update leaderboard
                 if (currentStatus === 'active' || currentStatus === 'finished') {
                     updateLeaderboard();
                 }
@@ -225,9 +265,13 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(function(err) {
                 console.warn('Polling fetch error:', err);
-                setTimeout(pollQuizState, 3000);
+                setTimeout(pollQuizState, 2000);
             });
     }
+
+    // ============================================
+    // TOTAL TIMER MANAGEMENT
+    // ============================================
 
     function updateTotalTimer(remaining) {
         const display = document.getElementById('totalTimerDisplay');
@@ -252,6 +296,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const pct = Math.max(0, (remaining / totalDuration) * 100);
         progress.style.width = pct + '%';
     }
+
+    // ============================================
+    // COMPLETED STATE
+    // ============================================
 
     function showCompletedState(data) {
         if (isCompleted) return;
@@ -298,8 +346,13 @@ document.addEventListener('DOMContentLoaded', function() {
         return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     }
 
+    // ============================================
+    // QUESTION LOADING
+    // ============================================
+
     function loadQuestion() {
         if (isCompleted) return;
+        
         fetch('/live-quiz/get-question/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
@@ -308,13 +361,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         isCompleted = true;
                         pollQuizState();
                     } else if (data.waiting) {
-                        setTimeout(loadQuestion, 2000);
+                        setTimeout(loadQuestion, 1000);
                     }
                     return;
                 }
                 if (data.question) {
                     questionData = data;
                     currentQuestionIndex = data.index;
+                    isAnswered = false;
+                    isRated = false;
+                    answerData = null;
                     renderQuestion(data);
                     startTimer();
                     const progressBar = document.getElementById('progressBar');
@@ -329,18 +385,23 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
+    // ============================================
+    // RENDER QUESTION
+    // ============================================
+
     function renderQuestion(data) {
         const question = data.question;
         const index = data.index;
         const total = data.total;
-        isAnswered = false;
-        isRated = false;
+        
         const currentQ = document.getElementById('currentQ');
         const totalQ = document.getElementById('totalQ');
         if (currentQ) currentQ.textContent = index + 1;
         if (totalQ) totalQ.textContent = total;
+        
         const container = document.getElementById('questionContainer');
         if (!container) return;
+        
         container.innerHTML = `
             <div class="question-text">${question.question_text}</div>
             <div class="options-container" id="optionsContainer">
@@ -362,21 +423,43 @@ document.addEventListener('DOMContentLoaded', function() {
             </button>
             <div id="feedbackContainer"></div>
         `;
+        
         timer = timePerQuestion;
         updateTimerDisplay();
     }
+
+    // ============================================
+    // TIMER - FIXED: No auto-skip after answer
+    // ============================================
 
     function startTimer() {
         clearInterval(timerInterval);
         timer = timePerQuestion;
         updateTimerDisplay();
+        
         timerInterval = setInterval(() => {
             timer--;
             updateTimerDisplay();
+            
             if (timer <= 0) {
                 clearInterval(timerInterval);
+                // If NOT answered, skip (time ran out)
+                // If answered, DO NOT skip - user must rate!
                 if (!isAnswered) {
                     skipQuestion();
+                } else {
+                    // Timer hit 0 but user already answered
+                    // Show a reminder to rate
+                    const container = document.getElementById('feedbackContainer');
+                    if (container) {
+                        const existing = container.querySelector('.rating-reminder');
+                        if (!existing) {
+                            const reminder = document.createElement('div');
+                            reminder.className = 'rating-reminder';
+                            reminder.textContent = '⏰ Please rate this question to continue!';
+                            container.appendChild(reminder);
+                        }
+                    }
                 }
             }
         }, 1000);
@@ -387,20 +470,34 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!display) return;
         display.textContent = timer;
         display.className = 'question-timer';
-        if (timer <= 5) {
+        if (timer <= 5 && !isAnswered) {
             display.classList.add('danger');
-        } else if (timer <= 10) {
+        } else if (timer <= 10 && !isAnswered) {
             display.classList.add('warning');
+        } else if (isAnswered) {
+            display.classList.add('stopped');
         }
     }
+
+    // ============================================
+    // ANSWER ACTIONS - FIXED: Don't advance on answer
+    // ============================================
 
     window.selectOption = function(value) {
         if (isAnswered) return;
         isAnswered = true;
+        
         const buttons = document.querySelectorAll('.option-btn');
         buttons.forEach(b => b.disabled = true);
         const skipBtn = document.getElementById('skipBtn');
         if (skipBtn) skipBtn.disabled = true;
+        
+        // Show loading state on selected button
+        const selectedBtn = document.querySelector(`.option-btn[data-value="${value}"]`);
+        if (selectedBtn) {
+            selectedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+        }
+        
         fetch('/live-quiz/submit-answer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -412,14 +509,24 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
+            answerData = data; // Store for rating
+            
             buttons.forEach(b => {
+                b.disabled = true;
                 if (b.dataset.value === data.correct_answer) {
                     b.classList.add('correct');
                 }
                 if (b.dataset.value === value && !data.correct) {
                     b.classList.add('wrong');
                 }
+                // Reset button text
+                const letter = b.querySelector('.letter');
+                if (letter) {
+                    b.innerHTML = `<span class="letter">${letter.textContent}</span><span>${b.textContent.replace(letter.textContent, '').trim()}</span>`;
+                }
             });
+            
+            // Show feedback with rating buttons
             const container = document.getElementById('feedbackContainer');
             if (container) {
                 container.innerHTML = `
@@ -428,6 +535,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             ${data.correct ? '✅ CORRECT! +2 points' : '❌ WRONG! 0 points'}
                         </div>
                         ${data.explanation ? `<div style="font-size: 14px; margin-top: 4px; color: var(--text-secondary);">💡 ${data.explanation}</div>` : ''}
+                        <div style="margin-top: 10px; font-size: 13px; color: var(--text-secondary);">
+                            Rate this question to continue
+                        </div>
                         <div class="rating-buttons">
                             <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
                             <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
@@ -435,24 +545,48 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
             }
-            clearInterval(timerInterval);
-            updateLeaderboard();
+            
+            // Timer continues but won't auto-skip because isAnswered = true
+            updateTimerDisplay();
         })
         .catch(function(err) {
             console.error('Submit answer error:', err);
             buttons.forEach(b => b.disabled = false);
             if (skipBtn) skipBtn.disabled = false;
             isAnswered = false;
+            if (window.showToast) {
+                window.showToast('Error submitting answer. Please try again.', 'error');
+            }
         });
     };
 
+    // ============================================
+    // SKIP QUESTION - Only if not answered
+    // ============================================
+
     window.skipQuestion = function() {
-        if (isAnswered) return;
-        isAnswered = true;
+        if (isAnswered) {
+            // If already answered, don't skip - just remind to rate
+            const container = document.getElementById('feedbackContainer');
+            if (container) {
+                const existing = container.querySelector('.rating-reminder');
+                if (!existing) {
+                    const reminder = document.createElement('div');
+                    reminder.className = 'rating-reminder';
+                    reminder.textContent = '⏰ You already answered! Please rate this question to continue.';
+                    container.appendChild(reminder);
+                }
+            }
+            return;
+        }
+        
+        isAnswered = true; // Prevent double skip
+        
         const buttons = document.querySelectorAll('.option-btn');
         buttons.forEach(b => b.disabled = true);
         const skipBtn = document.getElementById('skipBtn');
         if (skipBtn) skipBtn.disabled = true;
+        
         fetch('/live-quiz/skip-question', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -463,34 +597,56 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
+            // Skip advances immediately, no rating needed
             const container = document.getElementById('feedbackContainer');
             if (container) {
                 container.innerHTML = `
                     <div class="feedback-area skipped">
                         <div class="feedback-title">⏭️ Skipped! 0 points</div>
-                        <div class="rating-buttons">
-                            <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
-                            <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
+                        <div style="margin-top: 6px; font-size: 13px; color: var(--text-secondary);">
+                            Moving to next question...
                         </div>
                     </div>
                 `;
             }
+            
             clearInterval(timerInterval);
-            updateLeaderboard();
+            // Advance immediately (no rating needed for skipped)
+            questionData = null;
+            setTimeout(function() {
+                loadQuestion();
+            }, 600);
         })
         .catch(function(err) {
             console.error('Skip question error:', err);
             buttons.forEach(b => b.disabled = false);
             if (skipBtn) skipBtn.disabled = false;
             isAnswered = false;
+            if (window.showToast) {
+                window.showToast('Error skipping question. Please try again.', 'error');
+            }
         });
     };
 
+    // ============================================
+    // SUBMIT RATING - Advances to next question
+    // ============================================
+
     window.submitRating = function(rating) {
         if (isRated) return;
+        if (!answerData) {
+            // Safety check - should not happen
+            if (window.showToast) {
+                window.showToast('Please answer the question first.', 'warning');
+            }
+            return;
+        }
+        
         isRated = true;
+        
         const buttons = document.querySelectorAll('.rating-buttons button');
         buttons.forEach(b => b.disabled = true);
+        
         fetch('/live-quiz/submit-rating', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -502,17 +658,57 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            questionData = null;
-            setTimeout(function() {
-                loadQuestion();
-            }, 800);
+            // Update feedback to show rating submitted
+            const container = document.getElementById('feedbackContainer');
+            if (container) {
+                const feedback = container.querySelector('.feedback-area');
+                if (feedback) {
+                    const ratingText = rating === 'HAA' ? '✅ HAA' : '❌ MAY';
+                    const ratingDiv = document.createElement('div');
+                    ratingDiv.style.cssText = 'margin-top: 8px; font-weight: 600; color: var(--primary);';
+                    ratingDiv.textContent = `⭐ Rated: ${ratingText}`;
+                    feedback.appendChild(ratingDiv);
+                    
+                    // Remove rating buttons
+                    const ratingBtns = feedback.querySelector('.rating-buttons');
+                    if (ratingBtns) ratingBtns.remove();
+                    
+                    // Remove reminder if exists
+                    const reminder = feedback.querySelector('.rating-reminder');
+                    if (reminder) reminder.remove();
+                }
+            }
+            
+            clearInterval(timerInterval);
+            
+            // Check if completed
+            if (data.completed) {
+                // All questions done, show completed state
+                isCompleted = true;
+                setTimeout(function() {
+                    pollQuizState(); // Refresh state to show completed
+                }, 500);
+            } else {
+                // Load next question
+                questionData = null;
+                setTimeout(function() {
+                    loadQuestion();
+                }, 600);
+            }
         })
         .catch(function(err) {
             console.error('Submit rating error:', err);
             buttons.forEach(b => b.disabled = false);
             isRated = false;
+            if (window.showToast) {
+                window.showToast('Error submitting rating. Please try again.', 'error');
+            }
         });
     };
+
+    // ============================================
+    // LEADERBOARD
+    // ============================================
 
     function updateLeaderboard() {
         fetch('/live-quiz/leaderboard/' + quizId + '?t=' + Date.now())
@@ -546,11 +742,24 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // Start polling every 2 seconds
-    setInterval(pollQuizState, 2000);
-    setTimeout(pollQuizState, 100);
-    setInterval(updateLeaderboard, 5000);
+    // ============================================
+    // INITIALIZATION
+    // ============================================
 
+    // Start polling every 1 second (faster detection)
+    const pollInterval = setInterval(pollQuizState, 1000);
+    setTimeout(pollQuizState, 100);
+    
+    // Update leaderboard every 3 seconds
+    setInterval(updateLeaderboard, 3000);
+
+    // Clean up interval on page unload
+    window.addEventListener('beforeunload', function() {
+        clearInterval(pollInterval);
+        if (timerInterval) clearInterval(timerInterval);
+    });
+
+    // Expose functions globally
     window.selectOption = selectOption;
     window.skipQuestion = skipQuestion;
     window.submitRating = submitRating;

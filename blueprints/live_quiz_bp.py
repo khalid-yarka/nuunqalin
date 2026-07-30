@@ -386,7 +386,7 @@ def start_quiz(quiz_id):
             .eq('id', quiz_id)\
             .execute()
         
-        # Reset all participants to start at question 0
+        # Reset ALL participants to start at question 0
         supabase.table('live_quiz_participants')\
             .update({
                 'current_question_index': 0,
@@ -557,17 +557,18 @@ def submit_answer():
         else:
             wrong_count += 1
         
-        # Update current question index
+        # Update current question index - ONLY if user already rated or this is the first time
         current_index = participant.get('current_question_index', 0)
-        new_index = current_index + 1
+        # Don't advance yet - wait for rating
+        # The rating will advance the question
         
+        # Save the answer but DON'T advance question yet
         supabase.table('live_quiz_participants')\
             .update({
                 'answers': answers,
                 'score': score,
                 'correct_count': correct_count,
-                'wrong_count': wrong_count,
-                'current_question_index': new_index
+                'wrong_count': wrong_count
             })\
             .eq('id', participant['id'])\
             .execute()
@@ -585,7 +586,7 @@ def submit_answer():
 
 @live_quiz_bp.route('/skip-question', methods=['POST'])
 def skip_question():
-    """Skip a question"""
+    """Skip a question (only if not answered)"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     
@@ -609,8 +610,12 @@ def skip_question():
         
         participant = participant_response.data[0]
         
-        # Update participant
+        # Check if already answered
         answers = participant.get('answers', {})
+        if question_id in answers:
+            return jsonify({'error': 'Already answered this question'}), 400
+        
+        # Update participant - skip and advance
         answers[question_id] = {
             'answer': None,
             'correct': False,
@@ -639,7 +644,7 @@ def skip_question():
 
 @live_quiz_bp.route('/submit-rating', methods=['POST'])
 def submit_rating():
-    """Submit HAA/MAY rating for a question"""
+    """Submit HAA/MAY rating and advance to next question"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     
@@ -671,12 +676,30 @@ def submit_rating():
         ratings = participant.get('ratings', {})
         ratings[question_id] = rating
         
+        # Advance to next question
+        current_index = participant.get('current_question_index', 0)
+        new_index = current_index + 1
+        
         supabase.table('live_quiz_participants')\
-            .update({'ratings': ratings})\
+            .update({
+                'ratings': ratings,
+                'current_question_index': new_index
+            })\
             .eq('id', participant['id'])\
             .execute()
         
-        return jsonify({'success': True})
+        # Check if this was the last question
+        quiz_response = supabase.table('live_quizzes')\
+            .select('question_count')\
+            .eq('id', quiz_id)\
+            .execute()
+        
+        total_questions = quiz_response.data[0].get('question_count', 0) if quiz_response.data else 0
+        
+        return jsonify({
+            'success': True,
+            'completed': new_index >= total_questions
+        })
         
     except Exception as e:
         print(f"Error submitting rating: {e}")
