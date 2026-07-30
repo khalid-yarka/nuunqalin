@@ -491,6 +491,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 12px 16px;
+    margin-bottom: 16px;
 }
 
 .leaderboard-mini .header {

@@ -6,6 +6,184 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
+<style>
+    /* ============================================
+       FALLBACK STYLES (if live_quiz.css doesn't load)
+       ============================================ */
+    .live-quiz-container {
+        max-width: 720px;
+        margin: 0 auto;
+    }
+    .quiz-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+        padding: 12px 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+    }
+    .question-timer {
+        font-size: 24px;
+        font-weight: 700;
+        font-family: monospace;
+    }
+    .question-timer.warning { color: #F59E0B; }
+    .question-timer.danger { color: #EF4444; animation: pulse 0.5s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .total-timer-progress {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 10px 16px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .total-timer-progress .progress-bar-wrap {
+        flex: 1;
+        min-width: 100px;
+        height: 6px;
+        background: var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .total-timer-progress .progress-bar-wrap .fill {
+        height: 100%;
+        background: var(--primary);
+        border-radius: 10px;
+        transition: width 0.5s ease;
+    }
+    .total-timer-progress .time-display {
+        font-size: 14px;
+        font-weight: 600;
+        font-family: monospace;
+        min-width: 60px;
+        text-align: right;
+    }
+    .question-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px;
+        box-shadow: var(--shadow-sm);
+    }
+    .question-text {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 20px;
+        line-height: 1.5;
+    }
+    .option-btn {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 16px;
+        background: var(--surface);
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 15px;
+        width: 100%;
+        text-align: left;
+        margin-bottom: 8px;
+    }
+    .option-btn:hover:not(:disabled) {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+    .option-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    .option-btn .letter {
+        font-weight: 700;
+        min-width: 28px;
+        flex-shrink: 0;
+    }
+    .option-btn.correct { border-color: #10B981; background: #ECFDF5; }
+    .option-btn.correct .letter { color: #10B981; }
+    .option-btn.wrong { border-color: #EF4444; background: #FEF2F2; }
+    .option-btn.wrong .letter { color: #EF4444; }
+    .skip-btn {
+        padding: 8px 16px;
+        background: #FEF2F2;
+        color: #DC2626;
+        border: 1px solid #FCA5A5;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        margin-top: 12px;
+        font-size: 13px;
+    }
+    .skip-btn:hover:not(:disabled) { background: #FEE2E2; }
+    .skip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .feedback-area {
+        margin-top: 16px;
+        padding: 14px 18px;
+        border-radius: var(--radius-sm);
+    }
+    .feedback-area.success { background: #ECFDF5; border: 1px solid #A7F3D0; }
+    .feedback-area.error { background: #FEF2F2; border: 1px solid #FCA5A5; }
+    .feedback-area.skipped { background: #FFFBEB; border: 1px solid #FDE68A; }
+    .rating-buttons { display: flex; gap: 10px; margin-top: 10px; }
+    .rating-buttons button {
+        padding: 6px 18px;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .rating-buttons .haa { background: #10B981; color: white; }
+    .rating-buttons .haa:hover:not(:disabled) { background: #059669; }
+    .rating-buttons .may { background: #EF4444; color: white; }
+    .rating-buttons .may:hover:not(:disabled) { background: #DC2626; }
+    .rating-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .leaderboard-mini {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 12px 16px;
+        margin-bottom: 16px;
+    }
+    .leaderboard-mini .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .lb-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 3px 0;
+        font-size: 13px;
+    }
+    .lb-item .rank { font-weight: 600; min-width: 24px; }
+    .lb-item .name { flex: 1; margin-left: 8px; }
+    .lb-item .score { font-weight: 700; color: var(--primary); }
+    .lb-item.you { background: var(--primary-light); padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+    .completed-state { text-align: center; padding: 30px 20px; }
+    .completed-state .icon { font-size: 56px; margin-bottom: 12px; }
+    .completed-state .waiting-info {
+        display: flex;
+        justify-content: center;
+        gap: 32px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+    .completed-state .waiting-info .stat { text-align: center; }
+    .completed-state .waiting-info .stat .number { font-size: 24px; font-weight: 700; color: var(--primary); }
+    .completed-state .waiting-info .stat .label { font-size: 12px; color: var(--text-secondary); }
+</style>
 {% endblock %}
 
 {% block dashboard_content %}
@@ -32,7 +210,7 @@
         <div class="progress-bar-wrap">
             <div class="fill" id="totalProgressFill" style="width: 100%;"></div>
         </div>
-        <span class="time-display" id="totalTimerDisplay">20:00</span>
+        <span class="time-display" id="totalTimerDisplay">--:--</span>
     </div>
 
     <!-- Progress Bar (per question) -->
@@ -41,7 +219,7 @@
     </div>
 
     <!-- Leaderboard (Mini) -->
-    <div class="leaderboard-mini" style="margin-bottom: 16px;" id="leaderboardContainer">
+    <div class="leaderboard-mini" id="leaderboardContainer">
         <div class="header">
             <span class="title">🏆 Live Leaderboard</span>
             <span class="rank-badge">Your Rank: <strong id="userRank">-</strong></span>
@@ -60,6 +238,9 @@
                 <div style="font-size: 48px; margin-bottom: 12px;">⏳</div>
                 <h3 style="font-size: 18px; font-weight: 600; color: var(--text);">Waiting for quiz to start...</h3>
                 <p style="font-size: 14px;">The host will start the quiz shortly</p>
+                <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+                    <i class="fas fa-spinner fa-spin"></i> Checking for updates...
+                </div>
             </div>
         </div>
     </div>
@@ -77,13 +258,47 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentQuestionIndex = 0;
     let timer = timePerQuestion;
     let timerInterval = null;
-    let totalTimerInterval = null;
     let isAnswered = false;
     let isRated = false;
     let questionData = null;
     let isCompleted = false;
     let quizStarted = false;
     let quizEnded = false;
+    let stateCheckCount = 0;
+
+    // ============================================
+    // FORCE PAGE LOAD CHECK
+    // ============================================
+
+    function forceCheckQuizStarted() {
+        fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) return;
+                
+                // If quiz is active and we haven't started
+                if (data.status === 'active' && !quizStarted) {
+                    quizStarted = true;
+                    // Reload the page to get fresh state
+                    window.location.reload();
+                    return;
+                }
+                
+                // If quiz is active and we're already started but no question
+                if (data.status === 'active' && quizStarted && !questionData) {
+                    loadQuestion();
+                    return;
+                }
+                
+                // If quiz finished
+                if (data.status === 'finished' && !quizEnded) {
+                    quizEnded = true;
+                    window.location.href = '/live-quiz/results/' + quizId;
+                    return;
+                }
+            })
+            .catch(() => {});
+    }
 
     // ============================================
     // TOTAL TIMER MANAGEMENT
@@ -92,6 +307,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateTotalTimer(remaining) {
         const display = document.getElementById('totalTimerDisplay');
         const progress = document.getElementById('totalProgressFill');
+        
+        if (!display || !progress) return;
         
         if (remaining <= 0) {
             display.textContent = '00:00';
@@ -117,10 +334,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchQuizState() {
-        fetch('/live-quiz/quiz-state/' + quizId)
+        stateCheckCount++;
+        
+        fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
-                if (data.error) return;
+                if (data.error) {
+                    // If not authenticated, maybe redirect to login
+                    return;
+                }
                 
                 // Update total timer
                 if (data.remaining_time !== undefined) {
@@ -137,7 +359,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // Check if all completed
-                if (data.all_completed) {
+                if (data.all_completed && data.status === 'active') {
                     window.location.href = '/live-quiz/results/' + quizId;
                     return;
                 }
@@ -145,17 +367,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update participant progress
                 if (data.is_completed) {
                     showCompletedState(data);
-                } else {
-                    // Load question if quiz is active
-                    if (data.status === 'active') {
-                        if (!quizStarted) {
-                            quizStarted = true;
-                            loadQuestion();
-                        }
+                    return;
+                }
+                
+                // Load question if quiz is active
+                if (data.status === 'active') {
+                    if (!quizStarted) {
+                        quizStarted = true;
+                        loadQuestion();
                     }
                 }
             })
-            .catch(() => {});
+            .catch(() => {
+                // Retry after delay
+                setTimeout(fetchQuizState, 3000);
+            });
     }
 
     // ============================================
@@ -167,6 +393,8 @@ document.addEventListener('DOMContentLoaded', function() {
         isCompleted = true;
         
         const container = document.getElementById('questionContainer');
+        if (!container) return;
+        
         container.innerHTML = `
             <div class="completed-state">
                 <div class="icon">🎉</div>
@@ -213,7 +441,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
 
     function loadQuestion() {
-        fetch('/live-quiz/get-question/' + quizId)
+        fetch('/live-quiz/get-question/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
@@ -221,6 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         // User has completed all questions
                         fetchQuizState();
                     } else if (data.waiting) {
+                        // Quiz not active yet
                         setTimeout(loadQuestion, 2000);
                     }
                     return;
@@ -251,12 +480,17 @@ document.addEventListener('DOMContentLoaded', function() {
         isRated = false;
         
         // Update counter
-        document.getElementById('currentQ').textContent = index + 1;
-        document.getElementById('totalQ').textContent = total;
-        document.getElementById('progressBar').style.width = ((index / total) * 100) + '%';
+        const currentQ = document.getElementById('currentQ');
+        const totalQ = document.getElementById('totalQ');
+        const progressBar = document.getElementById('progressBar');
+        if (currentQ) currentQ.textContent = index + 1;
+        if (totalQ) totalQ.textContent = total;
+        if (progressBar) progressBar.style.width = ((index / total) * 100) + '%';
         
         // Render question
         const container = document.getElementById('questionContainer');
+        if (!container) return;
+        
         container.innerHTML = `
             <div class="question-text">${question.question_text}</div>
             <div class="options-container" id="optionsContainer">
@@ -308,6 +542,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateTimerDisplay() {
         const display = document.getElementById('timerDisplay');
+        if (!display) return;
         display.textContent = timer;
         display.className = 'question-timer';
         if (timer <= 5) {
@@ -327,7 +562,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const buttons = document.querySelectorAll('.option-btn');
         buttons.forEach(b => b.disabled = true);
-        document.getElementById('skipBtn').disabled = true;
+        const skipBtn = document.getElementById('skipBtn');
+        if (skipBtn) skipBtn.disabled = true;
         
         fetch('/live-quiz/submit-answer', {
             method: 'POST',
@@ -352,18 +588,20 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Show feedback
             const container = document.getElementById('feedbackContainer');
-            container.innerHTML = `
-                <div class="feedback-area ${data.correct ? 'success' : 'error'}">
-                    <div class="feedback-title">
-                        ${data.correct ? '✅ CORRECT! +2 points' : '❌ WRONG! 0 points'}
+            if (container) {
+                container.innerHTML = `
+                    <div class="feedback-area ${data.correct ? 'success' : 'error'}">
+                        <div class="feedback-title">
+                            ${data.correct ? '✅ CORRECT! +2 points' : '❌ WRONG! 0 points'}
+                        </div>
+                        ${data.explanation ? `<div style="font-size: 14px; margin-top: 4px; color: var(--text-secondary);">💡 ${data.explanation}</div>` : ''}
+                        <div class="rating-buttons">
+                            <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
+                            <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
+                        </div>
                     </div>
-                    ${data.explanation ? `<div style="font-size: 14px; margin-top: 4px; color: var(--text-secondary);">💡 ${data.explanation}</div>` : ''}
-                    <div class="rating-buttons">
-                        <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
-                        <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
-                    </div>
-                </div>
-            `;
+                `;
+            }
             
             clearInterval(timerInterval);
             updateLeaderboard();
@@ -376,7 +614,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const buttons = document.querySelectorAll('.option-btn');
         buttons.forEach(b => b.disabled = true);
-        document.getElementById('skipBtn').disabled = true;
+        const skipBtn = document.getElementById('skipBtn');
+        if (skipBtn) skipBtn.disabled = true;
         
         fetch('/live-quiz/skip-question', {
             method: 'POST',
@@ -389,15 +628,17 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             const container = document.getElementById('feedbackContainer');
-            container.innerHTML = `
-                <div class="feedback-area skipped">
-                    <div class="feedback-title">⏭️ Skipped! 0 points</div>
-                    <div class="rating-buttons">
-                        <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
-                        <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
+            if (container) {
+                container.innerHTML = `
+                    <div class="feedback-area skipped">
+                        <div class="feedback-title">⏭️ Skipped! 0 points</div>
+                        <div class="rating-buttons">
+                            <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
+                            <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
             
             clearInterval(timerInterval);
             updateLeaderboard();
@@ -434,14 +675,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
 
     function updateLeaderboard() {
-        fetch('/live-quiz/leaderboard/' + quizId)
+        fetch('/live-quiz/leaderboard/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
                 const list = document.getElementById('leaderboardList');
                 const top5 = data.leaderboard || [];
                 const userRank = data.user_rank || '-';
                 
-                document.getElementById('userRank').textContent = userRank;
+                const rankBadge = document.getElementById('userRank');
+                if (rankBadge) rankBadge.textContent = userRank;
+                
+                if (!list) return;
                 
                 if (top5.length === 0) {
                     list.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 8px 0;">No scores yet</div>';
@@ -468,6 +712,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // INITIALIZATION
     // ============================================
 
+    // Force check every 2 seconds (aggressive polling)
+    setInterval(forceCheckQuizStarted, 2000);
+    
     // Check quiz state every 3 seconds
     setInterval(fetchQuizState, 3000);
     
@@ -476,6 +723,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initial load
     setTimeout(fetchQuizState, 500);
+    setTimeout(forceCheckQuizStarted, 100);
     updateLeaderboard();
 
     // Expose functions globally
