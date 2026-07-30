@@ -4,6 +4,10 @@
 
 {% block page_title %}Join Live Quiz{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
+{% endblock %}
+
 {% block dashboard_content %}
 <div style="max-width: 480px; margin: 0 auto;">
     <!-- Breadcrumb -->
@@ -27,13 +31,13 @@
                 </label>
                 <input type="text" name="join_code" placeholder="e.g., A3B9-X7K2" 
                        style="width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 18px; font-weight: 600; text-align: center; letter-spacing: 2px; background: var(--surface); color: var(--text); transition: var(--transition); text-transform: uppercase;"
-                       maxlength="9" required>
+                       maxlength="9" required autofocus>
                 <div style="margin-top: 6px; font-size: 12px; color: var(--text-muted); text-align: center;">
                     Format: 4 letters + hyphen + 4 numbers (e.g., A3B9-X7K2)
                 </div>
             </div>
 
-            <button type="submit" style="width: 100%; padding: 14px; background: var(--success); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 16px; cursor: pointer; transition: var(--transition);">
+            <button type="submit" style="width: 100%; padding: 14px; background: #10B981; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 16px; cursor: pointer; transition: var(--transition);">
                 <i class="fas fa-arrow-right"></i> Join Quiz
             </button>
         </form>
@@ -57,6 +61,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (this.value.length === 4 && !this.value.includes('-')) {
                 this.value = this.value + '-';
             }
+        });
+        
+        // Remove spaces
+        input.addEventListener('blur', function() {
+            this.value = this.value.replace(/\s/g, '');
         });
     }
 });

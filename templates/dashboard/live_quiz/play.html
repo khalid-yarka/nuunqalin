@@ -7,184 +7,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    /* ============================================
-       FALLBACK STYLES (if live_quiz.css doesn't load)
-       ============================================ */
-    .live-quiz-container {
-        max-width: 720px;
-        margin: 0 auto;
-    }
-    .quiz-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 12px;
-        padding: 12px 16px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-    }
-    .question-timer {
-        font-size: 24px;
-        font-weight: 700;
-        font-family: monospace;
-    }
-    .question-timer.warning { color: #F59E0B; }
-    .question-timer.danger { color: #EF4444; animation: pulse 0.5s ease-in-out infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-    .total-timer-progress {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 10px 16px;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-    .total-timer-progress .progress-bar-wrap {
-        flex: 1;
-        min-width: 100px;
-        height: 6px;
-        background: var(--border);
-        border-radius: 10px;
-        overflow: hidden;
-    }
-    .total-timer-progress .progress-bar-wrap .fill {
-        height: 100%;
-        background: var(--primary);
-        border-radius: 10px;
-        transition: width 0.5s ease;
-    }
-    .total-timer-progress .time-display {
-        font-size: 14px;
-        font-weight: 600;
-        font-family: monospace;
-        min-width: 60px;
-        text-align: right;
-    }
-    .question-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 24px;
-        box-shadow: var(--shadow-sm);
-    }
-    .question-text {
-        font-size: 18px;
-        font-weight: 600;
-        margin-bottom: 20px;
-        line-height: 1.5;
-    }
-    .option-btn {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 12px 16px;
-        background: var(--surface);
-        border: 2px solid var(--border);
-        border-radius: var(--radius-sm);
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 15px;
-        width: 100%;
-        text-align: left;
-        margin-bottom: 8px;
-    }
-    .option-btn:hover:not(:disabled) {
-        border-color: var(--primary);
-        background: var(--primary-light);
-    }
-    .option-btn:disabled {
-        cursor: not-allowed;
-        opacity: 0.6;
-    }
-    .option-btn .letter {
-        font-weight: 700;
-        min-width: 28px;
-        flex-shrink: 0;
-    }
-    .option-btn.correct { border-color: #10B981; background: #ECFDF5; }
-    .option-btn.correct .letter { color: #10B981; }
-    .option-btn.wrong { border-color: #EF4444; background: #FEF2F2; }
-    .option-btn.wrong .letter { color: #EF4444; }
-    .skip-btn {
-        padding: 8px 16px;
-        background: #FEF2F2;
-        color: #DC2626;
-        border: 1px solid #FCA5A5;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        cursor: pointer;
-        transition: var(--transition);
-        margin-top: 12px;
-        font-size: 13px;
-    }
-    .skip-btn:hover:not(:disabled) { background: #FEE2E2; }
-    .skip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .feedback-area {
-        margin-top: 16px;
-        padding: 14px 18px;
-        border-radius: var(--radius-sm);
-    }
-    .feedback-area.success { background: #ECFDF5; border: 1px solid #A7F3D0; }
-    .feedback-area.error { background: #FEF2F2; border: 1px solid #FCA5A5; }
-    .feedback-area.skipped { background: #FFFBEB; border: 1px solid #FDE68A; }
-    .rating-buttons { display: flex; gap: 10px; margin-top: 10px; }
-    .rating-buttons button {
-        padding: 6px 18px;
-        border: none;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 13px;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-    .rating-buttons .haa { background: #10B981; color: white; }
-    .rating-buttons .haa:hover:not(:disabled) { background: #059669; }
-    .rating-buttons .may { background: #EF4444; color: white; }
-    .rating-buttons .may:hover:not(:disabled) { background: #DC2626; }
-    .rating-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .leaderboard-mini {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 12px 16px;
-        margin-bottom: 16px;
-    }
-    .leaderboard-mini .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 6px;
-    }
-    .lb-item {
-        display: flex;
-        justify-content: space-between;
-        padding: 3px 0;
-        font-size: 13px;
-    }
-    .lb-item .rank { font-weight: 600; min-width: 24px; }
-    .lb-item .name { flex: 1; margin-left: 8px; }
-    .lb-item .score { font-weight: 700; color: var(--primary); }
-    .lb-item.you { background: var(--primary-light); padding: 3px 8px; border-radius: 6px; font-weight: 600; }
-    .completed-state { text-align: center; padding: 30px 20px; }
-    .completed-state .icon { font-size: 56px; margin-bottom: 12px; }
-    .completed-state .waiting-info {
-        display: flex;
-        justify-content: center;
-        gap: 32px;
-        flex-wrap: wrap;
-        margin-top: 16px;
-    }
-    .completed-state .waiting-info .stat { text-align: center; }
-    .completed-state .waiting-info .stat .number { font-size: 24px; font-weight: 700; color: var(--primary); }
-    .completed-state .waiting-info .stat .label { font-size: 12px; color: var(--text-secondary); }
-    
-    /* Notification banner */
+    /* Additional styles for notification banner */
     .quiz-notification {
         background: var(--primary);
         color: white;
@@ -195,6 +18,7 @@
         font-weight: 600;
         animation: slideDown 0.5s ease;
         display: none;
+        box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25);
     }
     .quiz-notification.show {
         display: block;
@@ -303,7 +127,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (banner && textEl) {
             textEl.textContent = text;
             banner.classList.add('show');
-            // Auto-hide after 5 seconds
             clearTimeout(banner._hideTimeout);
             banner._hideTimeout = setTimeout(function() {
                 banner.classList.remove('show');
@@ -324,7 +147,6 @@ document.addEventListener('DOMContentLoaded', function() {
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
             oscillator.start(audioCtx.currentTime);
             oscillator.stop(audioCtx.currentTime + 0.3);
-            // Second beep
             setTimeout(function() {
                 const osc2 = audioCtx.createOscillator();
                 const gain2 = audioCtx.createGain();
@@ -403,17 +225,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // If quiz is active and we have a question but it's stale, reload
                 if (currentStatus === 'active' && quizStarted && questionData) {
-                    // Check if we need to advance to next question
                     if (data.current_question_index !== undefined && 
                         data.current_question_index !== currentQuestionIndex) {
-                        // Participant advanced, load new question
                         loadQuestion();
                     }
                 }
                 
                 // Update completed count in waiting state
                 if (data.all_completed && currentStatus === 'active') {
-                    // All participants completed, redirect to results
                     window.location.href = '/live-quiz/results/' + quizId;
                     return;
                 }
@@ -427,7 +246,6 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(function(err) {
                 console.warn('Polling fetch error:', err);
-                // Retry after delay
                 setTimeout(pollQuizState, 3000);
             });
     }
@@ -494,7 +312,6 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         
-        // Update waiting timer
         if (data.remaining_time) {
             let remaining = data.remaining_time;
             const timerDisplay = document.getElementById('waitingTimer');
@@ -519,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // QUESTION LOADING - IMPROVED
+    // QUESTION LOADING
     // ============================================
 
     function loadQuestion() {
@@ -530,11 +347,9 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.error) {
                     if (data.completed) {
-                        // User has completed all questions
                         isCompleted = true;
-                        pollQuizState(); // Refresh state
+                        pollQuizState();
                     } else if (data.waiting) {
-                        // Quiz not active yet
                         setTimeout(loadQuestion, 2000);
                     }
                     return;
@@ -545,7 +360,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentQuestionIndex = data.index;
                     renderQuestion(data);
                     startTimer();
-                    // Update progress bar
                     const progressBar = document.getElementById('progressBar');
                     if (progressBar) {
                         progressBar.style.width = ((data.index / data.total) * 100) + '%';
@@ -570,13 +384,11 @@ document.addEventListener('DOMContentLoaded', function() {
         isAnswered = false;
         isRated = false;
         
-        // Update counter
         const currentQ = document.getElementById('currentQ');
         const totalQ = document.getElementById('totalQ');
         if (currentQ) currentQ.textContent = index + 1;
         if (totalQ) totalQ.textContent = total;
         
-        // Render question
         const container = document.getElementById('questionContainer');
         if (!container) return;
         
@@ -602,7 +414,6 @@ document.addEventListener('DOMContentLoaded', function() {
             <div id="feedbackContainer"></div>
         `;
         
-        // Reset timer
         timer = timePerQuestion;
         updateTimerDisplay();
     }
@@ -665,7 +476,6 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            // Highlight correct/incorrect
             buttons.forEach(b => {
                 if (b.dataset.value === data.correct_answer) {
                     b.classList.add('correct');
@@ -675,7 +485,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             
-            // Show feedback
             const container = document.getElementById('feedbackContainer');
             if (container) {
                 container.innerHTML = `
@@ -697,7 +506,6 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(function(err) {
             console.error('Submit answer error:', err);
-            // Re-enable buttons on error
             buttons.forEach(b => b.disabled = false);
             if (skipBtn) skipBtn.disabled = false;
             isAnswered = false;
@@ -765,8 +573,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            // Load next question after delay
-            questionData = null; // Clear current question
+            questionData = null;
             setTimeout(function() {
                 loadQuestion();
             }, 800);
@@ -822,7 +629,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // INITIALIZATION - SINGLE POLLING LOOP
     // ============================================
 
-    // Start polling every 2 seconds (increased frequency for better responsiveness)
+    // Start polling every 2 seconds
     setInterval(pollQuizState, 2000);
     
     // Initial poll immediately

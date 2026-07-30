@@ -4,6 +4,10 @@
 
 {% block page_title %}Create Live Quiz{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
+{% endblock %}
+
 {% block dashboard_content %}
 <div style="max-width: 640px; margin: 0 auto;">
     <!-- Breadcrumb -->
@@ -71,10 +75,10 @@
                 <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
                     📝 Number of Questions <span style="color: var(--primary);">*</span>
                 </label>
-                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;">
+                <div class="question-count-options">
                     {% for n in [10, 15, 20, 25, 30] %}
-                        <label style="display: flex; align-items: center; justify-content: center; padding: 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); font-weight: 600; font-size: 15px; color: var(--text);">
-                            <input type="radio" name="question_count" value="{{ n }}" {% if n == 10 %}checked{% endif %} style="display: none;">
+                        <label class="{% if n == 10 %}selected{% endif %}">
+                            <input type="radio" name="question_count" value="{{ n }}" {% if n == 10 %}checked{% endif %}>
                             <span>{{ n }}</span>
                         </label>
                     {% endfor %}
@@ -110,25 +114,18 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Radio button styling
-    document.querySelectorAll('input[type="radio"]').forEach(function(radio) {
-        radio.addEventListener('change', function() {
-            const parent = this.closest('label');
-            const siblings = parent.parentElement.querySelectorAll('label');
+    document.querySelectorAll('.question-count-options label').forEach(function(label) {
+        label.addEventListener('click', function() {
+            const siblings = this.parentElement.querySelectorAll('label');
             siblings.forEach(function(s) {
-                s.style.borderColor = 'var(--border)';
-                s.style.background = 'var(--surface)';
+                s.classList.remove('selected');
             });
-            if (this.checked) {
-                parent.style.borderColor = 'var(--primary)';
-                parent.style.background = 'var(--primary-light)';
+            this.classList.add('selected');
+            const radio = this.querySelector('input[type="radio"]');
+            if (radio) {
+                radio.checked = true;
             }
         });
-        // Check initial state
-        if (radio.checked) {
-            const parent = radio.closest('label');
-            parent.style.borderColor = 'var(--primary)';
-            parent.style.background = 'var(--primary-light)';
-        }
     });
 });
 </script>
