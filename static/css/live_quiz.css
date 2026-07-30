@@ -748,6 +748,117 @@
 .leaderboard-full .row .status-tag.left { background: #FEF2F2; color: #EF4444; }
 
 /* ============================================
+   DARK MODE OVERRIDES
+   ============================================ */
+
+[data-theme="dark"] .quiz-header {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .total-timer-progress {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .question-card {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .option-btn {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .option-btn:hover:not(:disabled) {
+    border-color: var(--primary) !important;
+    background: var(--primary-light) !important;
+}
+
+[data-theme="dark"] .option-btn.correct {
+    border-color: #10B981 !important;
+    background: #1A3A2E !important;
+}
+
+[data-theme="dark"] .option-btn.wrong {
+    border-color: #EF4444 !important;
+    background: #3A1A1A !important;
+}
+
+[data-theme="dark"] .leaderboard-mini {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .leaderboard-full {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .leaderboard-full .header {
+    background: var(--surface-alt) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .leaderboard-full .row {
+    border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] .leaderboard-full .row.you {
+    background: var(--primary-light) !important;
+}
+
+[data-theme="dark"] .result-stats .stat {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .result-analysis {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .result-analysis .qa-item {
+    border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] .join-code-display {
+    background: var(--surface-alt) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .participant-item {
+    background: var(--surface-alt) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .live-quiz-card {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .feedback-area.success {
+    background: #1A3A2E !important;
+    border-color: #10B981 !important;
+}
+
+[data-theme="dark"] .feedback-area.error {
+    background: #3A1A1A !important;
+    border-color: #EF4444 !important;
+}
+
+[data-theme="dark"] .feedback-area.skipped {
+    background: #3A2E1A !important;
+    border-color: #F59E0B !important;
+}
+
+[data-theme="dark"] .lb-item.you {
+    background: var(--primary-light) !important;
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
 
@@ -794,6 +905,14 @@
     .total-timer-progress .status-label {
         font-size: 10px;
     }
+
+    .join-code-display .code {
+        font-size: 22px;
+    }
+
+    .participant-list {
+        max-height: 200px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -838,4 +957,376 @@
         padding: 10px 12px;
         font-size: 14px;
     }
+
+    .question-text {
+        font-size: 15px;
+    }
+
+    .join-code-display .code {
+        font-size: 18px;
+        letter-spacing: 1px;
+    }
+
+    .join-code-display {
+        padding: 12px 16px;
+    }
+
+    .quiz-header .title-section h3 {
+        font-size: 14px;
+    }
+
+    .quiz-header .timer-section .question-timer {
+        font-size: 18px;
+    }
+
+    .btn-start {
+        font-size: 16px;
+        padding: 12px 24px;
+    }
+
+    .participant-item {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+
+    .participant-item .public-id {
+        display: none;
+    }
+
+    .completed-state .waiting-info {
+        gap: 16px;
+    }
+
+    .completed-state .waiting-info .stat .number {
+        font-size: 20px;
+    }
+
+    .rating-buttons button {
+        padding: 4px 14px;
+        font-size: 12px;
+    }
+
+    .skip-btn {
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+}
+
+@media (max-width: 360px) {
+    .result-stats {
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 4px;
+    }
+
+    .result-stats .stat {
+        padding: 8px 4px;
+    }
+
+    .result-stats .stat .number {
+        font-size: 16px;
+    }
+
+    .leaderboard-full .header,
+    .leaderboard-full .row {
+        grid-template-columns: 20px 1fr 25px 25px 25px 30px;
+        font-size: 10px;
+        gap: 2px;
+        padding: 4px 6px;
+    }
+
+    .question-text {
+        font-size: 14px;
+    }
+
+    .option-btn {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    .option-btn .letter {
+        min-width: 22px;
+    }
+
+    .quiz-header {
+        padding: 8px 12px;
+    }
+
+    .quiz-header .title-section h3 {
+        font-size: 13px;
+    }
+
+    .quiz-header .timer-section .question-timer {
+        font-size: 16px;
+    }
+
+    .total-timer-progress {
+        padding: 6px 10px;
+    }
+
+    .total-timer-progress .time-display {
+        font-size: 11px;
+        min-width: 40px;
+    }
+
+    .total-timer-progress .status-label {
+        font-size: 9px;
+    }
+
+    .join-code-display .code {
+        font-size: 16px;
+    }
+
+    .join-code-display .copy-btn {
+        font-size: 11px;
+        padding: 4px 10px;
+    }
+
+    .result-hero .score {
+        font-size: 28px;
+    }
+
+    .result-hero .percentage {
+        font-size: 18px;
+    }
+
+    .result-hero .rank {
+        font-size: 14px;
+    }
+}
+
+/* ============================================
+   UTILITY - SCROLLBAR STYLING
+   ============================================ */
+
+.participant-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.participant-list::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 10px;
+}
+
+.participant-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
+}
+
+.participant-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-up {
+    animation: slideUp 0.4s ease forwards;
+}
+
+/* ============================================
+   NOTIFICATION BANNER
+   ============================================ */
+
+.quiz-notification {
+    background: var(--primary);
+    color: white;
+    padding: 12px 20px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+    text-align: center;
+    font-weight: 600;
+    animation: slideDown 0.5s ease;
+    display: none;
+    box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25);
+}
+
+.quiz-notification.show {
+    display: block;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================
+   WAITING ROOM - SHARE BUTTONS
+   ============================================ */
+
+.share-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.share-buttons a {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 13px;
+    text-decoration: none;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.share-buttons .whatsapp {
+    background: #25D366;
+    color: white;
+}
+
+.share-buttons .whatsapp:hover {
+    background: #1DA851;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35);
+}
+
+.share-buttons .telegram {
+    background: #0088CC;
+    color: white;
+}
+
+.share-buttons .telegram:hover {
+    background: #006699;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 136, 204, 0.35);
+}
+
+/* ============================================
+   CREATE PAGE - RADIO BUTTON STYLING
+   ============================================ */
+
+.question-count-options {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+}
+
+.question-count-options label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text);
+}
+
+.question-count-options label:hover {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.question-count-options label.selected {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.question-count-options input[type="radio"] {
+    display: none;
+}
+
+/* ============================================
+   LOADING STATES
+   ============================================ */
+
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top: 2px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ============================================
+   TOOLTIP
+   ============================================ */
+
+.tooltip {
+    position: relative;
+    cursor: pointer;
+}
+
+.tooltip .tooltip-text {
+    visibility: hidden;
+    width: 200px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-align: center;
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    position: absolute;
+    z-index: 100;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    box-shadow: var(--shadow-md);
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.tooltip .tooltip-text::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: var(--border) transparent transparent transparent;
+}
+
+.tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
 }

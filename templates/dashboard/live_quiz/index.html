@@ -7,16 +7,44 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
+    /* ============================================
+       LIVE QUIZ LANDING PAGE STYLES
+       ============================================ */
     .live-quiz-landing {
         max-width: 900px;
         margin: 0 auto;
     }
+
+    .live-quiz-landing .header-section {
+        margin-bottom: 28px;
+    }
+
+    .live-quiz-landing .header-section h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .live-quiz-landing .header-section h2 .icon {
+        font-size: 28px;
+    }
+
+    .live-quiz-landing .header-section p {
+        color: var(--text-secondary);
+        font-size: 15px;
+        margin-top: 4px;
+    }
+
     .live-quiz-landing .action-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 24px;
-        margin-top: 8px;
+        margin-bottom: 32px;
     }
+
     .live-quiz-landing .action-card {
         background: var(--surface);
         border: 2px solid var(--border);
@@ -24,82 +52,271 @@
         padding: 40px 32px;
         text-align: center;
         text-decoration: none;
-        transition: all 0.3s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: var(--shadow-sm);
         display: flex;
         flex-direction: column;
         align-items: center;
+        position: relative;
+        overflow: hidden;
     }
+
+    .live-quiz-landing .action-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: transparent;
+        transition: background 0.3s ease;
+    }
+
     .live-quiz-landing .action-card:hover {
-        transform: translateY(-4px);
+        transform: translateY(-6px);
         border-color: var(--primary);
         box-shadow: var(--shadow-lg);
     }
-    .live-quiz-landing .action-card .icon {
+
+    .live-quiz-landing .action-card:hover::before {
+        background: var(--primary);
+    }
+
+    .live-quiz-landing .action-card.featured {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+
+    .live-quiz-landing .action-card.featured::before {
+        background: var(--primary);
+    }
+
+    .live-quiz-landing .action-card .card-icon {
         font-size: 52px;
         margin-bottom: 12px;
+        line-height: 1;
     }
+
     .live-quiz-landing .action-card h3 {
         font-size: 20px;
         font-weight: 700;
         color: var(--text);
-        margin: 0;
+        margin: 0 0 4px 0;
     }
+
     .live-quiz-landing .action-card p {
         color: var(--text-secondary);
         font-size: 14px;
-        margin-top: 4px;
-        margin-bottom: 16px;
+        margin: 0 0 20px 0;
+        line-height: 1.5;
+        max-width: 280px;
     }
+
     .live-quiz-landing .action-card .btn {
         display: inline-block;
         padding: 10px 28px;
         border-radius: var(--radius-sm);
         font-weight: 600;
         font-size: 14px;
-        transition: var(--transition);
+        transition: all 0.3s ease;
+        text-decoration: none;
     }
+
     .live-quiz-landing .action-card .btn-primary {
         background: var(--primary);
         color: white;
+        box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25);
     }
+
     .live-quiz-landing .action-card .btn-primary:hover {
         background: var(--primary-hover);
         transform: translateY(-2px);
-        box-shadow: 0 4px 14px rgba(255, 49, 56, 0.35);
+        box-shadow: 0 6px 20px rgba(255, 49, 56, 0.35);
     }
+
     .live-quiz-landing .action-card .btn-success {
         background: #10B981;
         color: white;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
     }
+
     .live-quiz-landing .action-card .btn-success:hover {
         background: #059669;
         transform: translateY(-2px);
-        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
     }
-    .live-quiz-landing .action-card.featured {
-        border-color: var(--primary);
+
+    .live-quiz-landing .action-card .badge-new {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: var(--primary);
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 10px;
+        border-radius: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Info Section */
+    .live-quiz-landing .info-section {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px 28px;
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .live-quiz-landing .info-section .info-icon {
+        font-size: 28px;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+
+    .live-quiz-landing .info-section .info-content h4 {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0 0 2px 0;
+    }
+
+    .live-quiz-landing .info-section .info-content p {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin: 0;
+        line-height: 1.6;
+    }
+
+    .live-quiz-landing .info-section .info-content p strong {
+        color: var(--primary);
+    }
+
+    .live-quiz-landing .info-section .info-content .steps {
+        display: flex;
+        gap: 20px;
+        margin-top: 8px;
+        flex-wrap: wrap;
+    }
+
+    .live-quiz-landing .info-section .info-content .steps .step {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .live-quiz-landing .info-section .info-content .steps .step .num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
         background: var(--primary-light);
+        color: var(--primary);
+        font-weight: 700;
+        font-size: 12px;
     }
+
+    /* Responsive */
     @media (max-width: 768px) {
         .live-quiz-landing .action-grid {
             grid-template-columns: 1fr;
             gap: 16px;
         }
+
         .live-quiz-landing .action-card {
             padding: 28px 20px;
         }
-        .live-quiz-landing .action-card .icon {
+
+        .live-quiz-landing .action-card .card-icon {
             font-size: 40px;
         }
+
+        .live-quiz-landing .action-card h3 {
+            font-size: 18px;
+        }
+
+        .live-quiz-landing .info-section {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .live-quiz-landing .info-section .info-content .steps {
+            justify-content: center;
+        }
     }
+
     @media (max-width: 480px) {
         .live-quiz-landing .action-card {
             padding: 20px 16px;
         }
-        .live-quiz-landing .action-card h3 {
-            font-size: 17px;
+
+        .live-quiz-landing .action-card .card-icon {
+            font-size: 34px;
         }
+
+        .live-quiz-landing .action-card h3 {
+            font-size: 16px;
+        }
+
+        .live-quiz-landing .action-card p {
+            font-size: 13px;
+            margin-bottom: 14px;
+        }
+
+        .live-quiz-landing .action-card .btn {
+            font-size: 13px;
+            padding: 8px 20px;
+        }
+
+        .live-quiz-landing .header-section h2 {
+            font-size: 20px;
+        }
+
+        .live-quiz-landing .info-section {
+            padding: 16px;
+        }
+
+        .live-quiz-landing .info-section .info-content .steps {
+            flex-direction: column;
+            gap: 6px;
+            align-items: center;
+        }
+    }
+
+    /* Dark Mode Overrides */
+    [data-theme="dark"] .live-quiz-landing .action-card {
+        background: var(--surface);
+        border-color: var(--border);
+    }
+
+    [data-theme="dark"] .live-quiz-landing .action-card.featured {
+        background: var(--surface-alt);
+        border-color: var(--primary);
+    }
+
+    [data-theme="dark"] .live-quiz-landing .action-card:hover {
+        border-color: var(--primary);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    [data-theme="dark"] .live-quiz-landing .info-section {
+        background: var(--surface);
+        border-color: var(--border);
+    }
+
+    [data-theme="dark"] .live-quiz-landing .info-section .info-content .steps .step .num {
+        background: var(--primary-light);
+        color: var(--primary);
     }
 </style>
 {% endblock %}
@@ -114,47 +331,56 @@
     </div>
 
     <!-- Header -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
-        <div>
-            <h2 style="font-size: 24px; font-weight: 700; color: var(--text);">
-                ⚡ Live Quiz
-            </h2>
-            <p style="color: var(--text-secondary); font-size: 15px; margin-top: 2px;">
-                Host real-time quizzes or join ongoing ones
-            </p>
-        </div>
+    <div class="header-section">
+        <h2>
+            <span class="icon">⚡</span> Live Quiz
+        </h2>
+        <p>Host real-time quizzes or join ongoing ones with friends</p>
     </div>
 
-    <!-- Two Column Action Grid -->
+    <!-- Action Grid -->
     <div class="action-grid">
         <!-- Create Quiz Card -->
         <a href="{{ url_for('live_quiz.create') }}" class="action-card featured">
-            <div class="icon">🎯</div>
+            <span class="badge-new">New</span>
+            <div class="card-icon">🎯</div>
             <h3>Create a Quiz</h3>
-            <p>Host a live quiz and invite participants</p>
+            <p>Host a live quiz competition and invite participants with a unique code</p>
             <span class="btn btn-primary">Get Started →</span>
         </a>
 
         <!-- Join Quiz Card -->
         <a href="{{ url_for('live_quiz.join') }}" class="action-card">
-            <div class="icon">🔑</div>
+            <div class="card-icon">🔑</div>
             <h3>Join a Quiz</h3>
-            <p>Enter a join code to participate</p>
+            <p>Enter a join code to participate in an existing live quiz</p>
             <span class="btn btn-success">Enter Code →</span>
         </a>
     </div>
 
-    <!-- Info Section -->
-    <div style="margin-top: 32px; padding: 20px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm);">
-        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <span style="font-size: 24px;">💡</span>
-            <div>
-                <h4 style="font-size: 15px; font-weight: 600; color: var(--text); margin: 0;">How it works</h4>
-                <p style="font-size: 13px; color: var(--text-secondary); margin: 2px 0 0 0;">
-                    Create a quiz, share the join code, and compete with friends in real-time!
-                    Each correct answer gives you <strong>2 points</strong>.
-                </p>
+    <!-- How It Works -->
+    <div class="info-section">
+        <div class="info-icon">💡</div>
+        <div class="info-content">
+            <h4>How Live Quiz Works</h4>
+            <p>Create a quiz, share the join code with friends, and compete in real-time!</p>
+            <div class="steps">
+                <span class="step">
+                    <span class="num">1</span> Create or join
+                </span>
+                <span class="step">
+                    <span class="num">2</span> Share the code
+                </span>
+                <span class="step">
+                    <span class="num">3</span> Answer questions
+                </span>
+                <span class="step">
+                    <span class="num">4</span> <strong>Win!</strong>
+                </span>
             </div>
+            <p style="margin-top: 6px; font-size: 12px; color: var(--text-muted);">
+                Each correct answer gives you <strong>2 points</strong>. Rate questions with HAA/MAY to help improve the quiz!
+            </p>
         </div>
     </div>
 </div>
