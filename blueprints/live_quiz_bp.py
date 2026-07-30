@@ -386,6 +386,20 @@ def start_quiz(quiz_id):
             .eq('id', quiz_id)\
             .execute()
         
+        # Reset all participants to start at question 0
+        supabase.table('live_quiz_participants')\
+            .update({
+                'current_question_index': 0,
+                'score': 0,
+                'correct_count': 0,
+                'wrong_count': 0,
+                'skipped_count': 0,
+                'answers': {},
+                'ratings': {}
+            })\
+            .eq('quiz_id', quiz_id)\
+            .execute()
+        
         return jsonify({'success': True, 'quiz_id': quiz_id})
         
     except Exception as e:
@@ -432,10 +446,12 @@ def get_question(quiz_id):
         
         quiz = quiz_response.data[0]
         
-        # Check if quiz is active
+        # Check if quiz is finished
+        if quiz['status'] == 'finished':
+            return jsonify({'completed': True, 'status': 'finished'})
+        
+        # If quiz is not active, return waiting status
         if quiz['status'] != 'active':
-            if quiz['status'] == 'finished':
-                return jsonify({'completed': True})
             return jsonify({'waiting': True, 'status': quiz['status']})
         
         # Get participant
@@ -452,7 +468,7 @@ def get_question(quiz_id):
         current_index = participant.get('current_question_index', 0)
         total_questions = quiz.get('question_count', 0)
         
-        # Check if quiz is complete
+        # Check if participant completed all questions
         if current_index >= total_questions:
             return jsonify({'completed': True})
         
@@ -881,7 +897,6 @@ def quiz_state(quiz_id):
         remaining = total_duration
         if started_at:
             try:
-                # Handle different timestamp formats
                 if isinstance(started_at, str):
                     started_at = started_at.replace('Z', '+00:00')
                     started = datetime.datetime.fromisoformat(started_at)

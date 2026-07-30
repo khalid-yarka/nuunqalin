@@ -183,11 +183,36 @@
     .completed-state .waiting-info .stat { text-align: center; }
     .completed-state .waiting-info .stat .number { font-size: 24px; font-weight: 700; color: var(--primary); }
     .completed-state .waiting-info .stat .label { font-size: 12px; color: var(--text-secondary); }
+    
+    /* Notification banner */
+    .quiz-notification {
+        background: var(--primary);
+        color: white;
+        padding: 12px 20px;
+        border-radius: var(--radius-sm);
+        margin-bottom: 16px;
+        text-align: center;
+        font-weight: 600;
+        animation: slideDown 0.5s ease;
+        display: none;
+    }
+    .quiz-notification.show {
+        display: block;
+    }
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 </style>
 {% endblock %}
 
 {% block dashboard_content %}
 <div class="live-quiz-container">
+
+    <!-- Notification Banner -->
+    <div class="quiz-notification" id="notificationBanner">
+        🚀 <span id="notificationText">Quiz has started!</span>
+    </div>
 
     <!-- Quiz Header -->
     <div class="quiz-header">
@@ -199,7 +224,7 @@
             </div>
         </div>
         <div class="timer-section">
-            <div class="question-timer" id="timerDisplay">30</div>
+            <div class="question-timer" id="timerDisplay">--</div>
             <div class="label">seconds</div>
         </div>
     </div>
@@ -234,6 +259,7 @@
     <!-- Question Card -->
     <div class="question-card" id="questionCard">
         <div id="questionContainer">
+            <!-- Initial waiting state -->
             <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
                 <div style="font-size: 48px; margin-bottom: 12px;">⏳</div>
                 <h3 style="font-size: 18px; font-weight: 600; color: var(--text);">Waiting for quiz to start...</h3>
@@ -264,40 +290,146 @@ document.addEventListener('DOMContentLoaded', function() {
     let isCompleted = false;
     let quizStarted = false;
     let quizEnded = false;
-    let stateCheckCount = 0;
+    let previousStatus = 'waiting';
+    let notificationShown = false;
 
     // ============================================
-    // FORCE PAGE LOAD CHECK
+    // NOTIFICATION HELPERS
     // ============================================
 
-    function forceCheckQuizStarted() {
+    function showNotification(text) {
+        const banner = document.getElementById('notificationBanner');
+        const textEl = document.getElementById('notificationText');
+        if (banner && textEl) {
+            textEl.textContent = text;
+            banner.classList.add('show');
+            // Auto-hide after 5 seconds
+            clearTimeout(banner._hideTimeout);
+            banner._hideTimeout = setTimeout(function() {
+                banner.classList.remove('show');
+            }, 5000);
+        }
+    }
+
+    function playNotificationSound() {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.frequency.value = 880;
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            oscillator.start(audioCtx.currentTime);
+            oscillator.stop(audioCtx.currentTime + 0.3);
+            // Second beep
+            setTimeout(function() {
+                const osc2 = audioCtx.createOscillator();
+                const gain2 = audioCtx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc2.frequency.value = 1100;
+                osc2.type = 'sine';
+                gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc2.start(audioCtx.currentTime);
+                osc2.stop(audioCtx.currentTime + 0.2);
+            }, 200);
+        } catch (e) {
+            // Silently fail
+        }
+    }
+
+    // ============================================
+    // SINGLE POLLING FUNCTION - THE FIX!
+    // ============================================
+
+    function pollQuizState() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
-                if (data.error) return;
-                
-                // If quiz is active and we haven't started
-                if (data.status === 'active' && !quizStarted) {
-                    quizStarted = true;
-                    // Reload the page to get fresh state
-                    window.location.reload();
+                if (data.error) {
+                    console.warn('Polling error:', data.error);
                     return;
                 }
                 
-                // If quiz is active and we're already started but no question
-                if (data.status === 'active' && quizStarted && !questionData) {
+                // Update total timer
+                if (data.remaining_time !== undefined) {
+                    updateTotalTimer(data.remaining_time);
+                }
+                
+                // Check status changes
+                const currentStatus = data.status;
+                
+                // If quiz finished
+                if (currentStatus === 'finished') {
+                    if (!quizEnded) {
+                        quizEnded = true;
+                        window.location.href = '/live-quiz/results/' + quizId;
+                    }
+                    return;
+                }
+                
+                // If quiz became active (started)
+                if (currentStatus === 'active' && previousStatus === 'waiting') {
+                    // Quiz just started!
+                    if (!notificationShown) {
+                        notificationShown = true;
+                        showNotification('🚀 Quiz has started! Get ready!');
+                        playNotificationSound();
+                    }
+                    
+                    if (!quizStarted) {
+                        quizStarted = true;
+                        // Load the first question immediately
+                        loadQuestion();
+                        return;
+                    }
+                }
+                
+                // If quiz is active and we haven't loaded a question yet
+                if (currentStatus === 'active' && quizStarted && !questionData) {
                     loadQuestion();
                     return;
                 }
                 
-                // If quiz finished
-                if (data.status === 'finished' && !quizEnded) {
-                    quizEnded = true;
+                // Check if participant completed all questions
+                if (data.is_completed) {
+                    showCompletedState(data);
+                    return;
+                }
+                
+                // If quiz is active and we have a question but it's stale, reload
+                if (currentStatus === 'active' && quizStarted && questionData) {
+                    // Check if we need to advance to next question
+                    if (data.current_question_index !== undefined && 
+                        data.current_question_index !== currentQuestionIndex) {
+                        // Participant advanced, load new question
+                        loadQuestion();
+                    }
+                }
+                
+                // Update completed count in waiting state
+                if (data.all_completed && currentStatus === 'active') {
+                    // All participants completed, redirect to results
                     window.location.href = '/live-quiz/results/' + quizId;
                     return;
                 }
+                
+                // Update leaderboard periodically
+                if (currentStatus === 'active' || currentStatus === 'finished') {
+                    updateLeaderboard();
+                }
+                
+                previousStatus = currentStatus;
             })
-            .catch(() => {});
+            .catch(function(err) {
+                console.warn('Polling fetch error:', err);
+                // Retry after delay
+                setTimeout(pollQuizState, 3000);
+            });
     }
 
     // ============================================
@@ -331,57 +463,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const pct = Math.max(0, (remaining / totalDuration) * 100);
         progress.style.width = pct + '%';
-    }
-
-    function fetchQuizState() {
-        stateCheckCount++;
-        
-        fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    // If not authenticated, maybe redirect to login
-                    return;
-                }
-                
-                // Update total timer
-                if (data.remaining_time !== undefined) {
-                    updateTotalTimer(data.remaining_time);
-                }
-                
-                // Check if quiz ended
-                if (data.status === 'finished') {
-                    if (!quizEnded) {
-                        quizEnded = true;
-                        window.location.href = '/live-quiz/results/' + quizId;
-                    }
-                    return;
-                }
-                
-                // Check if all completed
-                if (data.all_completed && data.status === 'active') {
-                    window.location.href = '/live-quiz/results/' + quizId;
-                    return;
-                }
-                
-                // Update participant progress
-                if (data.is_completed) {
-                    showCompletedState(data);
-                    return;
-                }
-                
-                // Load question if quiz is active
-                if (data.status === 'active') {
-                    if (!quizStarted) {
-                        quizStarted = true;
-                        loadQuestion();
-                    }
-                }
-            })
-            .catch(() => {
-                // Retry after delay
-                setTimeout(fetchQuizState, 3000);
-            });
     }
 
     // ============================================
@@ -418,10 +499,11 @@ document.addEventListener('DOMContentLoaded', function() {
             let remaining = data.remaining_time;
             const timerDisplay = document.getElementById('waitingTimer');
             if (timerDisplay) {
-                setInterval(() => {
+                const interval = setInterval(() => {
                     remaining--;
                     if (remaining <= 0) {
                         timerDisplay.textContent = '00:00';
+                        clearInterval(interval);
                     } else {
                         timerDisplay.textContent = formatTime(remaining);
                     }
@@ -437,17 +519,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // QUESTION LOADING
+    // QUESTION LOADING - IMPROVED
     // ============================================
 
     function loadQuestion() {
+        if (isCompleted) return;
+        
         fetch('/live-quiz/get-question/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
                     if (data.completed) {
                         // User has completed all questions
-                        fetchQuizState();
+                        isCompleted = true;
+                        pollQuizState(); // Refresh state
                     } else if (data.waiting) {
                         // Quiz not active yet
                         setTimeout(loadQuestion, 2000);
@@ -460,9 +545,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentQuestionIndex = data.index;
                     renderQuestion(data);
                     startTimer();
+                    // Update progress bar
+                    const progressBar = document.getElementById('progressBar');
+                    if (progressBar) {
+                        progressBar.style.width = ((data.index / data.total) * 100) + '%';
+                    }
                 }
             })
-            .catch(() => {
+            .catch(function(err) {
+                console.warn('Load question error:', err);
                 setTimeout(loadQuestion, 2000);
             });
     }
@@ -482,10 +573,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update counter
         const currentQ = document.getElementById('currentQ');
         const totalQ = document.getElementById('totalQ');
-        const progressBar = document.getElementById('progressBar');
         if (currentQ) currentQ.textContent = index + 1;
         if (totalQ) totalQ.textContent = total;
-        if (progressBar) progressBar.style.width = ((index / total) * 100) + '%';
         
         // Render question
         const container = document.getElementById('questionContainer');
@@ -605,6 +694,13 @@ document.addEventListener('DOMContentLoaded', function() {
             
             clearInterval(timerInterval);
             updateLeaderboard();
+        })
+        .catch(function(err) {
+            console.error('Submit answer error:', err);
+            // Re-enable buttons on error
+            buttons.forEach(b => b.disabled = false);
+            if (skipBtn) skipBtn.disabled = false;
+            isAnswered = false;
         });
     };
 
@@ -642,6 +738,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             clearInterval(timerInterval);
             updateLeaderboard();
+        })
+        .catch(function(err) {
+            console.error('Skip question error:', err);
+            buttons.forEach(b => b.disabled = false);
+            if (skipBtn) skipBtn.disabled = false;
+            isAnswered = false;
         });
     };
 
@@ -664,9 +766,15 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             // Load next question after delay
-            setTimeout(() => {
+            questionData = null; // Clear current question
+            setTimeout(function() {
                 loadQuestion();
             }, 800);
+        })
+        .catch(function(err) {
+            console.error('Submit rating error:', err);
+            buttons.forEach(b => b.disabled = false);
+            isRated = false;
         });
     };
 
@@ -705,31 +813,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 list.innerHTML = html;
             })
-            .catch(() => {});
+            .catch(function(err) {
+                console.warn('Leaderboard update error:', err);
+            });
     }
 
     // ============================================
-    // INITIALIZATION
+    // INITIALIZATION - SINGLE POLLING LOOP
     // ============================================
 
-    // Force check every 2 seconds (aggressive polling)
-    setInterval(forceCheckQuizStarted, 2000);
+    // Start polling every 2 seconds (increased frequency for better responsiveness)
+    setInterval(pollQuizState, 2000);
     
-    // Check quiz state every 3 seconds
-    setInterval(fetchQuizState, 3000);
+    // Initial poll immediately
+    setTimeout(pollQuizState, 100);
     
     // Update leaderboard every 5 seconds
     setInterval(updateLeaderboard, 5000);
-    
-    // Initial load
-    setTimeout(fetchQuizState, 500);
-    setTimeout(forceCheckQuizStarted, 100);
-    updateLeaderboard();
 
     // Expose functions globally
     window.selectOption = selectOption;
     window.skipQuestion = skipQuestion;
     window.submitRating = submitRating;
+    window.loadQuestion = loadQuestion;
+    window.pollQuizState = pollQuizState;
 });
 </script>
 {% endblock %}
