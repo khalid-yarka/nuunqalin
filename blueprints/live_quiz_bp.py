@@ -1,12 +1,21 @@
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, Response
-from supabase_client import supabase, get_all_subjects
+from db import (
+    get_all_subjects, create_live_quiz, get_live_quiz_by_code,
+    get_live_quiz_with_subject, get_live_quiz_participants,
+    get_live_quiz_participant, add_live_quiz_participant,
+    update_live_quiz, update_live_quiz_participant,
+    get_live_quiz_participants_with_names, get_live_quiz_count,
+    get_live_quiz_completed_count, get_question_ids_for_quiz,
+    get_questions_by_ids, get_question_by_id, update_participant_rankings,
+    get_live_quiz_creator_id, get_active_live_quiz,
+    get_live_quiz_by_id, get_questions_by_subject
+)
 import secrets
 import string
 import random
-import json
 import csv
 from io import StringIO
-import datetime
+from datetime import datetime, timezone
 
 live_quiz_bp = Blueprint('live_quiz', __name__, url_prefix='/live-quiz')
 
@@ -26,32 +35,17 @@ def generate_unique_join_code():
     """Generate a unique join code"""
     code = generate_join_code()
     while True:
-        try:
-            response = supabase.table('live_quizzes').select('id').eq('join_code', code).execute()
-            if not response.data:
-                return code
-            code = generate_join_code()
-        except Exception:
+        quiz = get_live_quiz_by_code(code)
+        if not quiz:
             return code
+        code = generate_join_code()
 
 
 def get_questions_for_subject(subject_id, limit):
     """Get random questions for a subject"""
-    try:
-        response = supabase.table('questions')\
-            .select('id, question_text, options, correct_answer, explanation')\
-            .eq('subject_id', subject_id)\
-            .execute()
-        
-        questions = response.data if response.data else []
-        if len(questions) < limit:
-            return questions, len(questions)
-        
-        selected = random.sample(questions, limit)
-        return selected, limit
-    except Exception as e:
-        print(f"Error fetching questions: {e}")
-        return [], 0
+    questions = get_questions_by_subject(subject_id, limit)
+    available = len(questions)
+    return questions, available
 
 
 # ============================================
@@ -110,39 +104,29 @@ def create():
         question_ids = [q['id'] for q in questions]
         
         # Create quiz
-        try:
-            data = {
-                'creator_id': session['user_id'],
-                'title': title if title else None,
-                'subject_id': subject_id,
-                'question_count': question_count,
-                'join_code': join_code,
-                'status': 'waiting',
-                'max_participants': 50,
-                'time_per_question': 30,
-                'current_question_index': 0,
-                'question_ids': question_ids
-            }
-            response = supabase.table('live_quizzes').insert(data).execute()
-            quiz = response.data[0] if response.data else None
+        data = {
+            'creator_id': session['user_id'],
+            'title': title if title else '',
+            'subject_id': subject_id,
+            'question_count': question_count,
+            'join_code': join_code,
+            'status': 'waiting',
+            'max_participants': 50,
+            'time_per_question': 30,
+            'current_question_index': 0,
+            'question_ids': question_ids
+        }
+        
+        quiz = create_live_quiz(data)
+        
+        if quiz:
+            # Add creator as a participant
+            add_live_quiz_participant(quiz['id'], session['user_id'])
             
-            if quiz:
-                # Add creator as a participant
-                participant_data = {
-                    'quiz_id': quiz['id'],
-                    'student_id': session['user_id'],
-                    'status': 'active'
-                }
-                supabase.table('live_quiz_participants').insert(participant_data).execute()
-                
-                flash('Quiz created successfully! Share the join code.', 'success')
-                return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
-            else:
-                flash('Failed to create quiz. Please try again.', 'error')
-                
-        except Exception as e:
-            print(f"Error creating quiz: {e}")
-            flash('Error creating quiz. Please try again.', 'error')
+            flash('Quiz created successfully! Share the join code.', 'success')
+            return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
+        else:
+            flash('Failed to create quiz. Please try again.', 'error')
     
     return render_template('dashboard/live_quiz/create.html', subjects=subjects)
 
@@ -167,39 +151,29 @@ def create_with_available():
     join_code = generate_unique_join_code()
     question_ids = [q['id'] for q in questions]
     
-    try:
-        data = {
-            'creator_id': session['user_id'],
-            'title': title if title else None,
-            'subject_id': subject_id,
-            'question_count': available,
-            'join_code': join_code,
-            'status': 'waiting',
-            'max_participants': 50,
-            'time_per_question': 30,
-            'current_question_index': 0,
-            'question_ids': question_ids
-        }
-        response = supabase.table('live_quizzes').insert(data).execute()
-        quiz = response.data[0] if response.data else None
+    data = {
+        'creator_id': session['user_id'],
+        'title': title if title else '',
+        'subject_id': subject_id,
+        'question_count': available,
+        'join_code': join_code,
+        'status': 'waiting',
+        'max_participants': 50,
+        'time_per_question': 30,
+        'current_question_index': 0,
+        'question_ids': question_ids
+    }
+    
+    quiz = create_live_quiz(data)
+    
+    if quiz:
+        # Add creator as a participant
+        add_live_quiz_participant(quiz['id'], session['user_id'])
         
-        if quiz:
-            # Add creator as a participant
-            participant_data = {
-                'quiz_id': quiz['id'],
-                'student_id': session['user_id'],
-                'status': 'active'
-            }
-            supabase.table('live_quiz_participants').insert(participant_data).execute()
-            
-            flash(f'Quiz created with {available} questions!', 'success')
-            return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
-        else:
-            flash('Failed to create quiz.', 'error')
-            
-    except Exception as e:
-        print(f"Error creating quiz: {e}")
-        flash('Error creating quiz.', 'error')
+        flash(f'Quiz created with {available} questions!', 'success')
+        return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
+    else:
+        flash('Failed to create quiz.', 'error')
     
     return redirect(url_for('live_quiz.create'))
 
@@ -222,54 +196,31 @@ def join():
         join_code = join_code.replace(' ', '')
         
         # Check if quiz exists and is waiting
-        try:
-            response = supabase.table('live_quizzes')\
-                .select('*, subjects(name)')\
-                .eq('join_code', join_code)\
-                .eq('status', 'waiting')\
-                .execute()
-            
-            if not response.data:
-                flash('Invalid join code or quiz has already started.', 'error')
-                return render_template('dashboard/live_quiz/join.html')
-            
-            quiz = response.data[0]
-            
-            # Check if user already joined
-            participant_check = supabase.table('live_quiz_participants')\
-                .select('id')\
-                .eq('quiz_id', quiz['id'])\
-                .eq('student_id', session['user_id'])\
-                .execute()
-            
-            if participant_check.data:
-                flash('You have already joined this quiz.', 'info')
-                return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
-            
-            # Check if max participants reached
-            participant_count = supabase.table('live_quiz_participants')\
-                .select('id', count='exact')\
-                .eq('quiz_id', quiz['id'])\
-                .execute()
-            
-            if len(participant_count.data) >= quiz.get('max_participants', 50):
-                flash('This quiz is full.', 'error')
-                return render_template('dashboard/live_quiz/join.html')
-            
-            # Join the quiz
-            data = {
-                'quiz_id': quiz['id'],
-                'student_id': session['user_id'],
-                'status': 'active'
-            }
-            supabase.table('live_quiz_participants').insert(data).execute()
-            
-            flash('You have joined the quiz!', 'success')
+        quiz = get_active_live_quiz(join_code)
+        
+        if not quiz:
+            flash('Invalid join code or quiz has already started.', 'error')
+            return render_template('dashboard/live_quiz/join.html')
+        
+        # Check if user already joined
+        participant = get_live_quiz_participant(quiz['id'], session['user_id'])
+        
+        if participant:
+            flash('You have already joined this quiz.', 'info')
             return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
-            
-        except Exception as e:
-            print(f"Error joining quiz: {e}")
-            flash('Error joining quiz. Please try again.', 'error')
+        
+        # Check if max participants reached
+        participant_count = get_live_quiz_count(quiz['id'])
+        
+        if participant_count >= quiz.get('max_participants', 50):
+            flash('This quiz is full.', 'error')
+            return render_template('dashboard/live_quiz/join.html')
+        
+        # Join the quiz
+        add_live_quiz_participant(quiz['id'], session['user_id'])
+        
+        flash('You have joined the quiz!', 'success')
+        return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
     
     return render_template('dashboard/live_quiz/join.html')
 
@@ -281,62 +232,41 @@ def waiting_room(quiz_id):
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
-    try:
-        response = supabase.table('live_quizzes')\
-            .select('*, subjects(name), creator:creator_id(first_name, last_name, public_id)')\
-            .eq('id', quiz_id)\
-            .execute()
-        
-        if not response.data:
-            flash('Quiz not found.', 'error')
-            return redirect(url_for('live_quiz.index'))
-        
-        quiz = response.data[0]
-        
-        # Check if user is participant
-        participant = supabase.table('live_quiz_participants')\
-            .select('*')\
-            .eq('quiz_id', quiz_id)\
-            .eq('student_id', session['user_id'])\
-            .execute()
-        
-        if not participant.data and quiz['creator_id'] != session['user_id']:
-            flash('You are not a participant in this quiz.', 'error')
-            return redirect(url_for('live_quiz.index'))
-        
-        is_creator = quiz['creator_id'] == session['user_id']
-        
-        # Get all participants
-        participants_response = supabase.table('live_quiz_participants')\
-            .select('*, student:student_id(first_name, last_name, public_id)')\
-            .eq('quiz_id', quiz_id)\
-            .order('joined_at')\
-            .execute()
-        
-        participants = participants_response.data if participants_response.data else []
-        
-        formatted_participants = []
-        for p in participants:
-            student = p.get('student', {})
-            formatted_participants.append({
-                'id': p['id'],
-                'student_id': p['student_id'],
-                'name': f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown',
-                'public_id': student.get('public_id', '----'),
-                'status': p.get('status', 'active'),
-                'is_creator': p['student_id'] == quiz['creator_id']
-            })
-        
-        return render_template('dashboard/live_quiz/waiting_room.html',
-                             quiz=quiz,
-                             is_creator=is_creator,
-                             participants=formatted_participants,
-                             participant_count=len(formatted_participants))
-        
-    except Exception as e:
-        print(f"Error loading waiting room: {e}")
-        flash('Error loading quiz.', 'error')
+    quiz = get_live_quiz_with_subject(quiz_id)
+    
+    if not quiz:
+        flash('Quiz not found.', 'error')
         return redirect(url_for('live_quiz.index'))
+    
+    # Check if user is participant
+    participant = get_live_quiz_participant(quiz_id, session['user_id'])
+    
+    if not participant and quiz['creator_id'] != session['user_id']:
+        flash('You are not a participant in this quiz.', 'error')
+        return redirect(url_for('live_quiz.index'))
+    
+    is_creator = quiz['creator_id'] == session['user_id']
+    
+    # Get all participants
+    participants_data = get_live_quiz_participants(quiz_id)
+    
+    formatted_participants = []
+    for p in participants_data:
+        student = p.get('student', {})
+        formatted_participants.append({
+            'id': p['id'],
+            'student_id': p['student_id'],
+            'name': f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown',
+            'public_id': student.get('public_id', '----'),
+            'status': p.get('status', 'active'),
+            'is_creator': p['student_id'] == quiz['creator_id']
+        })
+    
+    return render_template('dashboard/live_quiz/waiting_room.html',
+                         quiz=quiz,
+                         is_creator=is_creator,
+                         participants=formatted_participants,
+                         participant_count=len(formatted_participants))
 
 
 @live_quiz_bp.route('/start/<quiz_id>', methods=['POST'])
@@ -347,15 +277,10 @@ def start_quiz(quiz_id):
     
     try:
         # Get quiz
-        response = supabase.table('live_quizzes')\
-            .select('*')\
-            .eq('id', quiz_id)\
-            .execute()
+        quiz = get_live_quiz_by_id(quiz_id)
         
-        if not response.data:
+        if not quiz:
             return jsonify({'error': 'Quiz not found'}), 404
-        
-        quiz = response.data[0]
         
         # Check if user is creator
         if quiz['creator_id'] != session['user_id']:
@@ -366,29 +291,23 @@ def start_quiz(quiz_id):
             return jsonify({'error': 'Quiz already started or finished'}), 400
         
         # Get participant count
-        participant_response = supabase.table('live_quiz_participants')\
-            .select('id', count='exact')\
-            .eq('quiz_id', quiz_id)\
-            .execute()
-        
-        participant_count = len(participant_response.data)
+        participant_count = get_live_quiz_count(quiz_id)
         
         # Minimum 2 participants
         if participant_count < 2:
             return jsonify({'error': 'Need at least 2 participants to start'}), 400
         
         # Update quiz status
-        supabase.table('live_quizzes')\
-            .update({
-                'status': 'active',
-                'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
-            })\
-            .eq('id', quiz_id)\
-            .execute()
+        update_live_quiz(quiz_id, {
+            'status': 'active',
+            'started_at': datetime.now(timezone.utc).isoformat()
+        })
         
-        # Reset ALL participants to start at question 0
-        supabase.table('live_quiz_participants')\
-            .update({
+        # Get all participants to reset
+        participants = get_live_quiz_participants(quiz_id)
+        
+        for p in participants:
+            update_live_quiz_participant(p['id'], {
                 'current_question_index': 0,
                 'score': 0,
                 'correct_count': 0,
@@ -396,9 +315,7 @@ def start_quiz(quiz_id):
                 'skipped_count': 0,
                 'answers': {},
                 'ratings': {}
-            })\
-            .eq('quiz_id', quiz_id)\
-            .execute()
+            })
         
         return jsonify({'success': True, 'quiz_id': quiz_id})
         
@@ -413,19 +330,11 @@ def my_participant(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     
-    try:
-        response = supabase.table('live_quiz_participants')\
-            .select('*')\
-            .eq('quiz_id', quiz_id)\
-            .eq('student_id', session['user_id'])\
-            .execute()
-        
-        if response.data:
-            return jsonify(response.data[0])
-        return jsonify({'error': 'Not a participant'}), 404
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    participant = get_live_quiz_participant(quiz_id, session['user_id'])
+    
+    if participant:
+        return jsonify(participant)
+    return jsonify({'error': 'Not a participant'}), 404
 
 
 @live_quiz_bp.route('/get-question/<quiz_id>')
@@ -436,15 +345,10 @@ def get_question(quiz_id):
     
     try:
         # Get quiz
-        quiz_response = supabase.table('live_quizzes')\
-            .select('*')\
-            .eq('id', quiz_id)\
-            .execute()
+        quiz = get_live_quiz_by_id(quiz_id)
         
-        if not quiz_response.data:
+        if not quiz:
             return jsonify({'error': 'Quiz not found'}), 404
-        
-        quiz = quiz_response.data[0]
         
         # Check if quiz is finished
         if quiz['status'] == 'finished':
@@ -455,16 +359,11 @@ def get_question(quiz_id):
             return jsonify({'waiting': True, 'status': quiz['status']})
         
         # Get participant
-        participant_response = supabase.table('live_quiz_participants')\
-            .select('*')\
-            .eq('quiz_id', quiz_id)\
-            .eq('student_id', session['user_id'])\
-            .execute()
+        participant = get_live_quiz_participant(quiz_id, session['user_id'])
         
-        if not participant_response.data:
+        if not participant:
             return jsonify({'error': 'Not a participant'}), 404
         
-        participant = participant_response.data[0]
         current_index = participant.get('current_question_index', 0)
         total_questions = quiz.get('question_count', 0)
         
@@ -480,15 +379,10 @@ def get_question(quiz_id):
         question_id = question_ids[current_index]
         
         # Get full question data
-        question_response = supabase.table('questions')\
-            .select('*')\
-            .eq('id', question_id)\
-            .execute()
+        question = get_question_by_id(question_id)
         
-        if not question_response.data:
+        if not question:
             return jsonify({'error': 'Question not found'}), 404
-        
-        question = question_response.data[0]
         
         return jsonify({
             'question': question,
@@ -517,28 +411,18 @@ def submit_answer():
     
     try:
         # Get question
-        question_response = supabase.table('questions')\
-            .select('*')\
-            .eq('id', question_id)\
-            .execute()
+        question = get_question_by_id(question_id)
         
-        if not question_response.data:
+        if not question:
             return jsonify({'error': 'Question not found'}), 404
         
-        question = question_response.data[0]
         is_correct = answer == question['correct_answer']
         
         # Get participant
-        participant_response = supabase.table('live_quiz_participants')\
-            .select('*')\
-            .eq('quiz_id', quiz_id)\
-            .eq('student_id', session['user_id'])\
-            .execute()
+        participant = get_live_quiz_participant(quiz_id, session['user_id'])
         
-        if not participant_response.data:
+        if not participant:
             return jsonify({'error': 'Not a participant'}), 404
-        
-        participant = participant_response.data[0]
         
         # Update participant
         answers = participant.get('answers', {})
@@ -557,21 +441,13 @@ def submit_answer():
         else:
             wrong_count += 1
         
-        # Update current question index - ONLY if user already rated or this is the first time
-        current_index = participant.get('current_question_index', 0)
-        # Don't advance yet - wait for rating
-        # The rating will advance the question
-        
         # Save the answer but DON'T advance question yet
-        supabase.table('live_quiz_participants')\
-            .update({
-                'answers': answers,
-                'score': score,
-                'correct_count': correct_count,
-                'wrong_count': wrong_count
-            })\
-            .eq('id', participant['id'])\
-            .execute()
+        update_live_quiz_participant(participant['id'], {
+            'answers': answers,
+            'score': score,
+            'correct_count': correct_count,
+            'wrong_count': wrong_count
+        })
         
         return jsonify({
             'correct': is_correct,
@@ -599,16 +475,10 @@ def skip_question():
     
     try:
         # Get participant
-        participant_response = supabase.table('live_quiz_participants')\
-            .select('*')\
-            .eq('quiz_id', quiz_id)\
-            .eq('student_id', session['user_id'])\
-            .execute()
+        participant = get_live_quiz_participant(quiz_id, session['user_id'])
         
-        if not participant_response.data:
+        if not participant:
             return jsonify({'error': 'Not a participant'}), 404
-        
-        participant = participant_response.data[0]
         
         # Check if already answered
         answers = participant.get('answers', {})
@@ -626,14 +496,11 @@ def skip_question():
         current_index = participant.get('current_question_index', 0)
         new_index = current_index + 1
         
-        supabase.table('live_quiz_participants')\
-            .update({
-                'answers': answers,
-                'skipped_count': skipped_count,
-                'current_question_index': new_index
-            })\
-            .eq('id', participant['id'])\
-            .execute()
+        update_live_quiz_participant(participant['id'], {
+            'answers': answers,
+            'skipped_count': skipped_count,
+            'current_question_index': new_index
+        })
         
         return jsonify({'success': True})
         
@@ -661,16 +528,10 @@ def submit_rating():
     
     try:
         # Get participant
-        participant_response = supabase.table('live_quiz_participants')\
-            .select('*')\
-            .eq('quiz_id', quiz_id)\
-            .eq('student_id', session['user_id'])\
-            .execute()
+        participant = get_live_quiz_participant(quiz_id, session['user_id'])
         
-        if not participant_response.data:
+        if not participant:
             return jsonify({'error': 'Not a participant'}), 404
-        
-        participant = participant_response.data[0]
         
         # Update ratings
         ratings = participant.get('ratings', {})
@@ -680,21 +541,14 @@ def submit_rating():
         current_index = participant.get('current_question_index', 0)
         new_index = current_index + 1
         
-        supabase.table('live_quiz_participants')\
-            .update({
-                'ratings': ratings,
-                'current_question_index': new_index
-            })\
-            .eq('id', participant['id'])\
-            .execute()
+        update_live_quiz_participant(participant['id'], {
+            'ratings': ratings,
+            'current_question_index': new_index
+        })
         
         # Check if this was the last question
-        quiz_response = supabase.table('live_quizzes')\
-            .select('question_count')\
-            .eq('id', quiz_id)\
-            .execute()
-        
-        total_questions = quiz_response.data[0].get('question_count', 0) if quiz_response.data else 0
+        quiz = get_live_quiz_by_id(quiz_id)
+        total_questions = quiz.get('question_count', 0) if quiz else 0
         
         return jsonify({
             'success': True,
@@ -714,13 +568,7 @@ def get_leaderboard(quiz_id):
     
     try:
         # Get all participants with student names
-        response = supabase.table('live_quiz_participants')\
-            .select('*, student:student_id(first_name, last_name, public_id)')\
-            .eq('quiz_id', quiz_id)\
-            .order('score', desc=True)\
-            .execute()
-        
-        participants = response.data if response.data else []
+        participants = get_live_quiz_participants_with_names(quiz_id)
         
         # Format leaderboard
         leaderboard = []
@@ -760,35 +608,20 @@ def play(quiz_id):
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
-    try:
-        response = supabase.table('live_quizzes')\
-            .select('*, subjects(name)')\
-            .eq('id', quiz_id)\
-            .execute()
-        
-        if not response.data:
-            flash('Quiz not found.', 'error')
-            return redirect(url_for('live_quiz.index'))
-        
-        quiz = response.data[0]
-        
-        # Check if user is participant
-        participant = supabase.table('live_quiz_participants')\
-            .select('*')\
-            .eq('quiz_id', quiz_id)\
-            .eq('student_id', session['user_id'])\
-            .execute()
-        
-        if not participant.data:
-            flash('You are not a participant in this quiz.', 'error')
-            return redirect(url_for('live_quiz.index'))
-        
-        return render_template('dashboard/live_quiz/play.html', quiz=quiz)
-        
-    except Exception as e:
-        print(f"Error loading quiz: {e}")
-        flash('Error loading quiz.', 'error')
+    quiz = get_live_quiz_with_subject(quiz_id)
+    
+    if not quiz:
+        flash('Quiz not found.', 'error')
         return redirect(url_for('live_quiz.index'))
+    
+    # Check if user is participant
+    participant = get_live_quiz_participant(quiz_id, session['user_id'])
+    
+    if not participant:
+        flash('You are not a participant in this quiz.', 'error')
+        return redirect(url_for('live_quiz.index'))
+    
+    return render_template('dashboard/live_quiz/play.html', quiz=quiz)
 
 
 @live_quiz_bp.route('/results/<quiz_id>')
@@ -798,81 +631,57 @@ def results(quiz_id):
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
-    try:
-        response = supabase.table('live_quizzes')\
-            .select('*, subjects(name)')\
-            .eq('id', quiz_id)\
-            .execute()
-        
-        if not response.data:
-            flash('Quiz not found.', 'error')
-            return redirect(url_for('live_quiz.index'))
-        
-        quiz = response.data[0]
-        
-        is_creator = quiz['creator_id'] == session['user_id']
-        
-        participant = supabase.table('live_quiz_participants')\
-            .select('*')\
-            .eq('quiz_id', quiz_id)\
-            .eq('student_id', session['user_id'])\
-            .execute()
-        
-        if not participant.data and not is_creator:
-            flash('You are not authorized to view these results.', 'error')
-            return redirect(url_for('live_quiz.index'))
-        
-        # Get all participants with scores
-        participants_response = supabase.table('live_quiz_participants')\
-            .select('*, student:student_id(first_name, last_name, public_id)')\
-            .eq('quiz_id', quiz_id)\
-            .order('score', desc=True)\
-            .execute()
-        
-        all_participants = participants_response.data if participants_response.data else []
-        
-        # Get user's participant data
-        user_participant = None
+    quiz = get_live_quiz_with_subject(quiz_id)
+    
+    if not quiz:
+        flash('Quiz not found.', 'error')
+        return redirect(url_for('live_quiz.index'))
+    
+    is_creator = quiz['creator_id'] == session['user_id']
+    
+    participant = get_live_quiz_participant(quiz_id, session['user_id'])
+    
+    if not participant and not is_creator:
+        flash('You are not authorized to view these results.', 'error')
+        return redirect(url_for('live_quiz.index'))
+    
+    # Get all participants with scores
+    all_participants = get_live_quiz_participants_with_names(quiz_id)
+    
+    # Get user's participant data
+    user_participant = None
+    for p in all_participants:
+        if p['student_id'] == session['user_id']:
+            user_participant = p
+            break
+    
+    # Update rankings
+    for i, p in enumerate(all_participants, 1):
+        update_live_quiz_participant(p['id'], {'ranking': i})
+        p['ranking'] = i
+    
+    # Check if quiz should be marked as finished
+    quiz_status = quiz.get('status')
+    if quiz_status != 'finished':
+        # Check if all participants completed
+        all_completed = True
+        total_questions = quiz.get('question_count', 0)
         for p in all_participants:
-            if p['student_id'] == session['user_id']:
-                user_participant = p
+            if p.get('current_question_index', 0) < total_questions:
+                all_completed = False
                 break
         
-        # Update rankings
-        for i, p in enumerate(all_participants, 1):
-            supabase.table('live_quiz_participants')\
-                .update({'ranking': i})\
-                .eq('id', p['id'])\
-                .execute()
-            p['ranking'] = i
-        
-        # Check if quiz should be marked as finished
-        quiz_status = quiz.get('status')
-        if quiz_status != 'finished':
-            # Check if all participants completed
-            all_completed = True
-            total_questions = quiz.get('question_count', 0)
-            for p in all_participants:
-                if p.get('current_question_index', 0) < total_questions:
-                    all_completed = False
-                    break
-            
-            if all_completed and len(all_participants) > 0:
-                supabase.table('live_quizzes')\
-                    .update({'status': 'finished', 'ended_at': datetime.datetime.now(datetime.timezone.utc).isoformat()})\
-                    .eq('id', quiz_id)\
-                    .execute()
-        
-        return render_template('dashboard/live_quiz/results.html',
-                             quiz=quiz,
-                             is_creator=is_creator,
-                             participants=all_participants,
-                             user_participant=user_participant)
-        
-    except Exception as e:
-        print(f"Error loading results: {e}")
-        flash('Error loading results.', 'error')
-        return redirect(url_for('live_quiz.index'))
+        if all_completed and len(all_participants) > 0:
+            update_live_quiz(quiz_id, {
+                'status': 'finished',
+                'ended_at': datetime.now(timezone.utc).isoformat()
+            })
+    
+    return render_template('dashboard/live_quiz/results.html',
+                         quiz=quiz,
+                         is_creator=is_creator,
+                         participants=all_participants,
+                         user_participant=user_participant)
 
 
 # ============================================
@@ -887,27 +696,16 @@ def quiz_state(quiz_id):
     
     try:
         # Get quiz
-        quiz_response = supabase.table('live_quizzes')\
-            .select('*')\
-            .eq('id', quiz_id)\
-            .execute()
+        quiz = get_live_quiz_by_id(quiz_id)
         
-        if not quiz_response.data:
+        if not quiz:
             return jsonify({'error': 'Quiz not found'}), 404
         
-        quiz = quiz_response.data[0]
-        
         # Check if user is participant
-        participant_response = supabase.table('live_quiz_participants')\
-            .select('*')\
-            .eq('quiz_id', quiz_id)\
-            .eq('student_id', session['user_id'])\
-            .execute()
+        participant = get_live_quiz_participant(quiz_id, session['user_id'])
         
-        if not participant_response.data:
+        if not participant:
             return jsonify({'error': 'Not a participant'}), 404
-        
-        participant = participant_response.data[0]
         
         # Calculate total timer
         total_questions = quiz.get('question_count', 0)
@@ -921,11 +719,10 @@ def quiz_state(quiz_id):
         if started_at:
             try:
                 if isinstance(started_at, str):
-                    started_at = started_at.replace('Z', '+00:00')
-                    started = datetime.datetime.fromisoformat(started_at)
+                    started = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
                 else:
                     started = started_at
-                elapsed = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds()
+                elapsed = (datetime.now(timezone.utc) - started).total_seconds()
                 remaining = max(0, total_duration - elapsed)
             except Exception as e:
                 print(f"Error calculating time: {e}")
@@ -934,10 +731,10 @@ def quiz_state(quiz_id):
         # Check if timer expired
         if remaining <= 0 and quiz.get('status') == 'active':
             # End the quiz
-            supabase.table('live_quizzes')\
-                .update({'status': 'finished', 'ended_at': datetime.datetime.now(datetime.timezone.utc).isoformat()})\
-                .eq('id', quiz_id)\
-                .execute()
+            update_live_quiz(quiz_id, {
+                'status': 'finished',
+                'ended_at': datetime.now(timezone.utc).isoformat()
+            })
             return jsonify({'status': 'finished', 'remaining_time': 0})
         
         # Get participant progress
@@ -945,13 +742,7 @@ def quiz_state(quiz_id):
         is_completed = current_index >= total_questions
         
         # Get all participants for leaderboard
-        all_participants = supabase.table('live_quiz_participants')\
-            .select('*, student:student_id(first_name, last_name, public_id)')\
-            .eq('quiz_id', quiz_id)\
-            .order('score', desc=True)\
-            .execute()
-        
-        participants_data = all_participants.data if all_participants.data else []
+        participants_data = get_live_quiz_participants_with_names(quiz_id)
         
         # Calculate completed count
         completed_count = 0
@@ -987,15 +778,10 @@ def analysis(quiz_id):
     
     try:
         # Check if user is creator
-        quiz_response = supabase.table('live_quizzes')\
-            .select('creator_id, question_ids')\
-            .eq('id', quiz_id)\
-            .execute()
+        quiz = get_live_quiz_by_id(quiz_id)
         
-        if not quiz_response.data:
+        if not quiz:
             return jsonify({'error': 'Quiz not found'}), 404
-        
-        quiz = quiz_response.data[0]
         
         if quiz['creator_id'] != session['user_id']:
             return jsonify({'error': 'Only the creator can view analysis'}), 403
@@ -1003,12 +789,7 @@ def analysis(quiz_id):
         question_ids = quiz.get('question_ids', [])
         
         # Get all participants' answers
-        participants_response = supabase.table('live_quiz_participants')\
-            .select('answers')\
-            .eq('quiz_id', quiz_id)\
-            .execute()
-        
-        participants = participants_response.data if participants_response.data else []
+        participants = get_live_quiz_participants(quiz_id)
         
         # Analyze each question
         analysis_data = []
@@ -1024,12 +805,8 @@ def analysis(quiz_id):
                         correct_count += 1
             
             # Get question text
-            q_response = supabase.table('questions')\
-                .select('question_text')\
-                .eq('id', qid)\
-                .execute()
-            
-            q_text = q_response.data[0].get('question_text', 'Unknown') if q_response.data else 'Unknown'
+            question = get_question_by_id(qid)
+            q_text = question.get('question_text', 'Unknown') if question else 'Unknown'
             
             correct_rate = round((correct_count / total_count) * 100) if total_count > 0 else 0
             wrong_rate = 100 - correct_rate
@@ -1065,29 +842,18 @@ def export_results(quiz_id):
     
     try:
         # Check if user is creator
-        quiz_response = supabase.table('live_quizzes')\
-            .select('*')\
-            .eq('id', quiz_id)\
-            .execute()
+        quiz = get_live_quiz_by_id(quiz_id)
         
-        if not quiz_response.data:
+        if not quiz:
             flash('Quiz not found.', 'error')
             return redirect(url_for('live_quiz.index'))
-        
-        quiz = quiz_response.data[0]
         
         if quiz['creator_id'] != session['user_id']:
             flash('Only the creator can export results.', 'error')
             return redirect(url_for('live_quiz.index'))
         
         # Get all participants
-        participants_response = supabase.table('live_quiz_participants')\
-            .select('*, student:student_id(first_name, last_name, public_id)')\
-            .eq('quiz_id', quiz_id)\
-            .order('score', desc=True)\
-            .execute()
-        
-        participants = participants_response.data if participants_response.data else []
+        participants = get_live_quiz_participants_with_names(quiz_id)
         
         # Create CSV
         output = StringIO()

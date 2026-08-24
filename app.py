@@ -1,13 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
-import bcrypt
 from config import Config
-from supabase_client import supabase, get_student_by_phone, get_student_by_id, create_student, is_admin
+from db import get_student_by_phone, get_student_by_id, create_student, is_admin
 from blueprints.dashboard_bp import dashboard_bp
 from blueprints.groups_bp import groups_bp
 from blueprints.pdfs_bp import pdfs_bp
 from blueprints.admin_bp import admin_bp
 from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
+from utils import format_somali_time, get_somali_time_display
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = Config.SECRET_KEY
@@ -19,7 +19,7 @@ app.register_blueprint(groups_bp)
 app.register_blueprint(pdfs_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(quiz_bp)
-app.register_blueprint(live_quiz_bp)  # NEW
+app.register_blueprint(live_quiz_bp)
 
 
 # ============================================
@@ -50,12 +50,13 @@ def login():
         student = get_student_by_phone(phone)
         
         if student:
-            if bcrypt.checkpw(password.encode('utf-8'), student['password_hash'].encode('utf-8')):
+            # Plain text password comparison (no hashing)
+            if password == student['password']:
                 session['user_id'] = student['id']
                 session['public_id'] = student.get('public_id', '----')
                 session['user_name'] = student['first_name']
                 session['user_phone'] = student['phone_number']
-                session['is_admin'] = student.get('is_admin', False)
+                session['is_admin'] = bool(student.get('is_admin', 0))
                 session.permanent = True
                 flash('Welcome back!', 'success')
                 return redirect(url_for('dashboard.home'))
@@ -93,12 +94,11 @@ def register():
             flash('This phone number is already registered.', 'error')
             return render_template('register.html')
         
-        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         school_value = school_manual if school == 'manual' and school_manual else school
         
         student_data = {
             'phone_number': phone,
-            'password_hash': hashed.decode('utf-8'),
+            'password': password,  # Plain text - NO HASHING
             'first_name': first_name,
             'middle_name': middle_name,
             'last_name': last_name,
@@ -137,7 +137,8 @@ def utility_processor():
     """Make session data available to all templates"""
     return {
         'session': session,
-        'is_admin': session.get('is_admin', False)
+        'is_admin': session.get('is_admin', False),
+        'somali_time': get_somali_time_display
     }
 
 
@@ -146,4 +147,5 @@ def utility_processor():
 # ============================================
 
 if __name__ == '__main__':
+    print(f"Server starting at: {get_somali_time_display()}")
     app.run(debug=True, host='0.0.0.0', port=5000)
