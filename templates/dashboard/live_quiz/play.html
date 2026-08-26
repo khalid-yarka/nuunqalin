@@ -46,6 +46,22 @@
         color: var(--text-muted);
     }
     
+    /* Reconnection Notice - NEW */
+    .reconnection-notice {
+        background: #3B82F6;
+        color: white;
+        padding: 10px 16px;
+        border-radius: var(--radius-sm);
+        margin-bottom: 12px;
+        text-align: center;
+        font-weight: 500;
+        display: none;
+        animation: slideDown 0.5s ease;
+    }
+    .reconnection-notice.show {
+        display: block;
+    }
+    
     /* Leaderboard Mini Styles */
     .leaderboard-mini {
         background: var(--surface);
@@ -475,11 +491,76 @@
             font-size: 9px;
         }
     }
+
+    /* Dark Mode Overrides */
+    [data-theme="dark"] .quiz-notification {
+        background: #8B1A1A;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+    [data-theme="dark"] .reconnection-notice {
+        background: #1A3A6A;
+    }
+    [data-theme="dark"] .option-btn.correct {
+        border-color: #10B981;
+        background: #1A3A2E;
+    }
+    [data-theme="dark"] .option-btn.wrong {
+        border-color: #EF4444;
+        background: #3A1A1A;
+    }
+    [data-theme="dark"] .feedback-area.success {
+        background: #1A3A2E;
+        border-color: #10B981;
+        color: #D1FAE5;
+    }
+    [data-theme="dark"] .feedback-area.error {
+        background: #3A1A1A;
+        border-color: #EF4444;
+        color: #FECACA;
+    }
+    [data-theme="dark"] .feedback-area.skipped {
+        background: #3A2E1A;
+        border-color: #F59E0B;
+        color: #FDE68A;
+    }
+    [data-theme="dark"] .lb-item.you {
+        background: var(--primary-light);
+    }
+    [data-theme="dark"] .leaderboard-mini {
+        background: var(--surface);
+        border-color: var(--border);
+    }
+    [data-theme="dark"] .quiz-header {
+        background: var(--surface);
+        border-color: var(--border);
+    }
+    [data-theme="dark"] .total-timer-progress {
+        background: var(--surface);
+        border-color: var(--border);
+    }
+    [data-theme="dark"] .question-card {
+        background: var(--surface);
+        border-color: var(--border);
+    }
+    [data-theme="dark"] .option-btn {
+        background: var(--surface);
+        border-color: var(--border);
+        color: var(--text);
+    }
+    [data-theme="dark"] .option-btn:hover:not(:disabled) {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
 </style>
 {% endblock %}
 
 {% block dashboard_content %}
 <div class="live-quiz-container">
+
+    <!-- Reconnection Notice - NEW -->
+    <div class="reconnection-notice" id="reconnectionNotice">
+        🔄 Reconnected! Resuming your quiz...
+    </div>
 
     <!-- Notification Banner -->
     <div class="quiz-notification" id="notificationBanner">
@@ -565,12 +646,14 @@ document.addEventListener('DOMContentLoaded', function() {
     let previousStatus = 'waiting';
     let notificationShown = false;
     let answerData = null;
+    let isReconnecting = false;
+    let hasAnsweredCurrent = false;
     
     // ============================================
-    // POLLING CONFIGURATION - OPTIMIZED
+    // POLLING CONFIGURATION
     // ============================================
     
-    let pollInterval = 1500; // Start at 1.5 seconds (was 1000)
+    let pollInterval = 1500;
     let pollTimer = null;
     let consecutiveNoChanges = 0;
     let lastState = null;
@@ -580,11 +663,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     
     function showToast(message, type, duration) {
-        // Check if global toast function exists
         if (typeof window.showToast === 'function') {
             window.showToast(message, type || 'info', duration || 4000);
         } else {
-            // Fallback simple toast
             const toast = document.createElement('div');
             toast.style.cssText = `
                 position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
@@ -618,6 +699,16 @@ document.addEventListener('DOMContentLoaded', function() {
             banner._hideTimeout = setTimeout(function() {
                 banner.classList.remove('show');
             }, 5000);
+        }
+    }
+    
+    function showReconnectionNotice() {
+        const notice = document.getElementById('reconnectionNotice');
+        if (notice) {
+            notice.classList.add('show');
+            setTimeout(function() {
+                notice.classList.remove('show');
+            }, 3000);
         }
     }
     
@@ -688,7 +779,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // ============================================
-    // SMART POLLING - UPDATED WITH ADAPTIVE INTERVALS
+    // SMART POLLING - FIXED FOR RECONNECTION
     // ============================================
     
     function pollQuizState() {
@@ -697,17 +788,14 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.error) {
                     console.warn('Polling error:', data.error);
-                    // Increase interval on error
                     pollInterval = Math.min(pollInterval + 500, 5000);
                     resetPollTimer();
                     return;
                 }
                 
-                // Check if state changed (reduce unnecessary updates)
                 const stateHash = JSON.stringify(data);
                 if (stateHash === lastState) {
                     consecutiveNoChanges++;
-                    // Increase interval if no changes for a while
                     if (consecutiveNoChanges > 5) {
                         pollInterval = Math.min(pollInterval + 200, 3000);
                         resetPollTimer();
@@ -734,32 +822,61 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // If quiz became active (started) - IMMEDIATE notification
-                if (currentStatus === 'active' && previousStatus === 'waiting') {
-                    if (!notificationShown) {
-                        notificationShown = true;
-                        showNotification('🚀 Quiz has started! Get ready!');
-                        playNotificationSound();
+                // Handle reconnection: check if participant has answered current question
+                if (currentStatus === 'active') {
+                    // Check if we need to restore state
+                    if (data.current_question_answered && !hasAnsweredCurrent && !isAnswered) {
+                        // Participant already answered this question but page refreshed
+                        isReconnecting = true;
+                        hasAnsweredCurrent = true;
+                        isAnswered = true;
+                        showReconnectionNotice();
+                        
+                        // Restore the question with answer state
+                        const currentQ = data.current_question_index;
+                        const totalQ = data.total_questions;
+                        
+                        if (currentQ < totalQ) {
+                            // Load the question with answer state
+                            loadQuestionWithState(currentQ, {
+                                already_answered: true,
+                                answer: data.current_question_answer,
+                                correct: data.current_question_correct
+                            });
+                            return;
+                        }
                     }
-                    if (!quizStarted) {
-                        quizStarted = true;
+                    
+                    // If quiz became active (started)
+                    if (currentStatus === 'active' && previousStatus === 'waiting') {
+                        if (!notificationShown) {
+                            notificationShown = true;
+                            showNotification('🚀 Quiz has started! Get ready!');
+                            playNotificationSound();
+                        }
+                        if (!quizStarted) {
+                            quizStarted = true;
+                            loadQuestion();
+                            return;
+                        }
+                    }
+                    
+                    // If quiz is active and we haven't loaded a question yet
+                    if (currentStatus === 'active' && quizStarted && !questionData && !isCompleted) {
                         loadQuestion();
                         return;
                     }
-                }
-                
-                // If quiz is active and we haven't loaded a question yet
-                if (currentStatus === 'active' && quizStarted && !questionData) {
-                    loadQuestion();
-                    return;
-                }
-                
-                // If quiz is active and we have a question but need to refresh
-                if (currentStatus === 'active' && quizStarted && questionData) {
-                    if (data.current_question_index !== undefined && 
-                        data.current_question_index !== currentQuestionIndex) {
-                        loadQuestion();
-                        return;
+                    
+                    // If quiz is active and we have a question but need to refresh
+                    if (currentStatus === 'active' && quizStarted && questionData) {
+                        if (data.current_question_index !== undefined && 
+                            data.current_question_index !== currentQuestionIndex) {
+                            // Make sure we don't skip if the user just answered
+                            if (!isAnswered) {
+                                loadQuestion();
+                            }
+                            return;
+                        }
                     }
                 }
                 
@@ -775,77 +892,123 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // Update leaderboard (less frequently)
-                if (currentStatus === 'active' || currentStatus === 'finished') {
-                    updateLeaderboard();
-                }
-                
                 previousStatus = currentStatus;
             })
             .catch(function(err) {
                 console.warn('Polling fetch error:', err);
-                // Increase interval on error
                 pollInterval = Math.min(pollInterval + 500, 5000);
                 resetPollTimer();
             });
     }
     
     // ============================================
-    // RESET POLLING TIMER
+    // LOAD QUESTION WITH STATE (for reconnection)
     // ============================================
     
-    function resetPollTimer() {
-        if (pollTimer) {
-            clearTimeout(pollTimer);
-        }
-        pollTimer = setTimeout(function() {
-            pollQuizState();
-            // Keep the loop going
-            resetPollTimer();
-        }, pollInterval);
+    function loadQuestionWithState(index, state) {
+        fetch('/live-quiz/get-question/' + quizId + '?t=' + Date.now() + '&index=' + index)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    if (data.completed) {
+                        isCompleted = true;
+                        pollQuizState();
+                    } else if (data.waiting) {
+                        setTimeout(loadQuestion, 1000);
+                    }
+                    return;
+                }
+                if (data.question) {
+                    questionData = data;
+                    currentQuestionIndex = data.index;
+                    isAnswered = true;
+                    isRated = false;
+                    
+                    if (state && state.already_answered) {
+                        renderAnsweredQuestion(data, state);
+                        // Don't start timer for already answered questions
+                        clearInterval(timerInterval);
+                        const display = document.getElementById('timerDisplay');
+                        if (display) {
+                            display.textContent = '--';
+                            display.className = 'question-timer stopped';
+                        }
+                    } else {
+                        isAnswered = false;
+                        renderQuestion(data);
+                        startTimer();
+                    }
+                    
+                    const progressBar = document.getElementById('progressBar');
+                    if (progressBar) {
+                        progressBar.style.width = ((data.index / data.total) * 100) + '%';
+                    }
+                }
+            })
+            .catch(function(err) {
+                console.warn('Load question error:', err);
+                setTimeout(loadQuestion, 2000);
+            });
     }
     
     // ============================================
-    // COMPLETED STATE
+    // RENDER ANSWERED QUESTION (for reconnection)
     // ============================================
     
-    function showCompletedState(data) {
-        if (isCompleted) return;
-        isCompleted = true;
+    function renderAnsweredQuestion(data, state) {
+        const question = data.question;
+        const index = data.index;
+        const total = data.total;
+        
+        const currentQ = document.getElementById('currentQ');
+        const totalQ = document.getElementById('totalQ');
+        if (currentQ) currentQ.textContent = index + 1;
+        if (totalQ) totalQ.textContent = total;
+        
         const container = document.getElementById('questionContainer');
         if (!container) return;
+        
+        const answer = state.answer;
+        const isCorrect = state.correct;
+        const correctAnswer = question.correct_answer;
+        const explanation = question.explanation || '';
+        
+        let optionsHtml = '';
+        const letters = ['A', 'B', 'C'];
+        letters.forEach(letter => {
+            let classes = 'option-btn';
+            if (letter === correctAnswer) classes += ' correct';
+            if (letter === answer && !isCorrect) classes += ' wrong';
+            const checked = letter === answer ? '✓ ' : '';
+            optionsHtml += `
+                <button class="${classes}" disabled>
+                    <span class="letter">${letter}.</span>
+                    <span>${checked}${question.options[letter]}</span>
+                </button>
+            `;
+        });
+        
         container.innerHTML = `
-            <div class="completed-state">
-                <div class="icon">🎉</div>
-                <h3>You've completed all questions!</h3>
-                <p>Waiting for other participants to finish...</p>
-                <div class="waiting-info">
-                    <div class="stat">
-                        <div class="number">${data.completed_count || 0}/${data.total_participants || 0}</div>
-                        <div class="label">Participants completed</div>
+            <div class="question-text">${question.question_text}</div>
+            <div class="options-container">
+                ${optionsHtml}
+            </div>
+            <div id="feedbackContainer">
+                <div class="feedback-area ${isCorrect ? 'success' : 'error'}">
+                    <div class="feedback-title">
+                        ${isCorrect ? '✅ CORRECT! +2 points' : '❌ WRONG! 0 points'}
                     </div>
-                    <div class="stat">
-                        <div class="number" id="waitingTimer">${formatTime(data.remaining_time || 0)}</div>
-                        <div class="label">Time remaining</div>
+                    ${explanation ? `<div style="font-size: 14px; margin-top: 4px; color: var(--text-secondary);">💡 ${explanation}</div>` : ''}
+                    <div style="margin-top: 10px; font-size: 13px; color: var(--text-secondary);">
+                        You already answered this question. Please rate it to continue.
+                    </div>
+                    <div class="rating-buttons">
+                        <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
+                        <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
                     </div>
                 </div>
             </div>
         `;
-        if (data.remaining_time) {
-            let remaining = data.remaining_time;
-            const timerDisplay = document.getElementById('waitingTimer');
-            if (timerDisplay) {
-                const interval = setInterval(() => {
-                    remaining--;
-                    if (remaining <= 0) {
-                        timerDisplay.textContent = '00:00';
-                        clearInterval(interval);
-                    } else {
-                        timerDisplay.textContent = formatTime(remaining);
-                    }
-                }, 1000);
-            }
-        }
     }
     
     // ============================================
@@ -868,11 +1031,33 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 if (data.question) {
+                    // Check if this question is already answered (reconnection case)
+                    if (data.already_answered) {
+                        isReconnecting = true;
+                        hasAnsweredCurrent = true;
+                        isAnswered = true;
+                        showReconnectionNotice();
+                        renderAnsweredQuestion(data, {
+                            already_answered: true,
+                            answer: data.answer,
+                            correct: data.correct,
+                            explanation: data.explanation
+                        });
+                        // Don't start timer for already answered questions
+                        clearInterval(timerInterval);
+                        const display = document.getElementById('timerDisplay');
+                        if (display) {
+                            display.textContent = '--';
+                            display.className = 'question-timer stopped';
+                        }
+                        return;
+                    }
+                    
                     questionData = data;
                     currentQuestionIndex = data.index;
                     isAnswered = false;
                     isRated = false;
-                    answerData = null;
+                    hasAnsweredCurrent = false;
                     renderQuestion(data);
                     startTimer();
                     const progressBar = document.getElementById('progressBar');
@@ -945,13 +1130,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (timer <= 0) {
                 clearInterval(timerInterval);
-                // If NOT answered, skip (time ran out)
-                // If answered, DO NOT auto-skip - user must rate!
                 if (!isAnswered) {
                     skipQuestion();
                 } else {
-                    // Timer hit 0 but user already answered
-                    // Show a reminder to rate
                     const container = document.getElementById('feedbackContainer');
                     if (container) {
                         const existing = container.querySelector('.rating-reminder');
@@ -988,13 +1169,13 @@ document.addEventListener('DOMContentLoaded', function() {
     window.selectOption = function(value) {
         if (isAnswered) return;
         isAnswered = true;
+        hasAnsweredCurrent = true;
         
         const buttons = document.querySelectorAll('.option-btn');
         buttons.forEach(b => b.disabled = true);
         const skipBtn = document.getElementById('skipBtn');
         if (skipBtn) skipBtn.disabled = true;
         
-        // Show loading state on selected button
         const selectedBtn = document.querySelector(`.option-btn[data-value="${value}"]`);
         if (selectedBtn) {
             selectedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
@@ -1021,14 +1202,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (b.dataset.value === value && !data.correct) {
                     b.classList.add('wrong');
                 }
-                // Reset button text
                 const letter = b.querySelector('.letter');
                 if (letter) {
-                    b.innerHTML = `<span class="letter">${letter.textContent}</span><span>${b.textContent.replace(letter.textContent, '').trim()}</span>`;
+                    const text = b.textContent.replace(letter.textContent, '').trim();
+                    const checked = b.dataset.value === value ? '✓ ' : '';
+                    b.innerHTML = `<span class="letter">${letter.textContent}</span><span>${checked}${text}</span>`;
                 }
             });
             
-            // Show feedback with rating buttons
             const container = document.getElementById('feedbackContainer');
             if (container) {
                 container.innerHTML = `
@@ -1048,7 +1229,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
             }
             
-            // Timer continues but won't auto-skip because isAnswered = true
             updateTimerDisplay();
         })
         .catch(function(err) {
@@ -1056,6 +1236,7 @@ document.addEventListener('DOMContentLoaded', function() {
             buttons.forEach(b => b.disabled = false);
             if (skipBtn) skipBtn.disabled = false;
             isAnswered = false;
+            hasAnsweredCurrent = false;
             showToast('Error submitting answer. Please try again.', 'error');
         });
     };
@@ -1065,8 +1246,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     
     window.skipQuestion = function() {
-        if (isAnswered) {
-            // If already answered, don't skip - just remind to rate
+        if (isAnswered && !hasAnsweredCurrent) {
             const container = document.getElementById('feedbackContainer');
             if (container) {
                 const existing = container.querySelector('.rating-reminder');
@@ -1080,7 +1260,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        isAnswered = true; // Prevent double skip
+        if (isAnswered) return;
+        
+        isAnswered = true;
+        hasAnsweredCurrent = true;
         
         const buttons = document.querySelectorAll('.option-btn');
         buttons.forEach(b => b.disabled = true);
@@ -1097,7 +1280,6 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            // Skip advances immediately, no rating needed
             const container = document.getElementById('feedbackContainer');
             if (container) {
                 container.innerHTML = `
@@ -1111,7 +1293,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             clearInterval(timerInterval);
-            // Advance immediately (no rating needed for skipped)
             questionData = null;
             setTimeout(function() {
                 loadQuestion();
@@ -1122,6 +1303,7 @@ document.addEventListener('DOMContentLoaded', function() {
             buttons.forEach(b => b.disabled = false);
             if (skipBtn) skipBtn.disabled = false;
             isAnswered = false;
+            hasAnsweredCurrent = false;
             showToast('Error skipping question. Please try again.', 'error');
         });
     };
@@ -1132,12 +1314,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     window.submitRating = function(rating) {
         if (isRated) return;
-        if (!answerData) {
-            // Safety check - should not happen
-            showToast('Please answer the question first.', 'warning');
-            return;
-        }
-        
         isRated = true;
         
         const buttons = document.querySelectorAll('.rating-buttons button');
@@ -1154,7 +1330,6 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            // Update feedback to show rating submitted
             const container = document.getElementById('feedbackContainer');
             if (container) {
                 const feedback = container.querySelector('.feedback-area');
@@ -1165,11 +1340,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     ratingDiv.textContent = `⭐ Rated: ${ratingText}`;
                     feedback.appendChild(ratingDiv);
                     
-                    // Remove rating buttons
                     const ratingBtns = feedback.querySelector('.rating-buttons');
                     if (ratingBtns) ratingBtns.remove();
                     
-                    // Remove reminder if exists
                     const reminder = feedback.querySelector('.rating-reminder');
                     if (reminder) reminder.remove();
                 }
@@ -1177,16 +1350,14 @@ document.addEventListener('DOMContentLoaded', function() {
             
             clearInterval(timerInterval);
             
-            // Check if completed
             if (data.completed) {
-                // All questions done, show completed state
                 isCompleted = true;
                 setTimeout(function() {
-                    pollQuizState(); // Refresh state to show completed
+                    pollQuizState();
                 }, 500);
             } else {
-                // Load next question
                 questionData = null;
+                hasAnsweredCurrent = false;
                 setTimeout(function() {
                     loadQuestion();
                 }, 600);
@@ -1201,14 +1372,56 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     
     // ============================================
-    // LEADERBOARD - UPDATED WITH LESS FREQUENT UPDATES
+    // COMPLETED STATE
+    // ============================================
+    
+    function showCompletedState(data) {
+        if (isCompleted) return;
+        isCompleted = true;
+        const container = document.getElementById('questionContainer');
+        if (!container) return;
+        container.innerHTML = `
+            <div class="completed-state">
+                <div class="icon">🎉</div>
+                <h3>You've completed all questions!</h3>
+                <p>Waiting for other participants to finish...</p>
+                <div class="waiting-info">
+                    <div class="stat">
+                        <div class="number">${data.completed_count || 0}/${data.total_participants || 0}</div>
+                        <div class="label">Participants completed</div>
+                    </div>
+                    <div class="stat">
+                        <div class="number" id="waitingTimer">${formatTime(data.remaining_time || 0)}</div>
+                        <div class="label">Time remaining</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        if (data.remaining_time) {
+            let remaining = data.remaining_time;
+            const timerDisplay = document.getElementById('waitingTimer');
+            if (timerDisplay) {
+                const interval = setInterval(() => {
+                    remaining--;
+                    if (remaining <= 0) {
+                        timerDisplay.textContent = '00:00';
+                        clearInterval(interval);
+                    } else {
+                        timerDisplay.textContent = formatTime(remaining);
+                    }
+                }, 1000);
+            }
+        }
+    }
+    
+    // ============================================
+    // LEADERBOARD
     // ============================================
     
     let leaderboardTimer = null;
-    let leaderboardInterval = 3000; // 3 seconds (was 1000)
+    let leaderboardInterval = 3000;
     
     function updateLeaderboard() {
-        // Clear any pending leaderboard timer
         if (leaderboardTimer) {
             clearTimeout(leaderboardTimer);
             leaderboardTimer = null;
@@ -1229,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 let html = '';
                 top5.forEach((item, i) => {
-                    const isYou = item.student_id == '{{ session.user_id }}';
+                    const isYou = item.student_id == '{{ session.user_id }}' || item.user_id == '{{ session.user_id }}';
                     const rankDisplay = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
                     html += `
                         <div class="lb-item ${isYou ? 'you' : ''}">
@@ -1241,27 +1454,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 list.innerHTML = html;
                 
-                // Schedule next leaderboard update
                 leaderboardTimer = setTimeout(updateLeaderboard, leaderboardInterval);
             })
             .catch(function(err) {
                 console.warn('Leaderboard update error:', err);
-                // Retry after 5 seconds on error
                 leaderboardTimer = setTimeout(updateLeaderboard, 5000);
             });
+    }
+    
+    // ============================================
+    // RESET POLLING TIMER
+    // ============================================
+    
+    function resetPollTimer() {
+        if (pollTimer) {
+            clearTimeout(pollTimer);
+        }
+        pollTimer = setTimeout(function() {
+            pollQuizState();
+            resetPollTimer();
+        }, pollInterval);
     }
     
     // ============================================
     // INITIALIZATION
     // ============================================
     
-    // Start polling with adaptive interval
+    // Start polling
     resetPollTimer();
-    
-    // Initial poll immediately
     setTimeout(pollQuizState, 100);
     
-    // Update leaderboard less frequently
+    // Update leaderboard
     leaderboardTimer = setTimeout(updateLeaderboard, 3000);
     
     // Clean up intervals on page unload
@@ -1271,7 +1494,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (timerInterval) clearInterval(timerInterval);
     });
     
-    // Expose functions globally for onclick handlers
+    // Expose functions globally
     window.selectOption = selectOption;
     window.skipQuestion = skipQuestion;
     window.submitRating = submitRating;

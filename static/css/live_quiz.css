@@ -573,7 +573,7 @@
 }
 
 /* ============================================
-   RESULTS PAGE
+   RESULTS PAGE - FIXED DARK MODE
    ============================================ */
 
 .result-hero {
@@ -589,22 +589,26 @@
     font-size: 56px;
     font-weight: 800;
     letter-spacing: -1px;
+    color: white;
 }
 
 .result-hero .percentage {
     font-size: 24px;
     font-weight: 600;
     opacity: 0.9;
+    color: rgba(255, 255, 255, 0.95);
 }
 
 .result-hero .rank {
     margin-top: 8px;
     font-size: 18px;
     opacity: 0.9;
+    color: rgba(255, 255, 255, 0.95);
 }
 
 .result-hero .rank strong {
     font-weight: 700;
+    color: white;
 }
 
 .result-stats {
@@ -711,6 +715,7 @@
     border-bottom: 1px solid var(--border-light);
     font-size: 13px;
     align-items: center;
+    color: var(--text);
 }
 
 .leaderboard-full .row:last-child {
@@ -746,9 +751,10 @@
 
 .leaderboard-full .row .status-tag.completed { background: #ECFDF5; color: #10B981; }
 .leaderboard-full .row .status-tag.left { background: #FEF2F2; color: #EF4444; }
+.leaderboard-full .row .status-tag.playing { background: #EFF6FF; color: #3B82F6; }
 
 /* ============================================
-   DARK MODE OVERRIDES
+   DARK MODE OVERRIDES - COMPLETE
    ============================================ */
 
 [data-theme="dark"] .quiz-header {
@@ -800,10 +806,12 @@
 [data-theme="dark"] .leaderboard-full .header {
     background: var(--surface-alt) !important;
     border-color: var(--border) !important;
+    color: var(--text-secondary) !important;
 }
 
 [data-theme="dark"] .leaderboard-full .row {
     border-color: var(--border-light) !important;
+    color: var(--text) !important;
 }
 
 [data-theme="dark"] .leaderboard-full .row.you {
@@ -815,6 +823,13 @@
     border-color: var(--border) !important;
 }
 
+[data-theme="dark"] .result-stats .stat .number {
+    color: var(--text) !important;
+}
+[data-theme="dark"] .result-stats .stat.correct .number { color: #34D399 !important; }
+[data-theme="dark"] .result-stats .stat.wrong .number { color: #F87171 !important; }
+[data-theme="dark"] .result-stats .stat.skipped .number { color: #FBBF24 !important; }
+
 [data-theme="dark"] .result-analysis {
     background: var(--surface) !important;
     border-color: var(--border) !important;
@@ -822,6 +837,27 @@
 
 [data-theme="dark"] .result-analysis .qa-item {
     border-color: var(--border-light) !important;
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .result-hero {
+    background: linear-gradient(135deg, #8B1A1A 0%, #4A0E0E 100%) !important;
+}
+
+[data-theme="dark"] .result-hero .score {
+    color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .result-hero .percentage {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+[data-theme="dark"] .result-hero .rank {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+[data-theme="dark"] .result-hero .rank strong {
+    color: #FFFFFF !important;
 }
 
 [data-theme="dark"] .join-code-display {
@@ -842,20 +878,81 @@
 [data-theme="dark"] .feedback-area.success {
     background: #1A3A2E !important;
     border-color: #10B981 !important;
+    color: #D1FAE5 !important;
 }
 
 [data-theme="dark"] .feedback-area.error {
     background: #3A1A1A !important;
     border-color: #EF4444 !important;
+    color: #FECACA !important;
 }
 
 [data-theme="dark"] .feedback-area.skipped {
     background: #3A2E1A !important;
     border-color: #F59E0B !important;
+    color: #FDE68A !important;
 }
 
 [data-theme="dark"] .lb-item.you {
     background: var(--primary-light) !important;
+}
+
+[data-theme="dark"] .lb-item .rank {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .lb-item .name {
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .participant-count-badge {
+    background: var(--primary-light) !important;
+    color: var(--primary) !important;
+}
+
+[data-theme="dark"] .badge-creator {
+    background: var(--primary) !important;
+    color: white !important;
+}
+
+[data-theme="dark"] .badge-you {
+    background: #3B82F6 !important;
+    color: white !important;
+}
+
+[data-theme="dark"] .status-tag.completed {
+    background: #1A3A2E !important;
+    color: #34D399 !important;
+}
+
+[data-theme="dark"] .status-tag.left {
+    background: #3A1A1A !important;
+    color: #F87171 !important;
+}
+
+[data-theme="dark"] .status-tag.playing {
+    background: #1A2A4A !important;
+    color: #60A5FA !important;
+}
+
+[data-theme="dark"] .rank-badge.gold {
+    background: #3A2E1A !important;
+    color: #FBBF24 !important;
+}
+
+[data-theme="dark"] .rank-badge.silver {
+    background: #2A2A3A !important;
+    color: #9CA3AF !important;
+}
+
+[data-theme="dark"] .rank-badge.bronze {
+    background: #3A2A1A !important;
+    color: #D97706 !important;
+}
+
+[data-theme="dark"] .rank-badge.normal {
+    background: var(--surface-alt) !important;
+    color: var(--text-secondary) !important;
 }
 
 /* ============================================
