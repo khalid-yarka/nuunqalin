@@ -5,7 +5,8 @@ from db import (
     restore_deleted_user as db_restore_user, create_subject, delete_subject,
     create_question, delete_question, create_group, delete_group,
     create_pdf, delete_pdf, get_all_groups, get_all_pdfs,
-    get_subject_by_name, bulk_create_questions, check_question_exists
+    get_subject_by_name, bulk_create_questions, check_question_exists,
+    create_notification_for_all_users
 )
 import json
 
@@ -583,3 +584,35 @@ def toggle_user_admin(user_id):
         flash('Error updating admin status.', 'error')
     
     return redirect(url_for('admin.admin_users'))
+
+
+# ============================================
+# ADMIN ANNOUNCEMENT (Notification)
+# ============================================
+
+@admin_bp.route('/announcement', methods=['GET', 'POST'])
+@admin_required
+def admin_announcement():
+    """Admin page to send announcements"""
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        body = request.form.get('body', '').strip()
+        link = request.form.get('link', '').strip()
+        
+        if not title or not body:
+            flash('Title and body are required.', 'error')
+            return render_template('dashboard/admin/announcement.html')
+        
+        # Send to all users
+        create_notification_for_all_users(
+            type='admin',
+            title=title,
+            body=body,
+            link=link or '/dashboard',
+            icon='📢'
+        )
+        
+        flash('✅ Announcement sent to all users!', 'success')
+        return redirect(url_for('admin.dashboard'))
+    
+    return render_template('dashboard/admin/announcement.html')

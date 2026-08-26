@@ -8,7 +8,9 @@ from db import (
     get_live_quiz_completed_count, get_question_ids_for_quiz,
     get_questions_by_ids, get_question_by_id, update_participant_rankings,
     get_live_quiz_creator_id, get_active_live_quiz,
-    get_live_quiz_by_id, get_questions_by_subject, is_admin
+    get_live_quiz_by_id, get_questions_by_subject, is_admin,
+    get_student_by_id,
+    notify_live_quiz_start, notify_live_quiz_results, notify_participant_joined
 )
 import secrets
 import string
@@ -276,6 +278,10 @@ def join():
             flash('This quiz is full.', 'error')
             return render_template('dashboard/live_quiz/join.html')
         
+        # Get user name for notification
+        user = get_student_by_id(session['user_id'])
+        user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
+        
         # Join the quiz
         add_live_quiz_participant(quiz['id'], session['user_id'])
         
@@ -291,6 +297,16 @@ def join():
             'ratings': {},
             'status': 'active'
         })
+        
+        # ============================================
+        # 🔔 NOTIFY CREATOR THAT SOMEONE JOINED
+        # ============================================
+        notify_participant_joined(
+            quiz['id'], 
+            quiz.get('title', 'Live Quiz'), 
+            user_name, 
+            quiz['creator_id']
+        )
         
         flash('You have joined the quiz!', 'success')
         return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
@@ -406,6 +422,11 @@ def start_quiz(quiz_id):
                 'answers': {},
                 'ratings': {}
             })
+        
+        # ============================================
+        # 🔔 SEND NOTIFICATION TO ALL PARTICIPANTS
+        # ============================================
+        notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
         
         return jsonify({'success': True, 'quiz_id': quiz_id})
         
@@ -834,6 +855,11 @@ def results(quiz_id):
                 'status': 'finished',
                 'ended_at': datetime.now(timezone.utc).isoformat()
             })
+            
+            # ============================================
+            # 🔔 SEND RESULTS NOTIFICATION TO ALL PARTICIPANTS
+            # ============================================
+            notify_live_quiz_results(quiz_id, quiz.get('title', 'Live Quiz'), all_participants)
     
     return render_template('dashboard/live_quiz/results.html',
                          quiz=quiz,

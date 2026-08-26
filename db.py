@@ -1291,3 +1291,156 @@ def search_groups(search: str = '', platform: str = '', category: str = ''):
     except Exception as e:
         print(f"Error searching groups: {e}")
         return []
+
+
+# ============================================
+# NOTIFICATION FUNCTIONS
+# ============================================
+
+def create_notification(user_id, type, title, body, link='', icon=''):
+    """Create a new notification for a user"""
+    try:
+        execute_with_retry("""
+            INSERT INTO notifications (
+                user_id, type, title, body, link, icon,
+                is_read, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user_id, type, title, body, link, icon,
+            0, now()
+        ), role='write')
+        return True
+    except Exception as e:
+        print(f"Error creating notification: {e}")
+        return False
+
+def create_notification_for_all_users(type, title, body, link='', icon=''):
+    """Create notification for ALL users"""
+    try:
+        cursor = execute_with_retry("SELECT id FROM students")
+        users = cursor.fetchall()
+        
+        for user in users:
+            create_notification(user['id'], type, title, body, link, icon)
+        
+        return True
+    except Exception as e:
+        print(f"Error creating notifications for all users: {e}")
+        return False
+
+def get_user_notifications(user_id, limit=20, unread_only=False):
+    """Get notifications for a user"""
+    try:
+        query = """
+            SELECT * FROM notifications 
+            WHERE user_id = ?
+        """
+        params = [user_id]
+        
+        if unread_only:
+            query += " AND is_read = 0"
+        
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor = execute_with_retry(query, params)
+        results = cursor.fetchall()
+        return [dict(row) for row in results]
+    except Exception as e:
+        print(f"Error getting notifications: {e}")
+        return []
+
+def get_unread_count(user_id):
+    """Get count of unread notifications"""
+    try:
+        cursor = execute_with_retry(
+            "SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0",
+            (user_id,)
+        )
+        result = cursor.fetchone()
+        return result['count'] if result else 0
+    except Exception as e:
+        print(f"Error getting unread count: {e}")
+        return 0
+
+def mark_notification_read(notification_id, user_id):
+    """Mark a notification as read"""
+    try:
+        execute_with_retry("""
+            UPDATE notifications 
+            SET is_read = 1, read_at = ?
+            WHERE id = ? AND user_id = ?
+        """, (now(), notification_id, user_id), role='write')
+        return True
+    except Exception as e:
+        print(f"Error marking notification read: {e}")
+        return False
+
+def mark_all_notifications_read(user_id):
+    """Mark all notifications as read"""
+    try:
+        execute_with_retry("""
+            UPDATE notifications 
+            SET is_read = 1, read_at = ?
+            WHERE user_id = ? AND is_read = 0
+        """, (now(), user_id), role='write')
+        return True
+    except Exception as e:
+        print(f"Error marking all notifications read: {e}")
+        return False
+
+
+# ============================================
+# NOTIFICATION TRIGGERS
+# ============================================
+
+def notify_quiz_completed(user_id, subject_name, score, total):
+    """Send notification when quiz is completed"""
+    percentage = round((score / total) * 100)
+    title = "📝 Quiz Completed!"
+    body = f"You scored {score}/{total} ({percentage}%) on {subject_name} Quiz!"
+    create_notification(
+        user_id=user_id,
+        type='quiz_completed',
+        title=title,
+        body=body,
+        link='/quiz/history',
+        icon='📝'
+    )
+
+def notify_live_quiz_start(quiz_id, title, participants):
+    """Send notification when live quiz starts - CRITICAL"""
+    for participant in participants:
+        create_notification(
+            user_id=participant['student_id'],
+            type='live_quiz_start',
+            title='⚡ Live Quiz Started!',
+            body=f"🚀 '{title}' has started! Join now!",
+            link=f'/live-quiz/play/{quiz_id}',
+            icon='⚡'
+        )
+
+def notify_live_quiz_results(quiz_id, title, participants):
+    """Send notification when live quiz ends"""
+    for participant in participants:
+        rank = participant.get('ranking', '?')
+        score = participant.get('score', 0)
+        create_notification(
+            user_id=participant['student_id'],
+            type='live_quiz_result',
+            title='🏆 Live Quiz Results!',
+            body=f"You ranked #{rank} in '{title}' with {score} points!",
+            link=f'/live-quiz/results/{quiz_id}',
+            icon='🏆'
+        )
+
+def notify_participant_joined(quiz_id, title, participant_name, creator_id):
+    """Notify creator when someone joins"""
+    create_notification(
+        user_id=creator_id,
+        type='participant_joined',
+        title='👤 Participant Joined!',
+        body=f"{participant_name} joined your quiz '{title}'",
+        link=f'/live-quiz/waiting-room/{quiz_id}',
+        icon='👤'
+    )

@@ -7,6 +7,7 @@ from blueprints.pdfs_bp import pdfs_bp
 from blueprints.admin_bp import admin_bp
 from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
+from blueprints.notifications_bp import notifications_bp
 from utils import format_somali_time, get_somali_time_display
 import atexit
 
@@ -21,6 +22,7 @@ app.register_blueprint(pdfs_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
+app.register_blueprint(notifications_bp)  # NEW
 
 
 # ============================================
@@ -165,6 +167,10 @@ def page_not_found(e):
 @app.errorhandler(500)
 def internal_server_error(e):
     return render_template('500.html'), 500
+
+@app.errorhandler(403)
+def forbidden(e):
+    return render_template('403.html'), 403
 
 
 # ============================================
