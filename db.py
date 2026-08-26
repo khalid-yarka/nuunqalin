@@ -5,20 +5,93 @@ import string
 from datetime import datetime, timezone, timedelta
 from config import Config
 from utils import get_somali_time, get_somali_time_db, format_somali_time
+from flask import g
+import time
 
 # ============================================
 # DATABASE CONNECTION
 # ============================================
 
 DB_PATH = 'nuunplatform.db'
+MAX_RETRIES = 3
+RETRY_DELAY = 0.5  # seconds
 
-def get_db():
-    """Get database connection with JSON serialization support"""
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    return conn
+# Connection Pool (Simple)
+_connection_pool = {
+    'read': None,
+    'write': None,
+    'admin': None
+}
+_pool_timestamps = {
+    'read': 0,
+    'write': 0,
+    'admin': 0
+}
+POOL_TIMEOUT = 30  # seconds - close idle connections
+
+
+def get_db(role='read'):
+    """Get database connection with connection pooling."""
+    conn = _connection_pool.get(role)
+    timestamp = _pool_timestamps.get(role, 0)
+    
+    if conn is not None and (time.time() - timestamp) < POOL_TIMEOUT:
+        try:
+            conn.execute("SELECT 1")
+            return conn
+        except sqlite3.Error:
+            conn = None
+    
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=10)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA busy_timeout = 10000")
+        
+        _connection_pool[role] = conn
+        _pool_timestamps[role] = time.time()
+        
+        return conn
+    except sqlite3.Error as e:
+        print(f"Error connecting to database: {e}")
+        conn = sqlite3.connect(DB_PATH, timeout=10)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA busy_timeout = 10000")
+        return conn
+
+
+def close_db_connections():
+    """Close all pooled connections"""
+    for role, conn in _connection_pool.items():
+        if conn is not None:
+            try:
+                conn.close()
+            except:
+                pass
+    _connection_pool.clear()
+    _pool_timestamps.clear()
+
+
+def execute_with_retry(query, params=(), role='read', max_retries=MAX_RETRIES):
+    """Execute a query with retry logic"""
+    for attempt in range(max_retries):
+        try:
+            conn = get_db(role)
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            conn.commit()
+            return cursor
+        except sqlite3.OperationalError as e:
+            if "database is locked" in str(e) and attempt < max_retries - 1:
+                time.sleep(RETRY_DELAY * (attempt + 1))
+                continue
+            raise
+        except Exception as e:
+            raise
+
 
 # ============================================
 # JSON HELPERS
@@ -30,6 +103,7 @@ def to_json(data):
 def from_json(data):
     return json.loads(data) if data else None
 
+
 # ============================================
 # TIME HELPERS
 # ============================================
@@ -37,6 +111,7 @@ def from_json(data):
 def now():
     """Get current time in Somali timezone as string"""
     return get_somali_time_db()
+
 
 # ============================================
 # PUBLIC ID GENERATION
@@ -50,12 +125,10 @@ def generate_public_id() -> str:
 
 def get_student_by_public_id(public_id: str):
     """Get student by public ID"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM students WHERE public_id = ?", (public_id,))
+    cursor = execute_with_retry("SELECT * FROM students WHERE public_id = ?", (public_id,))
     result = cursor.fetchone()
-    conn.close()
     return dict(result) if result else None
+
 
 # ============================================
 # STUDENT FUNCTIONS
@@ -63,20 +136,14 @@ def get_student_by_public_id(public_id: str):
 
 def get_student_by_phone(phone: str):
     """Get student by phone number"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM students WHERE phone_number = ?", (phone,))
+    cursor = execute_with_retry("SELECT * FROM students WHERE phone_number = ?", (phone,))
     result = cursor.fetchone()
-    conn.close()
     return dict(result) if result else None
 
 def get_student_by_id(student_id: int):
     """Get student by internal ID"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM students WHERE id = ?", (student_id,))
+    cursor = execute_with_retry("SELECT * FROM students WHERE id = ?", (student_id,))
     result = cursor.fetchone()
-    conn.close()
     return dict(result) if result else None
 
 def create_student(data: dict):
@@ -86,9 +153,7 @@ def create_student(data: dict):
         while get_student_by_public_id(public_id):
             public_id = generate_public_id()
         
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             INSERT INTO students (
                 public_id, phone_number, password, first_name,
                 middle_name, last_name, location, city, school, grade,
@@ -97,7 +162,7 @@ def create_student(data: dict):
         """, (
             public_id,
             data['phone_number'],
-            data['password'],  # Plain text - NO HASHING
+            data['password'],
             data['first_name'],
             data.get('middle_name', ''),
             data['last_name'],
@@ -107,10 +172,9 @@ def create_student(data: dict):
             data.get('grade', ''),
             data.get('total_points', 0),
             0,
-            now()  # Somali time
-        ))
-        conn.commit()
-        conn.close()
+            now()
+        ), role='write')
+        
         return get_student_by_phone(data['phone_number'])
     except Exception as e:
         print(f"Error creating student: {e}")
@@ -119,14 +183,11 @@ def create_student(data: dict):
 def update_student_points(student_id: int, points: int):
     """Update student's total points"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
+        execute_with_retry(
             "UPDATE students SET total_points = ? WHERE id = ?",
-            (points, student_id)
+            (points, student_id),
+            role='write'
         )
-        conn.commit()
-        conn.close()
         return get_student_by_id(student_id)
     except Exception as e:
         print(f"Error updating points: {e}")
@@ -135,11 +196,8 @@ def update_student_points(student_id: int, points: int):
 def is_admin(user_id: int) -> bool:
     """Check if a user is an admin"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT is_admin FROM students WHERE id = ?", (user_id,))
+        cursor = execute_with_retry("SELECT is_admin FROM students WHERE id = ?", (user_id,))
         result = cursor.fetchone()
-        conn.close()
         return bool(result['is_admin']) if result else False
     except Exception as e:
         print(f"Error checking admin: {e}")
@@ -148,21 +206,17 @@ def is_admin(user_id: int) -> bool:
 def toggle_admin(user_id: int):
     """Toggle admin status for a user"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT is_admin FROM students WHERE id = ?", (user_id,))
+        cursor = execute_with_retry("SELECT is_admin FROM students WHERE id = ?", (user_id,))
         result = cursor.fetchone()
         if not result:
-            conn.close()
             return None
         
         new_status = 0 if result['is_admin'] else 1
-        cursor.execute(
+        execute_with_retry(
             "UPDATE students SET is_admin = ? WHERE id = ?",
-            (new_status, user_id)
+            (new_status, user_id),
+            role='write'
         )
-        conn.commit()
-        conn.close()
         return get_student_by_id(user_id)
     except Exception as e:
         print(f"Error toggling admin: {e}")
@@ -171,16 +225,13 @@ def toggle_admin(user_id: int):
 def get_all_students():
     """Get all students (admin only)"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT id, public_id, first_name, last_name, phone_number, 
                    location, school, grade, total_points, is_admin, created_at
             FROM students
             ORDER BY created_at DESC
         """)
         results = cursor.fetchall()
-        conn.close()
         return [dict(row) for row in results]
     except Exception as e:
         print(f"Error fetching students: {e}")
@@ -189,15 +240,13 @@ def get_all_students():
 def get_schools_by_location(location: str):
     """Get schools by location"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM schools WHERE location = ?", (location,))
+        cursor = execute_with_retry("SELECT * FROM schools WHERE location = ?", (location,))
         results = cursor.fetchall()
-        conn.close()
         return [dict(row) for row in results]
     except Exception as e:
         print(f"Error fetching schools: {e}")
         return []
+
 
 # ============================================
 # SUBJECT FUNCTIONS
@@ -206,11 +255,8 @@ def get_schools_by_location(location: str):
 def get_all_subjects():
     """Get all subjects"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM subjects ORDER BY name")
+        cursor = execute_with_retry("SELECT * FROM subjects ORDER BY name")
         results = cursor.fetchall()
-        conn.close()
         return [dict(row) for row in results]
     except Exception as e:
         print(f"Error fetching subjects: {e}")
@@ -219,11 +265,18 @@ def get_all_subjects():
 def get_subject_by_id(subject_id: int):
     """Get subject by ID"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM subjects WHERE id = ?", (subject_id,))
+        cursor = execute_with_retry("SELECT * FROM subjects WHERE id = ?", (subject_id,))
         result = cursor.fetchone()
-        conn.close()
+        return dict(result) if result else None
+    except Exception as e:
+        print(f"Error fetching subject: {e}")
+        return None
+
+def get_subject_by_name(name: str):
+    """Get subject by name (case-insensitive)"""
+    try:
+        cursor = execute_with_retry("SELECT * FROM subjects WHERE LOWER(name) = LOWER(?)", (name,))
+        result = cursor.fetchone()
         return dict(result) if result else None
     except Exception as e:
         print(f"Error fetching subject: {e}")
@@ -232,44 +285,24 @@ def get_subject_by_id(subject_id: int):
 def create_subject(data: dict):
     """Create a new subject"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        execute_with_retry("""
             INSERT INTO subjects (name, icon)
             VALUES (?, ?)
-        """, (data['name'], data.get('icon', '')))
-        conn.commit()
-        conn.close()
+        """, (data['name'], data.get('icon', '📚')), role='write')
         return get_subject_by_name(data['name'])
     except Exception as e:
         print(f"Error creating subject: {e}")
         return None
 
-def get_subject_by_name(name: str):
-    """Get subject by name"""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM subjects WHERE name = ?", (name,))
-        result = cursor.fetchone()
-        conn.close()
-        return dict(result) if result else None
-    except Exception as e:
-        print(f"Error fetching subject: {e}")
-        return None
-
 def delete_subject(subject_id: int):
     """Delete a subject"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM subjects WHERE id = ?", (subject_id,))
-        conn.commit()
-        conn.close()
+        execute_with_retry("DELETE FROM subjects WHERE id = ?", (subject_id,), role='write')
         return True
     except Exception as e:
         print(f"Error deleting subject: {e}")
         return False
+
 
 # ============================================
 # QUESTION FUNCTIONS
@@ -278,17 +311,14 @@ def delete_subject(subject_id: int):
 def get_questions_by_subject(subject_id: int, limit: int = 10):
     """Get random questions for a subject"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT id, question_text, options, correct_answer, explanation
             FROM questions
-            WHERE subject_id = ?
+            WHERE subject_id = ? AND status = 'active'
             ORDER BY RANDOM()
             LIMIT ?
         """, (subject_id, limit))
         results = cursor.fetchall()
-        conn.close()
         
         questions = []
         for row in results:
@@ -303,16 +333,13 @@ def get_questions_by_subject(subject_id: int, limit: int = 10):
 def get_all_questions():
     """Get all questions with subject names (admin only)"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT q.*, s.name as subject_name
             FROM questions q
             LEFT JOIN subjects s ON q.subject_id = s.id
             ORDER BY q.created_at DESC
         """)
         results = cursor.fetchall()
-        conn.close()
         
         questions = []
         for row in results:
@@ -328,42 +355,106 @@ def get_all_questions():
 def create_question(data: dict):
     """Create a new question"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        execute_with_retry("""
             INSERT INTO questions (
                 subject_id, question_text, options, correct_answer,
-                difficulty, explanation, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                difficulty, chapter, tags, explanation,
+                created_by, updated_by, status, version, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             data['subject_id'],
             data['question_text'],
             to_json(data['options']),
             data['correct_answer'],
             data.get('difficulty', 1),
+            data.get('chapter', ''),
+            data.get('tags', ''),
             data.get('explanation', ''),
+            data.get('created_by'),
+            data.get('updated_by'),
+            data.get('status', 'active'),
+            data.get('version', 1),
+            now(),
             now()
-        ))
-        conn.commit()
-        conn.close()
+        ), role='write')
         return True
     except Exception as e:
         print(f"Error creating question: {e}")
         return False
 
+def bulk_create_questions(questions_data: list, admin_id: int):
+    """Bulk create multiple questions"""
+    try:
+        conn = get_db('write')
+        cursor = conn.cursor()
+        
+        imported_count = 0
+        errors = []
+        
+        for idx, q in enumerate(questions_data, 1):
+            try:
+                cursor.execute("""
+                    INSERT INTO questions (
+                        subject_id, question_text, options, correct_answer,
+                        difficulty, chapter, tags, explanation,
+                        created_by, updated_by, status, version, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    q['subject_id'],
+                    q['question_text'],
+                    to_json(q['options']),
+                    q['correct_answer'],
+                    q.get('difficulty', 1),
+                    q.get('chapter', ''),
+                    q.get('tags', ''),
+                    q.get('explanation', ''),
+                    admin_id,
+                    admin_id,
+                    'active',
+                    1,
+                    now(),
+                    now()
+                ))
+                imported_count += 1
+            except Exception as e:
+                errors.append({
+                    'index': idx,
+                    'question': q.get('question_text', 'Unknown'),
+                    'error': str(e)
+                })
+        
+        conn.commit()
+        conn.close()
+        
+        return {
+            'imported': imported_count,
+            'errors': errors,
+            'total': len(questions_data)
+        }
+        
+    except Exception as e:
+        print(f"Error in bulk create: {e}")
+        return {
+            'imported': 0,
+            'errors': [{'error': str(e)}],
+            'total': len(questions_data)
+        }
+
 def update_question(question_id: int, data: dict):
     """Update a question"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        execute_with_retry("""
             UPDATE questions SET
                 subject_id = ?,
                 question_text = ?,
                 options = ?,
                 correct_answer = ?,
                 difficulty = ?,
-                explanation = ?
+                chapter = ?,
+                tags = ?,
+                explanation = ?,
+                updated_by = ?,
+                updated_at = ?
             WHERE id = ?
         """, (
             data['subject_id'],
@@ -371,24 +462,26 @@ def update_question(question_id: int, data: dict):
             to_json(data['options']),
             data['correct_answer'],
             data.get('difficulty', 1),
+            data.get('chapter', ''),
+            data.get('tags', ''),
             data.get('explanation', ''),
+            data.get('updated_by'),
+            now(),
             question_id
-        ))
-        conn.commit()
-        conn.close()
+        ), role='write')
         return True
     except Exception as e:
         print(f"Error updating question: {e}")
         return False
 
 def delete_question(question_id: int):
-    """Delete a question"""
+    """Soft delete a question (set status to archived)"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM questions WHERE id = ?", (question_id,))
-        conn.commit()
-        conn.close()
+        execute_with_retry(
+            "UPDATE questions SET status = 'archived' WHERE id = ?",
+            (question_id,),
+            role='write'
+        )
         return True
     except Exception as e:
         print(f"Error deleting question: {e}")
@@ -397,11 +490,8 @@ def delete_question(question_id: int):
 def get_question_by_id(question_id: int):
     """Get a question by ID"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM questions WHERE id = ?", (question_id,))
+        cursor = execute_with_retry("SELECT * FROM questions WHERE id = ?", (question_id,))
         result = cursor.fetchone()
-        conn.close()
         if result:
             q = dict(result)
             q['options'] = from_json(q['options'])
@@ -411,6 +501,20 @@ def get_question_by_id(question_id: int):
         print(f"Error fetching question: {e}")
         return None
 
+def check_question_exists(question_text: str, subject_id: int):
+    """Check if a question already exists"""
+    try:
+        cursor = execute_with_retry(
+            "SELECT id FROM questions WHERE LOWER(question_text) = LOWER(?) AND subject_id = ? AND status = 'active'",
+            (question_text, subject_id)
+        )
+        result = cursor.fetchone()
+        return result is not None
+    except Exception as e:
+        print(f"Error checking question: {e}")
+        return False
+
+
 # ============================================
 # QUIZ ATTEMPT FUNCTIONS
 # ============================================
@@ -418,9 +522,7 @@ def get_question_by_id(question_id: int):
 def save_quiz_attempt(student_id: int, subject_id: int, score: int, total: int, answers: list, ratings: list):
     """Save a quiz attempt"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        execute_with_retry("""
             INSERT INTO quiz_attempts (
                 student_id, subject_id, score, total_questions,
                 answers, ratings, completed_at
@@ -433,9 +535,7 @@ def save_quiz_attempt(student_id: int, subject_id: int, score: int, total: int, 
             to_json(answers),
             to_json(ratings),
             now()
-        ))
-        conn.commit()
-        conn.close()
+        ), role='write')
         return True
     except Exception as e:
         print(f"Error saving quiz attempt: {e}")
@@ -444,9 +544,7 @@ def save_quiz_attempt(student_id: int, subject_id: int, score: int, total: int, 
 def get_user_quiz_history(student_id: int, limit: int = 10):
     """Get user's quiz history"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT qa.*, s.name as subject_name
             FROM quiz_attempts qa
             LEFT JOIN subjects s ON qa.subject_id = s.id
@@ -455,7 +553,6 @@ def get_user_quiz_history(student_id: int, limit: int = 10):
             LIMIT ?
         """, (student_id, limit))
         results = cursor.fetchall()
-        conn.close()
         
         attempts = []
         for row in results:
@@ -472,20 +569,18 @@ def get_user_quiz_history(student_id: int, limit: int = 10):
 def get_leaderboard(limit: int = 20):
     """Get global leaderboard"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT public_id, first_name, last_name, total_points, school
             FROM students
             ORDER BY total_points DESC
             LIMIT ?
         """, (limit,))
         results = cursor.fetchall()
-        conn.close()
         return [dict(row) for row in results]
     except Exception as e:
         print(f"Error fetching leaderboard: {e}")
         return []
+
 
 # ============================================
 # DELETED USERS FUNCTIONS
@@ -501,10 +596,7 @@ def delete_user(student_id: int, admin_id: int, keep_ratings: bool = True, delet
         if student_id == admin_id:
             return None, 'You cannot delete your own account'
         
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        cursor = execute_with_retry("""
             INSERT INTO deleted_users (
                 original_id, public_id, first_name, last_name,
                 phone_number, school, grade, total_points, is_admin,
@@ -525,18 +617,16 @@ def delete_user(student_id: int, admin_id: int, keep_ratings: bool = True, delet
             admin_id,
             to_json(user),
             now()
-        ))
+        ), role='write')
         
         if delete_attempts:
-            cursor.execute("DELETE FROM quiz_attempts WHERE student_id = ?", (student_id,))
+            execute_with_retry("DELETE FROM quiz_attempts WHERE student_id = ?", (student_id,), role='write')
         
         if not keep_ratings:
-            cursor.execute("DELETE FROM quiz_ratings WHERE student_id = ?", (student_id,))
+            execute_with_retry("DELETE FROM quiz_ratings WHERE student_id = ?", (student_id,), role='write')
         
-        cursor.execute("DELETE FROM students WHERE id = ?", (student_id,))
+        execute_with_retry("DELETE FROM students WHERE id = ?", (student_id,), role='write')
         
-        conn.commit()
-        conn.close()
         return True, 'User deleted successfully'
         
     except Exception as e:
@@ -546,9 +636,7 @@ def delete_user(student_id: int, admin_id: int, keep_ratings: bool = True, delet
 def get_deleted_users(limit: int = 50):
     """Get list of deleted users for admin recovery"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT d.*, s.first_name as admin_first_name, s.last_name as admin_last_name, s.public_id as admin_public_id
             FROM deleted_users d
             LEFT JOIN students s ON d.deleted_by = s.id
@@ -556,7 +644,6 @@ def get_deleted_users(limit: int = 50):
             LIMIT ?
         """, (limit,))
         results = cursor.fetchall()
-        conn.close()
         
         deleted = []
         for row in results:
@@ -576,23 +663,19 @@ def get_deleted_users(limit: int = 50):
 def restore_deleted_user(deleted_id: int):
     """Restore a deleted user from backup"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM deleted_users WHERE id = ?", (deleted_id,))
+        cursor = execute_with_retry("SELECT * FROM deleted_users WHERE id = ?", (deleted_id,))
         backup_row = cursor.fetchone()
         
         if not backup_row:
-            conn.close()
             return False, 'Deleted user not found'
         
         backup = dict(backup_row)
         user_data = from_json(backup['data'])
         
-        # Remove id and created_at to let SQLite generate new ones
         user_data.pop('id', None)
         user_data.pop('created_at', None)
         
-        cursor.execute("""
+        execute_with_retry("""
             INSERT INTO students (
                 public_id, phone_number, password, first_name,
                 middle_name, last_name, location, city, school, grade,
@@ -612,17 +695,16 @@ def restore_deleted_user(deleted_id: int):
             user_data.get('total_points', 0),
             user_data.get('is_admin', 0),
             user_data.get('created_at', now())
-        ))
+        ), role='write')
         
-        cursor.execute("DELETE FROM deleted_users WHERE id = ?", (deleted_id,))
+        execute_with_retry("DELETE FROM deleted_users WHERE id = ?", (deleted_id,), role='write')
         
-        conn.commit()
-        conn.close()
         return True, 'User restored successfully'
         
     except Exception as e:
         print(f"Error restoring user: {e}")
         return False, str(e)
+
 
 # ============================================
 # GROUP FUNCTIONS
@@ -631,11 +713,8 @@ def restore_deleted_user(deleted_id: int):
 def get_all_groups():
     """Get all groups (admin only)"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM groups ORDER BY created_at DESC")
+        cursor = execute_with_retry("SELECT * FROM groups ORDER BY created_at DESC")
         results = cursor.fetchall()
-        conn.close()
         return [dict(row) for row in results]
     except Exception as e:
         print(f"Error fetching groups: {e}")
@@ -644,11 +723,8 @@ def get_all_groups():
 def get_active_groups():
     """Get all active groups"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM groups WHERE is_active = 1 ORDER BY created_at DESC")
+        cursor = execute_with_retry("SELECT * FROM groups WHERE is_active = 1 ORDER BY created_at DESC")
         results = cursor.fetchall()
-        conn.close()
         return [dict(row) for row in results]
     except Exception as e:
         print(f"Error fetching groups: {e}")
@@ -657,9 +733,7 @@ def get_active_groups():
 def create_group(data: dict):
     """Create a new group"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        execute_with_retry("""
             INSERT INTO groups (
                 name, platform, invite_link, description, category,
                 click_count, is_active, created_at
@@ -673,9 +747,7 @@ def create_group(data: dict):
             data.get('click_count', 0),
             data.get('is_active', 1),
             now()
-        ))
-        conn.commit()
-        conn.close()
+        ), role='write')
         return True
     except Exception as e:
         print(f"Error creating group: {e}")
@@ -684,11 +756,7 @@ def create_group(data: dict):
 def delete_group(group_id: int):
     """Delete a group"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM groups WHERE id = ?", (group_id,))
-        conn.commit()
-        conn.close()
+        execute_with_retry("DELETE FROM groups WHERE id = ?", (group_id,), role='write')
         return True
     except Exception as e:
         print(f"Error deleting group: {e}")
@@ -697,14 +765,11 @@ def delete_group(group_id: int):
 def track_group_click(group_id: int):
     """Increment click count for a group"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
+        execute_with_retry(
             "UPDATE groups SET click_count = click_count + 1 WHERE id = ?",
-            (group_id,)
+            (group_id,),
+            role='write'
         )
-        conn.commit()
-        conn.close()
         return True
     except Exception as e:
         print(f"Error tracking group click: {e}")
@@ -713,15 +778,13 @@ def track_group_click(group_id: int):
 def get_group_by_id(group_id: int):
     """Get a group by ID"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM groups WHERE id = ?", (group_id,))
+        cursor = execute_with_retry("SELECT * FROM groups WHERE id = ?", (group_id,))
         result = cursor.fetchone()
-        conn.close()
         return dict(result) if result else None
     except Exception as e:
         print(f"Error fetching group: {e}")
         return None
+
 
 # ============================================
 # PDF FUNCTIONS
@@ -730,11 +793,8 @@ def get_group_by_id(group_id: int):
 def get_all_pdfs():
     """Get all PDFs"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM pdfs ORDER BY created_at DESC")
+        cursor = execute_with_retry("SELECT * FROM pdfs ORDER BY created_at DESC")
         results = cursor.fetchall()
-        conn.close()
         return [dict(row) for row in results]
     except Exception as e:
         print(f"Error fetching PDFs: {e}")
@@ -743,11 +803,8 @@ def get_all_pdfs():
 def get_pdf_by_id(pdf_id: int):
     """Get a PDF by ID"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM pdfs WHERE id = ?", (pdf_id,))
+        cursor = execute_with_retry("SELECT * FROM pdfs WHERE id = ?", (pdf_id,))
         result = cursor.fetchone()
-        conn.close()
         return dict(result) if result else None
     except Exception as e:
         print(f"Error fetching PDF: {e}")
@@ -756,9 +813,7 @@ def get_pdf_by_id(pdf_id: int):
 def create_pdf(data: dict):
     """Create a new PDF"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        execute_with_retry("""
             INSERT INTO pdfs (
                 title, description, file_url, telegram_download_url,
                 subject, grade, category, view_count, created_at
@@ -773,9 +828,7 @@ def create_pdf(data: dict):
             data.get('category', ''),
             data.get('view_count', 0),
             now()
-        ))
-        conn.commit()
-        conn.close()
+        ), role='write')
         return True
     except Exception as e:
         print(f"Error creating PDF: {e}")
@@ -784,11 +837,7 @@ def create_pdf(data: dict):
 def delete_pdf(pdf_id: int):
     """Delete a PDF"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM pdfs WHERE id = ?", (pdf_id,))
-        conn.commit()
-        conn.close()
+        execute_with_retry("DELETE FROM pdfs WHERE id = ?", (pdf_id,), role='write')
         return True
     except Exception as e:
         print(f"Error deleting PDF: {e}")
@@ -797,14 +846,11 @@ def delete_pdf(pdf_id: int):
 def increment_pdf_view(pdf_id: int):
     """Increment view count for a PDF"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
+        execute_with_retry(
             "UPDATE pdfs SET view_count = view_count + 1 WHERE id = ?",
-            (pdf_id,)
+            (pdf_id,),
+            role='write'
         )
-        conn.commit()
-        conn.close()
         return True
     except Exception as e:
         print(f"Error incrementing PDF view: {e}")
@@ -813,11 +859,8 @@ def increment_pdf_view(pdf_id: int):
 def get_pdf_distinct_subjects():
     """Get distinct subjects from PDFs"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT subject FROM pdfs WHERE subject IS NOT NULL AND subject != ''")
+        cursor = execute_with_retry("SELECT DISTINCT subject FROM pdfs WHERE subject IS NOT NULL AND subject != ''")
         results = cursor.fetchall()
-        conn.close()
         return [row['subject'] for row in results]
     except Exception as e:
         print(f"Error fetching PDF subjects: {e}")
@@ -826,11 +869,8 @@ def get_pdf_distinct_subjects():
 def get_pdf_distinct_grades():
     """Get distinct grades from PDFs"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT grade FROM pdfs WHERE grade IS NOT NULL AND grade != ''")
+        cursor = execute_with_retry("SELECT DISTINCT grade FROM pdfs WHERE grade IS NOT NULL AND grade != ''")
         results = cursor.fetchall()
-        conn.close()
         return [row['grade'] for row in results]
     except Exception as e:
         print(f"Error fetching PDF grades: {e}")
@@ -839,8 +879,6 @@ def get_pdf_distinct_grades():
 def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
     """Search PDFs with filters"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
         query = "SELECT * FROM pdfs WHERE 1=1"
         params = []
         
@@ -859,13 +897,13 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
         
         query += " ORDER BY created_at DESC"
         
-        cursor.execute(query, params)
+        cursor = execute_with_retry(query, params)
         results = cursor.fetchall()
-        conn.close()
         return [dict(row) for row in results]
     except Exception as e:
         print(f"Error searching PDFs: {e}")
         return []
+
 
 # ============================================
 # LIVE QUIZ FUNCTIONS
@@ -874,9 +912,7 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
 def create_live_quiz(data: dict):
     """Create a new live quiz"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             INSERT INTO live_quizzes (
                 creator_id, title, subject_id, question_count, join_code,
                 status, max_participants, time_per_question, current_question_index,
@@ -896,12 +932,10 @@ def create_live_quiz(data: dict):
             data.get('started_at'),
             data.get('ended_at'),
             now()
-        ))
-        conn.commit()
+        ), role='write')
         
-        cursor.execute("SELECT * FROM live_quizzes WHERE join_code = ?", (data['join_code'],))
+        cursor = execute_with_retry("SELECT * FROM live_quizzes WHERE join_code = ?", (data['join_code'],))
         result = cursor.fetchone()
-        conn.close()
         return dict(result) if result else None
     except Exception as e:
         print(f"Error creating live quiz: {e}")
@@ -910,11 +944,8 @@ def create_live_quiz(data: dict):
 def get_live_quiz_by_id(quiz_id: int):
     """Get a live quiz by ID"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM live_quizzes WHERE id = ?", (quiz_id,))
+        cursor = execute_with_retry("SELECT * FROM live_quizzes WHERE id = ?", (quiz_id,))
         result = cursor.fetchone()
-        conn.close()
         if result:
             quiz = dict(result)
             quiz['question_ids'] = from_json(quiz['question_ids'])
@@ -927,11 +958,8 @@ def get_live_quiz_by_id(quiz_id: int):
 def get_live_quiz_by_code(join_code: str):
     """Get a live quiz by join code"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM live_quizzes WHERE join_code = ?", (join_code,))
+        cursor = execute_with_retry("SELECT * FROM live_quizzes WHERE join_code = ?", (join_code,))
         result = cursor.fetchone()
-        conn.close()
         if result:
             quiz = dict(result)
             quiz['question_ids'] = from_json(quiz['question_ids'])
@@ -944,16 +972,13 @@ def get_live_quiz_by_code(join_code: str):
 def get_live_quiz_with_subject(quiz_id: int):
     """Get live quiz with subject name"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT lq.*, s.name as subject_name
             FROM live_quizzes lq
             LEFT JOIN subjects s ON lq.subject_id = s.id
             WHERE lq.id = ?
         """, (quiz_id,))
         result = cursor.fetchone()
-        conn.close()
         if result:
             quiz = dict(result)
             quiz['question_ids'] = from_json(quiz['question_ids'])
@@ -967,8 +992,6 @@ def get_live_quiz_with_subject(quiz_id: int):
 def update_live_quiz(quiz_id: int, data: dict):
     """Update a live quiz"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
         fields = []
         params = []
         
@@ -985,9 +1008,7 @@ def update_live_quiz(quiz_id: int, data: dict):
         
         params.append(quiz_id)
         query = f"UPDATE live_quizzes SET {', '.join(fields)} WHERE id = ?"
-        cursor.execute(query, params)
-        conn.commit()
-        conn.close()
+        execute_with_retry(query, params, role='write')
         return True
     except Exception as e:
         print(f"Error updating live quiz: {e}")
@@ -996,9 +1017,7 @@ def update_live_quiz(quiz_id: int, data: dict):
 def get_live_quiz_participants(quiz_id: int):
     """Get all participants for a live quiz"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT lqp.*, s.first_name, s.last_name, s.public_id
             FROM live_quiz_participants lqp
             LEFT JOIN students s ON lqp.student_id = s.id
@@ -1006,7 +1025,6 @@ def get_live_quiz_participants(quiz_id: int):
             ORDER BY lqp.joined_at
         """, (quiz_id,))
         results = cursor.fetchall()
-        conn.close()
         
         participants = []
         for row in results:
@@ -1027,14 +1045,11 @@ def get_live_quiz_participants(quiz_id: int):
 def get_live_quiz_participant(quiz_id: int, student_id: int):
     """Get a specific participant"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT * FROM live_quiz_participants
             WHERE quiz_id = ? AND student_id = ?
         """, (quiz_id, student_id))
         result = cursor.fetchone()
-        conn.close()
         if result:
             p = dict(result)
             p['answers'] = from_json(p['answers'])
@@ -1048,9 +1063,7 @@ def get_live_quiz_participant(quiz_id: int, student_id: int):
 def add_live_quiz_participant(quiz_id: int, student_id: int):
     """Add a participant to a live quiz"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        execute_with_retry("""
             INSERT INTO live_quiz_participants (
                 quiz_id, student_id, score, current_question_index,
                 correct_count, wrong_count, skipped_count, answers, ratings,
@@ -1069,9 +1082,7 @@ def add_live_quiz_participant(quiz_id: int, student_id: int):
             None,
             'active',
             now()
-        ))
-        conn.commit()
-        conn.close()
+        ), role='write')
         return True
     except Exception as e:
         print(f"Error adding participant: {e}")
@@ -1080,8 +1091,6 @@ def add_live_quiz_participant(quiz_id: int, student_id: int):
 def update_live_quiz_participant(participant_id: int, data: dict):
     """Update a participant"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
         fields = []
         params = []
         
@@ -1095,9 +1104,7 @@ def update_live_quiz_participant(participant_id: int, data: dict):
         
         params.append(participant_id)
         query = f"UPDATE live_quiz_participants SET {', '.join(fields)} WHERE id = ?"
-        cursor.execute(query, params)
-        conn.commit()
-        conn.close()
+        execute_with_retry(query, params, role='write')
         return True
     except Exception as e:
         print(f"Error updating participant: {e}")
@@ -1106,9 +1113,7 @@ def update_live_quiz_participant(participant_id: int, data: dict):
 def get_live_quiz_participants_with_names(quiz_id: int):
     """Get participants with student names for leaderboard"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT lqp.*, s.first_name, s.last_name, s.public_id
             FROM live_quiz_participants lqp
             LEFT JOIN students s ON lqp.student_id = s.id
@@ -1116,7 +1121,6 @@ def get_live_quiz_participants_with_names(quiz_id: int):
             ORDER BY lqp.score DESC
         """, (quiz_id,))
         results = cursor.fetchall()
-        conn.close()
         
         participants = []
         for row in results:
@@ -1137,14 +1141,11 @@ def get_live_quiz_participants_with_names(quiz_id: int):
 def get_active_live_quiz(join_code: str):
     """Get an active live quiz by join code"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT * FROM live_quizzes
             WHERE join_code = ? AND status = 'waiting'
         """, (join_code,))
         result = cursor.fetchone()
-        conn.close()
         if result:
             quiz = dict(result)
             quiz['question_ids'] = from_json(quiz['question_ids'])
@@ -1157,14 +1158,11 @@ def get_active_live_quiz(join_code: str):
 def get_live_quiz_count(quiz_id: int):
     """Get number of participants in a live quiz"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
+        cursor = execute_with_retry(
             "SELECT COUNT(*) as count FROM live_quiz_participants WHERE quiz_id = ?",
             (quiz_id,)
         )
         result = cursor.fetchone()
-        conn.close()
         return result['count'] if result else 0
     except Exception as e:
         print(f"Error getting participant count: {e}")
@@ -1173,9 +1171,7 @@ def get_live_quiz_count(quiz_id: int):
 def get_live_quiz_completed_count(quiz_id: int):
     """Get number of participants who completed the quiz"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT COUNT(*) as count 
             FROM live_quiz_participants 
             WHERE quiz_id = ? AND current_question_index >= (
@@ -1183,7 +1179,6 @@ def get_live_quiz_completed_count(quiz_id: int):
             )
         """, (quiz_id, quiz_id))
         result = cursor.fetchone()
-        conn.close()
         return result['count'] if result else 0
     except Exception as e:
         print(f"Error getting completed count: {e}")
@@ -1192,11 +1187,8 @@ def get_live_quiz_completed_count(quiz_id: int):
 def get_question_ids_for_quiz(quiz_id: int):
     """Get question IDs for a live quiz"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT question_ids FROM live_quizzes WHERE id = ?", (quiz_id,))
+        cursor = execute_with_retry("SELECT question_ids FROM live_quizzes WHERE id = ?", (quiz_id,))
         result = cursor.fetchone()
-        conn.close()
         if result:
             return from_json(result['question_ids'])
         return []
@@ -1209,16 +1201,13 @@ def get_questions_by_ids(question_ids: list):
     if not question_ids:
         return []
     try:
-        conn = get_db()
-        cursor = conn.cursor()
         placeholders = ','.join(['?' for _ in question_ids])
-        cursor.execute(f"""
+        cursor = execute_with_retry(f"""
             SELECT id, question_text, options, correct_answer, explanation
             FROM questions
             WHERE id IN ({placeholders})
         """, question_ids)
         results = cursor.fetchall()
-        conn.close()
         
         questions = []
         for row in results:
@@ -1233,10 +1222,7 @@ def get_questions_by_ids(question_ids: list):
 def update_participant_rankings(quiz_id: int):
     """Update ranking for all participants in a quiz"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT id FROM live_quiz_participants
             WHERE quiz_id = ?
             ORDER BY score DESC
@@ -1244,13 +1230,12 @@ def update_participant_rankings(quiz_id: int):
         results = cursor.fetchall()
         
         for i, row in enumerate(results, 1):
-            cursor.execute(
+            execute_with_retry(
                 "UPDATE live_quiz_participants SET ranking = ? WHERE id = ?",
-                (i, row['id'])
+                (i, row['id']),
+                role='write'
             )
         
-        conn.commit()
-        conn.close()
         return True
     except Exception as e:
         print(f"Error updating rankings: {e}")
@@ -1259,11 +1244,8 @@ def update_participant_rankings(quiz_id: int):
 def get_live_quiz_creator_id(quiz_id: int):
     """Get the creator ID of a live quiz"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT creator_id FROM live_quizzes WHERE id = ?", (quiz_id,))
+        cursor = execute_with_retry("SELECT creator_id FROM live_quizzes WHERE id = ?", (quiz_id,))
         result = cursor.fetchone()
-        conn.close()
         return result['creator_id'] if result else None
     except Exception as e:
         print(f"Error getting creator ID: {e}")
@@ -1272,14 +1254,11 @@ def get_live_quiz_creator_id(quiz_id: int):
 def get_group_categories():
     """Get all unique group categories"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
+        cursor = execute_with_retry("""
             SELECT DISTINCT category FROM groups 
             WHERE category IS NOT NULL AND category != '' AND is_active = 1
         """)
         results = cursor.fetchall()
-        conn.close()
         return [row['category'] for row in results]
     except Exception as e:
         print(f"Error fetching group categories: {e}")
@@ -1288,8 +1267,6 @@ def get_group_categories():
 def search_groups(search: str = '', platform: str = '', category: str = ''):
     """Search groups with filters"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
         query = "SELECT * FROM groups WHERE is_active = 1"
         params = []
         
@@ -1308,9 +1285,8 @@ def search_groups(search: str = '', platform: str = '', category: str = ''):
         
         query += " ORDER BY created_at DESC"
         
-        cursor.execute(query, params)
+        cursor = execute_with_retry(query, params)
         results = cursor.fetchall()
-        conn.close()
         return [dict(row) for row in results]
     except Exception as e:
         print(f"Error searching groups: {e}")

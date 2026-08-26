@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from config import Config
-from db import get_student_by_phone, get_student_by_id, create_student, is_admin
+from db import get_student_by_phone, get_student_by_id, create_student, is_admin, close_db_connections
 from blueprints.dashboard_bp import dashboard_bp
 from blueprints.groups_bp import groups_bp
 from blueprints.pdfs_bp import pdfs_bp
@@ -8,6 +8,7 @@ from blueprints.admin_bp import admin_bp
 from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
 from utils import format_somali_time, get_somali_time_display
+import atexit
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = Config.SECRET_KEY
@@ -20,6 +21,17 @@ app.register_blueprint(pdfs_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
+
+
+# ============================================
+# CLEANUP ON SHUTDOWN
+# ============================================
+
+@atexit.register
+def cleanup():
+    """Close database connections on shutdown"""
+    close_db_connections()
+    print("Database connections closed.")
 
 
 # ============================================
@@ -50,7 +62,7 @@ def login():
         student = get_student_by_phone(phone)
         
         if student:
-            # Plain text password comparison (no hashing)
+            # Plain text password comparison (NO HASHING - TO BE UPDATED)
             if password == student['password']:
                 session['user_id'] = student['id']
                 session['public_id'] = student.get('public_id', '----')
@@ -98,7 +110,7 @@ def register():
         
         student_data = {
             'phone_number': phone,
-            'password': password,  # Plain text - NO HASHING
+            'password': password,  # Plain text - WILL BE UPDATED TO HASH
             'first_name': first_name,
             'middle_name': middle_name,
             'last_name': last_name,
@@ -140,6 +152,19 @@ def utility_processor():
         'is_admin': session.get('is_admin', False),
         'somali_time': get_somali_time_display
     }
+
+
+# ============================================
+# ERROR HANDLERS
+# ============================================
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    return render_template('500.html'), 500
 
 
 # ============================================

@@ -21,6 +21,11 @@
             </h2>
             <p style="color: var(--text-secondary); font-size: 14px;">Add and manage quiz questions</p>
         </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{{ url_for('admin.bulk_import') }}" style="padding: 8px 16px; background: #10B981; color: white; border: none; border-radius: var(--radius-sm); text-decoration: none; font-weight: 600; transition: var(--transition); display: inline-flex; align-items: center; gap: 6px;">
+                <i class="fas fa-upload"></i> Bulk Import
+            </a>
+        </div>
     </div>
 
     <!-- Add Question Form -->
@@ -35,6 +40,10 @@
                         <option value="{{ subject.id }}">{{ subject.icon or '📚' }} {{ subject.name }}</option>
                     {% endfor %}
                 </select>
+            </div>
+            <div style="grid-column: 1 / -1;">
+                <label style="font-size: 13px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px;">Chapter</label>
+                <input type="text" name="chapter" placeholder="e.g., Chapter 1, Unit 2" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
             </div>
             <div style="grid-column: 1 / -1;">
                 <label style="font-size: 13px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px;">Question *</label>
@@ -53,25 +62,36 @@
                 <input type="text" name="option_c" placeholder="Option C" required style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
             </div>
             <div>
+                <label style="font-size: 13px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px;">Option D</label>
+                <input type="text" name="option_d" placeholder="Option D (optional)" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
+            </div>
+            <div>
                 <label style="font-size: 13px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px;">Correct Answer *</label>
                 <select name="correct_answer" required style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
                     <option value="">Select</option>
                     <option value="A">A</option>
                     <option value="B">B</option>
                     <option value="C">C</option>
+                    <option value="D">D</option>
                 </select>
             </div>
             <div>
                 <label style="font-size: 13px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px;">Difficulty</label>
                 <select name="difficulty" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
-                    <option value="1">Easy</option>
-                    <option value="2">Medium</option>
-                    <option value="3">Hard</option>
+                    <option value="1">⭐ Easy</option>
+                    <option value="2">⭐⭐ Easy</option>
+                    <option value="3" selected>⭐⭐⭐ Medium</option>
+                    <option value="4">⭐⭐⭐⭐ Hard</option>
+                    <option value="5">⭐⭐⭐⭐⭐ Expert</option>
                 </select>
             </div>
             <div style="grid-column: 1 / -1;">
+                <label style="font-size: 13px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px;">Tags</label>
+                <input type="text" name="tags" placeholder="e.g., geography, africa, capitals" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
+            </div>
+            <div style="grid-column: 1 / -1;">
                 <label style="font-size: 13px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px;">Explanation</label>
-                <textarea name="explanation" rows="2" placeholder="Explanation of the correct answer (optional)" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); resize: vertical;"></textarea>
+                <textarea name="explanation" rows="2" placeholder="Explanation of the correct answer" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); resize: vertical;"></textarea>
             </div>
             <div style="grid-column: 1 / -1;">
                 <button type="submit" style="padding: 10px 24px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
@@ -83,8 +103,11 @@
 
     <!-- Questions List -->
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);">
-        <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--background);">
+        <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--background); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <span style="font-weight: 600; color: var(--text);">All Questions ({{ questions|length }})</span>
+            <span style="font-size: 13px; color: var(--text-secondary);">
+                <i class="fas fa-info-circle"></i> Use Bulk Import for multiple questions
+            </span>
         </div>
         {% if questions %}
             <div style="overflow-x: auto;">
@@ -92,8 +115,8 @@
                     <thead style="background: var(--background);">
                         <tr>
                             <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Subject</th>
+                            <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Chapter</th>
                             <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Question</th>
-                            <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Correct</th>
                             <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Difficulty</th>
                             <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Actions</th>
                         </tr>
@@ -102,17 +125,17 @@
                         {% for question in questions %}
                             <tr style="border-top: 1px solid var(--border);">
                                 <td style="padding: 12px 16px; color: var(--text);">{{ question.subjects.name if question.subjects else '-' }}</td>
-                                <td style="padding: 12px 16px; color: var(--text); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ question.question_text }}</td>
-                                <td style="padding: 12px 16px; text-align: center; font-weight: 700; color: #10B981;">{{ question.correct_answer }}</td>
+                                <td style="padding: 12px 16px; color: var(--text-secondary); font-size: 13px;">{{ question.chapter or '-' }}</td>
+                                <td style="padding: 12px 16px; color: var(--text); max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ question.question_text }}</td>
                                 <td style="padding: 12px 16px; text-align: center;">
-                                    <span style="font-size: 12px; padding: 2px 12px; border-radius: 10px; background: {% if question.difficulty == 1 %}#ECFDF5; color: #10B981{% elif question.difficulty == 2 %}#FFFBEB; color: #F59E0B{% else %}#FEF2F2; color: #EF4444{% endif %};">
-                                        {{ ['Easy', 'Medium', 'Hard'][question.difficulty - 1] if question.difficulty else 'Easy' }}
+                                    <span style="font-size: 12px; padding: 2px 12px; border-radius: 10px; background: {% if question.difficulty <= 2 %}#ECFDF5; color: #065F46{% elif question.difficulty <= 4 %}#FFFBEB; color: #92400E{% else %}#FEF2F2; color: #991B1B{% endif %};">
+                                        {% if question.difficulty <= 2 %}⭐ Easy{% elif question.difficulty <= 4 %}⭐⭐ Medium{% else %}⭐⭐⭐ Hard{% endif %}
                                     </span>
                                 </td>
                                 <td style="padding: 12px 16px; text-align: center;">
-                                    <form method="POST" action="{{ url_for('admin.delete_question', question_id=question.id) }}" style="display: inline;" onsubmit="return confirm('Delete this question?');">
+                                    <form method="POST" action="{{ url_for('admin.delete_question', question_id=question.id) }}" style="display: inline;" onsubmit="return confirm('Archive this question?');">
                                         <button type="submit" style="padding: 4px 12px; background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; transition: var(--transition);">
-                                            <i class="fas fa-trash"></i> Delete
+                                            <i class="fas fa-archive"></i> Archive
                                         </button>
                                     </form>
                                 </td>
@@ -125,6 +148,7 @@
             <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
                 <div style="font-size: 40px; opacity: 0.3; margin-bottom: 8px;">❓</div>
                 <p>No questions added yet. Add a question to start building your quiz!</p>
+                <p style="font-size: 13px; margin-top: 4px; color: var(--text-muted);">💡 Use Bulk Import to add multiple questions at once.</p>
             </div>
         {% endif %}
     </div>

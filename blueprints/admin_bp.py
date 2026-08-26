@@ -4,8 +4,10 @@ from db import (
     toggle_admin, delete_user as db_delete_user, get_deleted_users,
     restore_deleted_user as db_restore_user, create_subject, delete_subject,
     create_question, delete_question, create_group, delete_group,
-    create_pdf, delete_pdf, get_all_groups, get_all_pdfs
+    create_pdf, delete_pdf, get_all_groups, get_all_pdfs,
+    get_subject_by_name, bulk_create_questions, check_question_exists
 )
+import json
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -43,7 +45,267 @@ def dashboard():
                          pdfs_count=len(pdfs),
                          subjects_count=len(subjects),
                          questions_count=len(questions),
-                         quiz_attempts=0)  # You can add a count query if needed
+                         quiz_attempts=0)
+
+
+# ============================================
+# BULK IMPORT QUESTIONS
+# ============================================
+
+@admin_bp.route('/bulk-import', methods=['GET', 'POST'])
+@admin_required
+def bulk_import():
+    """Bulk import questions via JSON"""
+    subjects = get_all_subjects()
+    subject_names = [s['name'] for s in subjects]
+    
+    if request.method == 'POST':
+        # Get the JSON data
+        json_data = request.form.get('json_data', '').strip()
+        file_data = request.files.get('json_file')
+        
+        # Parse JSON from either textarea or file
+        if file_data and file_data.filename:
+            try:
+                content = file_data.read().decode('utf-8')
+                data = json.loads(content)
+            except Exception as e:
+                flash(f'Error reading file: {str(e)}', 'error')
+                return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
+        elif json_data:
+            try:
+                data = json.loads(json_data)
+            except json.JSONDecodeError as e:
+                flash(f'Invalid JSON format: {str(e)}', 'error')
+                return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
+        else:
+            flash('Please paste JSON or upload a file.', 'error')
+            return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
+        
+        # Validate structure
+        if 'metadata' not in data:
+            flash('Missing "metadata" section in JSON.', 'error')
+            return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
+        
+        if 'questions' not in data or not data['questions']:
+            flash('Missing or empty "questions" array in JSON.', 'error')
+            return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
+        
+        # Get subject from metadata
+        subject_name = data['metadata'].get('subject', '').strip()
+        if not subject_name:
+            flash('Subject is required in metadata.', 'error')
+            return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
+        
+        # Look up subject in database
+        subject = get_subject_by_name(subject_name)
+        if not subject:
+            available = ', '.join(subject_names)
+            flash(f'Subject "{subject_name}" not found. Available subjects: {available}', 'error')
+            return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
+        
+        subject_id = subject['id']
+        chapter = data['metadata'].get('chapter', '').strip()
+        
+        # Process each question
+        questions_to_import = []
+        errors = []
+        duplicates = []
+        
+        for idx, q in enumerate(data['questions'], 1):
+            # Validate required fields
+            if not q.get('question', '').strip():
+                errors.append({
+                    'index': idx,
+                    'question': 'Unknown',
+                    'error': 'Question text is required'
+                })
+                continue
+            
+            if not q.get('options') or len(q['options']) < 3:
+                errors.append({
+                    'index': idx,
+                    'question': q.get('question', 'Unknown'),
+                    'error': 'Minimum 3 options required'
+                })
+                continue
+            
+            if len(q['options']) > 6:
+                errors.append({
+                    'index': idx,
+                    'question': q.get('question', 'Unknown'),
+                    'error': 'Maximum 6 options allowed'
+                })
+                continue
+            
+            if not q.get('correct') or q['correct'] < 1 or q['correct'] > len(q['options']):
+                errors.append({
+                    'index': idx,
+                    'question': q.get('question', 'Unknown'),
+                    'error': 'Invalid correct answer index'
+                })
+                continue
+            
+            difficulty = q.get('difficulty', 1)
+            if difficulty < 1 or difficulty > 5:
+                errors.append({
+                    'index': idx,
+                    'question': q.get('question', 'Unknown'),
+                    'error': 'Difficulty must be 1-5'
+                })
+                continue
+            
+            # Check for duplicates
+            question_text = q['question'].strip()
+            if check_question_exists(question_text, subject_id):
+                duplicates.append({
+                    'index': idx,
+                    'question': question_text,
+                    'error': 'Duplicate question'
+                })
+                continue
+            
+            # Build options dictionary (convert array to dict with A, B, C, ...)
+            options_dict = {}
+            option_labels = ['A', 'B', 'C', 'D', 'E', 'F']
+            for i, opt in enumerate(q['options']):
+                if i < len(option_labels):
+                    options_dict[option_labels[i]] = opt.strip()
+            
+            # Convert correct index to letter
+            correct_letter = option_labels[q['correct'] - 1]
+            
+            # Build question data
+            question_data = {
+                'subject_id': subject_id,
+                'question_text': question_text,
+                'options': options_dict,
+                'correct_answer': correct_letter,
+                'difficulty': difficulty,
+                'chapter': chapter,
+                'tags': ','.join(q.get('tags', [])),
+                'explanation': q.get('explanation', '').strip(),
+                'created_by': session['user_id'],
+                'updated_by': session['user_id']
+            }
+            
+            questions_to_import.append(question_data)
+        
+        # If there are errors, show them
+        if errors or duplicates:
+            return render_template('dashboard/admin/bulk_import.html',
+                                 subjects=subjects,
+                                 preview=True,
+                                 valid_questions=questions_to_import,
+                                 errors=errors,
+                                 duplicates=duplicates,
+                                 subject_name=subject_name,
+                                 chapter=chapter,
+                                 total_questions=len(data['questions']))
+        
+        # If no errors, import all
+        if questions_to_import:
+            result = bulk_create_questions(questions_to_import, session['user_id'])
+            
+            if result['imported'] > 0:
+                flash(f'✅ {result["imported"]} questions imported successfully!', 'success')
+            if result['errors']:
+                flash(f'⚠️ {len(result["errors"])} questions failed to import.', 'error')
+            
+            return redirect(url_for('admin.admin_questions'))
+        else:
+            flash('No valid questions to import.', 'error')
+            return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
+    
+    return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
+
+
+@admin_bp.route('/bulk-preview', methods=['POST'])
+@admin_required
+def bulk_preview():
+    """Preview questions before import"""
+    subjects = get_all_subjects()
+    subject_names = [s['name'] for s in subjects]
+    
+    json_data = request.form.get('json_data', '').strip()
+    
+    if not json_data:
+        return jsonify({'error': 'No JSON data provided'}), 400
+    
+    try:
+        data = json.loads(json_data)
+    except json.JSONDecodeError as e:
+        return jsonify({'error': f'Invalid JSON: {str(e)}'}), 400
+    
+    if 'metadata' not in data:
+        return jsonify({'error': 'Missing metadata section'}), 400
+    
+    if 'questions' not in data or not data['questions']:
+        return jsonify({'error': 'Missing or empty questions array'}), 400
+    
+    subject_name = data['metadata'].get('subject', '').strip()
+    if not subject_name:
+        return jsonify({'error': 'Subject is required'}), 400
+    
+    subject = get_subject_by_name(subject_name)
+    if not subject:
+        available = ', '.join(subject_names)
+        return jsonify({'error': f'Subject "{subject_name}" not found. Available: {available}'}), 400
+    
+    # Preview data
+    preview = []
+    for idx, q in enumerate(data['questions'], 1):
+        preview.append({
+            'index': idx,
+            'question': q.get('question', '')[:50] + ('...' if len(q.get('question', '')) > 50 else ''),
+            'difficulty': q.get('difficulty', 1),
+            'options_count': len(q.get('options', [])),
+            'has_explanation': bool(q.get('explanation', '').strip()),
+            'tags': ', '.join(q.get('tags', []))[:30]
+        })
+    
+    return jsonify({
+        'subject': subject_name,
+        'chapter': data['metadata'].get('chapter', ''),
+        'total': len(data['questions']),
+        'preview': preview[:10]  # Show first 10 only
+    })
+
+
+@admin_bp.route('/bulk-template')
+@admin_required
+def bulk_template():
+    """Download template JSON file"""
+    template = {
+        "metadata": {
+            "subject": "Geography",
+            "chapter": "Chapter 1: Introduction"
+        },
+        "questions": [
+            {
+                "tags": ["geography", "africa", "capitals"],
+                "difficulty": 2,
+                "question": "What is the capital of Somalia?",
+                "options": ["Mogadishu", "Hargeisa", "Kismayo", "Garowe"],
+                "correct": 1,
+                "explanation": "Mogadishu has been the capital since 1960."
+            },
+            {
+                "tags": ["geography", "africa", "rivers"],
+                "difficulty": 3,
+                "question": "Which is the longest river in Africa?",
+                "options": ["Nile", "Congo", "Niger", "Zambezi"],
+                "correct": 1,
+                "explanation": "The Nile is approximately 6,650 km long."
+            }
+        ]
+    }
+    
+    response = jsonify(template)
+    response.headers['Content-Disposition'] = 'attachment; filename=bulk_import_template.json'
+    response.headers['Content-Type'] = 'application/json'
+    return response
+
 
 # ============================================
 # DELETE USER
@@ -88,6 +350,7 @@ def restore_deleted_user(deleted_id):
         flash(f'Error restoring user: {message}', 'error')
     
     return redirect(url_for('admin.deleted_users'))
+
 
 # ============================================
 # GROUPS ADMIN
@@ -135,6 +398,7 @@ def delete_group(group_id):
     else:
         flash('Error deleting group.', 'error')
     return redirect(url_for('admin.admin_groups'))
+
 
 # ============================================
 # PDFS ADMIN
@@ -188,6 +452,7 @@ def delete_pdf(pdf_id):
         flash('Error deleting PDF.', 'error')
     return redirect(url_for('admin.admin_pdfs'))
 
+
 # ============================================
 # SUBJECTS ADMIN
 # ============================================
@@ -225,8 +490,9 @@ def delete_subject(subject_id):
         flash('Error deleting subject. It may have questions linked.', 'error')
     return redirect(url_for('admin.admin_subjects'))
 
+
 # ============================================
-# QUESTIONS ADMIN
+# QUESTIONS ADMIN (Single Entry)
 # ============================================
 
 @admin_bp.route('/questions')
@@ -244,21 +510,36 @@ def add_question():
     option_a = request.form.get('option_a', '').strip()
     option_b = request.form.get('option_b', '').strip()
     option_c = request.form.get('option_c', '').strip()
+    option_d = request.form.get('option_d', '').strip()
+    option_e = request.form.get('option_e', '').strip()
     correct_answer = request.form.get('correct_answer', '')
     difficulty = request.form.get('difficulty', 1)
+    chapter = request.form.get('chapter', '').strip()
+    tags = request.form.get('tags', '').strip()
     explanation = request.form.get('explanation', '').strip()
     
     if not subject_id or not question_text or not option_a or not option_b or not option_c or not correct_answer:
-        flash('All fields except explanation are required.', 'error')
+        flash('Subject, question, options A-C, and correct answer are required.', 'error')
         return redirect(url_for('admin.admin_questions'))
+    
+    # Build options dictionary
+    options = {'A': option_a, 'B': option_b, 'C': option_c}
+    if option_d:
+        options['D'] = option_d
+    if option_e:
+        options['E'] = option_e
     
     data = {
         'subject_id': subject_id,
         'question_text': question_text,
-        'options': {'A': option_a, 'B': option_b, 'C': option_c},
+        'options': options,
         'correct_answer': correct_answer,
         'difficulty': int(difficulty) if difficulty else 1,
-        'explanation': explanation if explanation else ''
+        'chapter': chapter,
+        'tags': tags,
+        'explanation': explanation,
+        'created_by': session['user_id'],
+        'updated_by': session['user_id']
     }
     
     if create_question(data):
@@ -272,10 +553,11 @@ def add_question():
 @admin_required
 def delete_question(question_id):
     if delete_question(question_id):
-        flash('Question deleted successfully!', 'success')
+        flash('Question archived successfully!', 'success')
     else:
-        flash('Error deleting question.', 'error')
+        flash('Error archiving question.', 'error')
     return redirect(url_for('admin.admin_questions'))
+
 
 # ============================================
 # USERS ADMIN
