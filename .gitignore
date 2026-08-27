@@ -1,79 +1,89 @@
-# ========== DATABASE FILES ==========
-*.db
-*.db-wal
-*.db-shm
-*.sqlite
-*.sqlite3
+# =========================
+# Environment & secrets
+# =========================
+.env
+.env.*
+!.env.example
 
-# ========== BACKUP FOLDER ==========
-backups/
-backups/*
-!backups/.gitkeep
-no/
-
-# ========== PYTHON ==========
+# =========================
+# Python
+# =========================
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-env/
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
 venv/
+env/
 ENV/
-env.bak/
-venv.bak/
-.pytest_cache/
-.coverage
-htmlcov/
-newfile.py
 
-# ========== IDE ==========
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
+# =========================
+# Flask / local development
+# =========================
+instance/
+.flaskenv
 
-# ========== LOGS ==========
+# =========================
+# Databases
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Logs
+# =========================
 *.log
 logs/
 
-# ========== TEMPORARY FILES ==========
+# =========================
+# Temporary / backup files
+# =========================
 *.tmp
 *.temp
 *.bak
-*.orig
-*.rej
+*.backup
+*~
+*.swp
+*.swo
 
-# ========== ENVIRONMENT ==========
-.env
-.env.local
-.env.production
+# =========================
+# Testing / coverage
+# =========================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
 
-# ========== DUMP FILES ==========
-*.sql
-dump.sql
-recovered_data.sql
+# =========================
+# IDE / editors
+# =========================
+.vscode/
+.idea/
+*.code-workspace
 
-# ========== CORRUPTED FILES ==========
-ardayda_corrupted_*.db
-corrupted_*.db
-before_restore_*.db
-
-# ========== MIGRATION BACKUPS ==========
-ardayda_backup_*.db
-
-# ========== SECRETS ==========
-config_local.py
-secrets.py
-*.key
-*.pem
-
-# ========== OS FILES ==========
+# =========================
+# OS files
+# =========================
 .DS_Store
-.directory
-Desktop.ini
-$RECYCLE.BIN/
-.env
+Thumbs.db
+
+# =========================
+# Build / packaging
+# =========================
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# =========================
+# Local uploaded/generated files
+# =========================
+uploads/
+tmp/
+temp/
