@@ -1761,3 +1761,22 @@ def ensure_wal_mode():
     except Exception as e:
         logger.error(f"Error enabling WAL mode: {e}")
         return False
+
+# Add this function to your db.py file
+
+def check_database_integrity():
+    """
+    Check database integrity.
+    Returns (is_healthy, error_message)
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=5)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA integrity_check")
+        result = cursor.fetchone()
+        conn.close()
+        if result and result[0] == 'ok':
+            return True, None
+        return False, result[0] if result else "unknown error"
+    except Exception as e:
+        return False, str(e)

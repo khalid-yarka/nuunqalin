@@ -43,7 +43,7 @@ RETENTION = {
     'daily': 7,
     'weekly': 4,
     'monthly': 12,
-    'manual': None,  # keep forever
+    'manual': None,
 }
 
 BACKUP_TYPES = {
@@ -72,7 +72,6 @@ def acquire_backup_lock(lock_file=BACKUP_LOCK_FILE, timeout=30):
     Returns file descriptor if acquired, None if already locked.
     """
     try:
-        # Ensure directory exists
         os.makedirs(os.path.dirname(lock_file), exist_ok=True)
 
         fd = open(lock_file, 'w')
@@ -81,7 +80,6 @@ def acquire_backup_lock(lock_file=BACKUP_LOCK_FILE, timeout=30):
         while time.time() - start_time < timeout:
             try:
                 fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                # Write PID to lock file for debugging
                 fd.write(str(os.getpid()))
                 fd.flush()
                 return fd
@@ -127,10 +125,8 @@ def setup_logging(verbose=False, log_file=None):
     """Configure logging for backup operations."""
     handlers = []
 
-    # File handler (always enabled)
     log_path = log_file or DEFAULT_LOG_FILE
     try:
-        # Ensure log directory exists
         log_dir = os.path.dirname(log_path)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
@@ -144,7 +140,6 @@ def setup_logging(verbose=False, log_file=None):
     except Exception as e:
         print(f"Warning: Could not create log file: {e}")
 
-    # Stream handler (only for non-interactive or verbose)
     if verbose or not handlers:
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(logging.Formatter(
@@ -153,7 +148,6 @@ def setup_logging(verbose=False, log_file=None):
         ))
         handlers.append(stream_handler)
 
-    # If no handlers, use default
     if not handlers:
         logging.basicConfig(level=logging.INFO)
         return logging.getLogger(__name__)
@@ -178,11 +172,9 @@ class BackupManager:
         self.last_good_link = os.path.join(backup_dir, 'LAST_KNOWN_GOOD')
         self.temp_dir = os.path.join(backup_dir, 'temp')
 
-        # Ensure directories exist
         os.makedirs(backup_dir, exist_ok=True)
         os.makedirs(self.temp_dir, exist_ok=True)
 
-        # Load or create manifest
         self.manifest = self._load_manifest()
         self.logger = logging.getLogger(__name__)
 
@@ -254,11 +246,9 @@ class BackupManager:
             conn.close()
             for table in required_tables:
                 if table not in tables:
-                    logging.getLogger(__name__).error(f"Required table '{table}' missing in backup.")
                     return False
             return True
-        except Exception as e:
-            logging.getLogger(__name__).error(f"Error checking tables: {e}")
+        except Exception:
             return False
 
     def verify_backup(self, backup_path: str, skip_checksum: bool = False) -> Tuple[bool, Dict]:
@@ -331,10 +321,6 @@ class BackupManager:
     # ============================================
 
     def create_backup(self, backup_type: str = 'daily') -> Dict:
-        """
-        Create a verified backup using SQLite's backup API.
-        Returns dict with success, filename, etc.
-        """
         start_time = time.time()
         result = {
             'success': False,
@@ -368,7 +354,6 @@ class BackupManager:
             temp_backup = os.path.join(self.temp_dir, f"backup_TEMP_{timestamp}.db")
             temp_gz = os.path.join(self.temp_dir, f"backup_TEMP_{timestamp}.db.gz")
 
-            # 1. Create backup using SQLite backup API
             self.logger.info(f"Creating {backup_type} backup...")
             source_conn = sqlite3.connect(self.db_path, timeout=10)
             dest_conn = sqlite3.connect(temp_backup, timeout=10)
@@ -378,13 +363,11 @@ class BackupManager:
             source_conn.close()
             dest_conn.close()
 
-            # 2. Compress the backup
             self.logger.info("Compressing backup...")
             with open(temp_backup, 'rb') as f_in:
                 with gzip.open(temp_gz, 'wb', compresslevel=6) as f_out:
                     shutil.copyfileobj(f_in, f_out)
 
-            # 3. Verify the compressed backup
             self.logger.info("Verifying compressed backup...")
             ver_ok, ver_details = self.verify_backup(temp_gz, skip_checksum=True)
             if not ver_ok:
@@ -393,14 +376,10 @@ class BackupManager:
                 os.remove(temp_backup)
                 return result
 
-            # 4. Calculate checksum
             checksum = self.calculate_checksum(temp_gz)
-
-            # 5. Atomically move to final location
             shutil.move(temp_gz, full_path)
             os.remove(temp_backup)
 
-            # 6. Update manifest
             entry = {
                 'filename': filename,
                 'type': backup_type,
@@ -437,7 +416,6 @@ class BackupManager:
         except Exception as e:
             self.logger.error(f"Backup creation failed: {e}", exc_info=True)
             result['message'] = str(e)
-            # Clean up temp files
             for f in [temp_backup, temp_gz]:
                 if os.path.exists(f):
                     try:
@@ -468,7 +446,7 @@ class BackupManager:
             self.logger.warning(f"Could not update LAST_KNOWN_GOOD link: {e}")
 
     # ============================================
-    # RESTORE OPERATIONS (Safe)
+    # RESTORE OPERATIONS
     # ============================================
 
     def restore_latest(self, force: bool = False) -> Dict:
@@ -839,15 +817,12 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    # Set non-interactive flag
     if args.non_interactive:
         os.environ['BACKUP_NON_INTERACTIVE'] = '1'
 
-    # Setup logging
     log_file = args.log_file or DEFAULT_LOG_FILE
     logger = setup_logging(verbose=args.verbose, log_file=log_file)
 
-    # Check if backup is already running (non-interactive mode)
     if args.non_interactive and is_backup_locked():
         logger.info("Backup already running, skipping")
         sys.exit(0)
