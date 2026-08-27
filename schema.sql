@@ -260,7 +260,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at
 CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
 
 -- ============================================
--- NOTIFICATION PREFERENCES TABLE (ADD THIS!)
+-- NOTIFICATION PREFERENCES TABLE - UNCOMMENTED
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS notification_preferences (

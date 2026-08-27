@@ -4,8 +4,23 @@ from db import (
     mark_notification_read, mark_all_notifications_read,
     is_admin, create_notification_for_all_users
 )
+from functools import wraps
 
 notifications_bp = Blueprint('notifications', __name__, url_prefix='/notifications')
+
+
+def admin_required(f):
+    """Decorator to require admin access"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please login first.', 'error')
+            return redirect(url_for('login'))
+        if not is_admin(session['user_id']):
+            flash('Access denied. Admin only.', 'error')
+            return redirect(url_for('dashboard.home'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 # ============================================
@@ -103,16 +118,9 @@ def api_mark_all_read():
 # ============================================
 
 @notifications_bp.route('/admin/announcement', methods=['GET', 'POST'])
+@admin_required  # FIXED: Added admin decorator
 def admin_announcement():
     """Admin page to send announcements"""
-    if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
-    
-    if not is_admin(session['user_id']):
-        flash('Access denied. Admin only.', 'error')
-        return redirect(url_for('dashboard.home'))
-    
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         body = request.form.get('body', '').strip()

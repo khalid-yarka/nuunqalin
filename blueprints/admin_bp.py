@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, abort
 from db import (
     is_admin, get_all_students, get_all_subjects, get_all_questions,
     toggle_admin, delete_user as db_delete_user, get_deleted_users,
@@ -8,13 +8,15 @@ from db import (
     get_subject_by_name, bulk_create_questions, check_question_exists,
     create_notification_for_all_users
 )
+from functools import wraps
 import json
+import secrets
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
+
 def admin_required(f):
     """Decorator to require admin access"""
-    from functools import wraps
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -25,6 +27,14 @@ def admin_required(f):
             return redirect(url_for('dashboard.home'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def validate_csrf():
+    """Validate CSRF token from form or header."""
+    token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+    if not token or token != session.get('csrf_token'):
+        abort(403, 'CSRF token validation failed')
+
 
 # ============================================
 # ADMIN DASHBOARD
@@ -61,6 +71,9 @@ def bulk_import():
     subject_names = [s['name'] for s in subjects]
     
     if request.method == 'POST':
+        # Validate CSRF
+        validate_csrf()
+        
         # Get the JSON data
         json_data = request.form.get('json_data', '').strip()
         file_data = request.files.get('json_file')
@@ -316,6 +329,9 @@ def bulk_template():
 @admin_required
 def delete_user(user_id):
     """Delete a user permanently with options"""
+    # Validate CSRF
+    validate_csrf()
+    
     if user_id == session['user_id']:
         flash('You cannot delete your own account.', 'error')
         return redirect(url_for('admin.admin_users'))
@@ -343,6 +359,9 @@ def deleted_users():
 @admin_required
 def restore_deleted_user(deleted_id):
     """Restore a deleted user"""
+    # Validate CSRF
+    validate_csrf()
+    
     success, message = db_restore_user(deleted_id)
     
     if success:
@@ -366,6 +385,9 @@ def admin_groups():
 @admin_bp.route('/groups/add', methods=['POST'])
 @admin_required
 def add_group():
+    # Validate CSRF
+    validate_csrf()
+    
     name = request.form.get('name', '').strip()
     platform = request.form.get('platform', '')
     invite_link = request.form.get('invite_link', '').strip()
@@ -394,6 +416,9 @@ def add_group():
 @admin_bp.route('/groups/delete/<group_id>', methods=['POST'])
 @admin_required
 def delete_group(group_id):
+    # Validate CSRF
+    validate_csrf()
+    
     if delete_group(group_id):
         flash('Group deleted successfully!', 'success')
     else:
@@ -414,6 +439,9 @@ def admin_pdfs():
 @admin_bp.route('/pdfs/add', methods=['POST'])
 @admin_required
 def add_pdf():
+    # Validate CSRF
+    validate_csrf()
+    
     title = request.form.get('title', '').strip()
     description = request.form.get('description', '').strip()
     file_url = request.form.get('file_url', '').strip()
@@ -447,6 +475,9 @@ def add_pdf():
 @admin_bp.route('/pdfs/delete/<pdf_id>', methods=['POST'])
 @admin_required
 def delete_pdf(pdf_id):
+    # Validate CSRF
+    validate_csrf()
+    
     if delete_pdf(pdf_id):
         flash('PDF deleted successfully!', 'success')
     else:
@@ -467,6 +498,9 @@ def admin_subjects():
 @admin_bp.route('/subjects/add', methods=['POST'])
 @admin_required
 def add_subject():
+    # Validate CSRF
+    validate_csrf()
+    
     name = request.form.get('name', '').strip()
     icon = request.form.get('icon', '').strip()
     
@@ -485,6 +519,9 @@ def add_subject():
 @admin_bp.route('/subjects/delete/<subject_id>', methods=['POST'])
 @admin_required
 def delete_subject(subject_id):
+    # Validate CSRF
+    validate_csrf()
+    
     if delete_subject(subject_id):
         flash('Subject deleted successfully!', 'success')
     else:
@@ -506,6 +543,9 @@ def admin_questions():
 @admin_bp.route('/questions/add', methods=['POST'])
 @admin_required
 def add_question():
+    # Validate CSRF
+    validate_csrf()
+    
     subject_id = request.form.get('subject_id', '')
     question_text = request.form.get('question_text', '').strip()
     option_a = request.form.get('option_a', '').strip()
@@ -553,6 +593,9 @@ def add_question():
 @admin_bp.route('/questions/delete/<question_id>', methods=['POST'])
 @admin_required
 def delete_question(question_id):
+    # Validate CSRF
+    validate_csrf()
+    
     if delete_question(question_id):
         flash('Question archived successfully!', 'success')
     else:
@@ -573,6 +616,9 @@ def admin_users():
 @admin_bp.route('/users/toggle_admin/<user_id>', methods=['POST'])
 @admin_required
 def toggle_user_admin(user_id):
+    # Validate CSRF
+    validate_csrf()
+    
     if user_id == session['user_id']:
         flash('You cannot change your own admin status.', 'error')
         return redirect(url_for('admin.admin_users'))
@@ -595,6 +641,9 @@ def toggle_user_admin(user_id):
 def admin_announcement():
     """Admin page to send announcements"""
     if request.method == 'POST':
+        # Validate CSRF
+        validate_csrf()
+        
         title = request.form.get('title', '').strip()
         body = request.form.get('body', '').strip()
         link = request.form.get('link', '').strip()

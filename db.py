@@ -51,7 +51,6 @@ def get_db():
             g.db = conn
             
         except sqlite3.Error as e:
-            # Use current_app.logger only if we're in an application context
             try:
                 current_app.logger.error(f"Database connection error: {e}")
             except RuntimeError:
@@ -467,7 +466,8 @@ def get_all_questions():
         for row in results:
             q = dict(row)
             q['options'] = from_json(q['options'])
-            q['subjects'] = {'name': q.pop('subject_name', '')} if q.get('subject_name') else None
+            # FIXED: Changed 'subjects' to 'subject' for consistency
+            q['subject'] = {'name': q.pop('subject_name', '')} if q.get('subject_name') else None
             questions.append(q)
         return questions
     except Exception as e:
@@ -712,7 +712,8 @@ def get_user_quiz_history(student_id: int, limit: int = 10):
         attempts = []
         for row in results:
             a = dict(row)
-            a['subjects'] = {'name': a.pop('subject_name', '')} if a.get('subject_name') else None
+            # FIXED: Changed 'subjects' to 'subject' for consistency
+            a['subject'] = {'name': a.pop('subject_name', '')} if a.get('subject_name') else None
             a['answers'] = from_json(a['answers'])
             a['ratings'] = from_json(a['ratings'])
             attempts.append(a)
@@ -1762,7 +1763,6 @@ def ensure_wal_mode():
         logger.error(f"Error enabling WAL mode: {e}")
         return False
 
-# Add this function to your db.py file
 
 def check_database_integrity():
     """

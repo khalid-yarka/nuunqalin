@@ -9,6 +9,8 @@ import time
 import json
 from datetime import datetime, timezone
 from threading import Lock
+# MOVED IMPORTS TO TOP
+from db import get_student_by_id, get_live_quiz_participant, update_live_quiz_participant
 
 # ============================================
 # CACHE STRUCTURE
@@ -120,15 +122,14 @@ class QuizCache:
         with self._lock:
             participant = self.get_participant(quiz_id, user_id)
             if participant and participant.get('name') == 'Participant':
-                # Try to get name from database
+                # Try to get name from database - using imported function
                 try:
-                    from db import get_student_by_id
                     student = get_student_by_id(user_id)
                     if student:
                         name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Participant'
                         participant['name'] = name
                         self.update_participant(quiz_id, user_id, {'name': name})
-                except:
+                except Exception:
                     pass
             return participant
     
@@ -189,13 +190,12 @@ class QuizCache:
                 if name == 'Participant':
                     # Try to get from database if we have a student ID
                     try:
-                        from db import get_student_by_id
                         student = get_student_by_id(uid)
                         if student:
                             name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Participant'
                             # Update cache with correct name
                             p['data']['name'] = name
-                    except:
+                    except Exception:
                         pass
                 
                 participants.append({
@@ -249,9 +249,6 @@ class QuizCache:
             # Execute batched writes
             for key, batch in grouped.items():
                 try:
-                    # Import here to avoid circular imports
-                    from db import get_live_quiz_participant, update_live_quiz_participant
-                    
                     # Get participant by quiz_id and user_id
                     participant = get_live_quiz_participant(batch['quiz_id'], batch['user_id'])
                     

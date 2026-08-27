@@ -21,3 +21,17 @@ class Config:
     # File upload settings (for PDFs)
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'static/uploads/pdfs')
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file size
+    
+    # NEW: Backup configuration
+    BACKUP_DIR = os.getenv('BACKUP_DIR', 'BACKUPS')
+    BACKUP_ENABLED = os.getenv('BACKUP_ENABLED', 'true').lower() == 'true'
+    BACKUP_TRIGGER_TOKEN = os.getenv('BACKUP_TRIGGER_TOKEN', 'change_this_token_in_production')
+    
+    # NEW: Quiz configuration
+    RATING_TIME = int(os.getenv('RATING_TIME', '10'))
+    LIVE_QUIZ_TIME_PER_QUESTION = int(os.getenv('LIVE_QUIZ_TIME_PER_QUESTION', '30'))
+    LIVE_QUIZ_MAX_PARTICIPANTS = int(os.getenv('LIVE_QUIZ_MAX_PARTICIPANTS', '50'))
+    
+    # NEW: Rate limiting
+    RATE_LIMIT_DEFAULT = os.getenv('RATE_LIMIT_DEFAULT', '200 per day;50 per hour')
+    RATE_LIMIT_LOGIN = os.getenv('RATE_LIMIT_LOGIN', '5 per minute')

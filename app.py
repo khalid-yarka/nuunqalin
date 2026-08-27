@@ -18,6 +18,7 @@ import os
 import sys
 import logging
 import time
+import secrets
 from datetime import datetime
 import json
 
@@ -28,10 +29,20 @@ import json
 log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 log_datefmt = '%Y-%m-%d %H:%M:%S'
 
-# File handler for application logs
-file_handler = logging.FileHandler('app.log')
-file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
-file_handler.setLevel(logging.WARNING)  # Only warnings and errors in production
+# File handler with rotation for application logs
+try:
+    from logging.handlers import RotatingFileHandler
+    file_handler = RotatingFileHandler(
+        'app.log',
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
+    file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
+    file_handler.setLevel(logging.WARNING)
+except Exception as e:
+    file_handler = logging.FileHandler('app.log')
+    file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
+    file_handler.setLevel(logging.WARNING)
 
 # Console handler for errors only
 console_handler = logging.StreamHandler(sys.stdout)
@@ -126,6 +137,28 @@ app.debug = False
 app.config['DEBUG'] = False
 app.config['TESTING'] = False
 
+# NEW: Session security
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# ============================================
+# CSRF PROTECTION
+# ============================================
+
+@app.before_request
+def generate_csrf():
+    """Generate CSRF token for logged-in users."""
+    if 'user_id' in session and 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+
+def validate_csrf():
+    """Validate CSRF token from request."""
+    token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+    if not token or token != session.get('csrf_token'):
+        return False
+    return True
+
 # ============================================
 # REQUEST TIMING & LOGGING (Minimal)
 # ============================================
@@ -175,8 +208,8 @@ def cleanup():
     logger.info("Application shutdown initiated.")
     try:
         close_db_connections()
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"Cleanup error: {e}")  # FIXED: Now logs the error
 
 # ============================================
 # INITIALIZE DATABASE
@@ -212,27 +245,53 @@ except Exception as e:
 @app.route('/health', methods=['GET'])
 def health_check():
     """
-    Health check endpoint for UptimeRobot.
+    Enhanced health check endpoint.
     Returns 200 OK if the application is running properly.
     """
+    checks = {
+        'database': False,
+        'backup': False,
+        'cache': False
+    }
+    
     # Check database connectivity
     try:
         from db import get_db
         conn = get_db()
         conn.execute("SELECT 1")
+        checks['database'] = True
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 503
-
+        logger.error(f"Health check - database failed: {e}")
+    
+    # Check backup availability
+    try:
+        if BACKUP_AVAILABLE:
+            manager = get_backup_manager()
+            if manager:
+                health = manager.health_check()
+                checks['backup'] = health['status'] != 'critical'
+        else:
+            checks['backup'] = True  # Skip backup check if not available
+    except Exception as e:
+        logger.error(f"Health check - backup failed: {e}")
+    
+    # Check cache
+    try:
+        from quiz_cache import get_quiz_cache
+        cache = get_quiz_cache()
+        stats = cache.get_cache_stats()
+        checks['cache'] = True
+    except Exception as e:
+        logger.error(f"Health check - cache failed: {e}")
+    
+    all_healthy = all(checks.values())
+    status_code = 200 if all_healthy else 503
+    
     return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'database': 'connected'
-    }), 200
+        'status': 'healthy' if all_healthy else 'degraded',
+        'checks': checks,
+        'timestamp': get_somali_time_display()
+    }), status_code
 
 # ============================================
 # BACKUP TRIGGER ENDPOINT (For UptimeRobot)
@@ -369,6 +428,8 @@ def login():
                 session['user_phone'] = student['phone_number']
                 session['is_admin'] = bool(student.get('is_admin', 0))
                 session.permanent = True
+                # Generate CSRF token
+                session['csrf_token'] = secrets.token_hex(32)
                 flash('Welcome back!', 'success')
                 return redirect(url_for('dashboard.home'))
             else:
@@ -446,7 +507,8 @@ def utility_processor():
     return {
         'session': session,
         'is_admin': session.get('is_admin', False),
-        'somali_time': get_somali_time_display
+        'somali_time': get_somali_time_display,
+        'csrf_token': session.get('csrf_token', '')
     }
 
 # ============================================

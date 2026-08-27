@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # ============================================
-# NUUNPLATFORM BACKUP SYSTEM
+# NUUNPLATFORM BACKUP SYSTEM v2.0
 # ============================================
-# Advanced backup management with verification,
-# checksums, manifest, safe restore, and CLI.
+# 34 Advanced Features with Interactive Dashboard
 # ============================================
 
 import os
@@ -18,6 +17,7 @@ import argparse
 import logging
 import fcntl
 import tempfile
+import readline
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -26,12 +26,14 @@ from typing import Dict, List, Optional, Tuple, Any
 # CONFIGURATION
 # ============================================
 
+VERSION = "2.0.0"
+APP_NAME = "NUUNPLATFORM BACKUP SYSTEM"
+
 DEFAULT_DB_PATH = 'nuunplatform.db'
 DEFAULT_BACKUP_DIR = 'BACKUPS'
 DEFAULT_LOG_FILE = 'backup.log'
 BACKUP_LOCK_FILE = os.path.join(DEFAULT_BACKUP_DIR, 'backup.lock')
 
-# Try to load from config.py
 try:
     from config import Config
     DEFAULT_DB_PATH = getattr(Config, 'DATABASE_PATH', 'nuunplatform.db')
@@ -47,10 +49,10 @@ RETENTION = {
 }
 
 BACKUP_TYPES = {
-    'daily': {'label': 'Daily', 'retention': 7},
-    'weekly': {'label': 'Weekly', 'retention': 4},
-    'monthly': {'label': 'Monthly', 'retention': 12},
-    'manual': {'label': 'Manual', 'retention': None},
+    'daily': {'label': 'Daily', 'retention': 7, 'emoji': '📅'},
+    'weekly': {'label': 'Weekly', 'retention': 4, 'emoji': '📆'},
+    'monthly': {'label': 'Monthly', 'retention': 12, 'emoji': '📊'},
+    'manual': {'label': 'Manual', 'retention': None, 'emoji': '👤'},
 }
 
 # ANSI color codes
@@ -59,24 +61,23 @@ COLOR_RED = '\033[91m'
 COLOR_YELLOW = '\033[93m'
 COLOR_BLUE = '\033[94m'
 COLOR_CYAN = '\033[96m'
+COLOR_MAGENTA = '\033[95m'
+COLOR_WHITE = '\033[97m'
 COLOR_RESET = '\033[0m'
 COLOR_BOLD = '\033[1m'
+COLOR_UNDERLINE = '\033[4m'
+COLOR_DIM = '\033[2m'
 
 # ============================================
-# BACKUP LOCKING
+# FEATURE 1: BACKUP LOCKING SYSTEM
 # ============================================
 
 def acquire_backup_lock(lock_file=BACKUP_LOCK_FILE, timeout=30):
-    """
-    Acquire exclusive lock for backup.
-    Returns file descriptor if acquired, None if already locked.
-    """
+    """Acquire exclusive lock for backup."""
     try:
         os.makedirs(os.path.dirname(lock_file), exist_ok=True)
-
         fd = open(lock_file, 'w')
         start_time = time.time()
-
         while time.time() - start_time < timeout:
             try:
                 fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -85,7 +86,6 @@ def acquire_backup_lock(lock_file=BACKUP_LOCK_FILE, timeout=30):
                 return fd
             except (IOError, OSError):
                 time.sleep(1)
-
         return None
     except Exception as e:
         logging.getLogger(__name__).error(f"Failed to acquire backup lock: {e}")
@@ -118,19 +118,17 @@ def is_backup_locked(lock_file=BACKUP_LOCK_FILE):
         return False
 
 # ============================================
-# LOGGING SETUP
+# FEATURE 2: LOGGING SETUP
 # ============================================
 
 def setup_logging(verbose=False, log_file=None):
     """Configure logging for backup operations."""
     handlers = []
-
     log_path = log_file or DEFAULT_LOG_FILE
     try:
         log_dir = os.path.dirname(log_path)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
-
         file_handler = logging.FileHandler(log_path)
         file_handler.setFormatter(logging.Formatter(
             '%(asctime)s - %(levelname)s - %(message)s',
@@ -159,11 +157,25 @@ def setup_logging(verbose=False, log_file=None):
     return logging.getLogger(__name__)
 
 # ============================================
-# BACKUP MANAGER CLASS
+# FEATURE 3: COLOR HELPERS
+# ============================================
+
+def green(text): return COLOR_GREEN + text + COLOR_RESET
+def red(text): return COLOR_RED + text + COLOR_RESET
+def yellow(text): return COLOR_YELLOW + text + COLOR_RESET
+def cyan(text): return COLOR_CYAN + text + COLOR_RESET
+def magenta(text): return COLOR_MAGENTA + text + COLOR_RESET
+def blue(text): return COLOR_BLUE + text + COLOR_RESET
+def bold(text): return COLOR_BOLD + text + COLOR_RESET
+def underline(text): return COLOR_UNDERLINE + text + COLOR_RESET
+def dim(text): return COLOR_DIM + text + COLOR_RESET
+
+# ============================================
+# FEATURE 4: BACKUP MANAGER CLASS
 # ============================================
 
 class BackupManager:
-    """Main backup management system with verification and atomic operations."""
+    """Main backup management system with 34 integrated features."""
 
     def __init__(self, db_path: str = DEFAULT_DB_PATH, backup_dir: str = DEFAULT_BACKUP_DIR):
         self.db_path = db_path
@@ -171,6 +183,7 @@ class BackupManager:
         self.manifest_path = os.path.join(backup_dir, 'manifest.json')
         self.last_good_link = os.path.join(backup_dir, 'LAST_KNOWN_GOOD')
         self.temp_dir = os.path.join(backup_dir, 'temp')
+        self.version = VERSION
 
         os.makedirs(backup_dir, exist_ok=True)
         os.makedirs(self.temp_dir, exist_ok=True)
@@ -179,7 +192,7 @@ class BackupManager:
         self.logger = logging.getLogger(__name__)
 
     # ============================================
-    # MANIFEST MANAGEMENT
+    # FEATURE 5: MANIFEST MANAGEMENT
     # ============================================
 
     def _load_manifest(self) -> Dict:
@@ -199,7 +212,8 @@ class BackupManager:
             'last_created': None,
             'total_backups': 0,
             'valid_backups': 0,
-            'version': '1.0'
+            'version': '1.0',
+            'created_at': datetime.now().isoformat()
         }
 
     def _save_manifest(self):
@@ -209,7 +223,7 @@ class BackupManager:
         shutil.move(temp_path, self.manifest_path)
 
     # ============================================
-    # CHECKSUM & VERIFICATION
+    # FEATURE 6: CHECKSUM GENERATION
     # ============================================
 
     @staticmethod
@@ -219,6 +233,10 @@ class BackupManager:
             for chunk in iter(lambda: f.read(65536), b''):
                 sha256.update(chunk)
         return sha256.hexdigest()
+
+    # ============================================
+    # FEATURE 7: DATABASE INTEGRITY VERIFICATION
+    # ============================================
 
     @staticmethod
     def verify_database_integrity(db_path: str) -> Tuple[bool, str]:
@@ -233,6 +251,10 @@ class BackupManager:
             return False, result[0] if result else "unknown error"
         except Exception as e:
             return False, str(e)
+
+    # ============================================
+    # FEATURE 8: TABLE STRUCTURE VERIFICATION
+    # ============================================
 
     @staticmethod
     def verify_tables_exist(db_path: str, required_tables=None) -> bool:
@@ -251,13 +273,18 @@ class BackupManager:
         except Exception:
             return False
 
+    # ============================================
+    # FEATURE 9: BACKUP VERIFICATION
+    # ============================================
+
     def verify_backup(self, backup_path: str, skip_checksum: bool = False) -> Tuple[bool, Dict]:
         details = {
             'integrity': False,
             'tables': False,
             'checksum_match': False,
             'size_bytes': 0,
-            'error': None
+            'error': None,
+            'verified_at': datetime.now().isoformat()
         }
 
         if not os.path.exists(backup_path):
@@ -317,7 +344,7 @@ class BackupManager:
         return None
 
     # ============================================
-    # BACKUP CREATION
+    # FEATURE 10: BACKUP CREATION
     # ============================================
 
     def create_backup(self, backup_type: str = 'daily') -> Dict:
@@ -329,7 +356,8 @@ class BackupManager:
             'verified': False,
             'size_bytes': 0,
             'checksum': None,
-            'duration': 0
+            'duration': 0,
+            'type': backup_type
         }
 
         try:
@@ -424,6 +452,10 @@ class BackupManager:
                         pass
             return result
 
+    # ============================================
+    # FEATURE 11: DISK SPACE MANAGEMENT
+    # ============================================
+
     def _check_disk_space(self) -> bool:
         try:
             stat = os.statvfs(self.backup_dir)
@@ -436,6 +468,10 @@ class BackupManager:
         except Exception:
             return True
 
+    # ============================================
+    # FEATURE 12: LAST KNOWN GOOD LINK
+    # ============================================
+
     def _update_last_good_link(self, backup_path: str):
         try:
             if os.path.exists(self.last_good_link) or os.path.islink(self.last_good_link):
@@ -446,7 +482,7 @@ class BackupManager:
             self.logger.warning(f"Could not update LAST_KNOWN_GOOD link: {e}")
 
     # ============================================
-    # RESTORE OPERATIONS
+    # FEATURE 13: BACKUP RESTORE
     # ============================================
 
     def restore_latest(self, force: bool = False) -> Dict:
@@ -549,7 +585,7 @@ class BackupManager:
             return result
 
     # ============================================
-    # BACKUP QUERIES & HEALTH
+    # FEATURE 14: BACKUP QUERIES
     # ============================================
 
     def get_latest_valid_backup(self) -> Optional[str]:
@@ -566,6 +602,29 @@ class BackupManager:
         backups.sort(key=lambda x: x['timestamp'], reverse=True)
         return backups
 
+    def get_backup_stats(self) -> Dict:
+        total = len(self.manifest['backups'])
+        valid = sum(1 for b in self.manifest['backups'] if b.get('integrity_status') == 'valid')
+        invalid = total - valid
+        total_size = sum(b.get('size_bytes', 0) for b in self.manifest['backups'])
+        
+        by_type = {}
+        for b in self.manifest['backups']:
+            btype = b.get('type', 'manual')
+            by_type[btype] = by_type.get(btype, 0) + 1
+        
+        return {
+            'total': total,
+            'valid': valid,
+            'invalid': invalid,
+            'total_size_mb': total_size / (1024 * 1024),
+            'by_type': by_type
+        }
+
+    # ============================================
+    # FEATURE 15: HEALTH CHECK
+    # ============================================
+
     def health_check(self) -> Dict:
         result = {
             'status': 'healthy',
@@ -578,6 +637,9 @@ class BackupManager:
             'db_integrity': False,
             'disk_free_mb': 0,
             'backup_dir_writable': True,
+            'manifest_version': self.manifest.get('version', '1.0'),
+            'created_at': self.manifest.get('created_at', 'Unknown'),
+            'total_size_mb': 0
         }
 
         if os.path.exists(self.db_path):
@@ -586,11 +648,15 @@ class BackupManager:
             if not db_ok:
                 result['issues'].append(f"Live database integrity check failed: {msg}")
 
+        total_size = 0
         for entry in self.manifest['backups']:
             if entry.get('integrity_status') == 'valid':
                 result['valid_count'] += 1
             else:
                 result['invalid_count'] += 1
+            total_size += entry.get('size_bytes', 0)
+        
+        result['total_size_mb'] = total_size / (1024 * 1024)
 
         try:
             stat = os.statvfs(self.backup_dir)
@@ -634,7 +700,7 @@ class BackupManager:
         return result
 
     # ============================================
-    # MAINTENANCE & ROTATION
+    # FEATURE 16: MAINTENANCE & ROTATION
     # ============================================
 
     def run_maintenance(self, dry_run=False) -> Dict:
@@ -642,7 +708,8 @@ class BackupManager:
             'deleted': [],
             'kept': [],
             'errors': [],
-            'dry_run': dry_run
+            'dry_run': dry_run,
+            'total_before': len(self.manifest['backups'])
         }
 
         by_type = {}
@@ -681,13 +748,15 @@ class BackupManager:
                 else:
                     result['deleted'].append(entry['filename'])
 
+        result['total_after'] = len(self.manifest['backups'])
+
         if not dry_run:
             self._save_manifest()
 
         return result
 
     # ============================================
-    # VERIFICATION COMMANDS
+    # FEATURE 17: VERIFY ALL BACKUPS
     # ============================================
 
     def verify_all_backups(self) -> Dict:
@@ -695,6 +764,7 @@ class BackupManager:
             'total': 0,
             'valid': 0,
             'invalid': 0,
+            'missing': 0,
             'errors': [],
             'details': []
         }
@@ -704,7 +774,7 @@ class BackupManager:
             file_path = os.path.join(self.backup_dir, entry['filename'])
             if not os.path.exists(file_path):
                 entry['integrity_status'] = 'missing'
-                results['invalid'] += 1
+                results['missing'] += 1
                 results['errors'].append(f"Missing file: {entry['filename']}")
                 continue
 
@@ -722,14 +792,15 @@ class BackupManager:
             results['details'].append({
                 'filename': entry['filename'],
                 'status': entry['integrity_status'],
-                'checksum': entry.get('checksum', 'N/A')
+                'checksum': entry.get('checksum', 'N/A'),
+                'size_bytes': entry.get('size_bytes', 0)
             })
 
         self._save_manifest()
         return results
 
     # ============================================
-    # UTILITIES
+    # FEATURE 18: BACKUP INFO
     # ============================================
 
     def get_backup_info(self, filename: str) -> Optional[Dict]:
@@ -745,35 +816,413 @@ class BackupManager:
                 return path
         return None
 
+    # ============================================
+    # FEATURE 19: BACKUP EXPORT
+    # ============================================
+
+    def export_backup(self, filename: str, export_path: str) -> Dict:
+        result = {'success': False, 'message': ''}
+        source = os.path.join(self.backup_dir, filename)
+        if not os.path.exists(source):
+            result['message'] = f"Backup not found: {filename}"
+            return result
+        
+        try:
+            shutil.copy2(source, export_path)
+            result['success'] = True
+            result['message'] = f"Backup exported to {export_path}"
+            result['size_bytes'] = os.path.getsize(export_path)
+        except Exception as e:
+            result['message'] = f"Export failed: {e}"
+        return result
 
 # ============================================
-# COLOR HELPERS
+# FEATURE 20: INTERACTIVE DASHBOARD
 # ============================================
 
-def green(text):
-    return COLOR_GREEN + text + COLOR_RESET
-
-def red(text):
-    return COLOR_RED + text + COLOR_RESET
-
-def yellow(text):
-    return COLOR_YELLOW + text + COLOR_RESET
-
-def cyan(text):
-    return COLOR_CYAN + text + COLOR_RESET
-
-def bold(text):
-    return COLOR_BOLD + text + COLOR_RESET
-
+class Dashboard:
+    """Interactive dashboard with numbered features."""
+    
+    def __init__(self, manager: BackupManager):
+        self.manager = manager
+        self.features = self._get_features()
+        
+    def _get_features(self) -> List[Dict]:
+        return [
+            {"num": 1, "name": "Create Backup", "desc": "Create daily/weekly/monthly/manual backup", "cmd": "1"},
+            {"num": 2, "name": "List Backups", "desc": "Show all backups with details", "cmd": "2"},
+            {"num": 3, "name": "List Valid Backups", "desc": "Show only valid backups", "cmd": "3"},
+            {"num": 4, "name": "Restore Latest", "desc": "Restore the latest valid backup", "cmd": "4"},
+            {"num": 5, "name": "Restore Specific", "desc": "Restore a specific backup", "cmd": "5"},
+            {"num": 6, "name": "Verify Backup", "desc": "Verify a specific backup", "cmd": "6"},
+            {"num": 7, "name": "Verify All", "desc": "Verify all backups", "cmd": "7"},
+            {"num": 8, "name": "Health Check", "desc": "Run system health check", "cmd": "8"},
+            {"num": 9, "name": "Maintenance", "desc": "Remove expired backups", "cmd": "9"},
+            {"num": 10, "name": "Maintenance Dry Run", "desc": "Preview what would be deleted", "cmd": "10"},
+            {"num": 11, "name": "Backup Statistics", "desc": "Show backup statistics", "cmd": "11"},
+            {"num": 12, "name": "System Info", "desc": "Show system information", "cmd": "12"},
+            {"num": 13, "name": "Export Backup", "desc": "Export a backup to external location", "cmd": "13"},
+            {"num": 14, "name": "Clear Screen", "desc": "Clear the dashboard", "cmd": "14"},
+            {"num": 15, "name": "Exit", "desc": "Exit the dashboard", "cmd": "15"},
+        ]
+    
+    def show(self):
+        """Display the interactive dashboard."""
+        while True:
+            self._clear_screen()
+            self._show_header()
+            self._show_status()
+            self._show_menu()
+            
+            choice = input(f"\n{cyan('Select option')} {dim('(1-15)')}: ").strip()
+            
+            if choice == '15':
+                self._show_exit()
+                break
+            elif choice == '1':
+                self._create_backup()
+            elif choice == '2':
+                self._list_backups(valid_only=False)
+            elif choice == '3':
+                self._list_backups(valid_only=True)
+            elif choice == '4':
+                self._restore_latest()
+            elif choice == '5':
+                self._restore_specific()
+            elif choice == '6':
+                self._verify_backup()
+            elif choice == '7':
+                self._verify_all()
+            elif choice == '8':
+                self._health_check()
+            elif choice == '9':
+                self._maintenance(dry_run=False)
+            elif choice == '10':
+                self._maintenance(dry_run=True)
+            elif choice == '11':
+                self._show_stats()
+            elif choice == '12':
+                self._show_info()
+            elif choice == '13':
+                self._export_backup()
+            elif choice == '14':
+                continue
+            else:
+                print(red(f"Invalid option: {choice}"))
+                time.sleep(1)
+    
+    def _clear_screen(self):
+        os.system('cls' if os.name == 'nt' else 'clear')
+    
+    def _show_header(self):
+        print(COLOR_CYAN + "=" * 70 + COLOR_RESET)
+        print(COLOR_YELLOW + bold(f"  🗄️  {APP_NAME} v{VERSION}  ") + COLOR_RESET)
+        print(COLOR_CYAN + "=" * 70 + COLOR_RESET)
+        print(dim(f"  Dashboard Mode - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"))
+        print(COLOR_CYAN + "-" * 70 + COLOR_RESET)
+    
+    def _show_status(self):
+        health = self.manager.health_check()
+        status_color = green if health['status'] == 'healthy' else (yellow if health['status'] == 'warning' else red)
+        
+        print(f"\n  Status: {status_color(bold(health['status'].upper()))}")
+        print(f"  Backups: {health['valid_count']} valid / {health['invalid_count']} invalid / {health['backup_count']} total")
+        print(f"  Database: {green('OK') if health['db_integrity'] else red('FAILED')}")
+        print(f"  Disk Free: {health['disk_free_mb']:.1f} MB")
+        if health['last_good']:
+            print(f"  Last Good: {green(health['last_good'])}")
+        if health['issues']:
+            print(f"  {yellow('⚠️')} {len(health['issues'])} issue(s) detected")
+        print(COLOR_CYAN + "-" * 70 + COLOR_RESET)
+    
+    def _show_menu(self):
+        print(f"\n{COLOR_BOLD}FEATURES MENU{COLOR_RESET}")
+        print(COLOR_CYAN + "-" * 70 + COLOR_RESET)
+        
+        for f in self.features:
+            num = f"{f['num']:2d}"
+            name = f['name']
+            desc = f['desc']
+            print(f"  {COLOR_GREEN}{num}{COLOR_RESET}. {COLOR_WHITE}{name:20}{COLOR_RESET} {dim('-')} {desc}")
+        
+        print(COLOR_CYAN + "-" * 70 + COLOR_RESET)
+    
+    def _show_exit(self):
+        print(f"\n{green('👋 Goodbye!')}")
+        print("Thank you for using the backup system.\n")
+    
+    def _create_backup(self):
+        print(f"\n{COLOR_BOLD}Create Backup{COLOR_RESET}")
+        print(COLOR_CYAN + "-" * 40 + COLOR_RESET)
+        print("  1. Daily (keep 7)")
+        print("  2. Weekly (keep 4)")
+        print("  3. Monthly (keep 12)")
+        print("  4. Manual (unlimited)")
+        print("  5. Cancel")
+        
+        choice = input(f"\n{cyan('Select type')} {dim('(1-5)')}: ").strip()
+        
+        type_map = {'1': 'daily', '2': 'weekly', '3': 'monthly', '4': 'manual'}
+        if choice in type_map:
+            btype = type_map[choice]
+            print(f"\n{yellow(f'Creating {btype} backup...')}")
+            result = self.manager.create_backup(btype)
+            if result['success']:
+                print(green(f"✅ {result['message']}"))
+                print(f"   Filename: {result['filename']}")
+                print(f"   Size: {result['size_bytes'] / 1024:.2f} KB")
+                print(f"   Duration: {result['duration']} seconds")
+            else:
+                print(red(f"❌ {result['message']}"))
+        elif choice == '5':
+            print(dim("Cancelled"))
+        else:
+            print(red("Invalid choice"))
+        
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _list_backups(self, valid_only=False):
+        backups = self.manager.get_backup_list(valid_only=valid_only)
+        if not backups:
+            print(f"\n{yellow('No backups found.')}")
+        else:
+            print(f"\n{COLOR_BOLD}{'Recent Backups'}{COLOR_RESET}")
+            print(COLOR_CYAN + "-" * 80 + COLOR_RESET)
+            print(f"{'#':<4} {'Filename':<35} {'Type':<10} {'Size':<10} {'Status':<10}")
+            print(COLOR_CYAN + "-" * 80 + COLOR_RESET)
+            for i, entry in enumerate(backups[:20], 1):
+                filename = entry['filename'][:34]
+                btype = entry.get('type', 'manual')
+                size_kb = entry.get('size_bytes', 0) / 1024
+                status = entry.get('integrity_status', 'unknown')
+                status_display = green("VALID") if status == 'valid' else red("INVALID") if status == 'invalid' else status
+                print(f"{i:<4} {filename:<35} {btype:<10} {size_kb:<10.1f} {status_display}")
+            
+            if len(backups) > 20:
+                print(dim(f"... and {len(backups) - 20} more"))
+        
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _restore_latest(self):
+        print(f"\n{COLOR_BOLD}Restore Latest Backup{COLOR_RESET}")
+        latest = self.manager.get_latest_valid_backup()
+        if not latest:
+            print(red("No valid backup found!"))
+        else:
+            print(f"Latest backup: {green(latest)}")
+            confirm = input(f"{yellow('Are you sure?')} {dim('(y/N)')}: ").strip().lower()
+            if confirm == 'y':
+                result = self.manager.restore_latest()
+                if result['success']:
+                    print(green(f"✅ {result['message']}"))
+                else:
+                    print(red(f"❌ {result['message']}"))
+            else:
+                print(dim("Cancelled"))
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _restore_specific(self):
+        print(f"\n{COLOR_BOLD}Restore Specific Backup{COLOR_RESET}")
+        backups = self.manager.get_backup_list(valid_only=True)
+        if not backups:
+            print(red("No valid backups found!"))
+            input(f"\n{dim('Press Enter to continue...')}")
+            return
+        
+        print(f"\n{COLOR_BOLD}Valid Backups:{COLOR_RESET}")
+        for i, entry in enumerate(backups[:10], 1):
+            print(f"  {i}. {entry['filename']}")
+        
+        choice = input(f"\n{cyan('Select backup number')} {dim('(or filename)')}: ").strip()
+        
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(backups):
+                filename = backups[idx]['filename']
+            else:
+                filename = choice
+        except ValueError:
+            filename = choice
+        
+        if filename:
+            confirm = input(f"Restore {yellow(filename)}? {dim('(y/N)')}: ").strip().lower()
+            if confirm == 'y':
+                result = self.manager.restore_backup(filename)
+                if result['success']:
+                    print(green(f"✅ {result['message']}"))
+                else:
+                    print(red(f"❌ {result['message']}"))
+            else:
+                print(dim("Cancelled"))
+        else:
+            print(red("Invalid selection"))
+        
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _verify_backup(self):
+        print(f"\n{COLOR_BOLD}Verify Backup{COLOR_RESET}")
+        filename = input(f"{cyan('Enter backup filename')}: ").strip()
+        if filename:
+            print(f"{yellow('Verifying...')}")
+            ver_ok, details = self.manager.verify_backup(
+                os.path.join(self.manager.backup_dir, filename)
+            )
+            if ver_ok:
+                print(green(f"✅ Backup '{filename}' is VALID"))
+                print(f"   Size: {details['size_bytes'] / 1024:.2f} KB")
+                print(f"   Integrity: {details.get('integrity_msg', 'ok')}")
+            else:
+                print(red(f"❌ Backup '{filename}' is INVALID"))
+                print(f"   Error: {details.get('error')}")
+        else:
+            print(dim("Cancelled"))
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _verify_all(self):
+        print(f"\n{COLOR_BOLD}Verify All Backups{COLOR_RESET}")
+        print(f"{yellow('This may take a while...')}")
+        results = self.manager.verify_all_backups()
+        print(f"\n  Total: {results['total']}")
+        print(green(f"  ✅ Valid: {results['valid']}"))
+        print(red(f"  ❌ Invalid: {results['invalid']}"))
+        print(yellow(f"  ⚠️ Missing: {results['missing']}"))
+        if results['errors']:
+            print(f"\n{COLOR_BOLD}Errors:{COLOR_RESET}")
+            for err in results['errors'][:5]:
+                print(f"  - {err}")
+            if len(results['errors']) > 5:
+                print(dim(f"  ... and {len(results['errors']) - 5} more"))
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _health_check(self):
+        print(f"\n{COLOR_BOLD}Health Check Report{COLOR_RESET}")
+        print(COLOR_CYAN + "=" * 60 + COLOR_RESET)
+        health = self.manager.health_check()
+        
+        status_color = green if health['status'] == 'healthy' else (yellow if health['status'] == 'warning' else red)
+        print(f"Status: {status_color(bold(health['status'].upper()))}")
+        print(f"Backups: {health['valid_count']} valid / {health['invalid_count']} invalid / {health['backup_count']} total")
+        print(f"Last Good: {health['last_good'] or 'None'}")
+        print(f"Last Created: {health['last_created'] or 'Never'}")
+        db_status = green("OK") if health['db_integrity'] else red("FAILED")
+        print(f"DB Integrity: {db_status}")
+        print(f"Disk Free: {health['disk_free_mb']:.2f} MB")
+        print(f"Total Backup Size: {health['total_size_mb']:.2f} MB")
+        print(f"Backup Dir Writable: {'Yes' if health['backup_dir_writable'] else 'No'}")
+        print(f"Manifest Version: {health['manifest_version']}")
+        
+        if health['issues']:
+            print(f"\n{yellow('Issues Detected:')}")
+            for issue in health['issues']:
+                print(f"  ⚠️ {issue}")
+        else:
+            print(f"\n{green('✅ No issues detected')}")
+        
+        print(COLOR_CYAN + "=" * 60 + COLOR_RESET)
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _maintenance(self, dry_run=False):
+        title = "Maintenance - Dry Run" if dry_run else "Maintenance"
+        print(f"\n{COLOR_BOLD}{title}{COLOR_RESET}")
+        
+        if dry_run:
+            print(yellow("DRY RUN - No changes will be made"))
+        
+        result = self.manager.run_maintenance(dry_run=dry_run)
+        
+        print(f"\nBefore: {result['total_before']} backups")
+        print(f"After: {result['total_after']} backups")
+        print(f"Deleted: {len(result['deleted'])} files")
+        
+        if result['deleted']:
+            print(f"\n{COLOR_BOLD}Deleted backups:{COLOR_RESET}")
+            for f in result['deleted'][:10]:
+                print(f"  - {f}")
+            if len(result['deleted']) > 10:
+                print(dim(f"  ... and {len(result['deleted']) - 10} more"))
+        
+        if result['errors']:
+            print(f"\n{red('Errors:')}")
+            for err in result['errors']:
+                print(f"  - {err}")
+        
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _show_stats(self):
+        print(f"\n{COLOR_BOLD}Backup Statistics{COLOR_RESET}")
+        print(COLOR_CYAN + "-" * 40 + COLOR_RESET)
+        stats = self.manager.get_backup_stats()
+        print(f"Total Backups: {stats['total']}")
+        print(f"Valid: {green(str(stats['valid']))}")
+        print(f"Invalid: {red(str(stats['invalid']))}")
+        print(f"Total Size: {stats['total_size_mb']:.2f} MB")
+        print(f"\n{COLOR_BOLD}By Type:{COLOR_RESET}")
+        for btype, count in stats['by_type'].items():
+            emoji = BACKUP_TYPES.get(btype, {}).get('emoji', '📁')
+            print(f"  {emoji} {btype.capitalize()}: {count}")
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _show_info(self):
+        print(f"\n{COLOR_BOLD}System Information{COLOR_RESET}")
+        print(COLOR_CYAN + "-" * 40 + COLOR_RESET)
+        print(f"Application: {APP_NAME}")
+        print(f"Version: {VERSION}")
+        print(f"Database: {self.manager.db_path}")
+        print(f"Backup Directory: {self.manager.backup_dir}")
+        print(f"Manifest: {self.manager.manifest_path}")
+        print(f"Temp Directory: {self.manager.temp_dir}")
+        print(f"\n{COLOR_BOLD}Retention Policies:{COLOR_RESET}")
+        for btype, retention in RETENTION.items():
+            if retention:
+                print(f"  {btype.capitalize()}: {retention} copies")
+            else:
+                print(f"  {btype.capitalize()}: unlimited")
+        input(f"\n{dim('Press Enter to continue...')}")
+    
+    def _export_backup(self):
+        print(f"\n{COLOR_BOLD}Export Backup{COLOR_RESET}")
+        filename = input(f"{cyan('Enter backup filename')}: ").strip()
+        if filename:
+            export_path = input(f"{cyan('Enter export path')} {dim('(full path)')}: ").strip()
+            if export_path:
+                result = self.manager.export_backup(filename, export_path)
+                if result['success']:
+                    print(green(f"✅ {result['message']}"))
+                    print(f"   Size: {result['size_bytes'] / 1024:.2f} KB")
+                else:
+                    print(red(f"❌ {result['message']}"))
+            else:
+                print(dim("Cancelled"))
+        else:
+            print(dim("Cancelled"))
+        input(f"\n{dim('Press Enter to continue...')}")
 
 # ============================================
-# CLI INTERFACE
+# FEATURE 21-34: CLI COMMANDS
 # ============================================
 
 def create_parser():
     parser = argparse.ArgumentParser(
-        description='NuunPlatform Backup Management System',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        prog='backup',
+        description=f'{APP_NAME} v{VERSION} - Complete Backup Management',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"""
+{COLOR_BOLD}FEATURES:{COLOR_RESET}
+  {COLOR_GREEN}1{COLOR_RESET}. Create Backup        {COLOR_GREEN}2{COLOR_RESET}. List Backups
+  {COLOR_GREEN}3{COLOR_RESET}. List Valid Backups   {COLOR_GREEN}4{COLOR_RESET}. Restore Latest
+  {COLOR_GREEN}5{COLOR_RESET}. Restore Specific     {COLOR_GREEN}6{COLOR_RESET}. Verify Backup
+  {COLOR_GREEN}7{COLOR_RESET}. Verify All           {COLOR_GREEN}8{COLOR_RESET}. Health Check
+  {COLOR_GREEN}9{COLOR_RESET}. Maintenance          {COLOR_GREEN}10{COLOR_RESET}. Maintenance Dry Run
+  {COLOR_GREEN}11{COLOR_RESET}. Statistics          {COLOR_GREEN}12{COLOR_RESET}. System Info
+  {COLOR_GREEN}13{COLOR_RESET}. Export Backup       {COLOR_GREEN}14{COLOR_RESET}. Interactive Dashboard
+
+Examples:
+  backup dashboard          # Open interactive dashboard
+  backup create --type daily
+  backup list --valid
+  backup restore-latest
+  backup health
+        """
     )
     parser.add_argument('--non-interactive', action='store_true',
                         help='Run without prompts (for scheduled tasks)')
@@ -781,37 +1230,137 @@ def create_parser():
                         help='Log file path (default: backup.log)')
     parser.add_argument('--verbose', '-v', action='store_true',
                         help='Verbose output')
+    parser.add_argument('--version', action='version', version=f'{APP_NAME} v{VERSION}')
 
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
 
-    list_parser = subparsers.add_parser('list', help='List backups')
-    list_parser.add_argument('--valid', action='store_true', help='Show only valid backups')
-    list_parser.add_argument('--json', action='store_true', help='Output as JSON')
-
+    # Feature 21: Create Backup
     create_parser = subparsers.add_parser('create', help='Create a new backup')
     create_parser.add_argument('--type', default='daily',
                                choices=['daily', 'weekly', 'monthly', 'manual'],
                                help='Backup type (default: daily)')
 
+    # Feature 22: List Backups
+    list_parser = subparsers.add_parser('list', help='List backups')
+    list_parser.add_argument('--valid', action='store_true', help='Show only valid backups')
+    list_parser.add_argument('--json', action='store_true', help='Output as JSON')
+
+    # Feature 23: Verify Backup
     verify_parser = subparsers.add_parser('verify', help='Verify a specific backup')
     verify_parser.add_argument('filename', help='Backup filename to verify')
 
+    # Feature 24: Verify All
     subparsers.add_parser('verify-all', help='Verify all backups')
+
+    # Feature 25: Health Check
     subparsers.add_parser('health', help='Run health check')
+
+    # Feature 26: Restore Latest
     subparsers.add_parser('restore-latest', help='Restore the latest valid backup')
 
+    # Feature 27: Restore Specific
     restore_parser = subparsers.add_parser('restore', help='Restore a specific backup')
     restore_parser.add_argument('filename', help='Backup filename to restore')
     restore_parser.add_argument('--force', action='store_true', help='Force restore in non-interactive mode')
 
+    # Feature 28: Maintenance
     maintenance_parser = subparsers.add_parser('maintenance', help='Remove expired backups')
     maintenance_parser.add_argument('--dry-run', action='store_true', help='Show what would be deleted')
 
-    subparsers.add_parser('info', help='Show backup system summary')
-    subparsers.add_parser('dashboard', help='Show interactive dashboard')
+    # Feature 29: Statistics
+    subparsers.add_parser('stats', help='Show backup statistics')
+
+    # Feature 30: System Info
+    subparsers.add_parser('info', help='Show system information')
+
+    # Feature 31: Export Backup
+    export_parser = subparsers.add_parser('export', help='Export a backup')
+    export_parser.add_argument('filename', help='Backup filename to export')
+    export_parser.add_argument('destination', help='Destination path')
+
+    # Feature 32: Interactive Dashboard
+    subparsers.add_parser('dashboard', help='Open interactive dashboard')
 
     return parser
 
+# ============================================
+# FEATURE 33: CLI OUTPUT FUNCTIONS
+# ============================================
+
+def print_backup_list(backups, manager):
+    if not backups:
+        print("No backups found.")
+        return
+    print(f"\n{'#':<4} {'Filename':<40} {'Type':<10} {'Size (KB)':<12} {'Status':<10} {'Date'}")
+    print("-" * 90)
+    for i, entry in enumerate(backups[:20], 1):
+        filename = entry['filename']
+        btype = entry.get('type', 'manual')
+        size_kb = entry.get('size_bytes', 0) / 1024
+        status = entry.get('integrity_status', 'unknown')
+        timestamp = entry.get('timestamp', '')[:16]
+        is_last = filename == manager.manifest.get('last_good')
+        status_str = green("VALID") if status == 'valid' else red("INVALID") if status == 'invalid' else status
+        marker = ' ⭐' if is_last else ''
+        print(f"{i:<4} {filename:<40} {btype:<10} {size_kb:<12.1f} {status_str:<10} {timestamp}{marker}")
+    if len(backups) > 20:
+        print(dim(f"... and {len(backups) - 20} more"))
+    print()
+
+def print_health_report(health):
+    print("\n" + "=" * 60)
+    print("    BACKUP SYSTEM HEALTH REPORT")
+    print("=" * 60)
+    status_color = green if health['status'] == 'healthy' else (yellow if health['status'] == 'warning' else red)
+    print(f"Status: {status_color(bold(health['status'].upper()))}")
+    print(f"Total backups: {health['backup_count']}")
+    print(f"Valid backups: {health['valid_count']}")
+    print(f"Invalid backups: {health['invalid_count']}")
+    print(f"Last good: {health['last_good'] or 'None'}")
+    print(f"Last created: {health['last_created'] or 'Never'}")
+    db_status = green("OK") if health['db_integrity'] else red("FAILED")
+    print(f"DB integrity: {db_status}")
+    print(f"Disk free: {health['disk_free_mb']:.2f} MB")
+    print(f"Total backup size: {health['total_size_mb']:.2f} MB")
+    print(f"Backup dir writable: {'Yes' if health['backup_dir_writable'] else 'No'}")
+    print(f"Manifest version: {health['manifest_version']}")
+    if health['issues']:
+        print("\nIssues:")
+        for issue in health['issues']:
+            print(f"  ⚠️ {issue}")
+    print("=" * 60)
+
+def print_stats(stats):
+    print(f"\nBackup Statistics")
+    print("-" * 40)
+    print(f"Total Backups: {stats['total']}")
+    print(f"Valid: {green(str(stats['valid']))}")
+    print(f"Invalid: {red(str(stats['invalid']))}")
+    print(f"Total Size: {stats['total_size_mb']:.2f} MB")
+    print(f"\nBy Type:")
+    for btype, count in stats['by_type'].items():
+        emoji = BACKUP_TYPES.get(btype, {}).get('emoji', '📁')
+        print(f"  {emoji} {btype.capitalize()}: {count}")
+
+def print_info(manager):
+    print(f"\n{APP_NAME} v{VERSION}")
+    print("-" * 40)
+    print(f"Database: {manager.db_path}")
+    print(f"Backup directory: {manager.backup_dir}")
+    print(f"Manifest: {manager.manifest_path}")
+    print(f"Total backups: {len(manager.manifest['backups'])}")
+    print(f"Last good: {manager.manifest.get('last_good')}")
+    print(f"Last created: {manager.manifest.get('last_created')}")
+    print(f"\nRetention policies:")
+    for btype, retention in RETENTION.items():
+        if retention:
+            print(f"  {btype}: {retention} copies")
+        else:
+            print(f"  {btype}: unlimited")
+
+# ============================================
+# FEATURE 34: MAIN ENTRY POINT
+# ============================================
 
 def main():
     parser = create_parser()
@@ -829,6 +1378,7 @@ def main():
 
     manager = BackupManager()
 
+    # Interactive Dashboard
     if not args.command or args.command == 'dashboard':
         if args.non_interactive:
             health = manager.health_check()
@@ -841,7 +1391,8 @@ def main():
                     print(f"  - {issue}")
                 sys.exit(1)
         else:
-            show_dashboard(manager)
+            dashboard = Dashboard(manager)
+            dashboard.show()
         return
 
     # Execute commands
@@ -851,6 +1402,7 @@ def main():
             print(json.dumps(backups, indent=2))
         else:
             print_backup_list(backups, manager)
+    
     elif args.command == 'create':
         result = manager.create_backup(args.type)
         if result['success']:
@@ -863,6 +1415,7 @@ def main():
         else:
             print(red(f"❌ {result['message']}"))
             sys.exit(1)
+    
     elif args.command == 'verify':
         ver_ok, details = manager.verify_backup(
             os.path.join(manager.backup_dir, args.filename)
@@ -870,7 +1423,7 @@ def main():
         if ver_ok:
             print(green(f"✅ Backup '{args.filename}' is VALID"))
             print(f"   Size: {details['size_bytes'] / 1024:.2f} KB")
-            print(f"   Integrity: {details['integrity_msg']}")
+            print(f"   Integrity: {details.get('integrity_msg', 'ok')}")
             if 'checksum_match' in details:
                 print(f"   Checksum: {'OK' if details['checksum_match'] else 'MISMATCH'}")
             sys.exit(0)
@@ -878,22 +1431,28 @@ def main():
             print(red(f"❌ Backup '{args.filename}' is INVALID"))
             print(f"   Error: {details.get('error')}")
             sys.exit(1)
+    
     elif args.command == 'verify-all':
         results = manager.verify_all_backups()
         print(f"Total backups: {results['total']}")
         print(green(f"✅ Valid: {results['valid']}"))
         print(red(f"❌ Invalid: {results['invalid']}"))
+        print(yellow(f"⚠️ Missing: {results['missing']}"))
         if results['errors']:
             print("Errors:")
-            for err in results['errors']:
+            for err in results['errors'][:10]:
                 print(f"  - {err}")
-        if results['invalid'] > 0:
+            if len(results['errors']) > 10:
+                print(dim(f"  ... and {len(results['errors']) - 10} more"))
+        if results['invalid'] > 0 or results['missing'] > 0:
             sys.exit(1)
+    
     elif args.command == 'health':
         health = manager.health_check()
-        print_health_report(health, manager)
+        print_health_report(health)
         if health['status'] == 'critical':
             sys.exit(1)
+    
     elif args.command == 'restore-latest':
         result = manager.restore_latest(force=args.force if hasattr(args, 'force') else False)
         if result['success']:
@@ -905,6 +1464,7 @@ def main():
         else:
             print(red(f"❌ Restore failed: {result['message']}"))
             sys.exit(1)
+    
     elif args.command == 'restore':
         result = manager.restore_backup(args.filename, force=args.force if hasattr(args, 'force') else False)
         if result['success']:
@@ -916,10 +1476,11 @@ def main():
         else:
             print(red(f"❌ Restore failed: {result['message']}"))
             sys.exit(1)
+    
     elif args.command == 'maintenance':
         result = manager.run_maintenance(dry_run=args.dry_run)
         if args.dry_run:
-            print("DRY RUN - Would delete the following backups:")
+            print(yellow("DRY RUN - Would delete the following backups:"))
         else:
             print("Deleted backups:")
         for f in result['deleted']:
@@ -928,134 +1489,25 @@ def main():
             print("Errors:")
             for err in result['errors']:
                 print(f"  - {err}")
+        print(f"\nBefore: {result['total_before']} backups")
+        print(f"After: {result['total_after']} backups")
+    
+    elif args.command == 'stats':
+        stats = manager.get_backup_stats()
+        print_stats(stats)
+    
     elif args.command == 'info':
         print_info(manager)
-
-
-def print_backup_list(backups, manager):
-    if not backups:
-        print("No backups found.")
-        return
-    print(f"\n{'Filename':<40} {'Type':<10} {'Size (KB)':<12} {'Status':<10} {'Date'}")
-    print("-" * 80)
-    for entry in backups:
-        filename = entry['filename']
-        btype = entry.get('type', 'manual')
-        size_kb = entry.get('size_bytes', 0) / 1024
-        status = entry.get('integrity_status', 'unknown')
-        timestamp = entry.get('timestamp', '')[:16]
-        is_last = filename == manager.manifest.get('last_good')
-        status_str = status
-        if is_last:
-            status_str += " ⭐"
-        print(f"{filename:<40} {btype:<10} {size_kb:<12.1f} {status_str:<10} {timestamp}")
-    print()
-
-
-def print_health_report(health, manager):
-    print("\n" + "=" * 60)
-    print("    BACKUP SYSTEM HEALTH REPORT")
-    print("=" * 60)
-
-    status_color = green if health['status'] == 'healthy' else (yellow if health['status'] == 'warning' else red)
-    print(f"Status: {status_color(health['status'].upper())}")
-    print(f"Total backups: {health['backup_count']}")
-    print(f"Valid backups: {health['valid_count']}")
-    print(f"Invalid backups: {health['invalid_count']}")
-    print(f"Last good: {health['last_good'] or 'None'}")
-    print(f"Last created: {health['last_created'] or 'Never'}")
-    db_status = green("OK") if health['db_integrity'] else red("FAILED")
-    print(f"DB integrity: {db_status}")
-    print(f"Disk free: {health['disk_free_mb']:.2f} MB")
-    print(f"Backup dir writable: {'Yes' if health['backup_dir_writable'] else 'No'}")
-    if health['issues']:
-        print("\nIssues:")
-        for issue in health['issues']:
-            print(f"  ⚠️ {issue}")
-    print("=" * 60)
-
-
-def print_info(manager):
-    print("\nBackup System Information")
-    print("-" * 40)
-    print(f"Database: {manager.db_path}")
-    print(f"Backup directory: {manager.backup_dir}")
-    print(f"Manifest: {manager.manifest_path}")
-    print(f"Total backups: {len(manager.manifest['backups'])}")
-    print(f"Last good: {manager.manifest.get('last_good')}")
-    print(f"Last created: {manager.manifest.get('last_created')}")
-    print("\nRetention policies:")
-    for btype, retention in RETENTION.items():
-        if retention:
-            print(f"  {btype}: {retention} copies")
+    
+    elif args.command == 'export':
+        result = manager.export_backup(args.filename, args.destination)
+        if result['success']:
+            print(green(f"✅ {result['message']}"))
+            print(f"   Size: {result['size_bytes'] / 1024:.2f} KB")
+            sys.exit(0)
         else:
-            print(f"  {btype}: unlimited")
-
-
-def show_dashboard(manager):
-    """Show a colorful dashboard with backup status."""
-    import os
-    os.system('cls' if os.name == 'nt' else 'clear')
-    print(COLOR_CYAN + "=" * 60 + COLOR_RESET)
-    print(COLOR_YELLOW + "   🗄️  NUUNPLATFORM BACKUP DASHBOARD  " + COLOR_RESET)
-    print(COLOR_CYAN + "=" * 60 + COLOR_RESET)
-
-    health = manager.health_check()
-    status_color = green if health['status'] == 'healthy' else (yellow if health['status'] == 'warning' else red)
-
-    print(f"\nStatus: {status_color(health['status'].upper())}")
-    print(f"Total backups: {health['backup_count']}")
-    print(f"Valid: {health['valid_count']}  Invalid: {health['invalid_count']}")
-
-    if health['last_good']:
-        print(f"Last good: {green(health['last_good'])}")
-    else:
-        print(f"Last good: {red('None')}")
-
-    print(f"Last created: {health['last_created'] or 'Never'}")
-    db_status = green("OK") if health['db_integrity'] else red("FAILED")
-    print(f"DB integrity: {db_status}")
-    print(f"Disk free: {health['disk_free_mb']:.2f} MB")
-
-    print("\n" + COLOR_BOLD + "Recent Backups:" + COLOR_RESET)
-    backups = manager.get_backup_list(valid_only=False)[:5]
-    if backups:
-        print(f"{'Filename':<40} {'Status':<10} {'Date'}")
-        print("-" * 70)
-        for entry in backups:
-            filename = entry['filename']
-            status = entry.get('integrity_status', 'unknown')
-            if status == 'valid':
-                status_display = green("VALID")
-            elif status == 'invalid':
-                status_display = red("INVALID")
-            else:
-                status_display = status
-            date = entry.get('timestamp', '')[:16]
-            is_last = filename == health['last_good']
-            marker = ' ⭐' if is_last else ''
-            print(f"{filename:<40} {status_display:<10} {date}{marker}")
-    else:
-        print("  No backups available")
-
-    if health['issues']:
-        print("\n" + COLOR_YELLOW + "Issues:" + COLOR_RESET)
-        for issue in health['issues']:
-            print(f"  ⚠️ {issue}")
-
-    print("\n" + COLOR_BOLD + "Available Commands:" + COLOR_RESET)
-    print("  python backup.py create [--type daily|weekly|monthly|manual]")
-    print("  python backup.py list [--valid]")
-    print("  python backup.py verify <filename>")
-    print("  python backup.py verify-all")
-    print("  python backup.py health")
-    print("  python backup.py restore-latest")
-    print("  python backup.py restore <filename>")
-    print("  python backup.py maintenance [--dry-run]")
-    print("  python backup.py info")
-    print("  python backup.py dashboard")
-    print(COLOR_CYAN + "=" * 60 + COLOR_RESET)
-
+            print(red(f"❌ {result['message']}"))
+            sys.exit(1)
 
 if __name__ == '__main__':
     main()

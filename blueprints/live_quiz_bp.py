@@ -12,6 +12,8 @@ from db import (
     get_student_by_id,
     notify_live_quiz_start, notify_live_quiz_results, notify_participant_joined
 )
+from config import Config
+from utils import get_somali_time_db, get_somali_time_display
 import secrets
 import string
 import random
@@ -145,8 +147,8 @@ def create():
             'question_count': question_count,
             'join_code': join_code,
             'status': 'waiting',
-            'max_participants': 50,
-            'time_per_question': 30,
+            'max_participants': Config.LIVE_QUIZ_MAX_PARTICIPANTS,
+            'time_per_question': Config.LIVE_QUIZ_TIME_PER_QUESTION,
             'current_question_index': 0,
             'question_ids': question_ids
         }
@@ -211,8 +213,8 @@ def create_with_available():
         'question_count': available,
         'join_code': join_code,
         'status': 'waiting',
-        'max_participants': 50,
-        'time_per_question': 30,
+        'max_participants': Config.LIVE_QUIZ_MAX_PARTICIPANTS,
+        'time_per_question': Config.LIVE_QUIZ_TIME_PER_QUESTION,
         'current_question_index': 0,
         'question_ids': question_ids
     }
@@ -397,17 +399,17 @@ def start_quiz(quiz_id):
         if participant_count < 2:
             return jsonify({'error': 'Need at least 2 participants to start'}), 400
         
-        # Update quiz status
+        # Update quiz status - FIXED: Using get_somali_time_db()
         update_live_quiz(quiz_id, {
             'status': 'active',
-            'started_at': datetime.now(timezone.utc).isoformat()
+            'started_at': get_somali_time_db()
         })
         
         # Update cache
         cache = get_quiz_cache()
         cache.update_quiz(quiz_id, {
             'status': 'active',
-            'started_at': datetime.now(timezone.utc).isoformat()
+            'started_at': get_somali_time_db()
         })
         
         # Get all participants to reset
@@ -948,7 +950,7 @@ def results(quiz_id):
         update_live_quiz_participant(p['id'], {'ranking': i})
         p['ranking'] = i
     
-    # Check if quiz should be marked as finished
+    # Check if quiz should be marked as finished - FIXED: using get_somali_time_db()
     quiz_status = quiz.get('status')
     if quiz_status != 'finished':
         # Check if all participants completed
@@ -962,12 +964,12 @@ def results(quiz_id):
         if all_completed and len(sorted_participants) > 0:
             update_live_quiz(quiz_id, {
                 'status': 'finished',
-                'ended_at': datetime.now(timezone.utc).isoformat()
+                'ended_at': get_somali_time_db()
             })
             # Update cache
             cache.update_quiz(quiz_id, {
                 'status': 'finished',
-                'ended_at': datetime.now(timezone.utc).isoformat()
+                'ended_at': get_somali_time_db()
             })
             
             # ============================================
@@ -1022,8 +1024,8 @@ def quiz_state(quiz_id):
         
         # Calculate total timer
         total_questions = quiz.get('question_count', 0)
-        time_per_question = quiz.get('time_per_question', 30)
-        rating_time = 10  # 10 seconds for rating
+        time_per_question = quiz.get('time_per_question', Config.LIVE_QUIZ_TIME_PER_QUESTION)
+        rating_time = Config.RATING_TIME  # FIXED: Using config instead of hardcoded 10
         total_duration = total_questions * (time_per_question + rating_time)
         
         # Calculate remaining time
@@ -1046,7 +1048,7 @@ def quiz_state(quiz_id):
             # End the quiz
             update_live_quiz(quiz_id, {
                 'status': 'finished',
-                'ended_at': datetime.now(timezone.utc).isoformat()
+                'ended_at': get_somali_time_db()
             })
             cache.update_quiz(quiz_id, {'status': 'finished'})
             cache.force_flush()
