@@ -573,7 +573,7 @@
 }
 
 /* ============================================
-   RESULTS PAGE - FIXED DARK MODE
+   RESULTS PAGE
    ============================================ */
 
 .result-hero {
@@ -754,7 +754,7 @@
 .leaderboard-full .row .status-tag.playing { background: #EFF6FF; color: #3B82F6; }
 
 /* ============================================
-   DARK MODE OVERRIDES - COMPLETE
+   DARK MODE OVERRIDES
    ============================================ */
 
 [data-theme="dark"] .quiz-header {
@@ -783,16 +783,6 @@
     background: var(--primary-light) !important;
 }
 
-[data-theme="dark"] .option-btn.correct {
-    border-color: #10B981 !important;
-    background: #1A3A2E !important;
-}
-
-[data-theme="dark"] .option-btn.wrong {
-    border-color: #EF4444 !important;
-    background: #3A1A1A !important;
-}
-
 [data-theme="dark"] .leaderboard-mini {
     background: var(--surface) !important;
     border-color: var(--border) !important;
@@ -815,7 +805,12 @@
 }
 
 [data-theme="dark"] .leaderboard-full .row.you {
-    background: var(--primary-light) !important;
+    background: var(--highlight-bg, #4A2A40) !important;
+    color: var(--highlight-text, #FFFFFF) !important;
+}
+
+[data-theme="dark"] .leaderboard-full .row.you span {
+    color: inherit !important;
 }
 
 [data-theme="dark"] .result-stats .stat {
@@ -826,6 +821,7 @@
 [data-theme="dark"] .result-stats .stat .number {
     color: var(--text) !important;
 }
+
 [data-theme="dark"] .result-stats .stat.correct .number { color: #34D399 !important; }
 [data-theme="dark"] .result-stats .stat.wrong .number { color: #F87171 !important; }
 [data-theme="dark"] .result-stats .stat.skipped .number { color: #FBBF24 !important; }
@@ -841,19 +837,19 @@
 }
 
 [data-theme="dark"] .result-hero {
-    background: linear-gradient(135deg, #8B1A1A 0%, #4A0E0E 100%) !important;
+    background: linear-gradient(135deg, #4A1A2A 0%, #2A0A1A 100%) !important;
 }
 
 [data-theme="dark"] .result-hero .score {
-    color: #FFFFFF !important;
+    color: #FF8A8A !important;
 }
 
 [data-theme="dark"] .result-hero .percentage {
-    color: rgba(255, 255, 255, 0.9) !important;
+    color: #FFB3B8 !important;
 }
 
 [data-theme="dark"] .result-hero .rank {
-    color: rgba(255, 255, 255, 0.9) !important;
+    color: #FFD4D4 !important;
 }
 
 [data-theme="dark"] .result-hero .rank strong {
@@ -875,36 +871,6 @@
     border-color: var(--border) !important;
 }
 
-[data-theme="dark"] .feedback-area.success {
-    background: #1A3A2E !important;
-    border-color: #10B981 !important;
-    color: #D1FAE5 !important;
-}
-
-[data-theme="dark"] .feedback-area.error {
-    background: #3A1A1A !important;
-    border-color: #EF4444 !important;
-    color: #FECACA !important;
-}
-
-[data-theme="dark"] .feedback-area.skipped {
-    background: #3A2E1A !important;
-    border-color: #F59E0B !important;
-    color: #FDE68A !important;
-}
-
-[data-theme="dark"] .lb-item.you {
-    background: var(--primary-light) !important;
-}
-
-[data-theme="dark"] .lb-item .rank {
-    color: var(--text-secondary) !important;
-}
-
-[data-theme="dark"] .lb-item .name {
-    color: var(--text) !important;
-}
-
 [data-theme="dark"] .participant-count-badge {
     background: var(--primary-light) !important;
     color: var(--primary) !important;
@@ -916,8 +882,13 @@
 }
 
 [data-theme="dark"] .badge-you {
-    background: #3B82F6 !important;
-    color: white !important;
+    background: #4A6A9A !important;
+    color: #D4E4FF !important;
+}
+
+[data-theme="dark"] .participant-item .badge-creator {
+    background: #8B4A4A !important;
+    color: #FFD4D4 !important;
 }
 
 [data-theme="dark"] .status-tag.completed {
@@ -956,6 +927,63 @@
 }
 
 /* ============================================
+   DARK MODE - LIVE QUIZ HIGHLIGHT FIXES
+   ============================================ */
+
+[data-theme="dark"] .option-btn.correct {
+    border-color: #10B981 !important;
+    background: #1A3A2E !important;
+    color: #D1FAE5 !important;
+}
+
+[data-theme="dark"] .option-btn.wrong {
+    border-color: #EF4444 !important;
+    background: #3A1A1A !important;
+    color: #FECACA !important;
+}
+
+[data-theme="dark"] .option-btn.selected {
+    background: #2A3A5A !important;
+    color: #93C5FD !important;
+    border-color: #3B82F6 !important;
+}
+
+[data-theme="dark"] .feedback-area.success {
+    background: #1A3A2E !important;
+    border-color: #10B981 !important;
+    color: #D1FAE5 !important;
+}
+
+[data-theme="dark"] .feedback-area.error {
+    background: #3A1A1A !important;
+    border-color: #EF4444 !important;
+    color: #FECACA !important;
+}
+
+[data-theme="dark"] .feedback-area.skipped {
+    background: #3A2E1A !important;
+    border-color: #F59E0B !important;
+    color: #FDE68A !important;
+}
+
+[data-theme="dark"] .lb-item.you {
+    background: var(--highlight-bg, #4A2A40) !important;
+    color: var(--highlight-text, #FFFFFF) !important;
+}
+
+[data-theme="dark"] .lb-item .rank {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .lb-item .name {
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .lb-item .score {
+    color: #FF6B70 !important;
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
 
@@ -964,11 +992,9 @@
         grid-template-columns: repeat(3, 1fr);
         gap: 8px;
     }
-
     .result-stats .stat .number {
         font-size: 22px;
     }
-
     .leaderboard-full .header,
     .leaderboard-full .row {
         grid-template-columns: 30px 1fr 40px 40px 40px 50px;
@@ -976,37 +1002,29 @@
         gap: 4px;
         padding: 8px 12px;
     }
-
     .quiz-header .timer-section .question-timer {
         font-size: 20px;
     }
-
     .question-text {
         font-size: 16px;
     }
-
     .result-hero .score {
         font-size: 40px;
     }
-
     .total-timer-progress {
         padding: 8px 12px;
         gap: 8px;
     }
-
     .total-timer-progress .time-display {
         font-size: 12px;
         min-width: 50px;
     }
-
     .total-timer-progress .status-label {
         font-size: 10px;
     }
-
     .join-code-display .code {
         font-size: 22px;
     }
-
     .participant-list {
         max-height: 200px;
     }
@@ -1017,23 +1035,18 @@
         grid-template-columns: 1fr 1fr 1fr;
         gap: 6px;
     }
-
     .result-stats .stat {
         padding: 10px;
     }
-
     .result-stats .stat .number {
         font-size: 18px;
     }
-
     .result-hero {
         padding: 20px 16px;
     }
-
     .result-hero .score {
         font-size: 32px;
     }
-
     .leaderboard-full .header,
     .leaderboard-full .row {
         grid-template-columns: 25px 1fr 30px 30px 30px 40px;
@@ -1041,68 +1054,53 @@
         gap: 2px;
         padding: 6px 8px;
     }
-
     .live-quiz-card {
         padding: 16px;
     }
-
     .question-card {
         padding: 16px;
     }
-
     .option-btn {
         padding: 10px 12px;
         font-size: 14px;
     }
-
     .question-text {
         font-size: 15px;
     }
-
     .join-code-display .code {
         font-size: 18px;
         letter-spacing: 1px;
     }
-
     .join-code-display {
         padding: 12px 16px;
     }
-
     .quiz-header .title-section h3 {
         font-size: 14px;
     }
-
     .quiz-header .timer-section .question-timer {
         font-size: 18px;
     }
-
     .btn-start {
         font-size: 16px;
         padding: 12px 24px;
     }
-
     .participant-item {
         padding: 6px 10px;
         font-size: 13px;
     }
-
     .participant-item .public-id {
         display: none;
     }
-
     .completed-state .waiting-info {
         gap: 16px;
     }
-
     .completed-state .waiting-info .stat .number {
         font-size: 20px;
     }
-
     .rating-buttons button {
         padding: 4px 14px;
         font-size: 12px;
     }
-
     .skip-btn {
         font-size: 12px;
         padding: 6px 12px;
@@ -1114,15 +1112,12 @@
         grid-template-columns: 1fr 1fr 1fr;
         gap: 4px;
     }
-
     .result-stats .stat {
         padding: 8px 4px;
     }
-
     .result-stats .stat .number {
         font-size: 16px;
     }
-
     .leaderboard-full .header,
     .leaderboard-full .row {
         grid-template-columns: 20px 1fr 25px 25px 25px 30px;
@@ -1130,62 +1125,48 @@
         gap: 2px;
         padding: 4px 6px;
     }
-
     .question-text {
         font-size: 14px;
     }
-
     .option-btn {
         padding: 8px 10px;
         font-size: 13px;
     }
-
     .option-btn .letter {
         min-width: 22px;
     }
-
     .quiz-header {
         padding: 8px 12px;
     }
-
     .quiz-header .title-section h3 {
         font-size: 13px;
     }
-
     .quiz-header .timer-section .question-timer {
         font-size: 16px;
     }
-
     .total-timer-progress {
         padding: 6px 10px;
     }
-
     .total-timer-progress .time-display {
         font-size: 11px;
         min-width: 40px;
     }
-
     .total-timer-progress .status-label {
         font-size: 9px;
     }
-
     .join-code-display .code {
         font-size: 16px;
     }
-
     .join-code-display .copy-btn {
         font-size: 11px;
         padding: 4px 10px;
     }
-
     .result-hero .score {
         font-size: 28px;
     }
-
     .result-hero .percentage {
         font-size: 18px;
     }
-
     .result-hero .rank {
         font-size: 14px;
     }
@@ -1361,6 +1342,18 @@
 
 .question-count-options input[type="radio"] {
     display: none;
+}
+
+[data-theme="dark"] .question-count-options label.selected {
+    border-color: #FF6B70 !important;
+    background: rgba(255, 107, 112, 0.15) !important;
+    color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .question-count-options label:hover {
+    border-color: #FF6B70 !important;
+    background: rgba(255, 107, 112, 0.1) !important;
+    color: #FFFFFF !important;
 }
 
 /* ============================================

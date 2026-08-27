@@ -337,37 +337,106 @@
 }
 
 /* ============================================
+   DARK MODE - REGISTRATION HIGHLIGHT FIXES
+   ============================================ */
+
+[data-theme="dark"] .input-wrapper:focus-within {
+    border-color: #FF6B70 !important;
+    box-shadow: 0 0 0 3px rgba(255, 107, 112, 0.2) !important;
+    background: var(--surface) !important;
+}
+
+[data-theme="dark"] .input-wrapper.error {
+    border-color: #F87171 !important;
+    background: rgba(248, 113, 113, 0.1) !important;
+}
+
+[data-theme="dark"] .input-wrapper.error input,
+[data-theme="dark"] .input-wrapper.error select {
+    color: #FECACA !important;
+}
+
+[data-theme="dark"] .error-message.visible {
+    color: #F87171 !important;
+}
+
+[data-theme="dark"] .auth-card {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .input-wrapper {
+    background: var(--surface-alt) !important;
+}
+
+[data-theme="dark"] .input-wrapper input,
+[data-theme="dark"] .input-wrapper select {
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .input-wrapper input::placeholder {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .auth-title {
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .auth-subtitle {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .auth-footer {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .auth-footer a {
+    color: #FF6B70 !important;
+}
+
+[data-theme="dark"] .auth-footer .terms {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .divider {
+    background: linear-gradient(to right, transparent, var(--border), transparent) !important;
+}
+
+[data-theme="dark"] .btn-submit {
+    background: #8B1A1A !important;
+}
+
+[data-theme="dark"] .btn-submit:hover {
+    background: #6A1414 !important;
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
+
 @media (max-width: 480px) {
     .auth-card {
         padding: 28px 18px;
         border-radius: 20px;
     }
-
     .name-row {
         flex-direction: column;
         gap: 10px;
     }
-
     .name-row .input-wrapper input {
         text-align: left;
         padding: 14px 12px;
     }
-
     .name-row .input-wrapper input::placeholder {
         text-align: left;
     }
-
     .auth-title {
         font-size: 22px;
     }
-
     .btn-submit {
         font-size: 15px;
         padding: 14px;
     }
-
     .auth-logo img {
         height: 48px;
     }
@@ -377,12 +446,10 @@
     .auth-card {
         padding: 20px 14px;
     }
-
     .phone-prefix {
         font-size: 13px;
         padding-left: 10px;
     }
-
     .input-wrapper input,
     .input-wrapper select {
         font-size: 14px;

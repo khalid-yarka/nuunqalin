@@ -50,6 +50,16 @@ BACKUP_TYPES = {
     'manual': {'label': 'Manual', 'retention': None},
 }
 
+# ANSI color codes (defined as constants to avoid f-string issues)
+COLOR_GREEN = '\033[92m'
+COLOR_RED = '\033[91m'
+COLOR_YELLOW = '\033[93m'
+COLOR_BLUE = '\033[94m'
+COLOR_MAGENTA = '\033[95m'
+COLOR_CYAN = '\033[96m'
+COLOR_RESET = '\033[0m'
+COLOR_BOLD = '\033[1m'
+
 # ============================================
 # LOGGING SETUP
 # ============================================
@@ -227,7 +237,7 @@ class BackupManager:
             details['integrity_msg'] = msg
 
             if not integrity_ok:
-                details['error'] = f"Integrity check failed: {msg}"
+                details['error'] = "Integrity check failed: " + msg
                 os.remove(temp_db)
                 return False, details
 
@@ -293,11 +303,11 @@ class BackupManager:
 
         try:
             if backup_type not in BACKUP_TYPES:
-                result['message'] = f"Invalid backup type: {backup_type}"
+                result['message'] = "Invalid backup type: " + backup_type
                 return result
 
             if not os.path.exists(self.db_path):
-                result['message'] = f"Database not found: {self.db_path}"
+                result['message'] = "Database not found: " + self.db_path
                 return result
 
             if not self._check_disk_space():
@@ -305,16 +315,18 @@ class BackupManager:
                 return result
 
             timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
-            filename = f"{backup_type}_{timestamp}.db.gz" if backup_type != 'manual' else f"manual_{timestamp}.db.gz"
+            if backup_type == 'manual':
+                filename = "manual_" + timestamp + ".db.gz"
+            else:
+                filename = backup_type + "_" + timestamp + ".db.gz"
             full_path = os.path.join(self.backup_dir, filename)
-            temp_backup = os.path.join(self.temp_dir, f"backup_TEMP_{timestamp}.db")
-            temp_gz = os.path.join(self.temp_dir, f"backup_TEMP_{timestamp}.db.gz")
+            temp_backup = os.path.join(self.temp_dir, "backup_TEMP_" + timestamp + ".db")
+            temp_gz = os.path.join(self.temp_dir, "backup_TEMP_" + timestamp + ".db.gz")
 
             # 1. Create backup using SQLite backup API
-            logger.info(f"Creating {backup_type} backup...")
+            logger.info("Creating " + backup_type + " backup...")
             source_conn = sqlite3.connect(self.db_path, timeout=10)
             dest_conn = sqlite3.connect(temp_backup, timeout=10)
-            # Ensure WAL mode is enabled (source)
             source_conn.execute("PRAGMA journal_mode = WAL")
             source_conn.backup(dest_conn)
             dest_conn.commit()
@@ -331,7 +343,7 @@ class BackupManager:
             logger.info("Verifying compressed backup...")
             ver_ok, ver_details = self.verify_backup(temp_gz, skip_checksum=True)
             if not ver_ok:
-                result['message'] = f"Verification failed: {ver_details.get('error')}"
+                result['message'] = "Verification failed: " + str(ver_details.get('error'))
                 os.remove(temp_gz)
                 os.remove(temp_backup)
                 return result
@@ -361,7 +373,6 @@ class BackupManager:
             self.manifest['total_backups'] += 1
             self.manifest['valid_backups'] += 1
             self.manifest['last_created'] = entry['timestamp']
-            # Update last good to this backup
             self.manifest['last_good'] = filename
 
             self._update_last_good_link(full_path)
@@ -369,17 +380,17 @@ class BackupManager:
 
             result['success'] = True
             result['filename'] = filename
-            result['message'] = f"{backup_type.capitalize()} backup created successfully"
+            result['message'] = backup_type.capitalize() + " backup created successfully"
             result['verified'] = True
             result['size_bytes'] = entry['size_bytes']
             result['checksum'] = checksum
             result['duration'] = entry['creation_duration_seconds']
 
-            logger.info(f"Backup created: {filename} ({result['duration']}s)")
+            logger.info("Backup created: " + filename + " (" + str(result['duration']) + "s)")
             return result
 
         except Exception as e:
-            logger.error(f"Backup creation failed: {e}")
+            logger.error("Backup creation failed: " + str(e))
             result['message'] = str(e)
             return result
         finally:
@@ -391,7 +402,7 @@ class BackupManager:
             free_bytes = stat.f_frsize * stat.f_bavail
             free_mb = free_bytes / (1024 * 1024)
             if free_mb < 50:
-                logger.warning(f"Low disk space: {free_mb:.2f} MB free")
+                logger.warning("Low disk space: {:.2f} MB free".format(free_mb))
                 return False
             return True
         except Exception:
@@ -404,7 +415,7 @@ class BackupManager:
             rel_path = os.path.relpath(backup_path, os.path.dirname(self.last_good_link))
             os.symlink(rel_path, self.last_good_link)
         except Exception as e:
-            logger.warning(f"Could not update LAST_KNOWN_GOOD link: {e}")
+            logger.warning("Could not update LAST_KNOWN_GOOD link: " + str(e))
 
     # ============================================
     # RESTORE OPERATIONS (Safe)
@@ -425,49 +436,44 @@ class BackupManager:
             'temp_restore_verified': False
         }
 
-        # Non-interactive mode: require force
         if os.environ.get('BACKUP_NON_INTERACTIVE') and not force:
             result['message'] = "Non-interactive mode: use --force to restore"
             return result
 
         backup_path = os.path.join(self.backup_dir, filename)
         if not os.path.exists(backup_path):
-            result['message'] = f"Backup file not found: {filename}"
+            result['message'] = "Backup file not found: " + filename
             return result
 
-        # Step 1: Verify backup
-        logger.info(f"Verifying backup: {filename}")
+        logger.info("Verifying backup: " + filename)
         ver_ok, ver_details = self.verify_backup(backup_path)
         if not ver_ok:
-            result['message'] = f"Backup verification failed: {ver_details.get('error')}"
+            result['message'] = "Backup verification failed: " + str(ver_details.get('error'))
             return result
         result['backup_verified'] = True
 
-        # Step 2: Safety copy of current DB
         if os.path.exists(self.db_path):
             safety_path = os.path.join(
                 self.temp_dir,
-                f"pre_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+                "pre_restore_" + datetime.now().strftime('%Y%m%d_%H%M%S') + ".db"
             )
             try:
                 shutil.copy2(self.db_path, safety_path)
                 result['safety_copy_created'] = True
-                logger.info(f"Safety copy created: {safety_path}")
+                logger.info("Safety copy created: " + safety_path)
             except Exception as e:
-                result['message'] = f"Failed to create safety copy: {e}"
+                result['message'] = "Failed to create safety copy: " + str(e)
                 return result
 
-        # Step 3: Restore to temporary DB
-        temp_restore = os.path.join(self.temp_dir, f"temp_restore_{int(time.time())}.db")
+        temp_restore = os.path.join(self.temp_dir, "temp_restore_" + str(int(time.time())) + ".db")
         try:
             with gzip.open(backup_path, 'rb') as f_in:
                 with open(temp_restore, 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
 
-            # Step 4: Verify temporary DB
             ver_ok2, ver_details2 = self.verify_database_integrity(temp_restore)
             if not ver_ok2:
-                result['message'] = f"Restored database integrity check failed: {ver_details2}"
+                result['message'] = "Restored database integrity check failed: " + str(ver_details2)
                 os.remove(temp_restore)
                 return result
 
@@ -479,7 +485,6 @@ class BackupManager:
 
             result['temp_restore_verified'] = True
 
-            # Step 5: Atomic replace
             wal_path = self.db_path + '-wal'
             shm_path = self.db_path + '-shm'
             for p in [wal_path, shm_path]:
@@ -488,10 +493,9 @@ class BackupManager:
 
             shutil.move(temp_restore, self.db_path)
 
-            # Verify the new live DB
             live_ok, live_msg = self.verify_database_integrity(self.db_path)
             if not live_ok:
-                logger.error(f"Live DB verification failed after restore: {live_msg}")
+                logger.error("Live DB verification failed after restore: " + live_msg)
                 if result['safety_copy_created']:
                     shutil.move(safety_path, self.db_path)
                     result['message'] = "Restore failed, reverted to safety copy"
@@ -500,18 +504,17 @@ class BackupManager:
                     result['message'] = "Restore failed and no safety copy available"
                     return result
 
-            # Success
             result['success'] = True
-            result['message'] = f"Database restored successfully from {filename}"
+            result['message'] = "Database restored successfully from " + filename
             self.manifest['last_good'] = filename
             self._update_last_good_link(backup_path)
             self._save_manifest()
 
-            logger.info(f"Restore successful from {filename}")
+            logger.info("Restore successful from " + filename)
             return result
 
         except Exception as e:
-            logger.error(f"Restore failed: {e}")
+            logger.error("Restore failed: " + str(e))
             result['message'] = str(e)
             if os.path.exists(temp_restore):
                 os.remove(temp_restore)
@@ -553,7 +556,7 @@ class BackupManager:
             db_ok, msg = self.verify_database_integrity(self.db_path)
             result['db_integrity'] = db_ok
             if not db_ok:
-                result['issues'].append(f"Live database integrity check failed: {msg}")
+                result['issues'].append("Live database integrity check failed: " + msg)
 
         for entry in self.manifest['backups']:
             if entry.get('integrity_status') == 'valid':
@@ -566,7 +569,7 @@ class BackupManager:
             free_bytes = stat.f_frsize * stat.f_bavail
             result['disk_free_mb'] = free_bytes / (1024 * 1024)
             if result['disk_free_mb'] < 50:
-                result['issues'].append(f"Low disk space: {result['disk_free_mb']:.2f} MB")
+                result['issues'].append("Low disk space: {:.2f} MB".format(result['disk_free_mb']))
         except:
             pass
 
@@ -591,7 +594,7 @@ class BackupManager:
                 last_created = datetime.fromisoformat(self.manifest['last_created'])
                 age = datetime.now() - last_created
                 if age > timedelta(days=7):
-                    result['issues'].append(f"Last backup is {age.days} days old")
+                    result['issues'].append("Last backup is " + str(age.days) + " days old")
             except:
                 pass
 
@@ -646,7 +649,7 @@ class BackupManager:
                             result['deleted'].append(entry['filename'])
                             self.manifest['backups'].remove(entry)
                     except Exception as e:
-                        result['errors'].append(f"Failed to delete {entry['filename']}: {e}")
+                        result['errors'].append("Failed to delete " + entry['filename'] + ": " + str(e))
                 else:
                     result['deleted'].append(entry['filename'])
 
@@ -674,7 +677,7 @@ class BackupManager:
             if not os.path.exists(file_path):
                 entry['integrity_status'] = 'missing'
                 results['invalid'] += 1
-                results['errors'].append(f"Missing file: {entry['filename']}")
+                results['errors'].append("Missing file: " + entry['filename'])
                 continue
 
             ver_ok, ver_details = self.verify_backup(file_path)
@@ -686,7 +689,7 @@ class BackupManager:
                 entry['integrity_status'] = 'invalid'
                 entry['integrity_result'] = ver_details.get('error', 'unknown')
                 results['invalid'] += 1
-                results['errors'].append(f"Invalid: {entry['filename']} - {ver_details.get('error')}")
+                results['errors'].append("Invalid: " + entry['filename'] + " - " + str(ver_details.get('error')))
 
             results['details'].append({
                 'filename': entry['filename'],
@@ -714,6 +717,33 @@ class BackupManager:
                 return path
         return None
 
+
+# ============================================
+# COLOR HELPERS (avoid f-string backslash issues)
+# ============================================
+
+def color_text(text, color_code, reset=True):
+    if reset:
+        return color_code + text + COLOR_RESET
+    return color_code + text
+
+def green(text):
+    return COLOR_GREEN + text + COLOR_RESET
+
+def red(text):
+    return COLOR_RED + text + COLOR_RESET
+
+def yellow(text):
+    return COLOR_YELLOW + text + COLOR_RESET
+
+def blue(text):
+    return COLOR_BLUE + text + COLOR_RESET
+
+def cyan(text):
+    return COLOR_CYAN + text + COLOR_RESET
+
+def bold(text):
+    return COLOR_BOLD + text + COLOR_RESET
 
 # ============================================
 # CLI INTERFACE
@@ -778,12 +808,12 @@ def main():
         if args.non_interactive:
             health = manager.health_check()
             if health['status'] == 'healthy':
-                print(f"Backup system healthy. Valid backups: {health['valid_count']}")
+                print("Backup system healthy. Valid backups: " + str(health['valid_count']))
                 sys.exit(0)
             else:
-                print(f"Backup system issues: {health['status']}")
+                print("Backup system issues: " + health['status'])
                 for issue in health['issues']:
-                    print(f"  - {issue}")
+                    print("  - " + issue)
                 sys.exit(1)
         else:
             show_dashboard(manager)
@@ -799,39 +829,39 @@ def main():
     elif args.command == 'create':
         result = manager.create_backup(args.type)
         if result['success']:
-            print(f"✅ {result['message']}")
-            print(f"   Filename: {result['filename']}")
-            print(f"   Size: {result['size_bytes'] / 1024:.2f} KB")
-            print(f"   Checksum: {result['checksum'][:16]}...")
-            print(f"   Duration: {result['duration']} seconds")
+            print(green("✅ " + result['message']))
+            print("   Filename: " + result['filename'])
+            print("   Size: {:.2f} KB".format(result['size_bytes'] / 1024))
+            print("   Checksum: " + result['checksum'][:16] + "...")
+            print("   Duration: " + str(result['duration']) + " seconds")
             sys.exit(0)
         else:
-            print(f"❌ {result['message']}")
+            print(red("❌ " + result['message']))
             sys.exit(1)
     elif args.command == 'verify':
         ver_ok, details = manager.verify_backup(
             os.path.join(manager.backup_dir, args.filename)
         )
         if ver_ok:
-            print(f"✅ Backup '{args.filename}' is VALID")
-            print(f"   Size: {details['size_bytes'] / 1024:.2f} KB")
-            print(f"   Integrity: {details['integrity_msg']}")
+            print(green("✅ Backup '" + args.filename + "' is VALID"))
+            print("   Size: {:.2f} KB".format(details['size_bytes'] / 1024))
+            print("   Integrity: " + details['integrity_msg'])
             if 'checksum_match' in details:
-                print(f"   Checksum: {'OK' if details['checksum_match'] else 'MISMATCH'}")
+                print("   Checksum: " + ("OK" if details['checksum_match'] else "MISMATCH"))
             sys.exit(0)
         else:
-            print(f"❌ Backup '{args.filename}' is INVALID")
-            print(f"   Error: {details.get('error')}")
+            print(red("❌ Backup '" + args.filename + "' is INVALID"))
+            print("   Error: " + str(details.get('error')))
             sys.exit(1)
     elif args.command == 'verify-all':
         results = manager.verify_all_backups()
-        print(f"Total backups: {results['total']}")
-        print(f"✅ Valid: {results['valid']}")
-        print(f"❌ Invalid: {results['invalid']}")
+        print("Total backups: " + str(results['total']))
+        print(green("✅ Valid: " + str(results['valid'])))
+        print(red("❌ Invalid: " + str(results['invalid'])))
         if results['errors']:
             print("Errors:")
             for err in results['errors']:
-                print(f"  - {err}")
+                print("  - " + err)
         if results['invalid'] > 0:
             sys.exit(1)
     elif args.command == 'health':
@@ -842,24 +872,24 @@ def main():
     elif args.command == 'restore-latest':
         result = manager.restore_latest(force=args.force if hasattr(args, 'force') else False)
         if result['success']:
-            print(f"✅ {result['message']}")
-            print(f"   Backup verified: {result['backup_verified']}")
-            print(f"   Safety copy created: {result['safety_copy_created']}")
-            print(f"   Temp restore verified: {result['temp_restore_verified']}")
+            print(green("✅ " + result['message']))
+            print("   Backup verified: " + str(result['backup_verified']))
+            print("   Safety copy created: " + str(result['safety_copy_created']))
+            print("   Temp restore verified: " + str(result['temp_restore_verified']))
             sys.exit(0)
         else:
-            print(f"❌ Restore failed: {result['message']}")
+            print(red("❌ Restore failed: " + result['message']))
             sys.exit(1)
     elif args.command == 'restore':
         result = manager.restore_backup(args.filename, force=args.force if hasattr(args, 'force') else False)
         if result['success']:
-            print(f"✅ {result['message']}")
-            print(f"   Backup verified: {result['backup_verified']}")
-            print(f"   Safety copy created: {result['safety_copy_created']}")
-            print(f"   Temp restore verified: {result['temp_restore_verified']}")
+            print(green("✅ " + result['message']))
+            print("   Backup verified: " + str(result['backup_verified']))
+            print("   Safety copy created: " + str(result['safety_copy_created']))
+            print("   Temp restore verified: " + str(result['temp_restore_verified']))
             sys.exit(0)
         else:
-            print(f"❌ Restore failed: {result['message']}")
+            print(red("❌ Restore failed: " + result['message']))
             sys.exit(1)
     elif args.command == 'maintenance':
         result = manager.run_maintenance(dry_run=args.dry_run)
@@ -868,11 +898,11 @@ def main():
         else:
             print("Deleted backups:")
         for f in result['deleted']:
-            print(f"  - {f}")
+            print("  - " + f)
         if result['errors']:
             print("Errors:")
             for err in result['errors']:
-                print(f"  - {err}")
+                print("  - " + err)
     elif args.command == 'info':
         print_info(manager)
 
@@ -881,7 +911,7 @@ def print_backup_list(backups, manager):
     if not backups:
         print("No backups found.")
         return
-    print(f"\n{'Filename':<40} {'Type':<10} {'Size (KB)':<12} {'Status':<10} {'Date'}")
+    print("\n{:<40} {:<10} {:<12} {:<10} {}".format('Filename', 'Type', 'Size (KB)', 'Status', 'Date'))
     print("-" * 80)
     for entry in backups:
         filename = entry['filename']
@@ -890,10 +920,10 @@ def print_backup_list(backups, manager):
         status = entry.get('integrity_status', 'unknown')
         timestamp = entry.get('timestamp', '')[:16]
         is_last = filename == manager.manifest.get('last_good')
-        status_str = f"{status}"
+        status_str = status
         if is_last:
             status_str += " ⭐"
-        print(f"{filename:<40} {btype:<10} {size_kb:<12.1f} {status_str:<10} {timestamp}")
+        print("{:<40} {:<10} {:<12.1f} {:<10} {}".format(filename, btype, size_kb, status_str, timestamp))
     print()
 
 
@@ -901,94 +931,96 @@ def print_health_report(health, manager):
     print("\n" + "="*60)
     print("    BACKUP SYSTEM HEALTH REPORT")
     print("="*60)
-    print(f"Status: {health['status'].upper()}")
-    print(f"Total backups: {health['backup_count']}")
-    print(f"Valid backups: {health['valid_count']}")
-    print(f"Invalid backups: {health['invalid_count']}")
-    print(f"Last good: {health['last_good'] or 'None'}")
-    print(f"Last created: {health['last_created'] or 'Never'}")
-    print(f"DB integrity: {'OK' if health['db_integrity'] else 'FAILED'}")
-    print(f"Disk free: {health['disk_free_mb']:.2f} MB")
-    print(f"Backup dir writable: {'Yes' if health['backup_dir_writable'] else 'No'}")
+    
+    status_color = green if health['status'] == 'healthy' else (yellow if health['status'] == 'warning' else red)
+    print("Status: " + status_color(health['status'].upper()))
+    print("Total backups: " + str(health['backup_count']))
+    print("Valid backups: " + str(health['valid_count']))
+    print("Invalid backups: " + str(health['invalid_count']))
+    print("Last good: " + (health['last_good'] or 'None'))
+    print("Last created: " + (health['last_created'] or 'Never'))
+    
+    db_status = green("OK") if health['db_integrity'] else red("FAILED")
+    print("DB integrity: " + db_status)
+    print("Disk free: {:.2f} MB".format(health['disk_free_mb']))
+    print("Backup dir writable: " + ("Yes" if health['backup_dir_writable'] else "No"))
+    
     if health['issues']:
         print("\nIssues:")
         for issue in health['issues']:
-            print(f"  ⚠️ {issue}")
+            print("  ⚠️ " + issue)
     print("="*60)
 
 
 def print_info(manager):
     print("\nBackup System Information")
     print("-" * 40)
-    print(f"Database: {manager.db_path}")
-    print(f"Backup directory: {manager.backup_dir}")
-    print(f"Manifest: {manager.manifest_path}")
-    print(f"Total backups: {len(manager.manifest['backups'])}")
-    print(f"Last good: {manager.manifest.get('last_good')}")
-    print(f"Last created: {manager.manifest.get('last_created')}")
+    print("Database: " + manager.db_path)
+    print("Backup directory: " + manager.backup_dir)
+    print("Manifest: " + manager.manifest_path)
+    print("Total backups: " + str(len(manager.manifest['backups'])))
+    print("Last good: " + str(manager.manifest.get('last_good')))
+    print("Last created: " + str(manager.manifest.get('last_created')))
     print("\nRetention policies:")
     for btype, retention in RETENTION.items():
         if retention:
-            print(f"  {btype}: {retention} copies")
+            print("  {}: {} copies".format(btype, retention))
         else:
-            print(f"  {btype}: unlimited")
+            print("  {}: unlimited".format(btype))
 
 
 def show_dashboard(manager):
     """Show a colorful dashboard with backup status."""
     import os
     os.system('cls' if os.name == 'nt' else 'clear')
-    print("\033[1;36m" + "="*60 + "\033[0m")
-    print("\033[1;33m" + "   🗄️  NUUNPLATFORM BACKUP DASHBOARD  " + "\033[0m")
-    print("\033[1;36m" + "="*60 + "\033[0m")
+    print(COLOR_CYAN + "="*60 + COLOR_RESET)
+    print(COLOR_YELLOW + "   🗄️  NUUNPLATFORM BACKUP DASHBOARD  " + COLOR_RESET)
+    print(COLOR_CYAN + "="*60 + COLOR_RESET)
 
     health = manager.health_check()
-    status_color = {
-        'healthy': '\033[92m',
-        'warning': '\033[93m',
-        'critical': '\033[91m',
-    }.get(health['status'], '\033[0m')
-
-    print(f"\nStatus: {status_color}{health['status'].upper()}\033[0m")
-    print(f"Total backups: {health['backup_count']}")
-    print(f"Valid: {health['valid_count']}  Invalid: {health['invalid_count']}")
+    status_color = green if health['status'] == 'healthy' else (yellow if health['status'] == 'warning' else red)
+    
+    print("\nStatus: " + status_color(health['status'].upper()))
+    print("Total backups: " + str(health['backup_count']))
+    print("Valid: " + str(health['valid_count']) + "  Invalid: " + str(health['invalid_count']))
 
     if health['last_good']:
-        print(f"Last good: \033[92m{health['last_good']}\033[0m")
+        print("Last good: " + green(health['last_good']))
     else:
-        print("Last good: \033[91mNone\033[0m")
+        print("Last good: " + red("None"))
 
-    print(f"Last created: {health['last_created'] or 'Never'}")
-    print(f"DB integrity: {'\033[92mOK\033[0m' if health['db_integrity'] else '\033[91mFAILED\033[0m'}")
-    print(f"Disk free: {health['disk_free_mb']:.2f} MB")
+    print("Last created: " + (health['last_created'] or 'Never'))
+    db_status = green("OK") if health['db_integrity'] else red("FAILED")
+    print("DB integrity: " + db_status)
+    print("Disk free: {:.2f} MB".format(health['disk_free_mb']))
 
-    print("\n\033[1mRecent Backups:\033[0m")
+    print("\n" + COLOR_BOLD + "Recent Backups:" + COLOR_RESET)
     backups = manager.get_backup_list(valid_only=False)[:5]
     if backups:
-        print(f"{'Filename':<40} {'Status':<10} {'Date'}")
+        print("{:<40} {:<10} {}".format('Filename', 'Status', 'Date'))
         print("-" * 70)
         for entry in backups:
             filename = entry['filename']
             status = entry.get('integrity_status', 'unknown')
             if status == 'valid':
-                status_display = '\033[92mVALID\033[0m'
+                status_display = green("VALID")
             elif status == 'invalid':
-                status_display = '\033[91mINVALID\033[0m'
+                status_display = red("INVALID")
             else:
                 status_display = status
             date = entry.get('timestamp', '')[:16]
             is_last = filename == health['last_good']
             marker = ' ⭐' if is_last else ''
-            print(f"{filename:<40} {status_display:<10} {date}{marker}")
+            print("{:<40} {:<10} {}{}".format(filename, status_display, date, marker))
     else:
         print("  No backups available")
 
     if health['issues']:
-        print("\n\033[93mIssues:\033[0m")
+        print("\n" + COLOR_YELLOW + "Issues:" + COLOR_RESET)
         for issue in health['issues']:
-            print(f"  ⚠️ {issue}")
+            print("  ⚠️ " + issue)
 
-    print("\n\033[1mAvailable Commands:\033[0m")
+    print("\n" + COLOR_BOLD + "Available Commands:" + COLOR_RESET)
     print("  python backup.py create [--type daily|weekly|monthly|manual]")
     print("  python backup.py list [--valid]")
     print("  python backup.py verify <filename>")
@@ -999,7 +1031,7 @@ def show_dashboard(manager):
     print("  python backup.py maintenance [--dry-run]")
     print("  python backup.py info")
     print("  python backup.py dashboard")
-    print("\033[1;36m" + "="*60 + "\033[0m")
+    print(COLOR_CYAN + "="*60 + COLOR_RESET)
 
 
 if __name__ == '__main__':

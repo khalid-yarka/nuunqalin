@@ -24,7 +24,7 @@
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Dark Mode - IMPORTANT: These override the light mode */
+/* Dark Mode */
 [data-theme="dark"] {
     --background: #1A1A2E !important;
     --surface: #252540 !important;
@@ -36,6 +36,10 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
     --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+    --primary-light: #3A1A20 !important;
+    --highlight-bg: #4A2A40 !important;
+    --highlight-text: #FFE0E0 !important;
+    --highlight-border: #8B4A6A !important;
 }
 
 /* ============================================
@@ -69,7 +73,7 @@ body {
 }
 
 /* ============================================
-   SIDEBAR - FIXED LAYOUT WITH STICKY FOOTER
+   SIDEBAR
    ============================================ */
 
 .sidebar {
@@ -96,7 +100,6 @@ body {
     border-radius: 10px;
 }
 
-/* Sidebar Brand - FIXED at top */
 .sidebar-brand {
     padding: 20px 24px;
     display: flex;
@@ -108,12 +111,12 @@ body {
 }
 
 .sidebar-brand .logo {
-    height: 40px;
+    height: 32px;
     width: auto;
 }
 
 .sidebar-brand .brand-text {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
     color: var(--text);
     letter-spacing: -0.5px;
@@ -124,7 +127,6 @@ body {
     color: var(--primary);
 }
 
-/* Sidebar User Info - FIXED */
 .sidebar-user {
     padding: 20px 24px;
     border-bottom: 1px solid var(--border);
@@ -175,7 +177,6 @@ body {
     display: inline-block;
 }
 
-/* Sidebar Navigation - SCROLLABLE */
 .sidebar-nav {
     flex: 1 1 auto;
     padding: 16px 12px;
@@ -254,16 +255,11 @@ body {
     background: rgba(255, 255, 255, 0.25);
 }
 
-/* ============================================
-   SIDEBAR FOOTER - ALWAYS AT BOTTOM
-   ============================================ */
-
 .sidebar-footer {
     padding: 16px 12px;
     border-top: 1px solid var(--border);
     flex-shrink: 0;
     background: var(--surface);
-    /* This is the key - pushes footer to bottom */
     margin-top: auto;
     display: flex;
     flex-direction: column;
@@ -329,7 +325,6 @@ body {
     overflow-x: hidden;
 }
 
-/* Top Navbar */
 .top-navbar {
     position: sticky;
     top: 0;
@@ -530,14 +525,13 @@ body {
 }
 
 /* ============================================
-   RESPONSIVE - TABLET & MOBILE
+   RESPONSIVE
    ============================================ */
 
 @media (max-width: 1024px) {
     .top-navbar {
         padding: 0 20px;
     }
-
     .page-content {
         padding: 20px 20px 32px;
     }
@@ -549,11 +543,9 @@ body {
         width: 280px;
         box-shadow: var(--shadow-lg);
     }
-
     .sidebar.open {
         transform: translateX(0);
     }
-
     .sidebar-overlay {
         display: none;
         position: fixed;
@@ -562,42 +554,33 @@ body {
         z-index: 999;
         backdrop-filter: blur(4px);
     }
-
     .sidebar-overlay.active {
         display: block;
     }
-
     .main-content {
         margin-left: 0;
         width: 100%;
         max-width: 100%;
     }
-
     .top-navbar .navbar-left .menu-toggle {
         display: flex;
     }
-
     .top-navbar .navbar-left .page-title {
         font-size: 16px;
     }
-
     .top-navbar {
         padding: 0 16px;
         height: 60px;
     }
-
     .page-content {
         padding: 16px 16px 24px;
     }
-
     .top-navbar .navbar-right .user-menu .user-name-sm {
         display: none;
     }
-
     .top-navbar .navbar-right .nav-divider {
         margin: 0 4px;
     }
-
     .sidebar-footer {
         padding: 12px 12px;
     }
@@ -609,21 +592,17 @@ body {
         height: 34px;
         font-size: 16px;
     }
-
     .top-navbar .navbar-right .user-menu .avatar-sm {
         width: 30px;
         height: 30px;
         font-size: 12px;
     }
-
     .page-content {
         padding: 12px 12px 20px;
     }
-
     .sidebar {
         width: 260px;
     }
-
     .breadcrumb {
         font-size: 12px;
     }
@@ -755,24 +734,88 @@ img, iframe, video, embed {
 }
 
 /* ============================================
-   SIDEBAR LOGO - SMALLER
+   DARK MODE - HIGHLIGHT TEXT FIXES
    ============================================ */
 
-.sidebar-brand .logo {
-    height: 32px !important;
-    width: auto !important;
+[data-theme="dark"] .highlight,
+[data-theme="dark"] .highlighted,
+[data-theme="dark"] .selected,
+[data-theme="dark"] .active-highlight,
+[data-theme="dark"] tr.highlighted,
+[data-theme="dark"] tr.selected,
+[data-theme="dark"] .lb-item.you,
+[data-theme="dark"] .leaderboard .row.you {
+    background: var(--highlight-bg, #4A2A40) !important;
+    color: var(--highlight-text, #FFFFFF) !important;
+    border-color: var(--highlight-border, #8B4A6A) !important;
 }
 
-.sidebar-brand .brand-text {
-    font-size: 16px !important;
+[data-theme="dark"] .stat-number.primary {
+    color: #FF6B70 !important;
 }
 
-/* For mobile */
-@media (max-width: 768px) {
-    .sidebar-brand .logo {
-        height: 28px !important;
-    }
-    .sidebar-brand .brand-text {
-        font-size: 14px !important;
-    }
+[data-theme="dark"] .input-wrapper:focus-within {
+    border-color: #FF6B70 !important;
+    box-shadow: 0 0 0 3px rgba(255, 107, 112, 0.2) !important;
+}
+
+[data-theme="dark"] .input-wrapper.error {
+    border-color: #F87171 !important;
+    background: rgba(248, 113, 113, 0.1) !important;
+}
+
+[data-theme="dark"] tr:hover {
+    background: var(--surface-alt) !important;
+}
+
+[data-theme="dark"] .badge,
+[data-theme="dark"] .tag {
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .badge-success {
+    background: #1A3A2E !important;
+    color: #D1FAE5 !important;
+}
+
+[data-theme="dark"] .badge-error {
+    background: #3A1A1A !important;
+    color: #FECACA !important;
+}
+
+[data-theme="dark"] .badge-warning {
+    background: #3A2E1A !important;
+    color: #FDE68A !important;
+}
+
+[data-theme="dark"] .badge-info {
+    background: #1A2A4A !important;
+    color: #93C5FD !important;
+}
+
+[data-theme="dark"] .stat-card .stat-number.primary {
+    color: #FF6B70 !important;
+}
+
+[data-theme="dark"] .flash-success,
+[data-theme="dark"] .flash-error {
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .notification-item.unread {
+    background: var(--surface-alt) !important;
+    border-left: 3px solid #FF6B70 !important;
+}
+
+[data-theme="dark"] .notification-item .n-title {
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] .notification-item .n-body {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .notification-dropdown {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
 }

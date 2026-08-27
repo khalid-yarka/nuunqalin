@@ -20,6 +20,13 @@ import time
 from datetime import datetime, timedelta
 
 # ============================================
+# LOGGING SETUP
+# ============================================
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ============================================
 # BACKUP INTEGRATION
 # ============================================
 
@@ -30,10 +37,6 @@ try:
 except ImportError:
     BACKUP_AVAILABLE = False
     logging.warning("Backup module not available")
-
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Backup configuration
 BACKUP_TRIGGER_TOKEN = os.getenv('BACKUP_TRIGGER_TOKEN', 'change_this_token_in_production')
@@ -66,7 +69,6 @@ def run_backup_in_background(backup_type='daily'):
             result = manager.create_backup(backup_type)
             if result['success']:
                 logger.info(f"Backup successful: {result['filename']} ({result['duration']}s)")
-                # Write last run timestamp
                 try:
                     os.makedirs(os.path.dirname(BACKUP_LAST_RUN_FILE), exist_ok=True)
                     with open(BACKUP_LAST_RUN_FILE, 'w') as f:
@@ -86,7 +88,6 @@ def trigger_backup_async(backup_type='daily'):
     """Queue a backup to run asynchronously."""
     with _backup_queue_lock:
         _backup_queue.append({'type': backup_type, 'time': datetime.now()})
-    # Process queue immediately if not already running
     process_backup_queue()
 
 def process_backup_queue():
@@ -94,12 +95,21 @@ def process_backup_queue():
     with _backup_queue_lock:
         if not _backup_queue:
             return
-        # We'll process one at a time
         job = _backup_queue.pop(0)
-    # Run in background
     run_backup_in_background(job['type'])
 
-# Check for overdue backup on each request (only for a fraction of requests)
+# ============================================
+# FLASK APP SETUP - MUST BE FIRST
+# ============================================
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = Config.SECRET_KEY
+app.config['PERMANENT_SESSION_LIFETIME'] = Config.PERMANENT_SESSION_LIFETIME
+
+# ============================================
+# BEFORE REQUEST - Check overdue backup
+# ============================================
+
 @app.before_request
 def check_overdue_backup():
     """Automatically trigger a backup if it's past the scheduled time and no backup today."""
@@ -112,14 +122,11 @@ def check_overdue_backup():
         return
 
     try:
-        # Get current Somali time
         from utils import get_somali_time
         now = get_somali_time()
         current_hour = now.hour
 
-        # Check if past scheduled hour
         if current_hour >= BACKUP_AUTO_CHECK_HOUR:
-            # Check if we already ran today
             last_run_date = None
             if os.path.exists(BACKUP_LAST_RUN_FILE):
                 try:
@@ -127,26 +134,19 @@ def check_overdue_backup():
                         last_run_str = f.read().strip()
                         last_run = datetime.fromisoformat(last_run_str)
                         if last_run.date() == now.date():
-                            # Already ran today
                             return
                 except:
                     pass
 
-            # Trigger backup
             logger.info(f"Auto‑triggering daily backup (overdue check) at {now.isoformat()}")
             trigger_backup_async('daily')
     except Exception as e:
         logger.warning(f"Error in backup overdue check: {e}")
 
 # ============================================
-# FLASK APP SETUP
+# REGISTER BLUEPRINTS
 # ============================================
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = Config.SECRET_KEY
-app.config['PERMANENT_SESSION_LIFETIME'] = Config.PERMANENT_SESSION_LIFETIME
-
-# Register Blueprints
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(groups_bp)
 app.register_blueprint(pdfs_bp)
@@ -184,14 +184,11 @@ def initialize_database():
         logger.info(f"Database not found at {db_path}. Creating new database...")
         return init_db()
 
-    # Check existing database integrity
     try:
         from db import check_database_integrity
         is_healthy, error = check_database_integrity()
         if not is_healthy:
             logger.error(f"Database integrity check failed: {error}")
-            # Try to recover or recreate
-            # For now, just log and continue (backup will catch it)
     except Exception as e:
         logger.warning(f"Could not check database integrity: {e}")
 
@@ -209,22 +206,16 @@ except Exception as e:
 
 @app.route(BACKUP_TRIGGER_PATH, methods=['GET', 'POST'])
 def trigger_backup_endpoint():
-    """
-    Secure endpoint to trigger a backup.
-    Use with UptimeRobot or similar service to schedule daily backups.
-    """
-    # Security: check token
+    """Secure endpoint to trigger a backup."""
     token = request.args.get('token') or request.headers.get('X-Backup-Token')
     if token != BACKUP_TRIGGER_TOKEN:
         logger.warning(f"Unauthorized backup trigger attempt from {request.remote_addr}")
         return jsonify({'error': 'Unauthorized'}), 401
 
-    # Get backup type (optional)
     backup_type = request.args.get('type', 'daily')
     if backup_type not in ['daily', 'weekly', 'monthly', 'manual']:
         backup_type = 'daily'
 
-    # Trigger backup in background
     trigger_backup_async(backup_type)
 
     return jsonify({
@@ -234,7 +225,7 @@ def trigger_backup_endpoint():
     }), 202
 
 # ============================================
-# BACKUP STATUS ENDPOINT (optional)
+# BACKUP STATUS ENDPOINT
 # ============================================
 
 @app.route('/backup/status', methods=['GET'])
@@ -279,7 +270,7 @@ def login():
 
         try:
             student = get_student_by_phone(phone)
-        except sqlite3.DatabaseError as e:
+        except Exception as e:
             if "malformed" in str(e).lower() or "corrupt" in str(e).lower():
                 flash('Database error. Please contact support.', 'error')
                 logger.error(f"Database corruption on login attempt: {e}")
@@ -287,7 +278,6 @@ def login():
             raise
 
         if student:
-            # Plain text password comparison (TO BE UPDATED TO HASH)
             if password == student['password']:
                 session['user_id'] = student['id']
                 session['public_id'] = student.get('public_id', '----')
@@ -334,7 +324,7 @@ def register():
 
         student_data = {
             'phone_number': phone,
-            'password': password,  # Plain text - WILL BE UPDATED TO HASH
+            'password': password,
             'first_name': first_name,
             'middle_name': middle_name,
             'last_name': last_name,
