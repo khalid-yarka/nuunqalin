@@ -48,12 +48,6 @@ def close_db_connection(exception=None):
 @atexit.register
 def cleanup():
     """Clean up resources on shutdown."""
-    # Force WAL checkpoint on shutdown
-    try:
-        from db import checkpoint_wal
-        checkpoint_wal()
-    except:
-        pass
     print("Shutdown cleanup complete.")
 
 

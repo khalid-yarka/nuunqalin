@@ -16,10 +16,6 @@ import os
 DB_PATH = Config.DATABASE_PATH
 MAX_RETRIES = 3
 RETRY_DELAY = 0.1  # Initial delay, increases with backoff
-WAL_CHECKPOINT_INTERVAL = 100  # Checkpoint every 100 write operations
-
-# Track write operations for checkpointing
-_write_counter = 0
 
 
 # ============================================
@@ -51,9 +47,13 @@ def get_db():
             conn.execute("PRAGMA journal_mode = WAL")
             conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT if hasattr(Config, 'DB_BUSY_TIMEOUT') else 10000}")
             
-            # Optimize WAL mode
+            # Optimize WAL mode - let SQLite handle checkpoints automatically
             conn.execute("PRAGMA synchronous = NORMAL")
             conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
+            
+            # Set automatic checkpoint threshold (default is 1000 pages)
+            # This keeps WAL file size manageable without manual intervention
+            conn.execute("PRAGMA wal_autocheckpoint = 1000")
             
             # Store in g
             g.db = conn
@@ -70,15 +70,14 @@ def close_db(exception=None):
     """
     Close the database connection when the request context ends.
     This ensures connections don't leak between requests.
+    
+    CRITICAL: No checkpoint is forced here. SQLite's automatic
+    wal_autocheckpoint handles WAL management efficiently.
     """
     db = g.pop('db', None)
     if db is not None:
         try:
-            # Force checkpoint if there were many writes
-            global _write_counter
-            if _write_counter >= WAL_CHECKPOINT_INTERVAL:
-                db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                _write_counter = 0
+            # Just close - no forced checkpoint to avoid contention
             db.close()
         except Exception as e:
             current_app.logger.warning(f"Error closing database: {e}")
@@ -110,9 +109,33 @@ class transaction:
         self.cursor = None
 
 
+def _is_lock_error(error_msg):
+    """
+    Check if an error is a genuine temporary lock/busy error.
+    Only retry on errors that are likely to succeed after waiting.
+    
+    'unable to open database' is NOT a temporary error and should
+    not be retried as if it were lock contention.
+    """
+    error_msg = error_msg.lower()
+    
+    # Genuine temporary errors that can be retried
+    if 'database is locked' in error_msg:
+        return True
+    if 'database is busy' in error_msg:
+        return True
+    
+    # 'unable to open database' indicates a permissions issue
+    # or missing directory - NOT temporary
+    if 'unable to open database' in error_msg:
+        return False
+    
+    return False
+
+
 def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
     """
-    Execute a query with automatic retry on database lock errors.
+    Execute a query with automatic retry on genuine database lock errors.
     Uses exponential backoff to reduce contention.
     
     Args:
@@ -123,6 +146,10 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
     
     Returns:
         sqlite3.Cursor object
+    
+    Raises:
+        sqlite3.OperationalError: On non-temporary errors or after retries exhausted
+        sqlite3.IntegrityError: On constraint violations
     """
     for attempt in range(max_retries):
         try:
@@ -131,28 +158,23 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
             cursor.execute(query, params)
             if commit:
                 conn.commit()
-            
-            # Track writes for checkpointing
-            global _write_counter
-            if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER')):
-                _write_counter += 1
-            
             return cursor
             
         except sqlite3.OperationalError as e:
-            error_msg = str(e).lower()
+            error_msg = str(e)
             
-            # Retry on lock or busy errors
-            if ('database is locked' in error_msg or 
-                'database is busy' in error_msg or 
-                'unable to open database' in error_msg):
-                
+            # Only retry on genuine temporary lock/busy errors
+            if _is_lock_error(error_msg):
                 if attempt < max_retries - 1:
                     wait_time = RETRY_DELAY * (2 ** attempt)  # 0.1, 0.2, 0.4, ...
                     time.sleep(wait_time)
                     continue
+                # If we've exhausted retries, raise the original error
+                raise
             
-            # For other errors, rollback if needed
+            # For non-lock errors like 'unable to open database',
+            # 'no such table', etc., don't retry - raise immediately
+            # Rollback if needed
             try:
                 conn = get_db()
                 conn.rollback()
@@ -161,7 +183,7 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
             raise
         
         except sqlite3.IntegrityError as e:
-            # Rollback on integrity errors
+            # Integrity errors are not temporary - don't retry
             try:
                 conn = get_db()
                 conn.rollback()
@@ -170,7 +192,7 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
             raise
         
         except Exception as e:
-            # Rollback on any other error
+            # Unknown errors - don't retry
             try:
                 conn = get_db()
                 conn.rollback()
@@ -178,7 +200,7 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
                 pass
             raise
     
-    # If we get here, all retries failed
+    # If we get here, all retries failed on lock errors
     raise sqlite3.OperationalError("Database operation failed after maximum retries")
 
 
@@ -193,22 +215,20 @@ def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES):
             cursor = conn.cursor()
             cursor.executemany(query, params_list)
             conn.commit()
-            
-            # Track writes
-            global _write_counter
-            if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
-                _write_counter += len(params_list)
-            
             return cursor
             
         except sqlite3.OperationalError as e:
-            error_msg = str(e).lower()
-            if ('database is locked' in error_msg or 
-                'database is busy' in error_msg):
+            error_msg = str(e)
+            
+            # Only retry on genuine temporary lock/busy errors
+            if _is_lock_error(error_msg):
                 if attempt < max_retries - 1:
                     wait_time = RETRY_DELAY * (2 ** attempt)
                     time.sleep(wait_time)
                     continue
+                raise
+            
+            # Non-lock errors - rollback and raise immediately
             try:
                 conn = get_db()
                 conn.rollback()
@@ -560,10 +580,6 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                 # Continue with next question
         
         conn.commit()
-        
-        # Track writes
-        global _write_counter
-        _write_counter += imported_count
         
         return {
             'imported': imported_count,
@@ -1094,7 +1110,8 @@ def get_live_quiz_by_id(quiz_id: int):
             quiz = dict(result)
             quiz['question_ids'] = from_json(quiz['question_ids'])
             return quiz
-        return None    except Exception as e:
+        return None
+    except Exception as e:
         current_app.logger.error(f"Error fetching live quiz: {e}")
         return None
 
@@ -1640,20 +1657,9 @@ def ensure_wal_mode():
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA wal_autocheckpoint = 1000")
         conn.close()
         return True
     except Exception as e:
         current_app.logger.error(f"Error enabling WAL mode: {e}")
-        return False
-
-
-def checkpoint_wal():
-    """Force a WAL checkpoint to reclaim space."""
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        conn.close()
-        return True
-    except Exception as e:
-        current_app.logger.error(f"Error checkpointing WAL: {e}")
         return False
