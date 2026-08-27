@@ -14,17 +14,39 @@ from blueprints.notifications_bp import notifications_bp
 from utils import format_somali_time, get_somali_time_display
 import atexit
 import os
+import sys
 import logging
 import threading
 import time
 from datetime import datetime, timedelta
+import json
 
 # ============================================
-# LOGGING SETUP
+# LOGGING CONFIGURATION
 # ============================================
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging for production
+log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+log_datefmt = '%Y-%m-%d %H:%M:%S'
+
+# File handler for application logs
+file_handler = logging.FileHandler('app.log')
+file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
+file_handler.setLevel(logging.INFO)
+
+# Console handler for errors only (for WSGI)
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
+console_handler.setLevel(logging.ERROR)
+
+# Root logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+# Suppress Flask's default logging to avoid duplication
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 # ============================================
 # BACKUP INTEGRATION
@@ -32,116 +54,132 @@ logger = logging.getLogger(__name__)
 
 # Import backup manager
 try:
-    from backup import BackupManager
+    from backup import BackupManager, acquire_backup_lock, release_backup_lock, BACKUP_LOCK_FILE
     BACKUP_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     BACKUP_AVAILABLE = False
-    logging.warning("Backup module not available")
+    logger.warning(f"Backup module not available: {e}")
 
-# Backup configuration
+# Backup configuration - Read from environment
 BACKUP_TRIGGER_TOKEN = os.getenv('BACKUP_TRIGGER_TOKEN', 'change_this_token_in_production')
 BACKUP_TRIGGER_PATH = '/backup/trigger'
-BACKUP_AUTO_CHECK_HOUR = 18  # 6 PM Somali time
-BACKUP_AUTO_CHECK_ENABLED = os.getenv('BACKUP_AUTO_CHECK_ENABLED', 'true').lower() == 'true'
-BACKUP_LAST_RUN_FILE = os.path.join('BACKUPS', '.last_backup_run')
+BACKUP_ENABLED = os.getenv('BACKUP_ENABLED', 'true').lower() == 'true'
 
 # Backup manager instance (lazy initialization)
 _backup_manager = None
 
 def get_backup_manager():
+    """Get or create backup manager instance."""
     global _backup_manager
     if _backup_manager is None and BACKUP_AVAILABLE:
-        _backup_manager = BackupManager()
+        try:
+            _backup_manager = BackupManager()
+        except Exception as e:
+            logger.error(f"Failed to initialize backup manager: {e}")
     return _backup_manager
 
-# Backup queue (simple in‑memory)
-_backup_queue = []
-_backup_queue_lock = threading.Lock()
-
-def run_backup_in_background(backup_type='daily'):
-    """Run backup in a background thread."""
+def run_backup_in_background(backup_type='daily', lock_fd=None):
+    """
+    Run backup in a background thread with proper locking.
+    This function is designed to be called from the trigger endpoint.
+    """
     def _run():
         try:
+            # Log start
+            logger.info(f"Starting {backup_type} backup...")
+            start_time = time.time()
+
+            # Get backup manager
             manager = get_backup_manager()
             if manager is None:
                 logger.error("Backup manager not available")
                 return
+
+            # Create backup
             result = manager.create_backup(backup_type)
+
+            # Log result
+            duration = time.time() - start_time
             if result['success']:
-                logger.info(f"Backup successful: {result['filename']} ({result['duration']}s)")
-                try:
-                    os.makedirs(os.path.dirname(BACKUP_LAST_RUN_FILE), exist_ok=True)
-                    with open(BACKUP_LAST_RUN_FILE, 'w') as f:
-                        f.write(datetime.now().isoformat())
-                except Exception as e:
-                    logger.warning(f"Could not write last run file: {e}")
+                logger.info(
+                    f"Backup successful: {result['filename']} "
+                    f"({result['size_bytes'] / 1024:.2f} KB, {duration:.2f}s)"
+                )
             else:
                 logger.error(f"Backup failed: {result['message']}")
+
         except Exception as e:
-            logger.error(f"Backup thread error: {e}")
+            logger.error(f"Backup thread error: {e}", exc_info=True)
+        finally:
+            # Release lock if we own it
+            if lock_fd:
+                try:
+                    release_backup_lock(lock_fd)
+                    logger.debug("Backup lock released")
+                except Exception as e:
+                    logger.warning(f"Failed to release backup lock: {e}")
+
+    # Start the thread
     thread = threading.Thread(target=_run)
     thread.daemon = True
     thread.start()
-    logger.info(f"Backup ({backup_type}) started in background")
-
-def trigger_backup_async(backup_type='daily'):
-    """Queue a backup to run asynchronously."""
-    with _backup_queue_lock:
-        _backup_queue.append({'type': backup_type, 'time': datetime.now()})
-    process_backup_queue()
-
-def process_backup_queue():
-    """Process queued backup jobs (non‑blocking)."""
-    with _backup_queue_lock:
-        if not _backup_queue:
-            return
-        job = _backup_queue.pop(0)
-    run_backup_in_background(job['type'])
+    logger.info(f"Backup ({backup_type}) started in background thread")
+    return thread
 
 # ============================================
-# FLASK APP SETUP - MUST BE FIRST
+# FLASK APP SETUP
 # ============================================
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = Config.SECRET_KEY
 app.config['PERMANENT_SESSION_LIFETIME'] = Config.PERMANENT_SESSION_LIFETIME
 
+# Disable debug mode in production
+app.debug = False
+app.config['DEBUG'] = False
+app.config['TESTING'] = False
+
 # ============================================
-# BEFORE REQUEST - Check overdue backup
+# REQUEST TIMING & LOGGING
 # ============================================
 
 @app.before_request
-def check_overdue_backup():
-    """Automatically trigger a backup if it's past the scheduled time and no backup today."""
-    if not BACKUP_AVAILABLE or not BACKUP_AUTO_CHECK_ENABLED:
-        return
+def log_request_start():
+    """Log incoming requests with timing."""
+    g.start_time = time.time()
+    g.request_id = f"{int(time.time() * 1000)}-{os.getpid()}"
 
-    # Only check on 10% of requests to reduce overhead
-    import random
-    if random.random() > 0.1:
-        return
+    # Log request (without sensitive data)
+    logger.info(
+        f"Request: {request.method} {request.path} "
+        f"from {request.remote_addr} [ID: {g.request_id}]"
+    )
 
-    try:
-        from utils import get_somali_time
-        now = get_somali_time()
-        current_hour = now.hour
+@app.after_request
+def log_request_end(response):
+    """Log completed requests with timing."""
+    if hasattr(g, 'start_time'):
+        duration = (time.time() - g.start_time) * 1000  # milliseconds
+        status = response.status_code
 
-        if current_hour >= BACKUP_AUTO_CHECK_HOUR:
-            last_run_date = None
-            if os.path.exists(BACKUP_LAST_RUN_FILE):
-                try:
-                    with open(BACKUP_LAST_RUN_FILE, 'r') as f:
-                        last_run_str = f.read().strip()
-                        last_run = datetime.fromisoformat(last_run_str)
-                        if last_run.date() == now.date():
-                            return
-                except:
-                    pass
+        # Log errors and slow requests
+        if status >= 500:
+            logger.error(
+                f"Response: {status} {request.method} {request.path} "
+                f"({duration:.1f}ms) [ID: {g.request_id}]"
+            )
+        elif duration > 1000:  # Slow request > 1 second
+            logger.warning(
+                f"Response: {status} {request.method} {request.path} "
+                f"({duration:.1f}ms) [ID: {g.request_id}]"
+            )
+        else:
+            logger.debug(
+                f"Response: {status} {request.method} {request.path} "
+                f"({duration:.1f}ms) [ID: {g.request_id}]"
+            )
 
-            logger.info(f"Auto‑triggering daily backup (overdue check) at {now.isoformat()}")
-            trigger_backup_async('daily')
-    except Exception as e:
-        logger.warning(f"Error in backup overdue check: {e}")
+    return response
 
 # ============================================
 # REGISTER BLUEPRINTS
@@ -171,7 +209,13 @@ def close_db_connection(exception=None):
 @atexit.register
 def cleanup():
     """Clean up resources on shutdown."""
-    logger.info("Shutdown cleanup complete.")
+    logger.info("Application shutdown initiated.")
+    # Force close any open database connections
+    try:
+        close_db_connections()
+    except:
+        pass
+    logger.info("Shutdown complete.")
 
 # ============================================
 # INITIALIZE DATABASE
@@ -184,11 +228,13 @@ def initialize_database():
         logger.info(f"Database not found at {db_path}. Creating new database...")
         return init_db()
 
+    # Check existing database integrity
     try:
         from db import check_database_integrity
         is_healthy, error = check_database_integrity()
         if not is_healthy:
             logger.error(f"Database integrity check failed: {error}")
+            # Don't auto-repair - rely on backup system
     except Exception as e:
         logger.warning(f"Could not check database integrity: {e}")
 
@@ -201,22 +247,106 @@ except Exception as e:
     logger.error(f"Failed to initialize database: {e}")
 
 # ============================================
-# BACKUP TRIGGER ENDPOINT
+# HEALTH CHECK ENDPOINT (For UptimeRobot)
 # ============================================
 
-@app.route(BACKUP_TRIGGER_PATH, methods=['GET', 'POST'])
-def trigger_backup_endpoint():
-    """Secure endpoint to trigger a backup."""
-    token = request.args.get('token') or request.headers.get('X-Backup-Token')
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Health check endpoint for UptimeRobot.
+    Returns 200 OK if the application is running properly.
+    """
+    # Check database connectivity
+    try:
+        from db import get_db
+        conn = get_db()
+        conn.execute("SELECT 1")
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 503
+
+    # Check backup system health (optional)
+    backup_health = None
+    if BACKUP_AVAILABLE:
+        try:
+            manager = get_backup_manager()
+            if manager:
+                health = manager.health_check()
+                backup_health = {
+                    'status': health['status'],
+                    'valid_backups': health['valid_count'],
+                    'last_good': health['last_good'],
+                    'last_created': health['last_created']
+                }
+        except Exception as e:
+            logger.warning(f"Backup health check failed: {e}")
+
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'database': 'connected',
+        'backup': backup_health
+    }), 200
+
+# ============================================
+# BACKUP TRIGGER ENDPOINT (For UptimeRobot)
+# ============================================
+
+@app.route(BACKUP_TRIGGER_PATH, methods=['GET'])
+def trigger_backup():
+    """
+    Secure endpoint to trigger a backup.
+    Designed to be called by UptimeRobot or similar service.
+    """
+    # Check if backup is enabled
+    if not BACKUP_ENABLED:
+        return jsonify({
+            'status': 'disabled',
+            'message': 'Backup system is disabled'
+        }), 503
+
+    # Validate token
+    token = request.args.get('token')
     if token != BACKUP_TRIGGER_TOKEN:
         logger.warning(f"Unauthorized backup trigger attempt from {request.remote_addr}")
         return jsonify({'error': 'Unauthorized'}), 401
 
+    # Get backup type
     backup_type = request.args.get('type', 'daily')
     if backup_type not in ['daily', 'weekly', 'monthly', 'manual']:
         backup_type = 'daily'
 
-    trigger_backup_async(backup_type)
+    # Try to acquire lock (non-blocking)
+    if not BACKUP_AVAILABLE:
+        return jsonify({
+            'status': 'error',
+            'message': 'Backup module not available'
+        }), 503
+
+    lock_fd = acquire_backup_lock()
+    if lock_fd is None:
+        logger.info(f"Backup already running, skipping trigger")
+        return jsonify({
+            'status': 'skipped',
+            'message': 'Backup already running',
+            'timestamp': datetime.now().isoformat()
+        }), 409
+
+    # Start backup in background thread with lock
+    try:
+        run_backup_in_background(backup_type, lock_fd)
+    except Exception as e:
+        # Release lock if thread fails to start
+        release_backup_lock(lock_fd)
+        logger.error(f"Failed to start backup thread: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
     return jsonify({
         'status': 'accepted',
@@ -225,12 +355,14 @@ def trigger_backup_endpoint():
     }), 202
 
 # ============================================
-# BACKUP STATUS ENDPOINT
+# BACKUP STATUS ENDPOINT (Admin only)
 # ============================================
 
 @app.route('/backup/status', methods=['GET'])
 def backup_status():
-    """Return backup system health status (admin only)."""
+    """
+    Return backup system health status (admin only).
+    """
     if 'user_id' not in session or not is_admin(session['user_id']):
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -241,8 +373,12 @@ def backup_status():
     if manager is None:
         return jsonify({'error': 'Backup manager not available'}), 503
 
-    health = manager.health_check()
-    return jsonify(health)
+    try:
+        health = manager.health_check()
+        return jsonify(health)
+    except Exception as e:
+        logger.error(f"Backup status error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # ============================================
 # ROUTES
@@ -275,7 +411,9 @@ def login():
                 flash('Database error. Please contact support.', 'error')
                 logger.error(f"Database corruption on login attempt: {e}")
                 return render_template('login.html')
-            raise
+            logger.error(f"Login error: {e}")
+            flash('An error occurred. Please try again.', 'error')
+            return render_template('login.html')
 
         if student:
             if password == student['password']:
@@ -371,14 +509,17 @@ def utility_processor():
 
 @app.errorhandler(404)
 def page_not_found(e):
+    logger.warning(f"404: {request.path} from {request.remote_addr}")
     return render_template('404.html'), 404
 
 @app.errorhandler(500)
 def internal_server_error(e):
+    logger.error(f"500: {request.path} - {e}", exc_info=True)
     return render_template('500.html'), 500
 
 @app.errorhandler(403)
 def forbidden(e):
+    logger.warning(f"403: {request.path} from {request.remote_addr}")
     return render_template('403.html'), 403
 
 # ============================================
@@ -386,6 +527,23 @@ def forbidden(e):
 # ============================================
 
 if __name__ == '__main__':
+    # Use environment variable to control debug mode
+    debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+
+    if debug_mode:
+        logger.info("Running in DEBUG mode")
+        app.debug = True
+        app.config['DEBUG'] = True
+    else:
+        logger.info("Running in PRODUCTION mode")
+
     print(f"Server starting at: {get_somali_time_display()}")
     print(f"Database path: {Config.DATABASE_PATH}")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print(f"Debug mode: {app.debug}")
+
+    app.run(
+        debug=debug_mode,
+        host='0.0.0.0',
+        port=int(os.getenv('PORT', 5000)),
+        threaded=True
+    )
