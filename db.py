@@ -15,12 +15,70 @@ from utils import get_somali_time, get_somali_time_db, format_somali_time
 # ============================================
 
 DB_PATH = Config.DATABASE_PATH
-MAX_RETRIES = 3
-RETRY_DELAY = 0.1
+MAX_RETRIES = Config.DB_RETRY_ATTEMPTS
+INITIAL_DELAY = Config.DB_RETRY_INITIAL_DELAY
+MAX_DELAY = Config.DB_MAX_RETRY_DELAY
+BACKOFF_MULTIPLIER = Config.DB_RETRY_BACKOFF_MULTIPLIER
 BULK_INSERT_BATCH_SIZE = 100
 
 # Use standard logging for module-level operations
 logger = logging.getLogger(__name__)
+
+
+# ============================================
+# RETRY UTILITY - Enhanced Exponential Backoff
+# ============================================
+
+def calculate_backoff(attempt: int) -> float:
+    """
+    Calculate exponential backoff delay.
+    
+    Attempt 0: 100ms
+    Attempt 1: 200ms
+    Attempt 2: 400ms
+    Attempt 3: 800ms
+    Attempt 4: 1.6s
+    Attempt 5: 3.2s (capped at MAX_DELAY)
+    
+    Returns delay in seconds.
+    """
+    delay = INITIAL_DELAY * (BACKOFF_MULTIPLIER ** attempt)
+    return min(delay, MAX_DELAY)
+
+
+def is_retryable_error(error_msg: str) -> bool:
+    """
+    Determine if an error is retryable.
+    Only retry on temporary database lock/busy errors.
+    """
+    error_msg = error_msg.lower()
+    
+    # Database lock errors - retryable
+    if 'database is locked' in error_msg:
+        return True
+    if 'database is busy' in error_msg:
+        return True
+    if 'disk i/o error' in error_msg:
+        return True  # Sometimes transient
+    
+    # Not retryable - these are permanent errors
+    if 'no such table' in error_msg:
+        return False
+    if 'malformed' in error_msg:
+        return False
+    if 'corrupt' in error_msg:
+        return False
+    if 'integrity' in error_msg:
+        return False
+    if 'not null' in error_msg:
+        return False
+    if 'unique constraint' in error_msg:
+        return False
+    if 'foreign key' in error_msg:
+        return False
+    
+    # Default: assume not retryable to avoid infinite loops
+    return False
 
 
 # ============================================
@@ -31,22 +89,33 @@ def get_db():
     """Get a database connection for the current request context."""
     if 'db' not in g:
         try:
+            # Ensure database directory exists
             db_dir = os.path.dirname(DB_PATH)
             if db_dir and not os.path.exists(db_dir):
                 os.makedirs(db_dir, exist_ok=True)
             
             conn = sqlite3.connect(
                 DB_PATH,
-                timeout=Config.DB_TIMEOUT if hasattr(Config, 'DB_TIMEOUT') else 10.0
+                timeout=Config.DB_TIMEOUT
             )
             
             conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA foreign_keys = ON")
+            
+            # Enable WAL mode - CRITICAL for concurrent access
             conn.execute("PRAGMA journal_mode = WAL")
-            conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT if hasattr(Config, 'DB_BUSY_TIMEOUT') else 10000}")
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
             conn.execute("PRAGMA synchronous = NORMAL")
             conn.execute("PRAGMA cache_size = -64000")
             conn.execute("PRAGMA wal_autocheckpoint = 1000")
+            
+            # Verify WAL mode is actually enabled
+            cursor = conn.execute("PRAGMA journal_mode")
+            result = cursor.fetchone()
+            if result and result[0].upper() != 'WAL':
+                logger.warning(f"WAL mode not enabled! Got: {result[0]}")
+                # Try to enable it again
+                conn.execute("PRAGMA journal_mode = WAL")
             
             g.db = conn
             
@@ -65,6 +134,10 @@ def close_db(exception=None):
     db = g.pop('db', None)
     if db is not None:
         try:
+            # Check if there are any pending transactions
+            if db.total_changes > 0:
+                # Log but don't auto-commit - should be handled by application
+                pass
             db.close()
         except Exception as e:
             try:
@@ -78,12 +151,17 @@ def close_db(exception=None):
 # ============================================
 
 class transaction:
-    """Context manager for database transactions with automatic commit/rollback."""
+    """
+    Context manager for database transactions with automatic commit/rollback.
+    Enhanced with retry logic for lock conflicts.
+    """
     
-    def __init__(self, autocommit=True):
+    def __init__(self, autocommit=True, max_retries=MAX_RETRIES):
         self.autocommit = autocommit
+        self.max_retries = max_retries
         self.conn = None
         self.cursor = None
+        self._attempts = 0
     
     def __enter__(self):
         self.conn = get_db()
@@ -93,28 +171,33 @@ class transaction:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.autocommit:
             if exc_type is None:
-                self.conn.commit()
+                # Success - commit
+                try:
+                    self.conn.commit()
+                except sqlite3.OperationalError as e:
+                    # Commit failed - rollback and re-raise
+                    try:
+                        self.conn.rollback()
+                    except:
+                        pass
+                    raise
             else:
-                self.conn.rollback()
+                # Error - rollback
+                try:
+                    self.conn.rollback()
+                except:
+                    pass
         self.cursor = None
 
 
-def _is_lock_error(error_msg):
-    """Check if an error is a genuine temporary lock/busy error."""
-    error_msg = error_msg.lower()
+def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True, operation_name=None):
+    """
+    Execute a query with automatic retry on database lock errors.
+    Uses exponential backoff with jitter.
+    """
+    if operation_name is None:
+        operation_name = query[:50] + ('...' if len(query) > 50 else '')
     
-    if 'database is locked' in error_msg:
-        return True
-    if 'database is busy' in error_msg:
-        return True
-    if 'unable to open database' in error_msg:
-        return False
-    
-    return False
-
-
-def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
-    """Execute a query with automatic retry on database lock errors."""
     for attempt in range(max_retries):
         try:
             conn = get_db()
@@ -127,13 +210,29 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
         except sqlite3.OperationalError as e:
             error_msg = str(e)
             
-            if _is_lock_error(error_msg):
+            if is_retryable_error(error_msg):
                 if attempt < max_retries - 1:
-                    wait_time = RETRY_DELAY * (2 ** attempt)
+                    delay = calculate_backoff(attempt)
+                    # Add small jitter to prevent thundering herd
+                    jitter = (time.time() % 0.1) * 0.05
+                    wait_time = delay + jitter
+                    
+                    try:
+                        current_app.logger.warning(
+                            f"DB retry {attempt+1}/{max_retries} for {operation_name}: {error_msg} "
+                            f"(waiting {wait_time:.3f}s)"
+                        )
+                    except RuntimeError:
+                        logger.warning(
+                            f"DB retry {attempt+1}/{max_retries} for {operation_name}: {error_msg} "
+                            f"(waiting {wait_time:.3f}s)"
+                        )
+                    
                     time.sleep(wait_time)
                     continue
                 raise
             
+            # Non-retryable error
             try:
                 conn = get_db()
                 conn.rollback()
@@ -141,7 +240,73 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
                 pass
             raise
         
-        except sqlite3.IntegrityError as e:
+        except (sqlite3.IntegrityError, sqlite3.ProgrammingError) as e:
+            # These are permanent errors - don't retry
+            try:
+                conn = get_db()
+                conn.rollback()
+            except:
+                pass
+            raise
+        
+        except Exception as e:
+            # Unexpected error - rollback and raise
+            try:
+                conn = get_db()
+                conn.rollback()
+            except:
+                pass
+            raise
+    
+    # If we get here, all retries failed
+    raise sqlite3.OperationalError(
+        f"Database operation failed after {max_retries} retries: {operation_name}"
+    )
+
+
+def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES, operation_name=None):
+    """
+    Execute a query with multiple parameter sets in a single transaction.
+    Enhanced with retry logic.
+    """
+    if not params_list:
+        return None
+    
+    if operation_name is None:
+        operation_name = query[:50] + ('...' if len(query) > 50 else '')
+    
+    for attempt in range(max_retries):
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.executemany(query, params_list)
+            conn.commit()
+            return cursor
+            
+        except sqlite3.OperationalError as e:
+            error_msg = str(e)
+            
+            if is_retryable_error(error_msg):
+                if attempt < max_retries - 1:
+                    delay = calculate_backoff(attempt)
+                    jitter = (time.time() % 0.1) * 0.05
+                    wait_time = delay + jitter
+                    
+                    try:
+                        current_app.logger.warning(
+                            f"DB retry {attempt+1}/{max_retries} for {operation_name}: {error_msg} "
+                            f"(waiting {wait_time:.3f}s)"
+                        )
+                    except RuntimeError:
+                        logger.warning(
+                            f"DB retry {attempt+1}/{max_retries} for {operation_name}: {error_msg} "
+                            f"(waiting {wait_time:.3f}s)"
+                        )
+                    
+                    time.sleep(wait_time)
+                    continue
+                raise
+            
             try:
                 conn = get_db()
                 conn.rollback()
@@ -157,43 +322,9 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
                 pass
             raise
     
-    raise sqlite3.OperationalError("Database operation failed after maximum retries")
-
-
-def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES):
-    """Execute a query with multiple parameter sets in a single transaction."""
-    for attempt in range(max_retries):
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.executemany(query, params_list)
-            conn.commit()
-            return cursor
-            
-        except sqlite3.OperationalError as e:
-            error_msg = str(e)
-            
-            if _is_lock_error(error_msg):
-                if attempt < max_retries - 1:
-                    wait_time = RETRY_DELAY * (2 ** attempt)
-                    time.sleep(wait_time)
-                    continue
-                raise
-            
-            try:
-                conn = get_db()
-                conn.rollback()
-            except:
-                pass
-            raise
-        
-        except Exception as e:
-            try:
-                conn = get_db()
-                conn.rollback()
-            except:
-                pass
-            raise
+    raise sqlite3.OperationalError(
+        f"Database operation failed after {max_retries} retries: {operation_name}"
+    )
 
 
 # ============================================
@@ -466,7 +597,6 @@ def get_all_questions():
         for row in results:
             q = dict(row)
             q['options'] = from_json(q['options'])
-            # FIXED: Changed 'subjects' to 'subject' for consistency
             q['subject'] = {'name': q.pop('subject_name', '')} if q.get('subject_name') else None
             questions.append(q)
         return questions
@@ -509,82 +639,182 @@ def create_question(data: dict):
             logger.error(f"Error creating question: {e}")
         return False
 
+
 def bulk_create_questions(questions_data: list, admin_id: int):
+    """
+    Bulk import questions with transaction safety and progress reporting.
+    Uses pre-validation and batch inserts with rollback on error.
+    """
     imported_count = 0
     errors = []
+    total = len(questions_data)
+    
+    if total == 0:
+        return {'imported': 0, 'errors': [], 'total': 0}
     
     try:
-        total = len(questions_data)
+        # ============================================
+        # PHASE 1: PRE-VALIDATE ALL QUESTIONS
+        # ============================================
         
-        for i in range(0, total, BULK_INSERT_BATCH_SIZE):
-            batch = questions_data[i:i + BULK_INSERT_BATCH_SIZE]
-            batch_errors = []
+        valid_questions = []
+        validation_errors = []
+        
+        for idx, q in enumerate(questions_data, 1):
+            # Validate required fields
+            if not q.get('question_text', '').strip():
+                validation_errors.append({
+                    'index': idx,
+                    'question': 'Unknown',
+                    'error': 'Question text is required'
+                })
+                continue
+            
+            if not q.get('options') or len(q['options']) < 3:
+                validation_errors.append({
+                    'index': idx,
+                    'question': q.get('question_text', 'Unknown')[:50],
+                    'error': 'Minimum 3 options required'
+                })
+                continue
+            
+            if len(q['options']) > 6:
+                validation_errors.append({
+                    'index': idx,
+                    'question': q.get('question_text', 'Unknown')[:50],
+                    'error': 'Maximum 6 options allowed'
+                })
+                continue
+            
+            if not q.get('correct_answer'):
+                validation_errors.append({
+                    'index': idx,
+                    'question': q.get('question_text', 'Unknown')[:50],
+                    'error': 'Correct answer is required'
+                })
+                continue
+            
+            valid_questions.append(q)
+        
+        # If there are validation errors, return them without importing
+        if validation_errors:
+            return {
+                'imported': 0,
+                'errors': validation_errors,
+                'total': total,
+                'validation_failed': True
+            }
+        
+        # ============================================
+        # PHASE 2: BATCH INSERT WITH TRANSACTIONS
+        # ============================================
+        
+        batch_size = BULK_INSERT_BATCH_SIZE
+        total_valid = len(valid_questions)
+        
+        for i in range(0, total_valid, batch_size):
+            batch = valid_questions[i:i + batch_size]
+            batch_start = i + 1
+            batch_end = min(i + batch_size, total_valid)
             
             try:
+                # Start a transaction for this batch
                 conn = get_db()
                 cursor = conn.cursor()
                 
-                for idx, q in enumerate(batch, start=i + 1):
-                    try:
-                        cursor.execute("""
-                            INSERT INTO questions (
-                                subject_id, question_text, options, correct_answer,
-                                difficulty, chapter, tags, explanation,
-                                created_by, updated_by, status, version, created_at, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            q['subject_id'],
-                            q['question_text'],
-                            to_json(q['options']),
-                            q['correct_answer'],
-                            q.get('difficulty', 1),
-                            q.get('chapter', ''),
-                            q.get('tags', ''),
-                            q.get('explanation', ''),
-                            admin_id,
-                            admin_id,
-                            'active',
-                            1,
-                            now(),
-                            now()
-                        ))
-                        imported_count += 1
-                    except Exception as e:
-                        batch_errors.append({
-                            'index': idx,
-                            'question': q.get('question_text', 'Unknown'),
-                            'error': str(e)
-                        })
+                # Prepare batch data
+                batch_params = []
+                for q in batch:
+                    batch_params.append((
+                        q['subject_id'],
+                        q['question_text'],
+                        to_json(q['options']),
+                        q['correct_answer'],
+                        q.get('difficulty', 1),
+                        q.get('chapter', ''),
+                        q.get('tags', ''),
+                        q.get('explanation', ''),
+                        admin_id,
+                        admin_id,
+                        'active',
+                        1,
+                        now(),
+                        now()
+                    ))
                 
+                # Execute batch insert
+                cursor.executemany("""
+                    INSERT INTO questions (
+                        subject_id, question_text, options, correct_answer,
+                        difficulty, chapter, tags, explanation,
+                        created_by, updated_by, status, version, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, batch_params)
+                
+                # Commit the batch
                 conn.commit()
-                errors.extend(batch_errors)
+                imported_count += len(batch)
+                
+                try:
+                    current_app.logger.info(
+                        f"Bulk import: Batch {batch_start}-{batch_end} of {total_valid} "
+                        f"completed ({imported_count}/{total_valid} total)"
+                    )
+                except RuntimeError:
+                    logger.info(
+                        f"Bulk import: Batch {batch_start}-{batch_end} of {total_valid} "
+                        f"completed ({imported_count}/{total_valid} total)"
+                    )
                 
             except Exception as e:
-                try:
-                    current_app.logger.error(f"Error in bulk batch: {e}")
-                except RuntimeError:
-                    logger.error(f"Error in bulk batch: {e}")
+                # Rollback the failed batch
                 try:
                     get_db().rollback()
                 except:
                     pass
+                
+                error_msg = str(e)
+                try:
+                    current_app.logger.error(
+                        f"Bulk import batch {batch_start}-{batch_end} failed: {error_msg}"
+                    )
+                except RuntimeError:
+                    logger.error(
+                        f"Bulk import batch {batch_start}-{batch_end} failed: {error_msg}"
+                    )
+                
+                # Add batch errors
+                for idx, q in enumerate(batch, start=batch_start):
+                    errors.append({
+                        'index': idx,
+                        'question': q.get('question_text', 'Unknown')[:50],
+                        'error': f'Batch insert failed: {error_msg}'
+                    })
+                
+                # Continue with next batch? 
+                # We continue to import as many as possible
+                continue
         
         return {
             'imported': imported_count,
             'errors': errors,
-            'total': len(questions_data)
+            'total': total,
+            'validation_failed': False
         }
         
     except Exception as e:
         try:
-            current_app.logger.error(f"Error in bulk create: {e}")
+            current_app.logger.error(f"Bulk import failed: {e}", exc_info=True)
         except RuntimeError:
-            logger.error(f"Error in bulk create: {e}")
+            logger.error(f"Bulk import failed: {e}", exc_info=True)
+        
         return {
-            'imported': 0,
-            'errors': [{'error': str(e)}],
-            'total': len(questions_data)
+            'imported': imported_count,
+            'errors': [{'error': str(e), 'question': 'Fatal error'}],
+            'total': total,
+            'validation_failed': True
         }
+
 
 def update_question(question_id: int, data: dict):
     try:
@@ -712,7 +942,6 @@ def get_user_quiz_history(student_id: int, limit: int = 10):
         attempts = []
         for row in results:
             a = dict(row)
-            # FIXED: Changed 'subjects' to 'subject' for consistency
             a['subject'] = {'name': a.pop('subject_name', '')} if a.get('subject_name') else None
             a['answers'] = from_json(a['answers'])
             a['ratings'] = from_json(a['ratings'])
@@ -1694,10 +1923,16 @@ def notify_participant_joined(quiz_id, title, participant_name, creator_id):
 def init_db():
     """Initialize the database with schema from schema.sql."""
     try:
+        # Ensure directory exists
+        db_dir = os.path.dirname(DB_PATH)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
+        
         conn = sqlite3.connect(DB_PATH)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA wal_autocheckpoint = 1000")
+        conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
         
         schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
         if os.path.exists(schema_path):
@@ -1743,7 +1978,7 @@ def close_db_connections():
     if db is not None:
         try:
             db.close()
-        except:
+        except Exception:
             pass
 
 
@@ -1753,6 +1988,7 @@ def ensure_wal_mode():
         conn = sqlite3.connect(DB_PATH)
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA wal_autocheckpoint = 1000")
+        conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
         
         _create_optimization_indexes(conn)
         

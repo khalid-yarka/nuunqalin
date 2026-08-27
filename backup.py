@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # ============================================
-# NUUNPLATFORM BACKUP SYSTEM v2.0
+# NUUNPLATFORM BACKUP SYSTEM v2.1
 # ============================================
-# 34 Advanced Features with Interactive Dashboard
+# Enhanced with absolute paths and improved health checking
 # ============================================
 
 import os
@@ -23,35 +23,58 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
 # ============================================
-# CONFIGURATION
+# CONFIGURATION - Absolute Paths
 # ============================================
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 APP_NAME = "NUUNPLATFORM BACKUP SYSTEM"
 
-DEFAULT_DB_PATH = 'nuunplatform.db'
-DEFAULT_BACKUP_DIR = 'BACKUPS'
-DEFAULT_LOG_FILE = 'backup.log'
-BACKUP_LOCK_FILE = os.path.join(DEFAULT_BACKUP_DIR, 'backup.lock')
+# Get base directory
+BASE_DIR = Path(__file__).resolve().parent
 
+# Try to load config for paths
 try:
     from config import Config
-    DEFAULT_DB_PATH = getattr(Config, 'DATABASE_PATH', 'nuunplatform.db')
-    DEFAULT_BACKUP_DIR = getattr(Config, 'BACKUP_DIR', 'BACKUPS')
+    DEFAULT_DB_PATH = getattr(Config, 'DATABASE_PATH', str(BASE_DIR / 'nuunplatform.db'))
+    DEFAULT_BACKUP_DIR = getattr(Config, 'BACKUP_DIR', str(BASE_DIR / 'BACKUPS'))
+    LOG_DIR = getattr(Config, 'LOG_DIR', str(BASE_DIR / 'logs'))
 except ImportError:
-    pass
+    DEFAULT_DB_PATH = str(BASE_DIR / 'nuunplatform.db')
+    DEFAULT_BACKUP_DIR = str(BASE_DIR / 'BACKUPS')
+    LOG_DIR = str(BASE_DIR / 'logs')
 
-RETENTION = {
-    'daily': 7,
-    'weekly': 4,
-    'monthly': 12,
-    'manual': None,
-}
+# Ensure directories exist
+for directory in [DEFAULT_BACKUP_DIR, LOG_DIR]:
+    if not os.path.exists(directory):
+        try:
+            os.makedirs(directory, exist_ok=True)
+        except Exception:
+            pass
+
+DEFAULT_LOG_FILE = os.path.join(LOG_DIR, 'backup.log')
+BACKUP_LOCK_FILE = os.path.join(DEFAULT_BACKUP_DIR, 'backup.lock')
+
+# Retention settings - from config if available
+try:
+    from config import Config
+    RETENTION = {
+        'daily': getattr(Config, 'BACKUP_RETENTION_DAILY', 7),
+        'weekly': getattr(Config, 'BACKUP_RETENTION_WEEKLY', 4),
+        'monthly': getattr(Config, 'BACKUP_RETENTION_MONTHLY', 12),
+        'manual': None,
+    }
+except ImportError:
+    RETENTION = {
+        'daily': 7,
+        'weekly': 4,
+        'monthly': 12,
+        'manual': None,
+    }
 
 BACKUP_TYPES = {
-    'daily': {'label': 'Daily', 'retention': 7, 'emoji': '📅'},
-    'weekly': {'label': 'Weekly', 'retention': 4, 'emoji': '📆'},
-    'monthly': {'label': 'Monthly', 'retention': 12, 'emoji': '📊'},
+    'daily': {'label': 'Daily', 'retention': RETENTION['daily'], 'emoji': '📅'},
+    'weekly': {'label': 'Weekly', 'retention': RETENTION['weekly'], 'emoji': '📆'},
+    'monthly': {'label': 'Monthly', 'retention': RETENTION['monthly'], 'emoji': '📊'},
     'manual': {'label': 'Manual', 'retention': None, 'emoji': '👤'},
 }
 
@@ -125,18 +148,38 @@ def setup_logging(verbose=False, log_file=None):
     """Configure logging for backup operations."""
     handlers = []
     log_path = log_file or DEFAULT_LOG_FILE
+    
+    # Ensure log directory exists
     try:
         log_dir = os.path.dirname(log_path)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
-        file_handler = logging.FileHandler(log_path)
+    except Exception:
+        pass
+    
+    try:
+        from logging.handlers import RotatingFileHandler
+        file_handler = RotatingFileHandler(
+            log_path,
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5
+        )
         file_handler.setFormatter(logging.Formatter(
             '%(asctime)s - %(levelname)s - %(message)s',
             '%Y-%m-%d %H:%M:%S'
         ))
         handlers.append(file_handler)
     except Exception as e:
-        print(f"Warning: Could not create log file: {e}")
+        # Fallback to basic file handler
+        try:
+            file_handler = logging.FileHandler(log_path)
+            file_handler.setFormatter(logging.Formatter(
+                '%(asctime)s - %(levelname)s - %(message)s',
+                '%Y-%m-%d %H:%M:%S'
+            ))
+            handlers.append(file_handler)
+        except Exception:
+            pass
 
     if verbose or not handlers:
         stream_handler = logging.StreamHandler()
@@ -157,7 +200,7 @@ def setup_logging(verbose=False, log_file=None):
     return logging.getLogger(__name__)
 
 # ============================================
-# FEATURE 3: COLOR HELPERS
+# COLOR HELPERS
 # ============================================
 
 def green(text): return COLOR_GREEN + text + COLOR_RESET
@@ -171,28 +214,29 @@ def underline(text): return COLOR_UNDERLINE + text + COLOR_RESET
 def dim(text): return COLOR_DIM + text + COLOR_RESET
 
 # ============================================
-# FEATURE 4: BACKUP MANAGER CLASS
+# BACKUP MANAGER CLASS
 # ============================================
 
 class BackupManager:
-    """Main backup management system with 34 integrated features."""
+    """Main backup management system with enhanced health checking."""
 
-    def __init__(self, db_path: str = DEFAULT_DB_PATH, backup_dir: str = DEFAULT_BACKUP_DIR):
-        self.db_path = db_path
-        self.backup_dir = backup_dir
-        self.manifest_path = os.path.join(backup_dir, 'manifest.json')
-        self.last_good_link = os.path.join(backup_dir, 'LAST_KNOWN_GOOD')
-        self.temp_dir = os.path.join(backup_dir, 'temp')
+    def __init__(self, db_path: str = None, backup_dir: str = None):
+        self.db_path = db_path or DEFAULT_DB_PATH
+        self.backup_dir = backup_dir or DEFAULT_BACKUP_DIR
+        self.manifest_path = os.path.join(self.backup_dir, 'manifest.json')
+        self.last_good_link = os.path.join(self.backup_dir, 'LAST_KNOWN_GOOD')
+        self.temp_dir = os.path.join(self.backup_dir, 'temp')
         self.version = VERSION
 
-        os.makedirs(backup_dir, exist_ok=True)
+        # Ensure directories exist
+        os.makedirs(self.backup_dir, exist_ok=True)
         os.makedirs(self.temp_dir, exist_ok=True)
 
         self.manifest = self._load_manifest()
         self.logger = logging.getLogger(__name__)
 
     # ============================================
-    # FEATURE 5: MANIFEST MANAGEMENT
+    # MANIFEST MANAGEMENT
     # ============================================
 
     def _load_manifest(self) -> Dict:
@@ -223,7 +267,7 @@ class BackupManager:
         shutil.move(temp_path, self.manifest_path)
 
     # ============================================
-    # FEATURE 6: CHECKSUM GENERATION
+    # CHECKSUM GENERATION
     # ============================================
 
     @staticmethod
@@ -235,7 +279,7 @@ class BackupManager:
         return sha256.hexdigest()
 
     # ============================================
-    # FEATURE 7: DATABASE INTEGRITY VERIFICATION
+    # DATABASE INTEGRITY VERIFICATION
     # ============================================
 
     @staticmethod
@@ -253,7 +297,7 @@ class BackupManager:
             return False, str(e)
 
     # ============================================
-    # FEATURE 8: TABLE STRUCTURE VERIFICATION
+    # TABLE STRUCTURE VERIFICATION
     # ============================================
 
     @staticmethod
@@ -274,7 +318,7 @@ class BackupManager:
             return False
 
     # ============================================
-    # FEATURE 9: BACKUP VERIFICATION
+    # BACKUP VERIFICATION
     # ============================================
 
     def verify_backup(self, backup_path: str, skip_checksum: bool = False) -> Tuple[bool, Dict]:
@@ -344,7 +388,7 @@ class BackupManager:
         return None
 
     # ============================================
-    # FEATURE 10: BACKUP CREATION
+    # BACKUP CREATION
     # ============================================
 
     def create_backup(self, backup_type: str = 'daily') -> Dict:
@@ -383,9 +427,13 @@ class BackupManager:
             temp_gz = os.path.join(self.temp_dir, f"backup_TEMP_{timestamp}.db.gz")
 
             self.logger.info(f"Creating {backup_type} backup...")
-            source_conn = sqlite3.connect(self.db_path, timeout=10)
-            dest_conn = sqlite3.connect(temp_backup, timeout=10)
+            
+            # Use WAL mode for consistent backup
+            source_conn = sqlite3.connect(self.db_path, timeout=30)
             source_conn.execute("PRAGMA journal_mode = WAL")
+            
+            # Create backup
+            dest_conn = sqlite3.connect(temp_backup, timeout=30)
             source_conn.backup(dest_conn)
             dest_conn.commit()
             source_conn.close()
@@ -453,7 +501,7 @@ class BackupManager:
             return result
 
     # ============================================
-    # FEATURE 11: DISK SPACE MANAGEMENT
+    # DISK SPACE MANAGEMENT
     # ============================================
 
     def _check_disk_space(self) -> bool:
@@ -469,7 +517,7 @@ class BackupManager:
             return True
 
     # ============================================
-    # FEATURE 12: LAST KNOWN GOOD LINK
+    # LAST KNOWN GOOD LINK
     # ============================================
 
     def _update_last_good_link(self, backup_path: str):
@@ -482,7 +530,7 @@ class BackupManager:
             self.logger.warning(f"Could not update LAST_KNOWN_GOOD link: {e}")
 
     # ============================================
-    # FEATURE 13: BACKUP RESTORE
+    # BACKUP RESTORE
     # ============================================
 
     def restore_latest(self, force: bool = False) -> Dict:
@@ -585,7 +633,7 @@ class BackupManager:
             return result
 
     # ============================================
-    # FEATURE 14: BACKUP QUERIES
+    # BACKUP QUERIES
     # ============================================
 
     def get_latest_valid_backup(self) -> Optional[str]:
@@ -622,7 +670,7 @@ class BackupManager:
         }
 
     # ============================================
-    # FEATURE 15: HEALTH CHECK
+    # HEALTH CHECK - Enhanced
     # ============================================
 
     def health_check(self) -> Dict:
@@ -639,15 +687,33 @@ class BackupManager:
             'backup_dir_writable': True,
             'manifest_version': self.manifest.get('version', '1.0'),
             'created_at': self.manifest.get('created_at', 'Unknown'),
-            'total_size_mb': 0
+            'total_size_mb': 0,
+            'db_path': self.db_path,
+            'backup_dir': self.backup_dir,
+            'wal_enabled': False
         }
 
+        # Check database and WAL mode
         if os.path.exists(self.db_path):
             db_ok, msg = self.verify_database_integrity(self.db_path)
             result['db_integrity'] = db_ok
             if not db_ok:
                 result['issues'].append(f"Live database integrity check failed: {msg}")
+            
+            # Check WAL mode
+            try:
+                conn = sqlite3.connect(self.db_path, timeout=5)
+                cursor = conn.execute("PRAGMA journal_mode")
+                wal_result = cursor.fetchone()
+                if wal_result and wal_result[0].upper() == 'WAL':
+                    result['wal_enabled'] = True
+                else:
+                    result['issues'].append(f"WAL mode not enabled: {wal_result[0] if wal_result else 'unknown'}")
+                conn.close()
+            except Exception as e:
+                result['issues'].append(f"Could not check WAL mode: {e}")
 
+        # Check backup files
         total_size = 0
         for entry in self.manifest['backups']:
             if entry.get('integrity_status') == 'valid':
@@ -658,24 +724,27 @@ class BackupManager:
         
         result['total_size_mb'] = total_size / (1024 * 1024)
 
+        # Check disk space
         try:
             stat = os.statvfs(self.backup_dir)
             free_bytes = stat.f_frsize * stat.f_bavail
             result['disk_free_mb'] = free_bytes / (1024 * 1024)
             if result['disk_free_mb'] < 50:
                 result['issues'].append(f"Low disk space: {result['disk_free_mb']:.2f} MB")
-        except:
+        except Exception:
             pass
 
+        # Check backup directory writability
         try:
             test_file = os.path.join(self.backup_dir, '.write_test')
             with open(test_file, 'w') as f:
                 f.write('test')
             os.remove(test_file)
-        except:
+        except Exception:
             result['backup_dir_writable'] = False
             result['issues'].append("Backup directory is not writable")
 
+        # Check last good backup
         if self.manifest.get('last_good'):
             last_good_path = os.path.join(self.backup_dir, self.manifest['last_good'])
             if not os.path.exists(last_good_path):
@@ -683,24 +752,28 @@ class BackupManager:
         else:
             result['issues'].append("No last known good backup set")
 
+        # Check backup age
         if self.manifest.get('last_created'):
             try:
                 last_created = datetime.fromisoformat(self.manifest['last_created'])
                 age = datetime.now() - last_created
                 if age > timedelta(days=7):
                     result['issues'].append(f"Last backup is {age.days} days old")
-            except:
+            except Exception:
                 pass
 
+        # Determine overall status
         if result['issues']:
             result['status'] = 'warning'
         if result['valid_count'] == 0 or not result['db_integrity']:
             result['status'] = 'critical'
+        if not result['wal_enabled']:
+            result['status'] = 'warning'
 
         return result
 
     # ============================================
-    # FEATURE 16: MAINTENANCE & ROTATION
+    # MAINTENANCE & ROTATION
     # ============================================
 
     def run_maintenance(self, dry_run=False) -> Dict:
@@ -756,7 +829,7 @@ class BackupManager:
         return result
 
     # ============================================
-    # FEATURE 17: VERIFY ALL BACKUPS
+    # VERIFY ALL BACKUPS
     # ============================================
 
     def verify_all_backups(self) -> Dict:
@@ -800,7 +873,7 @@ class BackupManager:
         return results
 
     # ============================================
-    # FEATURE 18: BACKUP INFO
+    # BACKUP INFO
     # ============================================
 
     def get_backup_info(self, filename: str) -> Optional[Dict]:
@@ -817,7 +890,7 @@ class BackupManager:
         return None
 
     # ============================================
-    # FEATURE 19: BACKUP EXPORT
+    # BACKUP EXPORT
     # ============================================
 
     def export_backup(self, filename: str, export_path: str) -> Dict:
@@ -835,6 +908,7 @@ class BackupManager:
         except Exception as e:
             result['message'] = f"Export failed: {e}"
         return result
+
 
 # ============================================
 # FEATURE 20: INTERACTIVE DASHBOARD
@@ -928,6 +1002,7 @@ class Dashboard:
         print(f"\n  Status: {status_color(bold(health['status'].upper()))}")
         print(f"  Backups: {health['valid_count']} valid / {health['invalid_count']} invalid / {health['backup_count']} total")
         print(f"  Database: {green('OK') if health['db_integrity'] else red('FAILED')}")
+        print(f"  WAL Mode: {green('Enabled') if health.get('wal_enabled') else red('Disabled')}")
         print(f"  Disk Free: {health['disk_free_mb']:.1f} MB")
         if health['last_good']:
             print(f"  Last Good: {green(health['last_good'])}")
@@ -1106,6 +1181,7 @@ class Dashboard:
         print(f"Last Created: {health['last_created'] or 'Never'}")
         db_status = green("OK") if health['db_integrity'] else red("FAILED")
         print(f"DB Integrity: {db_status}")
+        print(f"WAL Mode: {green('Enabled') if health.get('wal_enabled') else red('Disabled')}")
         print(f"Disk Free: {health['disk_free_mb']:.2f} MB")
         print(f"Total Backup Size: {health['total_size_mb']:.2f} MB")
         print(f"Backup Dir Writable: {'Yes' if health['backup_dir_writable'] else 'No'}")
@@ -1320,6 +1396,7 @@ def print_health_report(health):
     print(f"Last created: {health['last_created'] or 'Never'}")
     db_status = green("OK") if health['db_integrity'] else red("FAILED")
     print(f"DB integrity: {db_status}")
+    print(f"WAL Mode: {green('Enabled') if health.get('wal_enabled') else red('Disabled')}")
     print(f"Disk free: {health['disk_free_mb']:.2f} MB")
     print(f"Total backup size: {health['total_size_mb']:.2f} MB")
     print(f"Backup dir writable: {'Yes' if health['backup_dir_writable'] else 'No'}")
