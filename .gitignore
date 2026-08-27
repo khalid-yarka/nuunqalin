@@ -76,3 +76,4 @@ secrets.py
 .directory
 Desktop.ini
 $RECYCLE.BIN/
+.env
