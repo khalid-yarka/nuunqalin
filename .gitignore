@@ -87,3 +87,11 @@ dist/
 uploads/
 tmp/
 temp/
+
+# Database journals & WAL files
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
