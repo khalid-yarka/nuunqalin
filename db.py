@@ -2,12 +2,13 @@ import sqlite3
 import json
 import secrets
 import string
-from datetime import datetime, timezone, timedelta
-from config import Config
-from utils import get_somali_time, get_somali_time_db, format_somali_time
-from flask import g, current_app
+import logging
 import time
 import os
+from datetime import datetime, timezone, timedelta
+from flask import g, current_app
+from config import Config
+from utils import get_somali_time, get_somali_time_db, format_somali_time
 
 # ============================================
 # DATABASE CONFIGURATION
@@ -15,8 +16,11 @@ import os
 
 DB_PATH = Config.DATABASE_PATH
 MAX_RETRIES = 3
-RETRY_DELAY = 0.1  # Initial delay, increases with backoff
+RETRY_DELAY = 0.1
 BULK_INSERT_BATCH_SIZE = 100
+
+# Use standard logging for module-level operations
+logger = logging.getLogger(__name__)
 
 
 # ============================================
@@ -24,59 +28,50 @@ BULK_INSERT_BATCH_SIZE = 100
 # ============================================
 
 def get_db():
-    """
-    Get a database connection for the current request context.
-    Uses Flask's `g` object for request-scoped connections.
-    Automatically closes when the request ends.
-    """
+    """Get a database connection for the current request context."""
     if 'db' not in g:
         try:
-            # Ensure directory exists
             db_dir = os.path.dirname(DB_PATH)
             if db_dir and not os.path.exists(db_dir):
                 os.makedirs(db_dir, exist_ok=True)
             
-            # Create connection with timeout
             conn = sqlite3.connect(
                 DB_PATH,
                 timeout=Config.DB_TIMEOUT if hasattr(Config, 'DB_TIMEOUT') else 10.0
             )
             
-            # Enable features
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA foreign_keys = ON")
             conn.execute("PRAGMA journal_mode = WAL")
             conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT if hasattr(Config, 'DB_BUSY_TIMEOUT') else 10000}")
-            
-            # Optimize WAL mode - let SQLite handle checkpoints automatically
             conn.execute("PRAGMA synchronous = NORMAL")
-            conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
+            conn.execute("PRAGMA cache_size = -64000")
             conn.execute("PRAGMA wal_autocheckpoint = 1000")
             
-            # Store in g
             g.db = conn
             
         except sqlite3.Error as e:
-            current_app.logger.error(f"Database connection error: {e}")
+            # Use current_app.logger only if we're in an application context
+            try:
+                current_app.logger.error(f"Database connection error: {e}")
+            except RuntimeError:
+                logger.error(f"Database connection error: {e}")
             raise
     
     return g.db
 
 
 def close_db(exception=None):
-    """
-    Close the database connection when the request context ends.
-    This ensures connections don't leak between requests.
-    
-    CRITICAL: No checkpoint is forced here. SQLite's automatic
-    wal_autocheckpoint handles WAL management efficiently.
-    """
+    """Close the database connection when the request context ends."""
     db = g.pop('db', None)
     if db is not None:
         try:
             db.close()
         except Exception as e:
-            current_app.logger.warning(f"Error closing database: {e}")
+            try:
+                current_app.logger.warning(f"Error closing database: {e}")
+            except RuntimeError:
+                logger.warning(f"Error closing database: {e}")
 
 
 # ============================================
@@ -106,10 +101,7 @@ class transaction:
 
 
 def _is_lock_error(error_msg):
-    """
-    Check if an error is a genuine temporary lock/busy error.
-    Only retry on errors that are likely to succeed after waiting.
-    """
+    """Check if an error is a genuine temporary lock/busy error."""
     error_msg = error_msg.lower()
     
     if 'database is locked' in error_msg:
@@ -123,10 +115,7 @@ def _is_lock_error(error_msg):
 
 
 def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
-    """
-    Execute a query with automatic retry on genuine database lock errors.
-    Uses exponential backoff to reduce contention.
-    """
+    """Execute a query with automatic retry on database lock errors."""
     for attempt in range(max_retries):
         try:
             conn = get_db()
@@ -173,10 +162,7 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True):
 
 
 def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES):
-    """
-    Execute a query with multiple parameter sets in a single transaction.
-    Uses automatic retry on database lock errors.
-    """
+    """Execute a query with multiple parameter sets in a single transaction."""
     for attempt in range(max_retries):
         try:
             conn = get_db()
@@ -289,7 +275,10 @@ def create_student(data: dict):
         
         return get_student_by_phone(data['phone_number'])
     except Exception as e:
-        current_app.logger.error(f"Error creating student: {e}")
+        try:
+            current_app.logger.error(f"Error creating student: {e}")
+        except RuntimeError:
+            logger.error(f"Error creating student: {e}")
         return None
 
 def update_student_points(student_id: int, points: int):
@@ -301,7 +290,10 @@ def update_student_points(student_id: int, points: int):
         )
         return get_student_by_id(student_id)
     except Exception as e:
-        current_app.logger.error(f"Error updating points: {e}")
+        try:
+            current_app.logger.error(f"Error updating points: {e}")
+        except RuntimeError:
+            logger.error(f"Error updating points: {e}")
         return None
 
 def is_admin(user_id: int) -> bool:
@@ -310,7 +302,10 @@ def is_admin(user_id: int) -> bool:
         result = cursor.fetchone()
         return bool(result['is_admin']) if result else False
     except Exception as e:
-        current_app.logger.error(f"Error checking admin: {e}")
+        try:
+            current_app.logger.error(f"Error checking admin: {e}")
+        except RuntimeError:
+            logger.error(f"Error checking admin: {e}")
         return False
 
 def toggle_admin(user_id: int):
@@ -328,7 +323,10 @@ def toggle_admin(user_id: int):
         )
         return get_student_by_id(user_id)
     except Exception as e:
-        current_app.logger.error(f"Error toggling admin: {e}")
+        try:
+            current_app.logger.error(f"Error toggling admin: {e}")
+        except RuntimeError:
+            logger.error(f"Error toggling admin: {e}")
         return None
 
 def get_all_students():
@@ -342,7 +340,10 @@ def get_all_students():
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching students: {e}")
+        try:
+            current_app.logger.error(f"Error fetching students: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching students: {e}")
         return []
 
 def get_schools_by_location(location: str):
@@ -351,7 +352,10 @@ def get_schools_by_location(location: str):
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching schools: {e}")
+        try:
+            current_app.logger.error(f"Error fetching schools: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching schools: {e}")
         return []
 
 
@@ -365,7 +369,10 @@ def get_all_subjects():
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching subjects: {e}")
+        try:
+            current_app.logger.error(f"Error fetching subjects: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching subjects: {e}")
         return []
 
 def get_subject_by_id(subject_id: int):
@@ -374,7 +381,10 @@ def get_subject_by_id(subject_id: int):
         result = cursor.fetchone()
         return dict(result) if result else None
     except Exception as e:
-        current_app.logger.error(f"Error fetching subject: {e}")
+        try:
+            current_app.logger.error(f"Error fetching subject: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching subject: {e}")
         return None
 
 def get_subject_by_name(name: str):
@@ -383,7 +393,10 @@ def get_subject_by_name(name: str):
         result = cursor.fetchone()
         return dict(result) if result else None
     except Exception as e:
-        current_app.logger.error(f"Error fetching subject: {e}")
+        try:
+            current_app.logger.error(f"Error fetching subject: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching subject: {e}")
         return None
 
 def create_subject(data: dict):
@@ -394,7 +407,10 @@ def create_subject(data: dict):
         """, (data['name'], data.get('icon', '📚')), commit=True)
         return get_subject_by_name(data['name'])
     except Exception as e:
-        current_app.logger.error(f"Error creating subject: {e}")
+        try:
+            current_app.logger.error(f"Error creating subject: {e}")
+        except RuntimeError:
+            logger.error(f"Error creating subject: {e}")
         return None
 
 def delete_subject(subject_id: int):
@@ -402,7 +418,10 @@ def delete_subject(subject_id: int):
         execute_with_retry("DELETE FROM subjects WHERE id = ?", (subject_id,), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error deleting subject: {e}")
+        try:
+            current_app.logger.error(f"Error deleting subject: {e}")
+        except RuntimeError:
+            logger.error(f"Error deleting subject: {e}")
         return False
 
 
@@ -428,7 +447,10 @@ def get_questions_by_subject(subject_id: int, limit: int = 10):
             questions.append(q)
         return questions
     except Exception as e:
-        current_app.logger.error(f"Error fetching questions: {e}")
+        try:
+            current_app.logger.error(f"Error fetching questions: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching questions: {e}")
         return []
 
 def get_all_questions():
@@ -449,7 +471,10 @@ def get_all_questions():
             questions.append(q)
         return questions
     except Exception as e:
-        current_app.logger.error(f"Error fetching questions: {e}")
+        try:
+            current_app.logger.error(f"Error fetching questions: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching questions: {e}")
         return []
 
 def create_question(data: dict):
@@ -478,14 +503,13 @@ def create_question(data: dict):
         ), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error creating question: {e}")
+        try:
+            current_app.logger.error(f"Error creating question: {e}")
+        except RuntimeError:
+            logger.error(f"Error creating question: {e}")
         return False
 
 def bulk_create_questions(questions_data: list, admin_id: int):
-    """
-    Bulk create multiple questions in batched transactions.
-    Each batch is committed separately to avoid long-running transactions.
-    """
     imported_count = 0
     errors = []
     
@@ -536,7 +560,10 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                 errors.extend(batch_errors)
                 
             except Exception as e:
-                current_app.logger.error(f"Error in bulk batch: {e}")
+                try:
+                    current_app.logger.error(f"Error in bulk batch: {e}")
+                except RuntimeError:
+                    logger.error(f"Error in bulk batch: {e}")
                 try:
                     get_db().rollback()
                 except:
@@ -549,7 +576,10 @@ def bulk_create_questions(questions_data: list, admin_id: int):
         }
         
     except Exception as e:
-        current_app.logger.error(f"Error in bulk create: {e}")
+        try:
+            current_app.logger.error(f"Error in bulk create: {e}")
+        except RuntimeError:
+            logger.error(f"Error in bulk create: {e}")
         return {
             'imported': 0,
             'errors': [{'error': str(e)}],
@@ -586,7 +616,10 @@ def update_question(question_id: int, data: dict):
         ), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error updating question: {e}")
+        try:
+            current_app.logger.error(f"Error updating question: {e}")
+        except RuntimeError:
+            logger.error(f"Error updating question: {e}")
         return False
 
 def delete_question(question_id: int):
@@ -598,7 +631,10 @@ def delete_question(question_id: int):
         )
         return True
     except Exception as e:
-        current_app.logger.error(f"Error deleting question: {e}")
+        try:
+            current_app.logger.error(f"Error deleting question: {e}")
+        except RuntimeError:
+            logger.error(f"Error deleting question: {e}")
         return False
 
 def get_question_by_id(question_id: int):
@@ -611,7 +647,10 @@ def get_question_by_id(question_id: int):
             return q
         return None
     except Exception as e:
-        current_app.logger.error(f"Error fetching question: {e}")
+        try:
+            current_app.logger.error(f"Error fetching question: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching question: {e}")
         return None
 
 def check_question_exists(question_text: str, subject_id: int):
@@ -623,7 +662,10 @@ def check_question_exists(question_text: str, subject_id: int):
         result = cursor.fetchone()
         return result is not None
     except Exception as e:
-        current_app.logger.error(f"Error checking question: {e}")
+        try:
+            current_app.logger.error(f"Error checking question: {e}")
+        except RuntimeError:
+            logger.error(f"Error checking question: {e}")
         return False
 
 
@@ -649,7 +691,10 @@ def save_quiz_attempt(student_id: int, subject_id: int, score: int, total: int, 
         ), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error saving quiz attempt: {e}")
+        try:
+            current_app.logger.error(f"Error saving quiz attempt: {e}")
+        except RuntimeError:
+            logger.error(f"Error saving quiz attempt: {e}")
         return None
 
 def get_user_quiz_history(student_id: int, limit: int = 10):
@@ -673,7 +718,10 @@ def get_user_quiz_history(student_id: int, limit: int = 10):
             attempts.append(a)
         return attempts
     except Exception as e:
-        current_app.logger.error(f"Error fetching quiz history: {e}")
+        try:
+            current_app.logger.error(f"Error fetching quiz history: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching quiz history: {e}")
         return []
 
 def get_leaderboard(limit: int = 20):
@@ -687,7 +735,10 @@ def get_leaderboard(limit: int = 20):
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching leaderboard: {e}")
+        try:
+            current_app.logger.error(f"Error fetching leaderboard: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching leaderboard: {e}")
         return []
 
 
@@ -738,7 +789,10 @@ def delete_user(student_id: int, admin_id: int, keep_ratings: bool = True, delet
         return True, 'User deleted successfully'
         
     except Exception as e:
-        current_app.logger.error(f"Error deleting user: {e}")
+        try:
+            current_app.logger.error(f"Error deleting user: {e}")
+        except RuntimeError:
+            logger.error(f"Error deleting user: {e}")
         return False, str(e)
 
 def get_deleted_users(limit: int = 50):
@@ -764,7 +818,10 @@ def get_deleted_users(limit: int = 50):
             deleted.append(d)
         return deleted
     except Exception as e:
-        current_app.logger.error(f"Error fetching deleted users: {e}")
+        try:
+            current_app.logger.error(f"Error fetching deleted users: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching deleted users: {e}")
         return []
 
 def restore_deleted_user(deleted_id: int):
@@ -808,7 +865,10 @@ def restore_deleted_user(deleted_id: int):
         return True, 'User restored successfully'
         
     except Exception as e:
-        current_app.logger.error(f"Error restoring user: {e}")
+        try:
+            current_app.logger.error(f"Error restoring user: {e}")
+        except RuntimeError:
+            logger.error(f"Error restoring user: {e}")
         return False, str(e)
 
 
@@ -822,7 +882,10 @@ def get_all_groups():
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching groups: {e}")
+        try:
+            current_app.logger.error(f"Error fetching groups: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching groups: {e}")
         return []
 
 def get_active_groups():
@@ -831,7 +894,10 @@ def get_active_groups():
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching groups: {e}")
+        try:
+            current_app.logger.error(f"Error fetching groups: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching groups: {e}")
         return []
 
 def create_group(data: dict):
@@ -853,7 +919,10 @@ def create_group(data: dict):
         ), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error creating group: {e}")
+        try:
+            current_app.logger.error(f"Error creating group: {e}")
+        except RuntimeError:
+            logger.error(f"Error creating group: {e}")
         return False
 
 def delete_group(group_id: int):
@@ -861,7 +930,10 @@ def delete_group(group_id: int):
         execute_with_retry("DELETE FROM groups WHERE id = ?", (group_id,), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error deleting group: {e}")
+        try:
+            current_app.logger.error(f"Error deleting group: {e}")
+        except RuntimeError:
+            logger.error(f"Error deleting group: {e}")
         return False
 
 def track_group_click(group_id: int):
@@ -873,7 +945,10 @@ def track_group_click(group_id: int):
         )
         return True
     except Exception as e:
-        current_app.logger.error(f"Error tracking group click: {e}")
+        try:
+            current_app.logger.error(f"Error tracking group click: {e}")
+        except RuntimeError:
+            logger.error(f"Error tracking group click: {e}")
         return False
 
 def get_group_by_id(group_id: int):
@@ -882,7 +957,10 @@ def get_group_by_id(group_id: int):
         result = cursor.fetchone()
         return dict(result) if result else None
     except Exception as e:
-        current_app.logger.error(f"Error fetching group: {e}")
+        try:
+            current_app.logger.error(f"Error fetching group: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching group: {e}")
         return None
 
 
@@ -896,7 +974,10 @@ def get_all_pdfs():
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching PDFs: {e}")
+        try:
+            current_app.logger.error(f"Error fetching PDFs: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching PDFs: {e}")
         return []
 
 def get_pdf_by_id(pdf_id: int):
@@ -905,7 +986,10 @@ def get_pdf_by_id(pdf_id: int):
         result = cursor.fetchone()
         return dict(result) if result else None
     except Exception as e:
-        current_app.logger.error(f"Error fetching PDF: {e}")
+        try:
+            current_app.logger.error(f"Error fetching PDF: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching PDF: {e}")
         return None
 
 def create_pdf(data: dict):
@@ -928,7 +1012,10 @@ def create_pdf(data: dict):
         ), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error creating PDF: {e}")
+        try:
+            current_app.logger.error(f"Error creating PDF: {e}")
+        except RuntimeError:
+            logger.error(f"Error creating PDF: {e}")
         return False
 
 def delete_pdf(pdf_id: int):
@@ -936,7 +1023,10 @@ def delete_pdf(pdf_id: int):
         execute_with_retry("DELETE FROM pdfs WHERE id = ?", (pdf_id,), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error deleting PDF: {e}")
+        try:
+            current_app.logger.error(f"Error deleting PDF: {e}")
+        except RuntimeError:
+            logger.error(f"Error deleting PDF: {e}")
         return False
 
 def increment_pdf_view(pdf_id: int):
@@ -948,7 +1038,10 @@ def increment_pdf_view(pdf_id: int):
         )
         return True
     except Exception as e:
-        current_app.logger.error(f"Error incrementing PDF view: {e}")
+        try:
+            current_app.logger.error(f"Error incrementing PDF view: {e}")
+        except RuntimeError:
+            logger.error(f"Error incrementing PDF view: {e}")
         return False
 
 def get_pdf_distinct_subjects():
@@ -957,7 +1050,10 @@ def get_pdf_distinct_subjects():
         results = cursor.fetchall()
         return [row['subject'] for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching PDF subjects: {e}")
+        try:
+            current_app.logger.error(f"Error fetching PDF subjects: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching PDF subjects: {e}")
         return []
 
 def get_pdf_distinct_grades():
@@ -966,7 +1062,10 @@ def get_pdf_distinct_grades():
         results = cursor.fetchall()
         return [row['grade'] for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching PDF grades: {e}")
+        try:
+            current_app.logger.error(f"Error fetching PDF grades: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching PDF grades: {e}")
         return []
 
 def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
@@ -993,7 +1092,10 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error searching PDFs: {e}")
+        try:
+            current_app.logger.error(f"Error searching PDFs: {e}")
+        except RuntimeError:
+            logger.error(f"Error searching PDFs: {e}")
         return []
 
 
@@ -1029,7 +1131,10 @@ def create_live_quiz(data: dict):
         result = cursor.fetchone()
         return dict(result) if result else None
     except Exception as e:
-        current_app.logger.error(f"Error creating live quiz: {e}")
+        try:
+            current_app.logger.error(f"Error creating live quiz: {e}")
+        except RuntimeError:
+            logger.error(f"Error creating live quiz: {e}")
         return None
 
 def get_live_quiz_by_id(quiz_id: int):
@@ -1042,7 +1147,10 @@ def get_live_quiz_by_id(quiz_id: int):
             return quiz
         return None
     except Exception as e:
-        current_app.logger.error(f"Error fetching live quiz: {e}")
+        try:
+            current_app.logger.error(f"Error fetching live quiz: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching live quiz: {e}")
         return None
 
 def get_live_quiz_by_code(join_code: str):
@@ -1055,7 +1163,10 @@ def get_live_quiz_by_code(join_code: str):
             return quiz
         return None
     except Exception as e:
-        current_app.logger.error(f"Error fetching live quiz: {e}")
+        try:
+            current_app.logger.error(f"Error fetching live quiz: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching live quiz: {e}")
         return None
 
 def get_live_quiz_with_subject(quiz_id: int):
@@ -1074,7 +1185,10 @@ def get_live_quiz_with_subject(quiz_id: int):
             return quiz
         return None
     except Exception as e:
-        current_app.logger.error(f"Error fetching live quiz: {e}")
+        try:
+            current_app.logger.error(f"Error fetching live quiz: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching live quiz: {e}")
         return None
 
 def update_live_quiz(quiz_id: int, data: dict):
@@ -1098,7 +1212,10 @@ def update_live_quiz(quiz_id: int, data: dict):
         execute_with_retry(query, params, commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error updating live quiz: {e}")
+        try:
+            current_app.logger.error(f"Error updating live quiz: {e}")
+        except RuntimeError:
+            logger.error(f"Error updating live quiz: {e}")
         return False
 
 def get_live_quiz_participants(quiz_id: int):
@@ -1125,7 +1242,10 @@ def get_live_quiz_participants(quiz_id: int):
             participants.append(p)
         return participants
     except Exception as e:
-        current_app.logger.error(f"Error fetching participants: {e}")
+        try:
+            current_app.logger.error(f"Error fetching participants: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching participants: {e}")
         return []
 
 def get_live_quiz_participant(quiz_id: int, student_id: int):
@@ -1142,7 +1262,10 @@ def get_live_quiz_participant(quiz_id: int, student_id: int):
             return p
         return None
     except Exception as e:
-        current_app.logger.error(f"Error fetching participant: {e}")
+        try:
+            current_app.logger.error(f"Error fetching participant: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching participant: {e}")
         return None
 
 def add_live_quiz_participant(quiz_id: int, student_id: int):
@@ -1169,7 +1292,10 @@ def add_live_quiz_participant(quiz_id: int, student_id: int):
         ), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error adding participant: {e}")
+        try:
+            current_app.logger.error(f"Error adding participant: {e}")
+        except RuntimeError:
+            logger.error(f"Error adding participant: {e}")
         return False
 
 def update_live_quiz_participant(participant_id: int, data: dict):
@@ -1190,7 +1316,10 @@ def update_live_quiz_participant(participant_id: int, data: dict):
         execute_with_retry(query, params, commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error updating participant: {e}")
+        try:
+            current_app.logger.error(f"Error updating participant: {e}")
+        except RuntimeError:
+            logger.error(f"Error updating participant: {e}")
         return False
 
 def get_live_quiz_participants_with_names(quiz_id: int):
@@ -1217,7 +1346,10 @@ def get_live_quiz_participants_with_names(quiz_id: int):
             participants.append(p)
         return participants
     except Exception as e:
-        current_app.logger.error(f"Error fetching participants: {e}")
+        try:
+            current_app.logger.error(f"Error fetching participants: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching participants: {e}")
         return []
 
 def get_active_live_quiz(join_code: str):
@@ -1233,7 +1365,10 @@ def get_active_live_quiz(join_code: str):
             return quiz
         return None
     except Exception as e:
-        current_app.logger.error(f"Error fetching active quiz: {e}")
+        try:
+            current_app.logger.error(f"Error fetching active quiz: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching active quiz: {e}")
         return None
 
 def get_live_quiz_count(quiz_id: int):
@@ -1245,7 +1380,10 @@ def get_live_quiz_count(quiz_id: int):
         result = cursor.fetchone()
         return result['count'] if result else 0
     except Exception as e:
-        current_app.logger.error(f"Error getting participant count: {e}")
+        try:
+            current_app.logger.error(f"Error getting participant count: {e}")
+        except RuntimeError:
+            logger.error(f"Error getting participant count: {e}")
         return 0
 
 def get_live_quiz_completed_count(quiz_id: int):
@@ -1260,7 +1398,10 @@ def get_live_quiz_completed_count(quiz_id: int):
         result = cursor.fetchone()
         return result['count'] if result else 0
     except Exception as e:
-        current_app.logger.error(f"Error getting completed count: {e}")
+        try:
+            current_app.logger.error(f"Error getting completed count: {e}")
+        except RuntimeError:
+            logger.error(f"Error getting completed count: {e}")
         return 0
 
 def get_question_ids_for_quiz(quiz_id: int):
@@ -1271,7 +1412,10 @@ def get_question_ids_for_quiz(quiz_id: int):
             return from_json(result['question_ids'])
         return []
     except Exception as e:
-        current_app.logger.error(f"Error getting question IDs: {e}")
+        try:
+            current_app.logger.error(f"Error getting question IDs: {e}")
+        except RuntimeError:
+            logger.error(f"Error getting question IDs: {e}")
         return []
 
 def get_questions_by_ids(question_ids: list):
@@ -1293,7 +1437,10 @@ def get_questions_by_ids(question_ids: list):
             questions.append(q)
         return questions
     except Exception as e:
-        current_app.logger.error(f"Error fetching questions by IDs: {e}")
+        try:
+            current_app.logger.error(f"Error fetching questions by IDs: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching questions by IDs: {e}")
         return []
 
 def update_participant_rankings(quiz_id: int):
@@ -1314,7 +1461,10 @@ def update_participant_rankings(quiz_id: int):
         
         return True
     except Exception as e:
-        current_app.logger.error(f"Error updating rankings: {e}")
+        try:
+            current_app.logger.error(f"Error updating rankings: {e}")
+        except RuntimeError:
+            logger.error(f"Error updating rankings: {e}")
         return False
 
 def get_live_quiz_creator_id(quiz_id: int):
@@ -1323,7 +1473,10 @@ def get_live_quiz_creator_id(quiz_id: int):
         result = cursor.fetchone()
         return result['creator_id'] if result else None
     except Exception as e:
-        current_app.logger.error(f"Error getting creator ID: {e}")
+        try:
+            current_app.logger.error(f"Error getting creator ID: {e}")
+        except RuntimeError:
+            logger.error(f"Error getting creator ID: {e}")
         return None
 
 def get_group_categories():
@@ -1335,7 +1488,10 @@ def get_group_categories():
         results = cursor.fetchall()
         return [row['category'] for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error fetching group categories: {e}")
+        try:
+            current_app.logger.error(f"Error fetching group categories: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching group categories: {e}")
         return []
 
 def search_groups(search: str = '', platform: str = '', category: str = ''):
@@ -1362,7 +1518,10 @@ def search_groups(search: str = '', platform: str = '', category: str = ''):
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error searching groups: {e}")
+        try:
+            current_app.logger.error(f"Error searching groups: {e}")
+        except RuntimeError:
+            logger.error(f"Error searching groups: {e}")
         return []
 
 
@@ -1383,7 +1542,10 @@ def create_notification(user_id, type, title, body, link='', icon=''):
         ), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error creating notification: {e}")
+        try:
+            current_app.logger.error(f"Error creating notification: {e}")
+        except RuntimeError:
+            logger.error(f"Error creating notification: {e}")
         return False
 
 def create_notification_for_all_users(type, title, body, link='', icon=''):
@@ -1396,7 +1558,10 @@ def create_notification_for_all_users(type, title, body, link='', icon=''):
         
         return True
     except Exception as e:
-        current_app.logger.error(f"Error creating notifications for all users: {e}")
+        try:
+            current_app.logger.error(f"Error creating notifications for all users: {e}")
+        except RuntimeError:
+            logger.error(f"Error creating notifications for all users: {e}")
         return False
 
 def get_user_notifications(user_id, limit=20, unread_only=False):
@@ -1417,7 +1582,10 @@ def get_user_notifications(user_id, limit=20, unread_only=False):
         results = cursor.fetchall()
         return [dict(row) for row in results]
     except Exception as e:
-        current_app.logger.error(f"Error getting notifications: {e}")
+        try:
+            current_app.logger.error(f"Error getting notifications: {e}")
+        except RuntimeError:
+            logger.error(f"Error getting notifications: {e}")
         return []
 
 def get_unread_count(user_id):
@@ -1429,7 +1597,10 @@ def get_unread_count(user_id):
         result = cursor.fetchone()
         return result['count'] if result else 0
     except Exception as e:
-        current_app.logger.error(f"Error getting unread count: {e}")
+        try:
+            current_app.logger.error(f"Error getting unread count: {e}")
+        except RuntimeError:
+            logger.error(f"Error getting unread count: {e}")
         return 0
 
 def mark_notification_read(notification_id, user_id):
@@ -1441,7 +1612,10 @@ def mark_notification_read(notification_id, user_id):
         """, (now(), notification_id, user_id), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error marking notification read: {e}")
+        try:
+            current_app.logger.error(f"Error marking notification read: {e}")
+        except RuntimeError:
+            logger.error(f"Error marking notification read: {e}")
         return False
 
 def mark_all_notifications_read(user_id):
@@ -1453,7 +1627,10 @@ def mark_all_notifications_read(user_id):
         """, (now(), user_id), commit=True)
         return True
     except Exception as e:
-        current_app.logger.error(f"Error marking all notifications read: {e}")
+        try:
+            current_app.logger.error(f"Error marking all notifications read: {e}")
+        except RuntimeError:
+            logger.error(f"Error marking all notifications read: {e}")
         return False
 
 
@@ -1527,16 +1704,16 @@ def init_db():
                 schema = f.read()
             conn.executescript(schema)
             conn.commit()
-            current_app.logger.info("Database initialized successfully")
+            logger.info("Database initialized successfully")
             
             _create_optimization_indexes(conn)
         else:
-            current_app.logger.warning(f"Schema file not found: {schema_path}")
+            logger.warning(f"Schema file not found: {schema_path}")
         
         conn.close()
         return True
     except Exception as e:
-        current_app.logger.error(f"Error initializing database: {e}")
+        logger.error(f"Error initializing database: {e}")
         return False
 
 
@@ -1554,7 +1731,7 @@ def _create_optimization_indexes(conn):
         try:
             conn.execute(idx)
         except Exception as e:
-            current_app.logger.warning(f"Error creating index: {e}")
+            logger.warning(f"Error creating index {idx}: {e}")
     
     conn.commit()
 
@@ -1579,7 +1756,8 @@ def ensure_wal_mode():
         _create_optimization_indexes(conn)
         
         conn.close()
+        logger.info("WAL mode enabled successfully")
         return True
     except Exception as e:
-        current_app.logger.error(f"Error enabling WAL mode: {e}")
+        logger.error(f"Error enabling WAL mode: {e}")
         return False
