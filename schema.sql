@@ -276,3 +276,10 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
 
 CREATE INDEX IF NOT EXISTS idx_pref_user ON notification_preferences(user_id);
 CREATE INDEX IF NOT EXISTS idx_pref_type ON notification_preferences(notification_type);
+
+-- Additional indexes for frequently used queries
+CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_id, status);
