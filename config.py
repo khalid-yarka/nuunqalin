@@ -1,37 +1,186 @@
 import os
 from dotenv import load_dotenv
 from datetime import timedelta
+from pathlib import Path
 
 load_dotenv()
 
+# ============================================
+# BASE DIRECTORY - Absolute Path Resolution
+# ============================================
+
+BASE_DIR = Path(__file__).resolve().parent
+
 class Config:
+    # ============================================
+    # SECURITY
+    # ============================================
+    
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     
-    # Database
-    DATABASE_PATH = os.getenv('DATABASE_PATH', 'nuunplatform.db')
-    DB_TIMEOUT = float(os.getenv('DB_TIMEOUT', '10.0'))
-    DB_BUSY_TIMEOUT = int(os.getenv('DB_BUSY_TIMEOUT', '10000'))
-    DB_RETRY_ATTEMPTS = int(os.getenv('DB_RETRY_ATTEMPTS', '3'))
-    DB_RETRY_DELAY = float(os.getenv('DB_RETRY_DELAY', '0.1'))
+    # Admin error dashboard password
+    ADMIN_ERROR_PASSWORD = os.getenv('ADMIN_ERROR_PASSWORD', '')
     
-    # Session configuration
+    # ============================================
+    # DATABASE - Absolute Path
+    # ============================================
+    
+    DATABASE_PATH = os.getenv('DATABASE_PATH')
+    if DATABASE_PATH:
+        if not os.path.isabs(DATABASE_PATH):
+            DATABASE_PATH = str(BASE_DIR / DATABASE_PATH)
+    else:
+        DATABASE_PATH = str(BASE_DIR / 'nuunplatform.db')
+    
+    # Database connection settings
+    DB_TIMEOUT = float(os.getenv('DB_TIMEOUT', '30.0'))
+    DB_BUSY_TIMEOUT = int(os.getenv('DB_BUSY_TIMEOUT', '30000'))
+    DB_RETRY_ATTEMPTS = int(os.getenv('DB_RETRY_ATTEMPTS', '7'))
+    DB_RETRY_INITIAL_DELAY = float(os.getenv('DB_RETRY_INITIAL_DELAY', '0.1'))
+    DB_MAX_RETRY_DELAY = float(os.getenv('DB_MAX_RETRY_DELAY', '3.0'))
+    DB_RETRY_BACKOFF_MULTIPLIER = float(os.getenv('DB_RETRY_BACKOFF_MULTIPLIER', '2.0'))
+    
+    # ============================================
+    # SESSION
+    # ============================================
+    
     SESSION_TYPE = 'filesystem'
-    PERMANENT_SESSION_LIFETIME = timedelta(days=1)  # 24 hours
+    PERMANENT_SESSION_LIFETIME = timedelta(days=1)
     
-    # File upload settings (for PDFs)
+    # Session security
+    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    
+    # Admin session timeout (30 minutes)
+    ADMIN_SESSION_TIMEOUT = int(os.getenv('ADMIN_SESSION_TIMEOUT', '1800'))
+    
+    # ============================================
+    # PATHS - Absolute
+    # ============================================
+    
+    BACKUP_DIR = os.getenv('BACKUP_DIR')
+    if BACKUP_DIR:
+        if not os.path.isabs(BACKUP_DIR):
+            BACKUP_DIR = str(BASE_DIR / BACKUP_DIR)
+    else:
+        BACKUP_DIR = str(BASE_DIR / 'BACKUPS')
+    
+    LOG_DIR = os.getenv('LOG_DIR')
+    if LOG_DIR:
+        if not os.path.isabs(LOG_DIR):
+            LOG_DIR = str(BASE_DIR / LOG_DIR)
+    else:
+        LOG_DIR = str(BASE_DIR / 'logs')
+    
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'static/uploads/pdfs')
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file size
+    if not os.path.isabs(UPLOAD_FOLDER):
+        UPLOAD_FOLDER = str(BASE_DIR / UPLOAD_FOLDER)
     
-    # NEW: Backup configuration
-    BACKUP_DIR = os.getenv('BACKUP_DIR', 'BACKUPS')
+    # ============================================
+    # FILE UPLOADS
+    # ============================================
+    
+    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
+    
+    # ============================================
+    # BACKUP CONFIGURATION
+    # ============================================
+    
     BACKUP_ENABLED = os.getenv('BACKUP_ENABLED', 'true').lower() == 'true'
     BACKUP_TRIGGER_TOKEN = os.getenv('BACKUP_TRIGGER_TOKEN', 'change_this_token_in_production')
+    BACKUP_RETENTION_DAILY = int(os.getenv('BACKUP_RETENTION_DAILY', '7'))
+    BACKUP_RETENTION_WEEKLY = int(os.getenv('BACKUP_RETENTION_WEEKLY', '4'))
+    BACKUP_RETENTION_MONTHLY = int(os.getenv('BACKUP_RETENTION_MONTHLY', '12'))
     
-    # NEW: Quiz configuration
+    # ============================================
+    # QUIZ CONFIGURATION
+    # ============================================
+    
     RATING_TIME = int(os.getenv('RATING_TIME', '10'))
     LIVE_QUIZ_TIME_PER_QUESTION = int(os.getenv('LIVE_QUIZ_TIME_PER_QUESTION', '30'))
     LIVE_QUIZ_MAX_PARTICIPANTS = int(os.getenv('LIVE_QUIZ_MAX_PARTICIPANTS', '50'))
     
-    # NEW: Rate limiting
+    # ============================================
+    # RATE LIMITING
+    # ============================================
+    
     RATE_LIMIT_DEFAULT = os.getenv('RATE_LIMIT_DEFAULT', '200 per day;50 per hour')
     RATE_LIMIT_LOGIN = os.getenv('RATE_LIMIT_LOGIN', '5 per minute')
+    RATE_LIMIT_ADMIN = os.getenv('RATE_LIMIT_ADMIN', '10 per minute')
+    
+    # ============================================
+    # LOGGING
+    # ============================================
+    
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'WARNING')
+    LOG_MAX_BYTES = int(os.getenv('LOG_MAX_BYTES', str(10 * 1024 * 1024)))
+    LOG_BACKUP_COUNT = int(os.getenv('LOG_BACKUP_COUNT', '5'))
+    
+    # ============================================
+    # EMAIL CONFIGURATION
+    # ============================================
+    
+    SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+    SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+    SMTP_USER = os.getenv('SMTP_USER', '')
+    SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+    SMTP_FROM = os.getenv('SMTP_FROM', '')
+    SMTP_TO = os.getenv('SMTP_TO', '')
+    
+    EMAIL_ENABLED = bool(SMTP_USER and SMTP_PASSWORD and SMTP_TO)
+    
+    # Error email deduplication window (seconds)
+    ERROR_EMAIL_DEDUP_WINDOW = int(os.getenv('ERROR_EMAIL_DEDUP_WINDOW', '300'))
+    
+    # ============================================
+    # ERROR LOGGING
+    # ============================================
+    
+    ERROR_RETENTION_DAYS = int(os.getenv('ERROR_RETENTION_DAYS', '30'))
+    ERROR_LOG_SAMPLE_RATE = float(os.getenv('ERROR_LOG_SAMPLE_RATE', '1.0'))
+    
+    # ============================================
+    # ENSURE DIRECTORIES EXIST
+    # ============================================
+    
+    @classmethod
+    def ensure_directories(cls):
+        """Create necessary directories if they don't exist."""
+        directories = [
+            cls.BACKUP_DIR,
+            cls.LOG_DIR,
+            os.path.dirname(cls.UPLOAD_FOLDER),
+            os.path.dirname(cls.DATABASE_PATH)
+        ]
+        
+        for directory in directories:
+            if directory and not os.path.exists(directory):
+                try:
+                    os.makedirs(directory, exist_ok=True)
+                except Exception as e:
+                    print(f"Warning: Could not create directory {directory}: {e}")
+    
+    @classmethod
+    def validate(cls):
+        """Validate critical configuration."""
+        errors = []
+        
+        if not cls.SECRET_KEY or cls.SECRET_KEY == 'dev-secret-key-change-in-production':
+            errors.append("SECRET_KEY must be set to a secure value in production")
+        
+        if not cls.ADMIN_ERROR_PASSWORD:
+            errors.append("ADMIN_ERROR_PASSWORD must be set in .env")
+        
+        if cls.EMAIL_ENABLED:
+            if not cls.SMTP_USER:
+                errors.append("SMTP_USER is missing")
+            if not cls.SMTP_PASSWORD:
+                errors.append("SMTP_PASSWORD is missing")
+            if not cls.SMTP_TO:
+                errors.append("SMTP_TO is missing")
+        
+        return errors
+
+# Ensure directories exist when config is loaded
+Config.ensure_directories()

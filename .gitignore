@@ -1,97 +1,48 @@
-# =========================
-# Environment & secrets
-# =========================
+# Environment variables
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 
-# =========================
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Uploads
+static/uploads/
+uploads/
+
+# Backups
+BACKUPS/
+
 # Python
-# =========================
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
 *.pyo
 *.pyd
+.Python
 
-# Virtual environments
-.venv/
-venv/
-env/
-ENV/
-
-# =========================
-# Flask / local development
-# =========================
-instance/
-.flaskenv
-
-# =========================
-# Databases
-# =========================
-*.db
-*.sqlite
-*.sqlite3
-
-# =========================
-# Logs
-# =========================
-*.log
-logs/
-
-# =========================
-# Temporary / backup files
-# =========================
-*.tmp
-*.temp
-*.bak
-*.backup
-*~
-*.swp
-*.swo
-
-# =========================
-# Testing / coverage
-# =========================
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-.tox/
-.nox/
-
-# =========================
-# IDE / editors
-# =========================
+# IDE
 .vscode/
 .idea/
-*.code-workspace
+*.swp
+*.swo
+*~
 
-# =========================
-# OS files
-# =========================
+# OS
 .DS_Store
 Thumbs.db
 
-# =========================
-# Build / packaging
-# =========================
-build/
-dist/
-*.egg-info/
-.eggs/
+# Flask
+instance/
+.webassets-cache
 
-# =========================
-# Local uploaded/generated files
-# =========================
-uploads/
-tmp/
-temp/
-
-# Database journals & WAL files
-*.db-journal
-*.db-wal
-*.db-shm
-*.sqlite-journal
-*.sqlite-wal
-*.sqlite-shm
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

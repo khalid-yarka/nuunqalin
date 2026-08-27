@@ -2,17 +2,21 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from config import Config
 from db import (
     get_student_by_phone, get_student_by_id, create_student, is_admin,
-    close_db_connections, init_db, ensure_wal_mode, close_db,
-    check_database_integrity
+    close_db_connections, close_db,
 )
 from blueprints.dashboard_bp import dashboard_bp
 from blueprints.groups_bp import groups_bp
 from blueprints.pdfs_bp import pdfs_bp
 from blueprints.admin_bp import admin_bp
+from blueprints.admin_errors_bp import admin_errors_bp
 from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
 from blueprints.notifications_bp import notifications_bp
 from utils import format_somali_time, get_somali_time_display
+from startup import verify_startup, get_startup_health
+from database import get_database_health
+from errors import register_error_handlers
+from error_models import get_error_stats, get_error_log_count
 import atexit
 import os
 import sys
@@ -31,7 +35,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = Config.LOG_DIR
 
 # ============================================
-# LOGGING CONFIGURATION - Enhanced
+# LOGGING CONFIGURATION
 # ============================================
 
 log_format = '%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] - %(message)s'
@@ -44,10 +48,14 @@ if not os.path.exists(LOG_DIR):
     except Exception:
         pass
 
-# Log file path
-log_file = os.path.join(LOG_DIR, 'app.log')
+# Request ID filter
+class RequestIDFilter(logging.Filter):
+    def filter(self, record):
+        record.request_id = getattr(g, 'request_id', 'no-req')
+        return True
 
-# Rotating file handler
+# Setup main log
+log_file = os.path.join(LOG_DIR, 'app.log')
 try:
     file_handler = RotatingFileHandler(
         log_file,
@@ -57,31 +65,59 @@ try:
     file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
     file_handler.setLevel(getattr(logging, Config.LOG_LEVEL))
 except Exception as e:
-    # Fallback to basic file handler if rotation fails
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
     file_handler.setLevel(logging.WARNING)
 
-# Console handler for errors only
+# Setup error log (separate file for errors)
+error_log_file = os.path.join(LOG_DIR, 'error.log')
+try:
+    error_file_handler = RotatingFileHandler(
+        error_log_file,
+        maxBytes=Config.LOG_MAX_BYTES,
+        backupCount=Config.LOG_BACKUP_COUNT
+    )
+    error_file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
+    error_file_handler.setLevel(logging.ERROR)
+except Exception as e:
+    error_file_handler = logging.FileHandler(error_log_file)
+    error_file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
+    error_file_handler.setLevel(logging.ERROR)
+
+# Console handler
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
 console_handler.setLevel(logging.ERROR)
-
-# Request ID filter - for contextual logging
-class RequestIDFilter(logging.Filter):
-    def filter(self, record):
-        record.request_id = getattr(g, 'request_id', 'no-req')
-        return True
 
 # Root logger
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, Config.LOG_LEVEL))
 logger.addHandler(file_handler)
+logger.addHandler(error_file_handler)
 logger.addHandler(console_handler)
 logger.addFilter(RequestIDFilter())
 
 # Suppress Flask's default logging
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+# ============================================
+# STARTUP VERIFICATION - CRITICAL
+# ============================================
+
+logger.info("=" * 60)
+logger.info("NUUNPLATFORM STARTUP - Starting verification")
+logger.info("=" * 60)
+
+# Verify all critical components before starting
+if not verify_startup():
+    logger.critical("=" * 60)
+    logger.critical("STARTUP VERIFICATION FAILED")
+    logger.critical("Application cannot start. Please check the logs.")
+    logger.critical("=" * 60)
+    sys.exit(1)
+
+logger.info("Startup verification PASSED")
+logger.info("=" * 60)
 
 # ============================================
 # BACKUP INTEGRATION
@@ -156,7 +192,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = Config.SESSION_COOKIE_HTTPONLY
 app.config['SESSION_COOKIE_SAMESITE'] = Config.SESSION_COOKIE_SAMESITE
 
 # ============================================
-# REQUEST CONTEXT - Request ID for logging
+# REQUEST CONTEXT - Request ID
 # ============================================
 
 @app.before_request
@@ -175,7 +211,6 @@ def log_request_end(response):
                 f"SLOW: {request.method} {request.path} {duration:.0f}ms - "
                 f"status={response.status_code}"
             )
-    # Add request ID to response headers
     if hasattr(g, 'request_id'):
         response.headers['X-Request-ID'] = g.request_id
     return response
@@ -203,9 +238,16 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(groups_bp)
 app.register_blueprint(pdfs_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(admin_errors_bp)  # NEW
 app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
 app.register_blueprint(notifications_bp)
+
+# ============================================
+# REGISTER ERROR HANDLERS
+# ============================================
+
+register_error_handlers(app)
 
 # ============================================
 # TEARDOWN CONTEXT
@@ -228,116 +270,97 @@ def cleanup():
         logger.warning(f"Cleanup error: {e}")
 
 # ============================================
-# INITIALIZE DATABASE
-# ============================================
-
-def initialize_database():
-    db_path = Config.DATABASE_PATH
-    if not os.path.exists(db_path):
-        logger.info(f"Database not found at {db_path}. Creating new database...")
-        return init_db()
-
-    try:
-        is_healthy, error = check_database_integrity()
-        if not is_healthy:
-            logger.error(f"Database integrity check failed: {error}")
-    except Exception as e:
-        logger.warning(f"Could not check database integrity: {e}")
-
-    return ensure_wal_mode()
-
-try:
-    initialize_database()
-except Exception as e:
-    logger.error(f"Failed to initialize database: {e}")
-
-# ============================================
-# HEALTH CHECK ENDPOINT (Enhanced)
+# ENHANCED HEALTH CHECK
 # ============================================
 
 @app.route('/health', methods=['GET'])
 def health_check():
     """
     Enhanced health check endpoint.
-    Checks database, backup, and cache.
+    Returns detailed component status.
     """
-    checks = {
-        'database': False,
-        'backup': False,
-        'cache': False,
-        'wal': False
-    }
-    details = {}
+    # Get database health
+    db_health = get_database_health()
     
-    # Check database connectivity
-    try:
-        from db import get_db
-        conn = get_db()
-        conn.execute("SELECT 1")
-        checks['database'] = True
-        
-        # Check WAL mode
-        cursor = conn.execute("PRAGMA journal_mode")
-        result = cursor.fetchone()
-        if result and result[0].upper() == 'WAL':
-            checks['wal'] = True
-        else:
-            details['wal'] = f"WAL not enabled: {result[0] if result else 'unknown'}"
-            
-    except Exception as e:
-        details['database'] = str(e)
-        logger.error(f"Health check - database failed: {e}")
+    # Get startup health
+    startup_health = get_startup_health()
     
-    # Check backup availability
-    try:
-        if BACKUP_AVAILABLE:
+    # Get backup health
+    backup_health = {'status': 'unknown'}
+    if BACKUP_AVAILABLE:
+        try:
             manager = get_backup_manager()
             if manager:
-                health = manager.health_check()
-                checks['backup'] = health['status'] != 'critical'
-                details['backup'] = health
+                backup_health = manager.health_check()
             else:
-                details['backup'] = 'Backup manager not available'
-        else:
-            checks['backup'] = True
-            details['backup'] = 'Backup module not installed'
-    except Exception as e:
-        details['backup'] = str(e)
-        logger.error(f"Health check - backup failed: {e}")
+                backup_health = {'status': 'error', 'issues': ['Backup manager unavailable']}
+        except Exception as e:
+            backup_health = {'status': 'error', 'issues': [str(e)]}
+    else:
+        backup_health = {'status': 'disabled'}
     
-    # Check cache
+    # Get cache health
+    cache_health = {'status': 'unknown'}
     try:
         from quiz_cache import get_quiz_cache
         cache = get_quiz_cache()
         stats = cache.get_cache_stats()
-        checks['cache'] = True
-        details['cache'] = stats
+        cache_health = {'status': 'healthy', 'stats': stats}
     except Exception as e:
-        details['cache'] = str(e)
-        logger.error(f"Health check - cache failed: {e}")
+        cache_health = {'status': 'error', 'error': str(e)}
     
-    all_healthy = all(checks.values())
-    status_code = 200 if all_healthy else 503
+    # Get error stats
+    error_stats = get_error_stats()
+    
+    # Determine overall status
+    critical_issues = []
+    
+    if not db_health.get('exists'):
+        critical_issues.append('Database does not exist')
+    if not db_health.get('openable'):
+        critical_issues.append('Database cannot be opened')
+    if not db_health.get('integrity'):
+        critical_issues.append('Database integrity check failed')
+    if not db_health.get('tables_ok'):
+        critical_issues.append('Missing required tables')
+    if not db_health.get('wal_enabled'):
+        critical_issues.append('WAL mode is disabled')
+    
+    is_healthy = len(critical_issues) == 0
+    status_code = 200 if is_healthy else 503
     
     return jsonify({
-        'status': 'healthy' if all_healthy else 'degraded',
-        'checks': checks,
-        'details': details,
+        'status': 'healthy' if is_healthy else 'critical',
         'timestamp': get_somali_time_display(),
-        'request_id': g.request_id
+        'request_id': getattr(g, 'request_id', 'no-req'),
+        'components': {
+            'database': {
+                'exists': db_health.get('exists'),
+                'openable': db_health.get('openable'),
+                'writable': db_health.get('writable'),
+                'integrity': db_health.get('integrity'),
+                'wal_enabled': db_health.get('wal_enabled'),
+                'tables_ok': db_health.get('tables_ok'),
+                'columns_ok': db_health.get('columns_ok'),
+                'errors': db_health.get('errors', [])
+            },
+            'backup': backup_health,
+            'cache': cache_health,
+            'errors': {
+                'total': error_stats.get('total', 0),
+                'critical': error_stats.get('critical', 0),
+                'unresolved': error_stats.get('unresolved', 0)
+            }
+        },
+        'critical_issues': critical_issues
     }), status_code
 
 # ============================================
-# BACKUP TRIGGER ENDPOINT (Now with warning)
+# BACKUP TRIGGER ENDPOINT
 # ============================================
 
 @app.route('/backup/trigger', methods=['GET'])
 def trigger_backup():
-    """
-    Secure endpoint to trigger a backup.
-    WARNING: Running backups in web requests is not recommended.
-    Use scheduled tasks/cron instead.
-    """
     if not BACKUP_ENABLED:
         return jsonify({
             'status': 'disabled',
@@ -388,6 +411,9 @@ def trigger_backup():
             'timestamp': get_somali_time_display()
         }), 500
 
+# ============================================
+# BACKUP STATUS
+# ============================================
 
 @app.route('/backup/status', methods=['GET'])
 def backup_status():
@@ -407,7 +433,6 @@ def backup_status():
     except Exception as e:
         logger.error(f"Backup status error: {e}")
         return jsonify({'error': str(e)}), 500
-
 
 # ============================================
 # ROUTES (Login, Register, Logout)
@@ -531,25 +556,6 @@ def utility_processor():
         'somali_time': get_somali_time_display,
         'csrf_token': session.get('csrf_token', '')
     }
-
-# ============================================
-# ERROR HANDLERS
-# ============================================
-
-@app.errorhandler(404)
-def page_not_found(e):
-    logger.warning(f"404: {request.path} from {request.remote_addr}")
-    return render_template('404.html'), 404
-
-@app.errorhandler(500)
-def internal_server_error(e):
-    logger.error(f"500: {request.path} - {e}", exc_info=True)
-    return render_template('500.html'), 500
-
-@app.errorhandler(403)
-def forbidden(e):
-    logger.warning(f"403: {request.path} from {request.remote_addr}")
-    return render_template('403.html'), 403
 
 # ============================================
 # RUN APP
