@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g
 from config import Config
-from db import get_student_by_phone, get_student_by_id, create_student, is_admin, close_db_connections, init_db, ensure_wal_mode
+from db import get_student_by_phone, get_student_by_id, create_student, is_admin, close_db_connections, init_db, ensure_wal_mode, close_db
 from blueprints.dashboard_bp import dashboard_bp
 from blueprints.groups_bp import groups_bp
 from blueprints.pdfs_bp import pdfs_bp
@@ -33,12 +33,7 @@ app.register_blueprint(notifications_bp)
 @app.teardown_appcontext
 def close_db_connection(exception=None):
     """Close the database connection at the end of each request."""
-    db = g.pop('db', None)
-    if db is not None:
-        try:
-            db.close()
-        except Exception as e:
-            app.logger.warning(f"Error closing database connection: {e}")
+    close_db(exception)
 
 
 # ============================================

@@ -16,7 +16,7 @@ import os
 DB_PATH = Config.DATABASE_PATH
 MAX_RETRIES = 3
 RETRY_DELAY = 0.1  # Initial delay, increases with backoff
-BULK_INSERT_BATCH_SIZE = 100  # Commit every 100 records in bulk operations
+BULK_INSERT_BATCH_SIZE = 100
 
 
 # ============================================
@@ -51,8 +51,6 @@ def get_db():
             # Optimize WAL mode - let SQLite handle checkpoints automatically
             conn.execute("PRAGMA synchronous = NORMAL")
             conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
-            
-            # Set automatic checkpoint threshold (default is 1000 pages)
             conn.execute("PRAGMA wal_autocheckpoint = 1000")
             
             # Store in g
@@ -65,7 +63,6 @@ def get_db():
     return g.db
 
 
-@app.teardown_appcontext
 def close_db(exception=None):
     """
     Close the database connection when the request context ends.
@@ -495,7 +492,6 @@ def bulk_create_questions(questions_data: list, admin_id: int):
     try:
         total = len(questions_data)
         
-        # Process in batches
         for i in range(0, total, BULK_INSERT_BATCH_SIZE):
             batch = questions_data[i:i + BULK_INSERT_BATCH_SIZE]
             batch_errors = []
@@ -536,7 +532,6 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                             'error': str(e)
                         })
                 
-                # Commit the batch
                 conn.commit()
                 errors.extend(batch_errors)
                 
@@ -546,7 +541,6 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                     get_db().rollback()
                 except:
                     pass
-                # Continue with next batch
         
         return {
             'imported': imported_count,
@@ -702,10 +696,6 @@ def get_leaderboard(limit: int = 20):
 # ============================================
 
 def delete_user(student_id: int, admin_id: int, keep_ratings: bool = True, delete_attempts: bool = True):
-    """
-    Delete a user and backup their data.
-    Each operation is a separate transaction for minimal locking.
-    """
     try:
         user = get_student_by_id(student_id)
         if not user:
@@ -714,7 +704,6 @@ def delete_user(student_id: int, admin_id: int, keep_ratings: bool = True, delet
         if student_id == admin_id:
             return None, 'You cannot delete your own account'
         
-        # Each write is a separate transaction
         execute_with_retry("""
             INSERT INTO deleted_users (
                 original_id, public_id, first_name, last_name,
@@ -1205,10 +1194,6 @@ def update_live_quiz_participant(participant_id: int, data: dict):
         return False
 
 def get_live_quiz_participants_with_names(quiz_id: int):
-    """
-    Get participants with student names for leaderboard.
-    Uses index on (quiz_id, score DESC) for efficient sorting.
-    """
     try:
         cursor = execute_with_retry("""
             SELECT lqp.*, s.first_name, s.last_name, s.public_id
@@ -1544,7 +1529,6 @@ def init_db():
             conn.commit()
             current_app.logger.info("Database initialized successfully")
             
-            # Create additional indexes after schema
             _create_optimization_indexes(conn)
         else:
             current_app.logger.warning(f"Schema file not found: {schema_path}")
@@ -1592,7 +1576,6 @@ def ensure_wal_mode():
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA wal_autocheckpoint = 1000")
         
-        # Create indexes if they don't exist
         _create_optimization_indexes(conn)
         
         conn.close()
