@@ -1,6 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, g
 from config import Config
-from db import get_student_by_phone, get_student_by_id, create_student, is_admin, close_db_connections
+from db import get_student_by_phone, get_student_by_id, create_student, is_admin, close_db_connections, init_db, ensure_wal_mode
 from blueprints.dashboard_bp import dashboard_bp
 from blueprints.groups_bp import groups_bp
 from blueprints.pdfs_bp import pdfs_bp
@@ -10,6 +10,7 @@ from blueprints.live_quiz_bp import live_quiz_bp
 from blueprints.notifications_bp import notifications_bp
 from utils import format_somali_time, get_somali_time_display
 import atexit
+import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = Config.SECRET_KEY
@@ -22,7 +23,22 @@ app.register_blueprint(pdfs_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
-app.register_blueprint(notifications_bp)  # NEW
+app.register_blueprint(notifications_bp)
+
+
+# ============================================
+# TEARDOWN CONTEXT - Database cleanup
+# ============================================
+
+@app.teardown_appcontext
+def close_db_connection(exception=None):
+    """Close the database connection at the end of each request."""
+    db = g.pop('db', None)
+    if db is not None:
+        try:
+            db.close()
+        except Exception as e:
+            app.logger.warning(f"Error closing database connection: {e}")
 
 
 # ============================================
@@ -31,9 +47,25 @@ app.register_blueprint(notifications_bp)  # NEW
 
 @atexit.register
 def cleanup():
-    """Close database connections on shutdown"""
-    close_db_connections()
-    print("Database connections closed.")
+    """Clean up resources on shutdown."""
+    # Force WAL checkpoint on shutdown
+    try:
+        from db import checkpoint_wal
+        checkpoint_wal()
+    except:
+        pass
+    print("Shutdown cleanup complete.")
+
+
+# ============================================
+# INITIALIZE DATABASE
+# ============================================
+
+# Ensure database exists and is in WAL mode
+if not os.path.exists(Config.DATABASE_PATH):
+    init_db()
+else:
+    ensure_wal_mode()
 
 
 # ============================================
@@ -42,7 +74,7 @@ def cleanup():
 
 @app.route('/')
 def index():
-    """Landing page - redirect to login if not logged in"""
+    """Landing page - redirect to login if not logged in."""
     if 'user_id' in session:
         return redirect(url_for('dashboard.home'))
     return redirect(url_for('login'))
@@ -50,7 +82,7 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page"""
+    """Login page."""
     if 'user_id' in session:
         return redirect(url_for('dashboard.home'))
     
@@ -64,7 +96,7 @@ def login():
         student = get_student_by_phone(phone)
         
         if student:
-            # Plain text password comparison (NO HASHING - TO BE UPDATED)
+            # Plain text password comparison (TO BE UPDATED TO HASH)
             if password == student['password']:
                 session['user_id'] = student['id']
                 session['public_id'] = student.get('public_id', '----')
@@ -84,7 +116,7 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """Registration page"""
+    """Registration page."""
     if 'user_id' in session:
         return redirect(url_for('dashboard.home'))
     
@@ -136,7 +168,7 @@ def register():
 
 @app.route('/logout')
 def logout():
-    """Logout user"""
+    """Logout user."""
     session.clear()
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
@@ -148,7 +180,7 @@ def logout():
 
 @app.context_processor
 def utility_processor():
-    """Make session data available to all templates"""
+    """Make session data available to all templates."""
     return {
         'session': session,
         'is_admin': session.get('is_admin', False),
@@ -179,4 +211,5 @@ def forbidden(e):
 
 if __name__ == '__main__':
     print(f"Server starting at: {get_somali_time_display()}")
+    print(f"Database path: {Config.DATABASE_PATH}")
     app.run(debug=True, host='0.0.0.0', port=5000)
