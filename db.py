@@ -2016,3 +2016,226 @@ def check_database_integrity():
         return False, result[0] if result else "unknown error"
     except Exception as e:
         return False, str(e)
+
+
+# ============================================
+# LIVE QUIZ LOBBY FUNCTIONS
+# ============================================
+
+def get_live_quizzes_lobby(
+    user_id: int = None,
+    status_filter: str = None,
+    subject_filter: int = None,
+    search: str = None,
+    page: int = 1,
+    per_page: int = 20
+) -> tuple:
+    """
+    Get all public live quizzes for the lobby.
+    Returns: (quizzes, total_count)
+    """
+    try:
+        # Build the query
+        query = """
+            SELECT 
+                lq.id,
+                lq.title,
+                lq.subject_id,
+                lq.question_count,
+                lq.status,
+                lq.max_participants,
+                lq.time_per_question,
+                lq.created_at,
+                lq.started_at,
+                lq.ended_at,
+                lq.join_code,
+                lq.creator_id,
+                lq.is_public,
+                s.name as subject_name,
+                s.icon as subject_icon,
+                COUNT(DISTINCT lqp.id) as participant_count,
+                creator.first_name as creator_first_name,
+                creator.last_name as creator_last_name,
+                creator.public_id as creator_public_id,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM live_quiz_participants lqp2 
+                    WHERE lqp2.quiz_id = lq.id AND lqp2.student_id = ?
+                ) THEN 1 ELSE 0 END as is_participant,
+                CASE WHEN lq.creator_id = ? THEN 1 ELSE 0 END as is_creator,
+                (SELECT ranking FROM live_quiz_participants 
+                 WHERE quiz_id = lq.id AND student_id = ?) as user_rank
+            FROM live_quizzes lq
+            LEFT JOIN subjects s ON lq.subject_id = s.id
+            LEFT JOIN students creator ON lq.creator_id = creator.id
+            LEFT JOIN live_quiz_participants lqp ON lq.id = lqp.quiz_id
+            WHERE lq.is_public = 1
+        """
+        count_query = """
+            SELECT COUNT(DISTINCT lq.id) as total
+            FROM live_quizzes lq
+            WHERE lq.is_public = 1
+        """
+        params = [user_id or 0, user_id or 0, user_id or 0]
+        count_params = []
+
+        # Apply filters
+        if status_filter and status_filter in ['waiting', 'active', 'finished']:
+            query += " AND lq.status = ?"
+            count_query += " AND lq.status = ?"
+            params.append(status_filter)
+            count_params.append(status_filter)
+        else:
+            # Show all statuses
+            query += " AND lq.status IN ('waiting', 'active', 'finished')"
+            count_query += " AND lq.status IN ('waiting', 'active', 'finished')"
+
+        if subject_filter:
+            query += " AND lq.subject_id = ?"
+            count_query += " AND lq.subject_id = ?"
+            params.append(subject_filter)
+            count_params.append(subject_filter)
+
+        if search:
+            search_pattern = f"%{search}%"
+            query += " AND (lq.title LIKE ? OR creator.first_name LIKE ? OR creator.last_name LIKE ?)"
+            count_query += " AND (lq.title LIKE ?)"
+            params.extend([search_pattern, search_pattern, search_pattern])
+            count_params.append(search_pattern)
+
+        # Group and order
+        query += """
+            GROUP BY lq.id
+            ORDER BY 
+                CASE lq.status 
+                    WHEN 'waiting' THEN 1 
+                    WHEN 'active' THEN 2 
+                    WHEN 'finished' THEN 3 
+                END,
+                lq.created_at DESC
+            LIMIT ? OFFSET ?
+        """
+        params.extend([per_page, (page - 1) * per_page])
+
+        # Execute main query
+        cursor = execute_with_retry(query, params)
+        results = cursor.fetchall()
+
+        # Get total count
+        count_cursor = execute_with_retry(count_query, count_params)
+        count_result = count_cursor.fetchone()
+        total = count_result['total'] if count_result else 0
+
+        quizzes = []
+        for row in results:
+            quiz = dict(row)
+            # Calculate remaining time for active quizzes
+            if quiz['status'] == 'active' and quiz['started_at']:
+                try:
+                    from datetime import datetime, timezone
+                    total_duration = quiz['question_count'] * (quiz['time_per_question'] + 10)  # +10 for rating
+                    if isinstance(quiz['started_at'], str):
+                        started = datetime.fromisoformat(quiz['started_at'].replace('Z', '+00:00'))
+                    else:
+                        started = quiz['started_at']
+                    elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+                    remaining = max(0, total_duration - elapsed)
+                    quiz['remaining_seconds'] = int(remaining)
+                except Exception:
+                    quiz['remaining_seconds'] = 0
+            else:
+                quiz['remaining_seconds'] = 0
+
+            quizzes.append(quiz)
+
+        return quizzes, total
+
+    except Exception as e:
+        try:
+            current_app.logger.error(f"Error fetching lobby quizzes: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching lobby quizzes: {e}")
+        return [], 0
+
+
+def get_live_quiz_stats() -> dict:
+    """Get stats for the lobby."""
+    try:
+        cursor = execute_with_retry("""
+            SELECT 
+                COUNT(CASE WHEN status = 'waiting' AND is_public = 1 THEN 1 END) as waiting_count,
+                COUNT(CASE WHEN status = 'active' AND is_public = 1 THEN 1 END) as active_count,
+                COUNT(CASE WHEN status = 'finished' AND is_public = 1 THEN 1 END) as finished_count,
+                COUNT(CASE WHEN is_public = 1 THEN 1 END) as total_public,
+                (SELECT COUNT(DISTINCT student_id) FROM live_quiz_participants 
+                 WHERE quiz_id IN (SELECT id FROM live_quizzes WHERE is_public = 1)) as total_participants
+            FROM live_quizzes
+            WHERE is_public = 1
+        """)
+        result = cursor.fetchone()
+        return dict(result) if result else {
+            'waiting_count': 0,
+            'active_count': 0,
+            'finished_count': 0,
+            'total_public': 0,
+            'total_participants': 0
+        }
+    except Exception as e:
+        try:
+            current_app.logger.error(f"Error getting live quiz stats: {e}")
+        except RuntimeError:
+            logger.error(f"Error getting live quiz stats: {e}")
+        return {
+            'waiting_count': 0,
+            'active_count': 0,
+            'finished_count': 0,
+            'total_public': 0,
+            'total_participants': 0
+        }
+
+
+def can_join_live_quiz(quiz_id: int, user_id: int) -> tuple:
+    """
+    Check if a user can join a quiz.
+    Returns: (can_join, reason)
+    """
+    try:
+        quiz = get_live_quiz_by_id(quiz_id)
+        if not quiz:
+            return False, "Quiz not found"
+
+        if not quiz.get('is_public', 1):
+            return False, "This quiz is private"
+
+        if quiz['status'] != 'waiting':
+            return False, "This quiz is not open for joining"
+
+        participant = get_live_quiz_participant(quiz_id, user_id)
+        if participant:
+            return True, "Already joined"
+
+        participant_count = get_live_quiz_count(quiz_id)
+        if participant_count >= quiz.get('max_participants', 50):
+            return False, "Quiz is full"
+
+        return True, "OK"
+
+    except Exception as e:
+        try:
+            current_app.logger.error(f"Error checking join: {e}")
+        except RuntimeError:
+            logger.error(f"Error checking join: {e}")
+        return False, str(e)
+
+
+def get_all_subjects():
+    """Get all subjects - already exists in db.py, but adding for completeness."""
+    try:
+        cursor = execute_with_retry("SELECT * FROM subjects ORDER BY name")
+        results = cursor.fetchall()
+        return [dict(row) for row in results]
+    except Exception as e:
+        try:
+            current_app.logger.error(f"Error fetching subjects: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching subjects: {e}")
+        return []
