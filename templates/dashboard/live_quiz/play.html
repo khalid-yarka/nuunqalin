@@ -1431,22 +1431,26 @@ document.addEventListener('DOMContentLoaded', function() {
         }, pollInterval);
     }
     
-    resetPollTimer();
-    setTimeout(pollQuizState, 100);
-    
-    leaderboardTimer = setTimeout(updateLeaderboard, 3000);
-    
-    window.addEventListener('beforeunload', function() {
-        if (pollTimer) clearTimeout(pollTimer);
-        if (leaderboardTimer) clearTimeout(leaderboardTimer);
-        if (timerInterval) clearInterval(timerInterval);
-    });
-    
-    window.selectOption = selectOption;
-    window.skipQuestion = skipQuestion;
-    window.submitRating = submitRating;
-    window.loadQuestion = loadQuestion;
-    window.pollQuizState = pollQuizState;
-});
+        // ============================================
+        // INITIALIZATION - WITH SAFETY CHECK
+        // ============================================
+        
+        // Don't start polling immediately - check status first
+        checkQuizStatusOnLoad();
+        
+        // Clean up intervals on page unload
+        window.addEventListener('beforeunload', function() {
+            if (pollTimer) clearTimeout(pollTimer);
+            if (leaderboardTimer) clearTimeout(leaderboardTimer);
+            if (timerInterval) clearInterval(timerInterval);
+        });
+        
+        // Expose functions globally
+        window.selectOption = selectOption;
+        window.skipQuestion = skipQuestion;
+        window.submitRating = submitRating;
+        window.loadQuestion = loadQuestion;
+        window.pollQuizState = pollQuizState;
+        window.checkQuizStatusOnLoad = checkQuizStatusOnLoad;
 </script>
 {% endblock %}

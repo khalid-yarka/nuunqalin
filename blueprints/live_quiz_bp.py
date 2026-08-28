@@ -738,7 +738,7 @@ def quiz_state(quiz_id):
                 response['current_question_answer'] = answers[str(qid)].get('answer')
                 response['current_question_correct'] = answers[str(qid)].get('correct', False)
 
-        # PRIORITY 7: If user is creator, include participant progress
+        # If user is creator, include participant progress
         if quiz.get('creator_id') == session['user_id']:
             progress = []
             for p in all_participants:
@@ -1044,21 +1044,36 @@ def get_leaderboard(quiz_id):
         return jsonify({'error': 'Failed to load leaderboard'}), 500
 
 
+# ============================================
+# FIXED: PLAY ROUTE - Safety check for finished quizzes
+# ============================================
+
 @live_quiz_bp.route('/play/<quiz_id>')
 def play(quiz_id):
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
 
-    quiz = get_live_quiz_with_subject(quiz_id)
+    quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
         flash('Quiz not found.', 'error')
-        return redirect(url_for('live_quiz.index'))
+        return redirect(url_for('live_quiz.lobby'))
 
+    # FIX: Check if quiz is finished - redirect to results immediately
+    if quiz.get('status') == 'finished':
+        flash('This quiz has already finished. Viewing results...', 'info')
+        return redirect(url_for('live_quiz.results', quiz_id=quiz_id))
+
+    # FIX: Check if quiz is waiting (not started yet)
+    if quiz.get('status') == 'waiting':
+        flash('This quiz hasn\'t started yet. Go to waiting room.', 'info')
+        return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz_id))
+
+    # Check if user is a participant
     participant = get_live_quiz_participant(quiz_id, session['user_id'])
     if not participant:
         flash('You are not a participant in this quiz.', 'error')
-        return redirect(url_for('live_quiz.index'))
+        return redirect(url_for('live_quiz.lobby'))
 
     return render_template('dashboard/live_quiz/play.html', quiz=quiz)
 
