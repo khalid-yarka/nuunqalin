@@ -395,7 +395,6 @@
         white-space: nowrap;
     }
     
-    /* Creator Progress */
     .creator-progress {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -448,6 +447,36 @@
     .creator-progress .progress-item .status.waiting {
         color: #F59E0B;
     }
+
+    /* Leave Button */
+    .btn-leave {
+        margin-top: 16px;
+        width: 100%;
+        padding: 10px 20px;
+        background: transparent;
+        color: #EF4444;
+        border: 2px solid #EF4444;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: var(--transition);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .btn-leave:hover {
+        background: #FEF2F2;
+        border-color: #DC2626;
+        color: #DC2626;
+    }
+
+    .btn-leave:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
     
     @keyframes pulse {
         0%, 100% { opacity: 1; }
@@ -474,6 +503,7 @@
         .skip-btn { font-size: 12px; padding: 6px 12px; }
         .creator-progress .progress-item .bar-wrap { width: 40px; }
         .creator-progress .progress-item .status { font-size: 10px; min-width: 40px; }
+        .btn-leave { font-size: 13px; padding: 8px 16px; }
     }
     @media (max-width: 360px) {
         .question-text { font-size: 14px; }
@@ -549,6 +579,15 @@
         background: var(--surface);
         border-color: var(--border);
     }
+    [data-theme="dark"] .btn-leave {
+        color: #F87171;
+        border-color: #F87171;
+    }
+    [data-theme="dark"] .btn-leave:hover {
+        background: #3A1A1A;
+        border-color: #F87171;
+        color: #FCA5A5;
+    }
 </style>
 {% endblock %}
 
@@ -589,7 +628,6 @@
         <div id="progressBar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.5s ease; border-radius: 4px;"></div>
     </div>
 
-    <!-- PRIORITY 7: Creator Progress -->
     {% if quiz.creator_id == session.user_id %}
     <div class="creator-progress" id="creatorProgress">
         <div class="cp-title">👥 Participant Progress</div>
@@ -624,11 +662,19 @@
         </div>
     </div>
 
+    <!-- Leave Quiz Button -->
+    {% if quiz.creator_id != session.user_id and quiz.status != 'finished' %}
+        <button class="btn-leave" id="leaveBtn">
+            <i class="fas fa-sign-out-alt"></i> Leave Quiz
+        </button>
+    {% endif %}
+
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const quizId = '{{ quiz.id }}';
+    const quizTitle = '{{ quiz.title or 'Live Quiz' }}';
     const totalQuestions = {{ quiz.question_count }};
     const timePerQuestion = {{ quiz.time_per_question or 30 }};
     const ratingTime = 10;
@@ -654,6 +700,51 @@ document.addEventListener('DOMContentLoaded', function() {
     let pollTimer = null;
     let consecutiveNoChanges = 0;
     let lastState = null;
+    
+    // ============================================
+    // BROWSER NOTIFICATION FUNCTIONS
+    // ============================================
+    
+    function requestNotificationPermission() {
+        if ('Notification' in window) {
+            if (Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        }
+    }
+
+    function sendBrowserNotification(title, body, url) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') {
+            return;
+        }
+        try {
+            const notification = new Notification(title, {
+                body: body,
+                icon: '/static/images/logo.png',
+                tag: 'live-quiz-' + quizId,
+                requireInteraction: true
+            });
+            notification.onclick = function() {
+                window.focus();
+                if (url) {
+                    window.location.href = url;
+                }
+                notification.close();
+            };
+            setTimeout(function() {
+                notification.close();
+            }, 10000);
+        } catch (e) {
+            console.warn('Browser notification error:', e);
+        }
+    }
+
+    // Request notification permission on page load
+    requestNotificationPermission();
+    
+    // ============================================
+    // TOAST HELPER
+    // ============================================
     
     function showToast(message, type, duration) {
         if (typeof window.showToast === 'function') {
@@ -785,6 +876,44 @@ document.addEventListener('DOMContentLoaded', function() {
         container.innerHTML = html;
     }
     
+    // ============================================
+    // LEAVE QUIZ FUNCTION
+    // ============================================
+    
+    const leaveBtn = document.getElementById('leaveBtn');
+    if (leaveBtn) {
+        leaveBtn.addEventListener('click', function() {
+            if (!confirm('Are you sure you want to leave this quiz? You will be able to rejoin only if the quiz is still waiting.')) return;
+            
+            leaveBtn.disabled = true;
+            leaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leaving...';
+            
+            fetch('/live-quiz/leave/' + quizId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    alert(data.error || 'Failed to leave quiz');
+                    leaveBtn.disabled = false;
+                    leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
+                }
+            })
+            .catch(function() {
+                alert('Error leaving quiz. Please try again.');
+                leaveBtn.disabled = false;
+                leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
+            });
+        });
+    }
+    
+    // ============================================
+    // POLL QUIZ STATE - With browser notifications
+    // ============================================
+    
     function pollQuizState() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
@@ -793,6 +922,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.warn('Polling error:', data.error);
                     pollInterval = Math.min(pollInterval + 500, 5000);
                     resetPollTimer();
+                    return;
+                }
+                
+                // SAFETY: Redirect if quiz is finished or waiting
+                if (data.status === 'finished' || data.status === 'waiting') {
+                    if (data.status === 'finished') {
+                        // Send browser notification before redirect
+                        sendBrowserNotification(
+                            '🏆 Quiz Complete!',
+                            quizTitle + ' has finished. Check your results!',
+                            '/live-quiz/results/' + quizId
+                        );
+                        window.location.href = data.redirect_url || '/live-quiz/results/' + quizId;
+                    } else {
+                        window.location.href = '/live-quiz/waiting-room/' + quizId;
+                    }
                     return;
                 }
                 
@@ -825,6 +970,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (currentStatus === 'finished') {
                     if (!quizEnded) {
                         quizEnded = true;
+                        sendBrowserNotification(
+                            '🏆 Quiz Complete!',
+                            quizTitle + ' has finished. Check your results!',
+                            '/live-quiz/results/' + quizId
+                        );
                         window.location.href = '/live-quiz/results/' + quizId;
                     }
                     return;
@@ -859,6 +1009,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             notificationShown = true;
                             showNotification('🚀 Quiz has started! Get ready!');
                             playNotificationSound();
+                            
+                            // Browser Notification for quiz start
+                            sendBrowserNotification(
+                                '🚀 Quiz Started!',
+                                quizTitle + ' has begun! Get ready to answer!',
+                                '/live-quiz/play/' + quizId
+                            );
                         }
                         if (!quizStarted) {
                             quizStarted = true;
@@ -889,6 +1046,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 if (data.all_completed && currentStatus === 'active') {
+                    sendBrowserNotification(
+                        '🏆 All Finished!',
+                        'All participants have completed the quiz!',
+                        '/live-quiz/results/' + quizId
+                    );
                     window.location.href = '/live-quiz/results/' + quizId;
                     return;
                 }
@@ -1431,26 +1593,30 @@ document.addEventListener('DOMContentLoaded', function() {
         }, pollInterval);
     }
     
-        // ============================================
-        // INITIALIZATION - WITH SAFETY CHECK
-        // ============================================
-        
-        // Don't start polling immediately - check status first
-        checkQuizStatusOnLoad();
-        
-        // Clean up intervals on page unload
-        window.addEventListener('beforeunload', function() {
-            if (pollTimer) clearTimeout(pollTimer);
-            if (leaderboardTimer) clearTimeout(leaderboardTimer);
-            if (timerInterval) clearInterval(timerInterval);
-        });
-        
-        // Expose functions globally
-        window.selectOption = selectOption;
-        window.skipQuestion = skipQuestion;
-        window.submitRating = submitRating;
-        window.loadQuestion = loadQuestion;
-        window.pollQuizState = pollQuizState;
-        window.checkQuizStatusOnLoad = checkQuizStatusOnLoad;
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    
+    // Start polling - this will handle active, waiting, and finished states
+    resetPollTimer();
+    setTimeout(pollQuizState, 100);
+    
+    // Update leaderboard
+    leaderboardTimer = setTimeout(updateLeaderboard, 3000);
+    
+    // Clean up intervals on page unload
+    window.addEventListener('beforeunload', function() {
+        if (pollTimer) clearTimeout(pollTimer);
+        if (leaderboardTimer) clearTimeout(leaderboardTimer);
+        if (timerInterval) clearInterval(timerInterval);
+    });
+    
+    // Expose functions globally
+    window.selectOption = selectOption;
+    window.skipQuestion = skipQuestion;
+    window.submitRating = submitRating;
+    window.loadQuestion = loadQuestion;
+    window.pollQuizState = pollQuizState;
+});
 </script>
 {% endblock %}

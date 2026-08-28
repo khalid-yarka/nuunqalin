@@ -210,10 +210,22 @@
         color: white;
     }
 
+    .participant-item .badge.left {
+        background: #FEF2F2;
+        color: #EF4444;
+        border: 1px solid #FCA5A5;
+    }
+
     .participant-item .public-id {
         font-size: 11px;
         color: var(--text-muted);
         font-family: monospace;
+    }
+
+    .participant-item.left {
+        opacity: 0.6;
+        background: var(--surface-alt);
+        border-color: var(--border);
     }
 
     .empty-participants {
@@ -378,6 +390,60 @@
         100% { transform: rotate(360deg); }
     }
 
+    /* Leave Button */
+    .btn-leave {
+        margin-top: 12px;
+        padding: 10px 20px;
+        background: transparent;
+        color: #EF4444;
+        border: 2px solid #EF4444;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: var(--transition);
+        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .btn-leave:hover {
+        background: #FEF2F2;
+        border-color: #DC2626;
+        color: #DC2626;
+    }
+
+    .btn-leave:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-rejoin {
+        margin-top: 12px;
+        padding: 10px 20px;
+        background: #10B981;
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: var(--transition);
+        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .btn-rejoin:hover {
+        background: #059669;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    }
+
     @media (max-width: 480px) {
         .waiting-room-container {
             padding: 0 4px;
@@ -388,6 +454,7 @@
         .participant-item { padding: 6px 10px; font-size: 13px; }
         .btn-start { font-size: 16px; padding: 12px 24px; }
         .share-buttons a { font-size: 12px; padding: 4px 10px; }
+        .btn-leave, .btn-rejoin { font-size: 13px; padding: 8px 16px; }
     }
 
     @media (max-width: 360px) {
@@ -413,6 +480,11 @@
                     <span>📚 {{ quiz.subjects.name if quiz.subjects else 'Unknown Subject' }}</span>
                     <span>❓ {{ quiz.question_count }} questions</span>
                     <span>⏱️ {{ quiz.time_per_question }}s each</span>
+                    {% if not quiz.is_public %}
+                        <span style="color: var(--primary);">🔒 Private</span>
+                    {% else %}
+                        <span style="color: #10B981;">🌐 Public</span>
+                    {% endif %}
                 </div>
             </div>
             <div class="participant-count-badge">
@@ -437,17 +509,23 @@
                 <i class="fab fa-telegram-plane"></i> Telegram
             </a>
         </div>
+        {% if quiz.is_public %}
+            <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+                <i class="fas fa-globe"></i> This quiz is public and also visible in the 
+                <a href="{{ url_for('live_quiz.lobby') }}" style="color: var(--primary); text-decoration: none;">Lobby</a>
+            </div>
+        {% endif %}
     </div>
 
     <div class="participants-card">
         <div class="header">
-            <h3>👥 Participants</h3>
+            <h3>👥 Active Participants</h3>
             <span class="count" id="participantCountLabel">{{ participant_count }} joined</span>
         </div>
         <div class="participant-list" id="participantList">
             {% for p in participants %}
-                <div class="participant-item">
-                    <span class="status-dot {% if p.status == 'active' %}active{% else %}left{% endif %}"></span>
+                <div class="participant-item {% if p.status == 'left' %}left{% endif %}">
+                    <span class="status-dot {% if p.status == 'active' or p.status == 'completed' %}active{% else %}left{% endif %}"></span>
                     <span class="name">
                         {{ p.name }}
                         {% if p.is_creator %}
@@ -455,6 +533,9 @@
                         {% endif %}
                         {% if p.student_id == session.user_id %}
                             <span class="badge you">You</span>
+                        {% endif %}
+                        {% if p.status == 'left' %}
+                            <span class="badge left">Left</span>
                         {% endif %}
                     </span>
                     <span class="public-id">#{{ p.public_id }}</span>
@@ -471,25 +552,40 @@
     <div class="actions-card">
         {% if is_creator %}
             <div class="status-message" id="statusMessage">
-                {% if participant_count >= 2 %}
-                    ✅ Ready to start! <span class="highlight">{{ participant_count }}</span> participants ready.
+                {% if active_participant_count >= 2 %}
+                    ✅ Ready to start! <span class="highlight">{{ active_participant_count }}</span> participants ready.
                 {% else %}
-                    ⚠️ Need at least <strong>2 participants</strong> to start.
-                    {% if participant_count == 1 %}
+                    ⚠️ Need at least <strong>2 active participants</strong> to start.
+                    {% if active_participant_count == 1 %}
                         <br><span style="font-size: 13px; color: var(--text-muted);">Share the join code to invite others!</span>
                     {% endif %}
                 {% endif %}
             </div>
-            <button class="btn-start" id="startQuizBtn" {% if participant_count < 2 %}disabled{% endif %}>
+            <button class="btn-start" id="startQuizBtn" {% if active_participant_count < 2 %}disabled{% endif %}>
                 <i class="fas fa-play"></i> Start Quiz
             </button>
         {% else %}
-            <div class="waiting-message">
-                <div class="icon">⏳</div>
-                <h4>Waiting for the host to start...</h4>
-                <p>The quiz will begin when the host clicks "Start Quiz"</p>
-                <div class="sub-info">👥 <span id="waitingParticipantCount">{{ participant_count }}</span> participant(s) waiting</div>
-            </div>
+            {% if user_participant_status == 'left' %}
+                <div class="waiting-message">
+                    <div class="icon">🔁</div>
+                    <h4>You left this quiz</h4>
+                    <p>You can rejoin if the quiz hasn't started yet.</p>
+                    <button class="btn-rejoin" id="rejoinBtn">
+                        <i class="fas fa-undo"></i> Rejoin Quiz
+                    </button>
+                </div>
+            {% else %}
+                <div class="waiting-message">
+                    <div class="icon">⏳</div>
+                    <h4>Waiting for the host to start...</h4>
+                    <p>The quiz will begin when the host clicks "Start Quiz"</p>
+                    <div class="sub-info">👥 <span id="waitingParticipantCount">{{ active_participant_count }}</span> active participant(s) waiting</div>
+                </div>
+                <!-- Leave Button (only if not creator and not left) -->
+                <button class="btn-leave" id="leaveBtn">
+                    <i class="fas fa-sign-out-alt"></i> Leave Quiz
+                </button>
+            {% endif %}
         {% endif %}
     </div>
 </div>
@@ -499,6 +595,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const isCreator = {{ 'true' if is_creator else 'false' }};
     const quizId = '{{ quiz.id }}';
     const quizStatus = '{{ quiz.status }}';
+    const userParticipantStatus = '{{ user_participant_status or "active" }}';
     
     function copyCode(code) {
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -541,6 +638,67 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     window.shareTelegram = shareTelegram;
     
+    // Leave button
+    const leaveBtn = document.getElementById('leaveBtn');
+    if (leaveBtn) {
+        leaveBtn.addEventListener('click', function() {
+            if (!confirm('Are you sure you want to leave this quiz? You can rejoin if the quiz hasn\'t started yet.')) return;
+            
+            leaveBtn.disabled = true;
+            leaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leaving...';
+            
+            fetch('/live-quiz/leave/' + quizId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    alert(data.error || 'Failed to leave quiz');
+                    leaveBtn.disabled = false;
+                    leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
+                }
+            })
+            .catch(function() {
+                alert('Error leaving quiz. Please try again.');
+                leaveBtn.disabled = false;
+                leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
+            });
+        });
+    }
+    
+    // Rejoin button
+    const rejoinBtn = document.getElementById('rejoinBtn');
+    if (rejoinBtn) {
+        rejoinBtn.addEventListener('click', function() {
+            rejoinBtn.disabled = true;
+            rejoinBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rejoining...';
+            
+            fetch('/live-quiz/rejoin/' + quizId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    alert(data.error || 'Failed to rejoin');
+                    rejoinBtn.disabled = false;
+                    rejoinBtn.innerHTML = '<i class="fas fa-undo"></i> Rejoin Quiz';
+                }
+            })
+            .catch(function() {
+                alert('Error rejoining quiz. Please try again.');
+                rejoinBtn.disabled = false;
+                rejoinBtn.innerHTML = '<i class="fas fa-undo"></i> Rejoin Quiz';
+            });
+        });
+    }
+    
+    // Creator start button
     const startBtn = document.getElementById('startQuizBtn');
     if (startBtn) {
         startBtn.addEventListener('click', function() {
@@ -650,32 +808,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 if (status === 'waiting') {
+                    // Update active participant count
                     if (data.total_participants !== undefined) {
+                        const activeCount = data.total_participants; // Assuming total_participants is active count
+                        // We'll use data.active_participants if available, else total_participants
+                        const count = data.active_participants || data.total_participants;
                         const countEl = document.getElementById('participantCount');
                         const labelEl = document.getElementById('participantCountLabel');
                         const waitingEl = document.getElementById('waitingParticipantCount');
-                        if (countEl) countEl.textContent = data.total_participants;
-                        if (labelEl) labelEl.textContent = data.total_participants + ' joined';
-                        if (waitingEl) waitingEl.textContent = data.total_participants;
+                        if (countEl) countEl.textContent = count;
+                        if (labelEl) labelEl.textContent = count + ' joined';
+                        if (waitingEl) waitingEl.textContent = count;
                         
                         if (startBtn) {
-                            if (data.total_participants >= 2) {
+                            if (count >= 2) {
                                 startBtn.disabled = false;
                                 const statusMsg = document.getElementById('statusMessage');
                                 if (statusMsg) {
-                                    statusMsg.innerHTML = '✅ Ready to start! <span class="highlight">' + data.total_participants + '</span> participants ready.';
+                                    statusMsg.innerHTML = '✅ Ready to start! <span class="highlight">' + count + '</span> participants ready.';
                                 }
                             } else {
                                 startBtn.disabled = true;
                                 const statusMsg = document.getElementById('statusMessage');
                                 if (statusMsg) {
-                                    statusMsg.innerHTML = '⚠️ Need at least <strong>2 participants</strong> to start.';
+                                    statusMsg.innerHTML = '⚠️ Need at least <strong>2 active participants</strong> to start.';
                                 }
                             }
                         }
                         
-                        if (data.total_participants !== lastKnownCount) {
-                            lastKnownCount = data.total_participants;
+                        // Refresh participant list if count changed
+                        if (count !== lastKnownCount) {
+                            lastKnownCount = count;
                             refreshParticipantList();
                         }
                     }
@@ -686,7 +849,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
-    let lastKnownCount = {{ participant_count }};
+    let lastKnownCount = {{ active_participant_count or participant_count }};
     
     function refreshParticipantList() {
         fetch(window.location.href)
@@ -695,7 +858,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 const newList = doc.querySelector('.participant-list');
-                const newCount = doc.querySelectorAll('.participant-item').length;
+                const newCount = doc.querySelectorAll('.participant-item:not(.left)').length;
                 
                 if (newList && newCount !== lastKnownCount) {
                     const currentList = document.getElementById('participantList');

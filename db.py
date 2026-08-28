@@ -2239,3 +2239,102 @@ def get_all_subjects():
         except RuntimeError:
             logger.error(f"Error fetching subjects: {e}")
         return []
+
+
+# ============================================
+# LIVE QUIZ LEAVE/REJOIN FUNCTIONS
+# ============================================
+
+def leave_live_quiz(quiz_id: int, student_id: int) -> bool:
+    """
+    Mark a participant as 'left' in a live quiz.
+    Only allowed if quiz is waiting or active.
+    """
+    try:
+        # Check if quiz is already finished
+        quiz = get_live_quiz_by_id(quiz_id)
+        if not quiz or quiz['status'] == 'finished':
+            return False
+        
+        # Update status to 'left'
+        execute_with_retry("""
+            UPDATE live_quiz_participants 
+            SET status = 'left' 
+            WHERE quiz_id = ? AND student_id = ?
+        """, (quiz_id, student_id), commit=True)
+        
+        # Update cache
+        from quiz_cache import get_quiz_cache
+        cache = get_quiz_cache()
+        cache.update_participant(quiz_id, student_id, {'status': 'left'})
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error leaving quiz: {e}")
+        return False
+
+
+def rejoin_live_quiz(quiz_id: int, student_id: int) -> bool:
+    """
+    Reactivate a participant who previously left.
+    Only allowed if quiz is waiting.
+    """
+    try:
+        quiz = get_live_quiz_by_id(quiz_id)
+        if not quiz or quiz['status'] != 'waiting':
+            return False
+        
+        # Check if participant exists with status 'left'
+        participant = get_live_quiz_participant(quiz_id, student_id)
+        if not participant or participant['status'] != 'left':
+            return False
+        
+        # Reset progress and set status to 'active'
+        execute_with_retry("""
+            UPDATE live_quiz_participants 
+            SET status = 'active',
+                score = 0,
+                current_question_index = 0,
+                correct_count = 0,
+                wrong_count = 0,
+                skipped_count = 0,
+                answers = '{}',
+                ratings = '{}'
+            WHERE quiz_id = ? AND student_id = ?
+        """, (quiz_id, student_id), commit=True)
+        
+        # Update cache
+        from quiz_cache import get_quiz_cache
+        cache = get_quiz_cache()
+        cache.update_participant(quiz_id, student_id, {
+            'status': 'active',
+            'score': 0,
+            'current_question_index': 0,
+            'correct_count': 0,
+            'wrong_count': 0,
+            'skipped_count': 0,
+            'answers': {},
+            'ratings': {}
+        })
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error rejoining quiz: {e}")
+        return False
+
+
+def get_active_participants(quiz_id: int) -> list:
+    """Get only active participants (status = 'active' or 'completed')."""
+    try:
+        cursor = execute_with_retry("""
+            SELECT lqp.*, s.first_name, s.last_name, s.public_id
+            FROM live_quiz_participants lqp
+            LEFT JOIN students s ON lqp.student_id = s.id
+            WHERE lqp.quiz_id = ? AND lqp.status IN ('active', 'completed')
+            ORDER BY lqp.joined_at
+        """, (quiz_id,))
+        results = cursor.fetchall()
+        return [dict(row) for row in results]
+    except Exception as e:
+        logger.error(f"Error getting active participants: {e}")
+        return []
