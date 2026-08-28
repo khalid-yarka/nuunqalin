@@ -1,0 +1,435 @@
+{% extends "base.html" %}
+
+{% block title %}Something Went Wrong - NuunPlatform{% endblock %}
+
+{% block extra_css %}
+<style>
+    .error-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: var(--background);
+    }
+
+    .error-card {
+        max-width: 560px;
+        width: 100%;
+        background: var(--surface);
+        border-radius: var(--radius);
+        padding: 48px 40px;
+        text-align: center;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+        animation: fadeInUp 0.6s ease;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .error-icon {
+        font-size: 72px;
+        margin-bottom: 8px;
+        display: block;
+        animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+
+    .error-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 8px;
+    }
+
+    .error-description {
+        color: var(--text-secondary);
+        font-size: 16px;
+        line-height: 1.6;
+        margin-bottom: 6px;
+    }
+
+    .error-id {
+        display: inline-block;
+        background: var(--background);
+        padding: 6px 16px;
+        border-radius: var(--radius-sm);
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin: 8px 0 20px;
+        border: 1px dashed var(--border);
+        user-select: all;
+    }
+
+    .error-id .label {
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-right: 8px;
+    }
+
+    .error-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 28px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 15px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25);
+        cursor: pointer;
+    }
+
+    .btn-primary:hover {
+        background: var(--primary-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 49, 56, 0.35);
+    }
+
+    .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 28px;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 15px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+        background: var(--background);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .btn-report {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 20px;
+        background: transparent;
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 8px;
+    }
+
+    .btn-report:hover {
+        color: var(--primary);
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+
+    .error-suggestions {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .error-suggestions a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 13px;
+        transition: color 0.3s ease;
+    }
+
+    .error-suggestions a:hover {
+        color: var(--primary);
+    }
+
+    .error-suggestions .dot {
+        color: var(--text-muted);
+    }
+
+    /* Report Modal */
+    .report-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 99999;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        backdrop-filter: blur(4px);
+    }
+
+    .report-modal.open {
+        display: flex;
+    }
+
+    .report-modal .modal-content {
+        background: var(--surface);
+        border-radius: var(--radius);
+        padding: 32px;
+        max-width: 520px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-lg);
+        animation: fadeInUp 0.3s ease;
+    }
+
+    .report-modal .modal-content h3 {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 4px;
+    }
+
+    .report-modal .modal-content .subtitle {
+        color: var(--text-secondary);
+        font-size: 14px;
+        margin-bottom: 16px;
+    }
+
+    .report-modal .modal-content .field {
+        margin-bottom: 14px;
+    }
+
+    .report-modal .modal-content .field label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 4px;
+    }
+
+    .report-modal .modal-content .field textarea,
+    .report-modal .modal-content .field input {
+        width: 100%;
+        padding: 10px 14px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        background: var(--surface);
+        color: var(--text);
+        transition: var(--transition);
+        font-family: inherit;
+    }
+
+    .report-modal .modal-content .field textarea:focus,
+    .report-modal .modal-content .field input:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
+    }
+
+    .report-modal .modal-content .field textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .report-modal .modal-content .field .hint {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    .report-modal .modal-content .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+    }
+
+    .report-modal .modal-content .actions .btn-submit {
+        flex: 1;
+        padding: 12px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+    .report-modal .modal-content .actions .btn-submit:hover {
+        background: var(--primary-hover);
+    }
+
+    .report-modal .modal-content .actions .btn-cancel {
+        flex: 1;
+        padding: 12px;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+    .report-modal .modal-content .actions .btn-cancel:hover {
+        background: var(--background);
+    }
+
+    @media (max-width: 480px) {
+        .error-card {
+            padding: 28px 16px;
+        }
+        .error-icon {
+            font-size: 54px;
+        }
+        .error-title {
+            font-size: 22px;
+        }
+        .error-actions {
+            flex-direction: column;
+        }
+        .btn-primary,
+        .btn-secondary {
+            justify-content: center;
+        }
+        .report-modal .modal-content {
+            padding: 20px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-card">
+        <span class="error-icon">😅</span>
+        <h1 class="error-title">Something Went Wrong</h1>
+        <p class="error-description">
+            We're experiencing technical difficulties on our end.
+        </p>
+        <p class="error-description" style="font-size:14px; color: var(--text-muted);">
+            Our team has been notified and is working to fix the issue.
+        </p>
+
+        <div class="error-id">
+            <span class="label">🔍 Error ID:</span>
+            <span id="errorRequestId">{{ request_id or 'no-req' }}</span>
+        </div>
+
+        <div class="error-actions">
+            <button onclick="location.reload()" class="btn-primary">
+                <i class="fas fa-redo"></i> Try Again
+            </button>
+            <button onclick="openReportModal()" class="btn-secondary">
+                <i class="fas fa-bug"></i> Report This Problem
+            </button>
+        </div>
+
+        <button onclick="goHome()" class="btn-report">
+            <i class="fas fa-home"></i> Go to Dashboard
+        </button>
+
+        <div class="error-suggestions">
+            <a href="{{ url_for('quiz.index') }}">📝 Quizzes</a>
+            <span class="dot">•</span>
+            <a href="{{ url_for('groups.list_groups') }}">👥 Groups</a>
+            <span class="dot">•</span>
+            <a href="{{ url_for('pdfs.list_pdfs') }}">📄 PDFs</a>
+            <span class="dot">•</span>
+            <a href="{{ url_for('live_quiz.index') }}">⚡ Live Quiz</a>
+        </div>
+    </div>
+</div>
+
+<!-- Report Modal -->
+<div class="report-modal" id="reportModal">
+    <div class="modal-content">
+        <h3>📋 Report This Problem</h3>
+        <p class="subtitle">Help us fix this issue by telling us what happened.</p>
+
+        <form id="reportForm" method="POST" action="{{ url_for('admin_errors.report') }}">
+            <input type="hidden" name="request_id" value="{{ request_id or 'no-req' }}">
+            <input type="hidden" name="url" value="{{ request.url }}">
+
+            <div class="field">
+                <label for="description">What were you doing when this happened? <span style="color: var(--primary);">*</span></label>
+                <textarea id="description" name="description" required placeholder="e.g., I was trying to submit my quiz answer and the page froze..."></textarea>
+            </div>
+
+            <div class="field">
+                <label for="email">Email (optional)</label>
+                <input type="email" id="email" name="email" placeholder="your@email.com">
+                <div class="hint">We'll only use this to follow up if we need more information.</div>
+            </div>
+
+            <div class="actions">
+                <button type="button" class="btn-cancel" onclick="closeReportModal()">Cancel</button>
+                <button type="submit" class="btn-submit">
+                    <i class="fas fa-paper-plane"></i> Send Report
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openReportModal() {
+    document.getElementById('reportModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeReportModal() {
+    document.getElementById('reportModal').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function goHome() {
+    window.location.href = "{{ url_for('dashboard.home') if session.get('user_id') else url_for('login') }}";
+}
+
+// Close modal on click outside
+document.getElementById('reportModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeReportModal();
+    }
+});
+
+// Auto-focus description
+document.addEventListener('DOMContentLoaded', function() {
+    const description = document.getElementById('description');
+    if (description) {
+        description.focus();
+    }
+});
+</script>
+{% endblock %}
