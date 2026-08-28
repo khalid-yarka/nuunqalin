@@ -477,6 +477,44 @@
         opacity: 0.5;
         cursor: not-allowed;
     }
+
+    /* Error/Abort State */
+    .error-state {
+        text-align: center;
+        padding: 40px 20px;
+    }
+    .error-state .icon {
+        font-size: 56px;
+        margin-bottom: 12px;
+    }
+    .error-state h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 4px;
+    }
+    .error-state p {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-bottom: 16px;
+    }
+    .error-state .btn {
+        display: inline-block;
+        padding: 10px 28px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 15px;
+        text-decoration: none;
+        transition: var(--transition);
+        cursor: pointer;
+    }
+    .error-state .btn:hover {
+        background: var(--primary-hover);
+        transform: translateY(-2px);
+    }
     
     @keyframes pulse {
         0%, 100% { opacity: 1; }
@@ -504,6 +542,7 @@
         .creator-progress .progress-item .bar-wrap { width: 40px; }
         .creator-progress .progress-item .status { font-size: 10px; min-width: 40px; }
         .btn-leave { font-size: 13px; padding: 8px 16px; }
+        .error-state .icon { font-size: 40px; }
     }
     @media (max-width: 360px) {
         .question-text { font-size: 14px; }
@@ -587,6 +626,12 @@
         background: #3A1A1A;
         border-color: #F87171;
         color: #FCA5A5;
+    }
+    [data-theme="dark"] .error-state .btn {
+        background: #8B1A1A;
+    }
+    [data-theme="dark"] .error-state .btn:hover {
+        background: #6A1414;
     }
 </style>
 {% endblock %}
@@ -700,6 +745,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let pollTimer = null;
     let consecutiveNoChanges = 0;
     let lastState = null;
+    
+    // ============================================
+    // MAX RETRY LIMIT - Prevent infinite polling
+    // ============================================
+    let pollAttempts = 0;
+    const MAX_POLL_ATTEMPTS = 30; // ~45 seconds max
     
     // ============================================
     // BROWSER NOTIFICATION FUNCTIONS
@@ -911,13 +962,59 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // ============================================
-    // POLL QUIZ STATE - With browser notifications
+    // SHOW ERROR STATE - When quiz has no data
+    // ============================================
+    
+    function showErrorState(message, redirectUrl) {
+        const container = document.getElementById('questionContainer');
+        if (!container) return;
+        
+        // Stop all polling and timers
+        clearInterval(timerInterval);
+        clearTimeout(pollTimer);
+        clearTimeout(leaderboardTimer);
+        
+        container.innerHTML = `
+            <div class="error-state">
+                <div class="icon">⚠️</div>
+                <h3>Unable to load quiz</h3>
+                <p>${message || 'This quiz is no longer available or has been deleted.'}</p>
+                <a href="${redirectUrl || '/live-quiz/lobby'}" class="btn">
+                    <i class="fas fa-arrow-left"></i> Return to Lobby
+                </a>
+            </div>
+        `;
+        
+        // Show toast message
+        showToast(message || 'Quiz unavailable', 'error', 5000);
+    }
+    
+    // ============================================
+    // POLL QUIZ STATE - With abort logic & max retry
     // ============================================
     
     function pollQuizState() {
+        // Check max attempts
+        pollAttempts++;
+        if (pollAttempts > MAX_POLL_ATTEMPTS) {
+            showErrorState('Quiz is taking too long to load. Please try again later.', '/live-quiz/lobby');
+            return;
+        }
+        
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
+                // ============================================
+                // ABORT DETECTION - Stop polling and redirect
+                // ============================================
+                if (data.abort) {
+                    clearInterval(timerInterval);
+                    clearTimeout(pollTimer);
+                    clearTimeout(leaderboardTimer);
+                    showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby');
+                    return;
+                }
+                
                 if (data.error) {
                     console.warn('Polling error:', data.error);
                     pollInterval = Math.min(pollInterval + 500, 5000);
@@ -925,10 +1022,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
+                // Reset attempts on successful response
+                pollAttempts = 0;
+                
                 // SAFETY: Redirect if quiz is finished or waiting
                 if (data.status === 'finished' || data.status === 'waiting') {
                     if (data.status === 'finished') {
-                        // Send browser notification before redirect
                         sendBrowserNotification(
                             '🏆 Quiz Complete!',
                             quizTitle + ' has finished. Check your results!',
@@ -1010,7 +1109,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             showNotification('🚀 Quiz has started! Get ready!');
                             playNotificationSound();
                             
-                            // Browser Notification for quiz start
                             sendBrowserNotification(
                                 '🚀 Quiz Started!',
                                 quizTitle + ' has begun! Get ready to answer!',
@@ -1068,6 +1166,11 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/live-quiz/get-question/' + quizId + '?t=' + Date.now() + '&index=' + index)
             .then(response => response.json())
             .then(data => {
+                if (data.abort) {
+                    showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby');
+                    return;
+                }
+                
                 if (data.error) {
                     if (data.completed) {
                         isCompleted = true;
@@ -1171,6 +1274,11 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/live-quiz/get-question/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
+                if (data.abort) {
+                    showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby');
+                    return;
+                }
+                
                 if (data.error) {
                     if (data.completed) {
                         isCompleted = true;
@@ -1594,7 +1702,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // ============================================
-    // INITIALIZATION
+    // INITIALIZATION - With safety check
     // ============================================
     
     // Start polling - this will handle active, waiting, and finished states

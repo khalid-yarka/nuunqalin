@@ -701,6 +701,10 @@ def start_quiz(quiz_id):
     return jsonify({'success': True, 'quiz_id': quiz_id})
 
 
+# ============================================
+# UPDATED QUIZ STATE WITH ABORT LOGIC
+# ============================================
+
 @live_quiz_bp.route('/quiz-state/<quiz_id>')
 def quiz_state(quiz_id):
     if 'user_id' not in session:
@@ -709,21 +713,60 @@ def quiz_state(quiz_id):
     try:
         quiz = get_quiz_safe(quiz_id)
         if not quiz:
-            return jsonify({'error': 'Quiz not found'}), 404
+            return jsonify({
+                'error': 'Quiz not found or has been deleted',
+                'abort': True,
+                'redirect': url_for('live_quiz.lobby'),
+                'message': 'This quiz is no longer available'
+            }), 404
+
+        # ============================================
+        # VALIDATION: Check if quiz has valid data
+        # ============================================
+        question_ids = quiz.get('question_ids', [])
+        if quiz.get('status') == 'active' and len(question_ids) == 0:
+            # Active quiz with no questions - auto-finalize and redirect
+            finalize_live_quiz(quiz_id)
+            return jsonify({
+                'status': 'finished',
+                'remaining_time': 0,
+                'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
+            })
 
         participant = get_participant_safe(quiz_id, session['user_id'])
         if not participant:
-            return jsonify({'error': 'Not a participant'}), 404
+            return jsonify({
+                'error': 'You are not a participant in this quiz',
+                'abort': True,
+                'redirect': url_for('live_quiz.lobby'),
+                'message': 'You are not part of this quiz'
+            }), 404
 
+        # Check if participant's question index is out of bounds
+        current_index = participant.get('current_question_index', 0)
         total_questions = quiz.get('question_count', 0)
-        time_per_question = quiz.get('time_per_question', Config.LIVE_QUIZ_TIME_PER_QUESTION)
-        rating_time = Config.RATING_TIME
-        total_duration = total_questions * (time_per_question + rating_time)
+        if quiz.get('status') == 'active' and current_index >= total_questions and total_questions > 0:
+            # User has completed all questions but quiz not finalized
+            finalize_live_quiz(quiz_id)
+            return jsonify({
+                'status': 'finished',
+                'remaining_time': 0,
+                'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
+            })
 
-        # Get all participants for checks
+        # ============================================
+        # Get all participants for active count
+        # ============================================
         all_participants = get_all_participants_safe(quiz_id)
         active_participants = [p for p in all_participants if p.get('status') != 'left']
         active_count = len(active_participants)
+
+        # ============================================
+        # Time calculation
+        # ============================================
+        time_per_question = quiz.get('time_per_question', Config.LIVE_QUIZ_TIME_PER_QUESTION)
+        rating_time = Config.RATING_TIME
+        total_duration = total_questions * (time_per_question + rating_time)
 
         started_at = quiz.get('started_at')
         remaining = total_duration
@@ -739,57 +782,56 @@ def quiz_state(quiz_id):
                 remaining = total_duration
 
         # ============================================
-        # FIX: Auto-finalize stuck active quizzes
+        # AUTO-FINALIZE STUCK ACTIVE QUIZZES
         # ============================================
         if quiz.get('status') == 'active':
             # Case 1: No active participants left
             if active_count == 0:
-                finalize_result = finalize_live_quiz(quiz_id)
-                if finalize_result['success']:
-                    quiz = get_live_quiz_by_id(quiz_id)
-                    return jsonify({
-                        'status': 'finished',
-                        'remaining_time': 0,
-                        'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
-                    })
-
-            # Case 2: started_at is None (should never happen, but safety)
-            if quiz.get('started_at') is None:
-                finalize_result = finalize_live_quiz(quiz_id)
-                if finalize_result['success']:
-                    quiz = get_live_quiz_by_id(quiz_id)
-                    return jsonify({
-                        'status': 'finished',
-                        'remaining_time': 0,
-                        'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
-                    })
-
-        # If time expired and quiz is still active, finalize it
-        if remaining <= 0 and quiz.get('status') == 'active':
-            finalize_result = finalize_live_quiz(quiz_id)
-            if finalize_result['success']:
-                quiz = get_live_quiz_by_id(quiz_id)
+                finalize_live_quiz(quiz_id)
                 return jsonify({
                     'status': 'finished',
                     'remaining_time': 0,
                     'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
                 })
 
-        current_index = participant.get('current_question_index', 0)
-        is_completed = current_index >= total_questions
+            # Case 2: started_at is None (should never happen, but safety)
+            if quiz.get('started_at') is None:
+                finalize_live_quiz(quiz_id)
+                return jsonify({
+                    'status': 'finished',
+                    'remaining_time': 0,
+                    'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
+                })
 
+        # ============================================
+        # Time expiry finalization
+        # ============================================
+        if remaining <= 0 and quiz.get('status') == 'active':
+            finalize_live_quiz(quiz_id)
+            return jsonify({
+                'status': 'finished',
+                'remaining_time': 0,
+                'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
+            })
+
+        # ============================================
+        # Check if all active participants completed
+        # ============================================
         completed_count = sum(1 for p in active_participants if p.get('current_question_index', 0) >= total_questions)
         all_completed = completed_count == active_count and active_count > 0
 
         if all_completed and quiz.get('status') == 'active':
-            finalize_result = finalize_live_quiz(quiz_id)
-            if finalize_result['success']:
-                quiz = get_live_quiz_by_id(quiz_id)
-                return jsonify({
-                    'status': 'finished',
-                    'remaining_time': 0,
-                    'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
-                })
+            finalize_live_quiz(quiz_id)
+            return jsonify({
+                'status': 'finished',
+                'remaining_time': 0,
+                'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
+            })
+
+        # ============================================
+        # Build response
+        # ============================================
+        is_completed = current_index >= total_questions
 
         response = {
             'status': quiz.get('status'),
@@ -808,7 +850,7 @@ def quiz_state(quiz_id):
             'active_participants': active_count
         }
 
-        question_ids = quiz.get('question_ids', [])
+        # Check if current question was answered
         if current_index < len(question_ids):
             qid = question_ids[current_index]
             answers = participant.get('answers', {})
@@ -838,7 +880,12 @@ def quiz_state(quiz_id):
 
     except Exception as e:
         print(f"Error in quiz_state: {e}")
-        return jsonify({'error': 'Failed to get quiz state'}), 500
+        return jsonify({
+            'error': 'Server error loading quiz state',
+            'abort': True,
+            'redirect': url_for('live_quiz.lobby'),
+            'message': 'An error occurred loading the quiz'
+        }), 500
 
 
 @live_quiz_bp.route('/get-question/<quiz_id>')
@@ -849,7 +896,12 @@ def get_question(quiz_id):
     try:
         quiz = get_quiz_safe(quiz_id)
         if not quiz:
-            return jsonify({'error': 'Quiz not found'}), 404
+            return jsonify({
+                'error': 'Quiz not found',
+                'abort': True,
+                'redirect': url_for('live_quiz.lobby'),
+                'message': 'Quiz no longer available'
+            }), 404
 
         if quiz.get('status') == 'finished':
             return jsonify({'completed': True, 'status': 'finished'})
@@ -859,7 +911,12 @@ def get_question(quiz_id):
 
         participant = get_participant_safe(quiz_id, session['user_id'])
         if not participant:
-            return jsonify({'error': 'Not a participant'}), 404
+            return jsonify({
+                'error': 'Not a participant',
+                'abort': True,
+                'redirect': url_for('live_quiz.lobby'),
+                'message': 'You are not part of this quiz'
+            }), 404
 
         current_index = participant.get('current_question_index', 0)
         total_questions = quiz.get('question_count', 0)
@@ -869,10 +926,12 @@ def get_question(quiz_id):
 
         question_ids = quiz.get('question_ids', [])
         if current_index >= len(question_ids):
+            # No more questions - mark completed
             return jsonify({'completed': True})
 
         question_id = question_ids[current_index]
 
+        # Check if already answered
         answers = participant.get('answers', {})
         if str(question_id) in answers:
             answer_data = answers[str(question_id)]
@@ -890,12 +949,14 @@ def get_question(quiz_id):
                     'explanation': question.get('explanation', '')
                 })
             else:
+                # Question missing - skip it
                 new_index = current_index + 1
                 update_participant_safe(quiz_id, session['user_id'], {
                     'current_question_index': new_index
                 })
                 return jsonify({'skipped': True})
 
+        # Check if already rated
         ratings = participant.get('ratings', {})
         if str(question_id) in ratings:
             new_index = current_index + 1
@@ -906,7 +967,12 @@ def get_question(quiz_id):
 
         question = get_question_by_id(question_id)
         if not question:
-            return jsonify({'error': 'Question not found'}), 404
+            # Question not found - skip it
+            new_index = current_index + 1
+            update_participant_safe(quiz_id, session['user_id'], {
+                'current_question_index': new_index
+            })
+            return jsonify({'skipped': True})
 
         return jsonify({
             'question': question,
@@ -917,7 +983,12 @@ def get_question(quiz_id):
 
     except Exception as e:
         print(f"Error in get_question: {e}")
-        return jsonify({'error': 'Failed to load question'}), 500
+        return jsonify({
+            'error': 'Server error loading question',
+            'abort': True,
+            'redirect': url_for('live_quiz.lobby'),
+            'message': 'An error occurred loading the question'
+        }), 500
 
 
 @live_quiz_bp.route('/submit-answer', methods=['POST'])
@@ -1231,10 +1302,6 @@ def rejoin_quiz(quiz_id):
 
     return jsonify({'error': 'Failed to rejoin quiz'}), 500
 
-
-# ============================================
-# DELETE QUIZ ROUTE - NEW FEATURE
-# ============================================
 
 @live_quiz_bp.route('/delete/<quiz_id>', methods=['POST'])
 def delete_quiz(quiz_id):
