@@ -684,7 +684,7 @@
                     {% if quiz.status == 'active' and quiz.remaining_seconds %}
                         <span class="time-remaining">
                             <span class="clock">⏱️</span>
-                            {{ (quiz.remaining_seconds // 60)|int }}:{{ (quiz.remaining_seconds % 60)|string|zfill(2) }} remaining
+                            {{ (quiz.remaining_seconds // 60)|int }}:{{ '%02d' % (quiz.remaining_seconds % 60) }} remaining
                         </span>
                     {% endif %}
                 </div>
