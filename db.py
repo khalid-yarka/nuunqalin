@@ -2338,3 +2338,18 @@ def get_active_participants(quiz_id: int) -> list:
     except Exception as e:
         logger.error(f"Error getting active participants: {e}")
         return []
+
+# ============================================
+# DELETE LIVE QUIZ FUNCTION
+# ============================================
+
+def delete_live_quiz(quiz_id: int) -> bool:
+    """Delete a live quiz and all its participants."""
+    try:
+        # Delete participants first (cascade will handle, but explicit for safety)
+        execute_with_retry("DELETE FROM live_quiz_participants WHERE quiz_id = ?", (quiz_id,), commit=True)
+        execute_with_retry("DELETE FROM live_quizzes WHERE id = ?", (quiz_id,), commit=True)
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting live quiz {quiz_id}: {e}")
+        return False

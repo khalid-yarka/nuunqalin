@@ -444,6 +444,42 @@
         box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
     }
 
+    /* Delete Button */
+    .btn-delete {
+        margin-top: 10px;
+        padding: 8px 20px;
+        background: transparent;
+        color: #EF4444;
+        border: 1px solid #EF4444;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: var(--transition);
+        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .btn-delete:hover {
+        background: #FEF2F2;
+        border-color: #DC2626;
+        color: #DC2626;
+    }
+
+    [data-theme="dark"] .btn-delete {
+        color: #F87171;
+        border-color: #F87171;
+    }
+
+    [data-theme="dark"] .btn-delete:hover {
+        background: #3A1A1A;
+        border-color: #F87171;
+        color: #FCA5A5;
+    }
+
     @media (max-width: 480px) {
         .waiting-room-container {
             padding: 0 4px;
@@ -454,7 +490,7 @@
         .participant-item { padding: 6px 10px; font-size: 13px; }
         .btn-start { font-size: 16px; padding: 12px 24px; }
         .share-buttons a { font-size: 12px; padding: 4px 10px; }
-        .btn-leave, .btn-rejoin { font-size: 13px; padding: 8px 16px; }
+        .btn-leave, .btn-rejoin, .btn-delete { font-size: 13px; padding: 8px 16px; }
     }
 
     @media (max-width: 360px) {
@@ -564,6 +600,11 @@
             <button class="btn-start" id="startQuizBtn" {% if active_participant_count < 2 %}disabled{% endif %}>
                 <i class="fas fa-play"></i> Start Quiz
             </button>
+
+            <!-- Delete Button for Creator -->
+            <button class="btn-delete" id="deleteBtn">
+                <i class="fas fa-trash"></i> Delete Quiz
+            </button>
         {% else %}
             {% if user_participant_status == 'left' %}
                 <div class="waiting-message">
@@ -590,10 +631,35 @@
     </div>
 </div>
 
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div style="background: var(--surface); border-radius: var(--radius); padding: 32px; max-width: 450px; width: 90%; box-shadow: var(--shadow-lg);">
+        <div style="text-align: center; margin-bottom: 16px;">
+            <div style="font-size: 48px; margin-bottom: 8px;">⚠️</div>
+            <h3 style="font-size: 20px; font-weight: 700; color: var(--text);">Delete Quiz</h3>
+            <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">
+                Are you sure you want to delete <strong id="deleteQuizTitle">{{ quiz.title or 'this quiz' }}</strong>?
+            </p>
+            <p style="color: var(--text-muted); font-size: 13px; margin-top: 8px;">
+                This action <strong style="color: #EF4444;">cannot be undone</strong> and will remove all participant data.
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="closeDeleteModal()" style="flex: 1; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; transition: var(--transition);">
+                Cancel
+            </button>
+            <button id="confirmDeleteBtn" style="flex: 1; padding: 10px; background: #EF4444; color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; transition: var(--transition);">
+                <i class="fas fa-trash"></i> Delete Permanently
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const isCreator = {{ 'true' if is_creator else 'false' }};
     const quizId = '{{ quiz.id }}';
+    const quizTitle = '{{ quiz.title or 'Live Quiz' }}';
     const quizStatus = '{{ quiz.status }}';
     const userParticipantStatus = '{{ user_participant_status or "active" }}';
     
@@ -638,7 +704,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     window.shareTelegram = shareTelegram;
     
-    // Leave button
+    // ============================================
+    // LEAVE BUTTON
+    // ============================================
+    
     const leaveBtn = document.getElementById('leaveBtn');
     if (leaveBtn) {
         leaveBtn.addEventListener('click', function() {
@@ -669,7 +738,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Rejoin button
+    // ============================================
+    // REJOIN BUTTON
+    // ============================================
+    
     const rejoinBtn = document.getElementById('rejoinBtn');
     if (rejoinBtn) {
         rejoinBtn.addEventListener('click', function() {
@@ -698,7 +770,86 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Creator start button
+    // ============================================
+    // DELETE QUIZ BUTTON
+    // ============================================
+    
+    let deleteQuizId = null;
+    let deleteQuizTitle = '';
+
+    function openDeleteModal(quizId, title) {
+        deleteQuizId = quizId;
+        deleteQuizTitle = title;
+        document.getElementById('deleteQuizTitle').textContent = title || 'this quiz';
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+        deleteQuizId = null;
+    }
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        if (!deleteQuizId) return;
+
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+
+        fetch('/live-quiz/delete/' + deleteQuizId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (window.showToast) window.showToast('✅ Quiz deleted successfully', 'success');
+                else alert('✅ Quiz deleted successfully');
+                closeDeleteModal();
+                setTimeout(function() {
+                    window.location.href = '/live-quiz/lobby';
+                }, 500);
+            } else {
+                alert(data.error || 'Failed to delete quiz');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-trash"></i> Delete Permanently';
+            }
+        })
+        .catch(function() {
+            alert('Error deleting quiz. Please try again.');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Delete Permanently';
+        });
+    });
+
+    // Close modal on click outside
+    document.getElementById('deleteModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeDeleteModal();
+        }
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && document.getElementById('deleteModal').style.display === 'flex') {
+            closeDeleteModal();
+        }
+    });
+
+    const deleteBtn = document.getElementById('deleteBtn');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function() {
+            openDeleteModal(quizId, quizTitle);
+        });
+    }
+    
+    // ============================================
+    // START QUIZ BUTTON (Creator only)
+    // ============================================
+    
     const startBtn = document.getElementById('startQuizBtn');
     if (startBtn) {
         startBtn.addEventListener('click', function() {
@@ -747,6 +898,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // ============================================
+    // POLL QUIZ STATUS FOR REDIRECT
+    // ============================================
     
     let isRedirecting = false;
     
@@ -808,10 +963,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 if (status === 'waiting') {
-                    // Update active participant count
                     if (data.total_participants !== undefined) {
-                        const activeCount = data.total_participants; // Assuming total_participants is active count
-                        // We'll use data.active_participants if available, else total_participants
                         const count = data.active_participants || data.total_participants;
                         const countEl = document.getElementById('participantCount');
                         const labelEl = document.getElementById('participantCountLabel');
@@ -836,7 +988,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         }
                         
-                        // Refresh participant list if count changed
                         if (count !== lastKnownCount) {
                             lastKnownCount = count;
                             refreshParticipantList();

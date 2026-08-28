@@ -12,7 +12,8 @@ from db import (
     get_student_by_id,
     notify_live_quiz_start, notify_live_quiz_results, notify_participant_joined,
     get_live_quizzes_lobby, get_live_quiz_stats, can_join_live_quiz,
-    leave_live_quiz, rejoin_live_quiz, get_active_participants
+    leave_live_quiz, rejoin_live_quiz, get_active_participants,
+    delete_live_quiz
 )
 from config import Config
 from utils import get_somali_time_db, get_somali_time_display
@@ -719,6 +720,11 @@ def quiz_state(quiz_id):
         rating_time = Config.RATING_TIME
         total_duration = total_questions * (time_per_question + rating_time)
 
+        # Get all participants for checks
+        all_participants = get_all_participants_safe(quiz_id)
+        active_participants = [p for p in all_participants if p.get('status') != 'left']
+        active_count = len(active_participants)
+
         started_at = quiz.get('started_at')
         remaining = total_duration
         if started_at:
@@ -731,6 +737,32 @@ def quiz_state(quiz_id):
                 remaining = max(0, total_duration - elapsed)
             except Exception:
                 remaining = total_duration
+
+        # ============================================
+        # FIX: Auto-finalize stuck active quizzes
+        # ============================================
+        if quiz.get('status') == 'active':
+            # Case 1: No active participants left
+            if active_count == 0:
+                finalize_result = finalize_live_quiz(quiz_id)
+                if finalize_result['success']:
+                    quiz = get_live_quiz_by_id(quiz_id)
+                    return jsonify({
+                        'status': 'finished',
+                        'remaining_time': 0,
+                        'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
+                    })
+
+            # Case 2: started_at is None (should never happen, but safety)
+            if quiz.get('started_at') is None:
+                finalize_result = finalize_live_quiz(quiz_id)
+                if finalize_result['success']:
+                    quiz = get_live_quiz_by_id(quiz_id)
+                    return jsonify({
+                        'status': 'finished',
+                        'remaining_time': 0,
+                        'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
+                    })
 
         # If time expired and quiz is still active, finalize it
         if remaining <= 0 and quiz.get('status') == 'active':
@@ -746,12 +778,8 @@ def quiz_state(quiz_id):
         current_index = participant.get('current_question_index', 0)
         is_completed = current_index >= total_questions
 
-        # Get all participants and count active ones
-        all_participants = get_all_participants_safe(quiz_id)
-        active_participants = [p for p in all_participants if p.get('status') in ['active', 'completed']]
-        participant_count = len(active_participants)
         completed_count = sum(1 for p in active_participants if p.get('current_question_index', 0) >= total_questions)
-        all_completed = completed_count == participant_count and participant_count > 0
+        all_completed = completed_count == active_count and active_count > 0
 
         if all_completed and quiz.get('status') == 'active':
             finalize_result = finalize_live_quiz(quiz_id)
@@ -768,7 +796,7 @@ def quiz_state(quiz_id):
             'total_duration': total_duration,
             'remaining_time': int(remaining),
             'completed_count': completed_count,
-            'total_participants': participant_count,
+            'total_participants': active_count,
             'is_completed': is_completed,
             'current_question_index': current_index,
             'total_questions': total_questions,
@@ -777,7 +805,7 @@ def quiz_state(quiz_id):
             'current_question_answered': False,
             'current_question_answer': None,
             'current_question_correct': False,
-            'active_participants': participant_count
+            'active_participants': active_count
         }
 
         question_ids = quiz.get('question_ids', [])
@@ -1164,7 +1192,6 @@ def leave_quiz(quiz_id):
     # Mark as left
     success = leave_live_quiz(quiz_id, session['user_id'])
     if success:
-        # Clear any session quiz data if needed
         return jsonify({
             'success': True,
             'message': 'You have left the quiz',
@@ -1203,6 +1230,35 @@ def rejoin_quiz(quiz_id):
         })
 
     return jsonify({'error': 'Failed to rejoin quiz'}), 500
+
+
+# ============================================
+# DELETE QUIZ ROUTE - NEW FEATURE
+# ============================================
+
+@live_quiz_bp.route('/delete/<quiz_id>', methods=['POST'])
+def delete_quiz(quiz_id):
+    """Delete a live quiz (creator or admin only)."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    quiz = get_live_quiz_by_id(quiz_id)
+    if not quiz:
+        return jsonify({'error': 'Quiz not found'}), 404
+
+    # Check permission: creator or admin
+    if quiz['creator_id'] != session['user_id'] and not is_admin(session['user_id']):
+        return jsonify({'error': 'Permission denied'}), 403
+
+    # Remove from cache first
+    cache = get_quiz_cache()
+    cache.remove_quiz(quiz_id)
+
+    # Delete from database
+    success = delete_live_quiz(quiz_id)
+    if success:
+        return jsonify({'success': True, 'message': 'Quiz deleted'})
+    return jsonify({'error': 'Failed to delete quiz'}), 500
 
 
 @live_quiz_bp.route('/results/<quiz_id>')
