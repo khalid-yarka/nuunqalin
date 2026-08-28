@@ -16,17 +16,11 @@ from config import Config
 from utils import get_somali_time_db, get_somali_time_display
 import secrets
 import string
-import random
 import csv
 from io import StringIO
 from datetime import datetime, timezone
 import time
 import threading
-
-# ============================================
-# IMPORT QUIZ CACHE
-# ============================================
-
 from quiz_cache import get_quiz_cache, flush_cache, cleanup_cache
 
 live_quiz_bp = Blueprint('live_quiz', __name__, url_prefix='/live-quiz')
@@ -37,40 +31,26 @@ live_quiz_bp = Blueprint('live_quiz', __name__, url_prefix='/live-quiz')
 # ============================================
 
 def get_quiz_safe(quiz_id: int):
-    """
-    Retrieve quiz from cache if available, otherwise from SQLite.
-    Always returns the quiz dict (with question_ids parsed), or None.
-    """
     cache = get_quiz_cache()
     quiz = cache.get_quiz(quiz_id)
     if quiz is None:
-        # Fallback to DB
         quiz = get_live_quiz_by_id(quiz_id)
         if quiz:
-            # Populate cache for future requests
             cache.create_quiz(quiz_id, quiz)
     return quiz
 
 
 def get_participant_safe(quiz_id: int, user_id: int):
-    """
-    Retrieve participant from cache first, then DB.
-    Ensures that the name is stored in the cache if missing.
-    """
     cache = get_quiz_cache()
     participant = cache.get_participant(quiz_id, user_id)
     if participant is None:
-        # Load from DB
         participant = get_live_quiz_participant(quiz_id, user_id)
         if participant:
-            # Ensure name is present
             student = get_student_by_id(user_id)
             name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Participant' if student else 'Participant'
             participant['name'] = name
-            # Add to cache
             cache.add_participant(quiz_id, user_id, participant)
     else:
-        # Ensure name is present even in cached version
         if 'name' not in participant or participant['name'] == 'Participant':
             student = get_student_by_id(user_id)
             if student:
@@ -81,28 +61,14 @@ def get_participant_safe(quiz_id: int, user_id: int):
 
 
 def update_participant_safe(quiz_id: int, user_id: int, updates: dict):
-    """
-    Update participant data in SQLite first, then update cache.
-    Returns the updated participant dict or None if not found.
-    """
-    # 1. Load current participant from DB
     participant = get_live_quiz_participant(quiz_id, user_id)
     if not participant:
         return None
-
-    # 2. Apply updates to the DB record
-    # We need to update only the fields provided.
-    # The update_live_quiz_participant function expects participant_id and updates dict.
     update_live_quiz_participant(participant['id'], updates)
-
-    # 3. Refresh the participant data from DB to get the full updated row
     updated = get_live_quiz_participant(quiz_id, user_id)
     if updated:
-        # 4. Update cache
         cache = get_quiz_cache()
         cache.update_participant(quiz_id, user_id, updates)
-        # Also ensure the cache has the full participant data if needed
-        # We can just add the updated dict (with name) again
         student = get_student_by_id(user_id)
         name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Participant' if student else 'Participant'
         updated['name'] = name
@@ -112,16 +78,10 @@ def update_participant_safe(quiz_id: int, user_id: int, updates: dict):
 
 
 def get_all_participants_safe(quiz_id: int):
-    """
-    Get all participants for a quiz, using cache if possible, otherwise DB.
-    Returns a list of participant dicts.
-    """
     cache = get_quiz_cache()
     participants = cache.get_all_participants(quiz_id)
     if not participants:
-        # Load from DB and fill cache
         db_participants = get_live_quiz_participants_with_names(quiz_id)
-        # Add each to cache
         for p in db_participants:
             student = p.get('student', {})
             name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown'
@@ -138,7 +98,6 @@ def get_all_participants_safe(quiz_id: int):
             })
         return db_participants
     else:
-        # Convert cache dict to list
         result = []
         for uid, p in participants.items():
             result.append({
@@ -161,14 +120,12 @@ def get_all_participants_safe(quiz_id: int):
 # ============================================
 
 def generate_join_code():
-    """Generate a join code: 4 letters + hyphen + 4 numbers (e.g., A3B9-X7K2)"""
     letters = ''.join(secrets.choice(string.ascii_uppercase + '123456789') for _ in range(4))
     numbers = ''.join(secrets.choice('123456789') for _ in range(4))
     return f"{letters}-{numbers}"
 
 
 def generate_unique_join_code():
-    """Generate a unique join code"""
     code = generate_join_code()
     while True:
         quiz = get_live_quiz_by_code(code)
@@ -178,18 +135,16 @@ def generate_unique_join_code():
 
 
 def get_questions_for_subject(subject_id, limit):
-    """Get random questions for a subject"""
     questions = get_questions_by_subject(subject_id, limit)
     available = len(questions)
     return questions, available
 
 
 # ============================================
-# CACHE CLEANUP THREAD (kept for performance, but not critical)
+# CACHE CLEANUP THREAD
 # ============================================
 
 def start_cache_cleanup():
-    """Start background thread for cache cleanup."""
     def cleanup_loop():
         while True:
             try:
@@ -207,12 +162,68 @@ _cleanup_thread = start_cache_cleanup()
 
 
 # ============================================
+# PRIORITY 4: CENTRALIZED FINALIZE FUNCTION
+# ============================================
+
+def finalize_live_quiz(quiz_id: int) -> dict:
+    """
+    Finalize a live quiz: set status to finished, calculate rankings,
+    clear cache, and send notifications.
+    Returns a dict with success status and any errors.
+    """
+    try:
+        quiz = get_live_quiz_by_id(quiz_id)
+        if not quiz:
+            return {'success': False, 'message': 'Quiz not found'}
+
+        if quiz.get('status') == 'finished':
+            return {'success': True, 'message': 'Already finished'}
+
+        # 1. Update quiz status
+        update_live_quiz(quiz_id, {
+            'status': 'finished',
+            'ended_at': get_somali_time_db()
+        })
+
+        # 2. Get all participants
+        participants = get_live_quiz_participants_with_names(quiz_id)
+        if not participants:
+            # No participants, just finish
+            cache = get_quiz_cache()
+            cache.remove_quiz(quiz_id)
+            return {'success': True, 'message': 'Quiz finished (no participants)'}
+
+        # 3. Sort by score descending
+        sorted_parts = sorted(participants, key=lambda x: x.get('score', 0), reverse=True)
+
+        # 4. Update rankings in DB
+        for i, p in enumerate(sorted_parts, 1):
+            update_live_quiz_participant(p['id'], {'ranking': i})
+
+        # 5. Clear from cache
+        cache = get_quiz_cache()
+        cache.remove_quiz(quiz_id)
+
+        # 6. Send notifications
+        notify_live_quiz_results(
+            quiz_id,
+            quiz.get('title', 'Live Quiz'),
+            sorted_parts
+        )
+
+        return {'success': True, 'message': 'Quiz finalized', 'participants': sorted_parts}
+
+    except Exception as e:
+        print(f"Error finalizing quiz {quiz_id}: {e}")
+        return {'success': False, 'message': str(e)}
+
+
+# ============================================
 # ROUTES
 # ============================================
 
 @live_quiz_bp.route('/')
 def index():
-    """Live quiz home"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
@@ -270,14 +281,11 @@ def create():
         quiz = create_live_quiz(data)
 
         if quiz:
-            # Get user name
             user = get_student_by_id(session['user_id'])
             user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
 
-            # Add creator as participant
             add_live_quiz_participant(quiz['id'], session['user_id'])
 
-            # Populate cache (optional)
             cache = get_quiz_cache()
             cache.create_quiz(quiz['id'], quiz)
             cache.add_participant(quiz['id'], session['user_id'], {
@@ -364,7 +372,6 @@ def create_with_available():
 
 @live_quiz_bp.route('/join', methods=['GET', 'POST'])
 def join():
-    """Join a live quiz via join code — IDEMPOTENT"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
@@ -377,32 +384,26 @@ def join():
 
         join_code = join_code.replace(' ', '')
 
-        # Check if quiz exists and is waiting
         quiz = get_active_live_quiz(join_code)
         if not quiz:
             flash('Invalid join code or quiz has already started.', 'error')
             return render_template('dashboard/live_quiz/join.html')
 
-        # Check if user already joined (idempotent)
         participant = get_live_quiz_participant(quiz['id'], session['user_id'])
         if participant:
             flash('You have already joined this quiz.', 'info')
             return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
 
-        # Check max participants
         participant_count = get_live_quiz_count(quiz['id'])
         if participant_count >= quiz.get('max_participants', 50):
             flash('This quiz is full.', 'error')
             return render_template('dashboard/live_quiz/join.html')
 
-        # Get user name
         user = get_student_by_id(session['user_id'])
         user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
 
-        # Join the quiz (DB insert)
         add_live_quiz_participant(quiz['id'], session['user_id'])
 
-        # Update cache
         cache = get_quiz_cache()
         cache.add_participant(quiz['id'], session['user_id'], {
             'name': user_name,
@@ -416,7 +417,6 @@ def join():
             'status': 'active'
         })
 
-        # Notify creator
         notify_participant_joined(
             quiz['id'],
             quiz.get('title', 'Live Quiz'),
@@ -432,18 +432,15 @@ def join():
 
 @live_quiz_bp.route('/waiting-room/<quiz_id>')
 def waiting_room(quiz_id):
-    """Waiting room — safe to refresh"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
 
-    # Always load from DB to ensure consistency
     quiz = get_live_quiz_with_subject(quiz_id)
     if not quiz:
         flash('Quiz not found.', 'error')
         return redirect(url_for('live_quiz.index'))
 
-    # Check if user is participant or creator
     participant = get_live_quiz_participant(quiz_id, session['user_id'])
     if not participant and quiz['creator_id'] != session['user_id']:
         flash('You are not a participant in this quiz.', 'error')
@@ -451,7 +448,6 @@ def waiting_room(quiz_id):
 
     is_creator = quiz['creator_id'] == session['user_id']
 
-    # Get participants from DB
     participants_data = get_live_quiz_participants(quiz_id)
     formatted_participants = []
     for p in participants_data:
@@ -491,20 +487,17 @@ def start_quiz(quiz_id):
     if participant_count < 2:
         return jsonify({'error': 'Need at least 2 participants to start'}), 400
 
-    # Update DB
     update_live_quiz(quiz_id, {
         'status': 'active',
         'started_at': get_somali_time_db()
     })
 
-    # Update cache
     cache = get_quiz_cache()
     cache.update_quiz(quiz_id, {
         'status': 'active',
         'started_at': get_somali_time_db()
     })
 
-    # Reset participants' state
     participants = get_live_quiz_participants(quiz_id)
     for p in participants:
         student = get_student_by_id(p['student_id'])
@@ -519,7 +512,6 @@ def start_quiz(quiz_id):
             'answers': {},
             'ratings': {}
         })
-        # Update cache
         cache.update_participant(quiz_id, p['student_id'], {
             'name': name,
             'current_question_index': 0,
@@ -531,20 +523,127 @@ def start_quiz(quiz_id):
             'ratings': {}
         })
 
-    # Notify participants
     notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
 
     return jsonify({'success': True, 'quiz_id': quiz_id})
 
 
-@live_quiz_bp.route('/get-question/<quiz_id>')
-def get_question(quiz_id):
-    """Get current question for the user — uses safe DB read"""
+@live_quiz_bp.route('/quiz-state/<quiz_id>')
+def quiz_state(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
 
     try:
-        # Load quiz from DB (or cache if available)
+        quiz = get_quiz_safe(quiz_id)
+        if not quiz:
+            return jsonify({'error': 'Quiz not found'}), 404
+
+        participant = get_participant_safe(quiz_id, session['user_id'])
+        if not participant:
+            return jsonify({'error': 'Not a participant'}), 404
+
+        total_questions = quiz.get('question_count', 0)
+        time_per_question = quiz.get('time_per_question', Config.LIVE_QUIZ_TIME_PER_QUESTION)
+        rating_time = Config.RATING_TIME
+        total_duration = total_questions * (time_per_question + rating_time)
+
+        started_at = quiz.get('started_at')
+        remaining = total_duration
+        if started_at:
+            try:
+                if isinstance(started_at, str):
+                    started = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+                else:
+                    started = started_at
+                elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+                remaining = max(0, total_duration - elapsed)
+            except Exception:
+                remaining = total_duration
+
+        # If time expired and quiz is still active, finalize it
+        if remaining <= 0 and quiz.get('status') == 'active':
+            finalize_result = finalize_live_quiz(quiz_id)
+            if finalize_result['success']:
+                quiz = get_live_quiz_by_id(quiz_id)
+                return jsonify({
+                    'status': 'finished',
+                    'remaining_time': 0,
+                    'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
+                })
+
+        current_index = participant.get('current_question_index', 0)
+        is_completed = current_index >= total_questions
+
+        participant_count = get_live_quiz_count(quiz_id)
+        all_participants = get_all_participants_safe(quiz_id)
+        completed_count = sum(1 for p in all_participants if p.get('current_question_index', 0) >= total_questions)
+        all_completed = completed_count == participant_count and participant_count > 0
+
+        if all_completed and quiz.get('status') == 'active':
+            finalize_result = finalize_live_quiz(quiz_id)
+            if finalize_result['success']:
+                quiz = get_live_quiz_by_id(quiz_id)
+                return jsonify({
+                    'status': 'finished',
+                    'remaining_time': 0,
+                    'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)
+                })
+
+        response = {
+            'status': quiz.get('status'),
+            'total_duration': total_duration,
+            'remaining_time': int(remaining),
+            'completed_count': completed_count,
+            'total_participants': participant_count,
+            'is_completed': is_completed,
+            'current_question_index': current_index,
+            'total_questions': total_questions,
+            'all_completed': all_completed,
+            'score': participant.get('score', 0),
+            'current_question_answered': False,
+            'current_question_answer': None,
+            'current_question_correct': False
+        }
+
+        question_ids = quiz.get('question_ids', [])
+        if current_index < len(question_ids):
+            qid = question_ids[current_index]
+            answers = participant.get('answers', {})
+            if str(qid) in answers:
+                response['current_question_answered'] = True
+                response['current_question_answer'] = answers[str(qid)].get('answer')
+                response['current_question_correct'] = answers[str(qid)].get('correct', False)
+
+        # PRIORITY 7: If user is creator, include participant progress
+        if quiz.get('creator_id') == session['user_id']:
+            progress = []
+            for p in all_participants:
+                progress.append({
+                    'user_id': p.get('student_id'),
+                    'name': p.get('name', 'Unknown'),
+                    'current_question_index': p.get('current_question_index', 0),
+                    'total_questions': total_questions,
+                    'status': p.get('status', 'active'),
+                    'score': p.get('score', 0)
+                })
+            response['participant_progress'] = progress
+
+        if quiz.get('status') == 'finished':
+            response['redirect_url'] = url_for('live_quiz.results', quiz_id=quiz_id)
+
+        return jsonify(response)
+
+    except Exception as e:
+        print(f"Error in quiz_state: {e}")
+        return jsonify({'error': 'Failed to get quiz state'}), 500
+
+
+@live_quiz_bp.route('/get-question/<quiz_id>')
+def get_question(quiz_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    try:
         quiz = get_quiz_safe(quiz_id)
         if not quiz:
             return jsonify({'error': 'Quiz not found'}), 404
@@ -555,7 +654,6 @@ def get_question(quiz_id):
         if quiz.get('status') != 'active':
             return jsonify({'waiting': True, 'status': quiz.get('status')})
 
-        # Get participant (DB first, cache optional)
         participant = get_participant_safe(quiz_id, session['user_id'])
         if not participant:
             return jsonify({'error': 'Not a participant'}), 404
@@ -572,7 +670,6 @@ def get_question(quiz_id):
 
         question_id = question_ids[current_index]
 
-        # Check if already answered (for refresh recovery)
         answers = participant.get('answers', {})
         if str(question_id) in answers:
             answer_data = answers[str(question_id)]
@@ -590,14 +687,12 @@ def get_question(quiz_id):
                     'explanation': question.get('explanation', '')
                 })
             else:
-                # Question missing, skip it and advance in DB
                 new_index = current_index + 1
                 update_participant_safe(quiz_id, session['user_id'], {
                     'current_question_index': new_index
                 })
                 return jsonify({'skipped': True})
 
-        # Check if already rated (skip to next if so)
         ratings = participant.get('ratings', {})
         if str(question_id) in ratings:
             new_index = current_index + 1
@@ -618,15 +713,12 @@ def get_question(quiz_id):
         })
 
     except Exception as e:
-        # Log and return safe error
-        import traceback
-        print(f"Error in get_question: {e}\n{traceback.format_exc()}")
+        print(f"Error in get_question: {e}")
         return jsonify({'error': 'Failed to load question'}), 500
 
 
 @live_quiz_bp.route('/submit-answer', methods=['POST'])
 def submit_answer():
-    """Submit an answer — synchronously updates SQLite and cache"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
 
@@ -645,12 +737,10 @@ def submit_answer():
 
         is_correct = answer == question['correct_answer']
 
-        # Get participant from DB first, then update synchronously
         participant = get_live_quiz_participant(quiz_id, session['user_id'])
         if not participant:
             return jsonify({'error': 'Not a participant'}), 404
 
-        # Prepare updates
         answers = participant.get('answers', {})
         answers[str(question_id)] = {
             'answer': answer,
@@ -674,10 +764,8 @@ def submit_answer():
             'wrong_count': wrong_count
         }
 
-        # Update DB immediately
         update_live_quiz_participant(participant['id'], updates)
 
-        # Update cache
         cache = get_quiz_cache()
         cache.update_participant(quiz_id, session['user_id'], updates)
 
@@ -688,14 +776,12 @@ def submit_answer():
         })
 
     except Exception as e:
-        import traceback
-        print(f"Error in submit_answer: {e}\n{traceback.format_exc()}")
+        print(f"Error in submit_answer: {e}")
         return jsonify({'error': 'Failed to submit answer'}), 500
 
 
 @live_quiz_bp.route('/skip-question', methods=['POST'])
 def skip_question():
-    """Skip a question — synchronously updates DB"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
 
@@ -731,24 +817,20 @@ def skip_question():
             'current_question_index': new_index
         }
 
-        # Update DB
         update_live_quiz_participant(participant['id'], updates)
 
-        # Update cache
         cache = get_quiz_cache()
         cache.update_participant(quiz_id, session['user_id'], updates)
 
         return jsonify({'success': True})
 
     except Exception as e:
-        import traceback
-        print(f"Error in skip_question: {e}\n{traceback.format_exc()}")
+        print(f"Error in skip_question: {e}")
         return jsonify({'error': 'Failed to skip question'}), 500
 
 
 @live_quiz_bp.route('/submit-rating', methods=['POST'])
 def submit_rating():
-    """Submit rating and advance to next question — synchronous"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
 
@@ -779,41 +861,41 @@ def submit_rating():
             'current_question_index': new_index
         }
 
-        # Update DB
         update_live_quiz_participant(participant['id'], updates)
 
-        # Update cache
         cache = get_quiz_cache()
         cache.update_participant(quiz_id, session['user_id'], updates)
 
-        # Check if this was the last question
         quiz = get_quiz_safe(quiz_id)
         total_questions = quiz.get('question_count', 0) if quiz else 0
 
-        return jsonify({
-            'success': True,
-            'completed': new_index >= total_questions
-        })
+        if new_index >= total_questions:
+            return jsonify({
+                'success': True,
+                'completed': True,
+                'status': 'completed'
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'completed': False
+            })
 
     except Exception as e:
-        import traceback
-        print(f"Error in submit_rating: {e}\n{traceback.format_exc()}")
+        print(f"Error in submit_rating: {e}")
         return jsonify({'error': 'Failed to submit rating'}), 500
 
 
 @live_quiz_bp.route('/leaderboard/<quiz_id>')
 def get_leaderboard(quiz_id):
-    """Get live leaderboard — uses safe participant loading"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
 
     try:
-        # Use safe function to load all participants
         participants = get_all_participants_safe(quiz_id)
         if not participants:
             return jsonify({'leaderboard': [], 'user_rank': None})
 
-        # Sort by score descending
         sorted_p = sorted(participants, key=lambda x: x.get('score', 0), reverse=True)
 
         leaderboard = []
@@ -828,32 +910,27 @@ def get_leaderboard(quiz_id):
             if p.get('student_id') == session['user_id']:
                 user_rank = i
 
-        # Return top 5
         return jsonify({
             'leaderboard': leaderboard[:5],
             'user_rank': user_rank
         })
 
     except Exception as e:
-        import traceback
-        print(f"Error in leaderboard: {e}\n{traceback.format_exc()}")
+        print(f"Error in leaderboard: {e}")
         return jsonify({'error': 'Failed to load leaderboard'}), 500
 
 
 @live_quiz_bp.route('/play/<quiz_id>')
 def play(quiz_id):
-    """Play page — restored from DB if refreshed"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
 
-    # Load quiz from DB
     quiz = get_live_quiz_with_subject(quiz_id)
     if not quiz:
         flash('Quiz not found.', 'error')
         return redirect(url_for('live_quiz.index'))
 
-    # Check if user is participant (DB check)
     participant = get_live_quiz_participant(quiz_id, session['user_id'])
     if not participant:
         flash('You are not a participant in this quiz.', 'error')
@@ -864,16 +941,14 @@ def play(quiz_id):
 
 @live_quiz_bp.route('/results/<quiz_id>')
 def results(quiz_id):
-    """View quiz results — forces DB flush and uses DB for accuracy"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
 
-    # Force flush any pending writes (optional, but safe)
-    cache = get_quiz_cache()
-    cache.force_flush()
+    quiz = get_live_quiz_by_id(quiz_id)
+    if quiz and quiz.get('status') != 'finished':
+        finalize_live_quiz(quiz_id)
 
-    # Load from DB
     quiz = get_live_quiz_with_subject(quiz_id)
     if not quiz:
         flash('Quiz not found.', 'error')
@@ -881,37 +956,19 @@ def results(quiz_id):
 
     is_creator = quiz['creator_id'] == session['user_id']
 
-    # Get all participants from DB with scores
     all_participants = get_live_quiz_participants_with_names(quiz_id)
+    sorted_participants = sorted(all_participants, key=lambda x: x.get('score', 0), reverse=True)
 
-    # Get user's participant data
+    for i, p in enumerate(sorted_participants, 1):
+        if p.get('ranking') != i:
+            update_live_quiz_participant(p['id'], {'ranking': i})
+            p['ranking'] = i
+
     user_participant = None
-    for p in all_participants:
+    for p in sorted_participants:
         if p['student_id'] == session['user_id']:
             user_participant = p
             break
-
-    # Update rankings
-    sorted_participants = sorted(all_participants, key=lambda x: x.get('score', 0), reverse=True)
-    for i, p in enumerate(sorted_participants, 1):
-        update_live_quiz_participant(p['id'], {'ranking': i})
-        p['ranking'] = i
-
-    # Check if quiz should be marked finished
-    if quiz.get('status') != 'finished':
-        all_completed = True
-        total_questions = quiz.get('question_count', 0)
-        for p in sorted_participants:
-            if p.get('current_question_index', 0) < total_questions:
-                all_completed = False
-                break
-        if all_completed and len(sorted_participants) > 0:
-            update_live_quiz(quiz_id, {
-                'status': 'finished',
-                'ended_at': get_somali_time_db()
-            })
-            cache.update_quiz(quiz_id, {'status': 'finished'})
-            notify_live_quiz_results(quiz_id, quiz.get('title', 'Live Quiz'), sorted_participants)
 
     return render_template('dashboard/live_quiz/results.html',
                          quiz=quiz,
@@ -920,108 +977,8 @@ def results(quiz_id):
                          user_participant=user_participant)
 
 
-@live_quiz_bp.route('/quiz-state/<quiz_id>')
-def quiz_state(quiz_id):
-    """Get current quiz state — uses DB and cache for performance"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
-    try:
-        # Load quiz from DB (or cache)
-        quiz = get_quiz_safe(quiz_id)
-        if not quiz:
-            return jsonify({'error': 'Quiz not found'}), 404
-
-        # Get participant from DB (or cache)
-        participant = get_participant_safe(quiz_id, session['user_id'])
-        if not participant:
-            return jsonify({'error': 'Not a participant'}), 404
-
-        total_questions = quiz.get('question_count', 0)
-        time_per_question = quiz.get('time_per_question', Config.LIVE_QUIZ_TIME_PER_QUESTION)
-        rating_time = Config.RATING_TIME
-        total_duration = total_questions * (time_per_question + rating_time)
-
-        # Calculate remaining time (based on start time)
-        started_at = quiz.get('started_at')
-        remaining = total_duration
-        if started_at:
-            try:
-                if isinstance(started_at, str):
-                    started = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
-                else:
-                    started = started_at
-                elapsed = (datetime.now(timezone.utc) - started).total_seconds()
-                remaining = max(0, total_duration - elapsed)
-            except Exception:
-                remaining = total_duration
-
-        if remaining <= 0 and quiz.get('status') == 'active':
-            # Auto-finish quiz
-            update_live_quiz(quiz_id, {
-                'status': 'finished',
-                'ended_at': get_somali_time_db()
-            })
-            cache.update_quiz(quiz_id, {'status': 'finished'})
-            return jsonify({'status': 'finished', 'remaining_time': 0})
-
-        current_index = participant.get('current_question_index', 0)
-        is_completed = current_index >= total_questions
-
-        # Get participant count
-        participant_count = get_live_quiz_count(quiz_id)
-
-        # Get completed count
-        completed_count = 0
-        all_participants = get_all_participants_safe(quiz_id)
-        for p in all_participants:
-            if p.get('current_question_index', 0) >= total_questions:
-                completed_count += 1
-
-        all_completed = completed_count == participant_count and participant_count > 0
-
-        # Check if current question was answered (for reconnection)
-        current_question_answered = False
-        current_question_answer = None
-        current_question_correct = False
-        question_ids = quiz.get('question_ids', [])
-        if current_index < len(question_ids):
-            qid = question_ids[current_index]
-            answers = participant.get('answers', {})
-            if str(qid) in answers:
-                current_question_answered = True
-                current_question_answer = answers[str(qid)].get('answer')
-                current_question_correct = answers[str(qid)].get('correct', False)
-
-        return jsonify({
-            'status': quiz.get('status'),
-            'total_duration': total_duration,
-            'remaining_time': int(remaining),
-            'completed_count': completed_count,
-            'total_participants': participant_count,
-            'is_completed': is_completed,
-            'current_question_index': current_index,
-            'total_questions': total_questions,
-            'all_completed': all_completed,
-            'current_question_answered': current_question_answered,
-            'current_question_answer': current_question_answer,
-            'current_question_correct': current_question_correct,
-            'score': participant.get('score', 0)
-        })
-
-    except Exception as e:
-        import traceback
-        print(f"Error in quiz_state: {e}\n{traceback.format_exc()}")
-        return jsonify({'error': 'Failed to get quiz state'}), 500
-
-
-# ============================================
-# OTHER ROUTES (analysis, export, admin endpoints)
-# ============================================
-
 @live_quiz_bp.route('/analysis/<quiz_id>')
 def analysis(quiz_id):
-    """Question analysis for creator"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
 
@@ -1114,10 +1071,6 @@ def export_results(quiz_id):
         }
     )
 
-
-# ============================================
-# ADMIN ENDPOINTS (cache management)
-# ============================================
 
 @live_quiz_bp.route('/flush-cache', methods=['POST'])
 def flush_cache_endpoint():

@@ -27,6 +27,20 @@
         from { opacity: 0; transform: translateY(-20px); }
         to { opacity: 1; transform: translateY(0); }
     }
+    .reconnection-notice {
+        background: #3B82F6;
+        color: white;
+        padding: 10px 16px;
+        border-radius: var(--radius-sm);
+        margin-bottom: 12px;
+        text-align: center;
+        font-weight: 500;
+        display: none;
+        animation: slideDown 0.5s ease;
+    }
+    .reconnection-notice.show {
+        display: block;
+    }
     .rating-reminder {
         margin-top: 8px;
         padding: 8px 14px;
@@ -46,23 +60,6 @@
         color: var(--text-muted);
     }
     
-    /* Reconnection Notice - NEW */
-    .reconnection-notice {
-        background: #3B82F6;
-        color: white;
-        padding: 10px 16px;
-        border-radius: var(--radius-sm);
-        margin-bottom: 12px;
-        text-align: center;
-        font-weight: 500;
-        display: none;
-        animation: slideDown 0.5s ease;
-    }
-    .reconnection-notice.show {
-        display: block;
-    }
-    
-    /* Leaderboard Mini Styles */
     .leaderboard-mini {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -119,7 +116,6 @@
         font-weight: 600;
     }
     
-    /* Question Card */
     .question-card {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -202,7 +198,6 @@
         cursor: not-allowed;
     }
     
-    /* Feedback */
     .feedback-area {
         margin-top: 16px;
         padding: 14px 18px;
@@ -257,7 +252,6 @@
         cursor: not-allowed;
     }
     
-    /* Completed State */
     .completed-state {
         text-align: center;
         padding: 30px 20px;
@@ -296,7 +290,6 @@
         color: var(--text-secondary);
     }
     
-    /* Quiz Header */
     .quiz-header {
         display: flex;
         justify-content: space-between;
@@ -354,7 +347,6 @@
         letter-spacing: 0.5px;
     }
     
-    /* Total Timer Progress */
     .total-timer-progress {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -403,96 +395,98 @@
         white-space: nowrap;
     }
     
+    /* Creator Progress */
+    .creator-progress {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 12px 16px;
+        margin-bottom: 16px;
+    }
+    .creator-progress .cp-title {
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 6px;
+        color: var(--text);
+    }
+    .creator-progress .progress-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        font-size: 13px;
+    }
+    .creator-progress .progress-item .name {
+        flex: 1;
+        color: var(--text);
+        min-width: 60px;
+    }
+    .creator-progress .progress-item .bar-wrap {
+        width: 100px;
+        height: 6px;
+        background: var(--border);
+        border-radius: 4px;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+    .creator-progress .progress-item .bar-wrap .fill {
+        height: 100%;
+        background: var(--primary);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+    .creator-progress .progress-item .status {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        min-width: 50px;
+        text-align: right;
+    }
+    .creator-progress .progress-item .status.done {
+        color: #10B981;
+    }
+    .creator-progress .progress-item .status.waiting {
+        color: #F59E0B;
+    }
+    
     @keyframes pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.5; }
     }
     
-    /* Responsive */
     @media (max-width: 768px) {
-        .question-text {
-            font-size: 16px;
-        }
-        .quiz-header .timer-section .question-timer {
-            font-size: 20px;
-        }
-        .total-timer-progress {
-            padding: 8px 12px;
-            gap: 8px;
-        }
-        .total-timer-progress .time-display {
-            font-size: 12px;
-            min-width: 50px;
-        }
-        .total-timer-progress .status-label {
-            font-size: 10px;
-        }
+        .question-text { font-size: 16px; }
+        .quiz-header .timer-section .question-timer { font-size: 20px; }
+        .total-timer-progress { padding: 8px 12px; gap: 8px; }
+        .total-timer-progress .time-display { font-size: 12px; min-width: 50px; }
+        .total-timer-progress .status-label { font-size: 10px; }
+        .creator-progress .progress-item .bar-wrap { width: 60px; }
     }
     @media (max-width: 480px) {
-        .question-card {
-            padding: 16px;
-        }
-        .question-text {
-            font-size: 15px;
-        }
-        .option-btn {
-            padding: 10px 12px;
-            font-size: 14px;
-        }
-        .quiz-header .title-section h3 {
-            font-size: 14px;
-        }
-        .quiz-header .timer-section .question-timer {
-            font-size: 18px;
-        }
-        .completed-state .waiting-info {
-            gap: 16px;
-        }
-        .completed-state .waiting-info .stat .number {
-            font-size: 20px;
-        }
-        .rating-buttons button {
-            padding: 4px 14px;
-            font-size: 12px;
-        }
-        .skip-btn {
-            font-size: 12px;
-            padding: 6px 12px;
-        }
+        .question-card { padding: 16px; }
+        .question-text { font-size: 15px; }
+        .option-btn { padding: 10px 12px; font-size: 14px; }
+        .quiz-header .title-section h3 { font-size: 14px; }
+        .quiz-header .timer-section .question-timer { font-size: 18px; }
+        .completed-state .waiting-info { gap: 16px; }
+        .completed-state .waiting-info .stat .number { font-size: 20px; }
+        .rating-buttons button { padding: 4px 14px; font-size: 12px; }
+        .skip-btn { font-size: 12px; padding: 6px 12px; }
+        .creator-progress .progress-item .bar-wrap { width: 40px; }
+        .creator-progress .progress-item .status { font-size: 10px; min-width: 40px; }
     }
     @media (max-width: 360px) {
-        .question-text {
-            font-size: 14px;
-        }
-        .option-btn {
-            padding: 8px 10px;
-            font-size: 13px;
-        }
-        .option-btn .letter {
-            min-width: 22px;
-        }
-        .quiz-header {
-            padding: 8px 12px;
-        }
-        .quiz-header .title-section h3 {
-            font-size: 13px;
-        }
-        .quiz-header .timer-section .question-timer {
-            font-size: 16px;
-        }
-        .total-timer-progress {
-            padding: 6px 10px;
-        }
-        .total-timer-progress .time-display {
-            font-size: 11px;
-            min-width: 40px;
-        }
-        .total-timer-progress .status-label {
-            font-size: 9px;
-        }
+        .question-text { font-size: 14px; }
+        .option-btn { padding: 8px 10px; font-size: 13px; }
+        .option-btn .letter { min-width: 22px; }
+        .quiz-header { padding: 8px 12px; }
+        .quiz-header .title-section h3 { font-size: 13px; }
+        .quiz-header .timer-section .question-timer { font-size: 16px; }
+        .total-timer-progress { padding: 6px 10px; }
+        .total-timer-progress .time-display { font-size: 11px; min-width: 40px; }
+        .total-timer-progress .status-label { font-size: 9px; }
     }
 
-    /* Dark Mode Overrides */
     [data-theme="dark"] .quiz-notification {
         background: #8B1A1A;
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
@@ -551,23 +545,24 @@
         border-color: var(--primary);
         background: var(--primary-light);
     }
+    [data-theme="dark"] .creator-progress {
+        background: var(--surface);
+        border-color: var(--border);
+    }
 </style>
 {% endblock %}
 
 {% block dashboard_content %}
 <div class="live-quiz-container">
 
-    <!-- Reconnection Notice - NEW -->
     <div class="reconnection-notice" id="reconnectionNotice">
         🔄 Reconnected! Resuming your quiz...
     </div>
 
-    <!-- Notification Banner -->
     <div class="quiz-notification" id="notificationBanner">
         🚀 <span id="notificationText">Quiz has started!</span>
     </div>
 
-    <!-- Quiz Header -->
     <div class="quiz-header">
         <div class="title-section">
             <h3>{{ quiz.title or 'Live Quiz' }}</h3>
@@ -582,7 +577,6 @@
         </div>
     </div>
 
-    <!-- Total Quiz Timer Progress -->
     <div class="total-timer-progress" id="totalTimerContainer">
         <span class="status-label">⏱️ Quiz ends in</span>
         <div class="progress-bar-wrap">
@@ -591,12 +585,20 @@
         <span class="time-display" id="totalTimerDisplay">--:--</span>
     </div>
 
-    <!-- Progress Bar (per question) -->
     <div style="width: 100%; height: 4px; background: var(--border); border-radius: 4px; margin-bottom: 16px; overflow: hidden;">
         <div id="progressBar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.5s ease; border-radius: 4px;"></div>
     </div>
 
-    <!-- Leaderboard (Mini) -->
+    <!-- PRIORITY 7: Creator Progress -->
+    {% if quiz.creator_id == session.user_id %}
+    <div class="creator-progress" id="creatorProgress">
+        <div class="cp-title">👥 Participant Progress</div>
+        <div id="creatorProgressList">
+            <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 4px 0;">Waiting for data...</div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="leaderboard-mini" id="leaderboardContainer">
         <div class="header">
             <span class="title">🏆 Live Leaderboard</span>
@@ -609,10 +611,8 @@
         </div>
     </div>
 
-    <!-- Question Card -->
     <div class="question-card" id="questionCard">
         <div id="questionContainer">
-            <!-- Initial waiting state -->
             <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
                 <div style="font-size: 48px; margin-bottom: 12px;">⏳</div>
                 <h3 style="font-size: 18px; font-weight: 600; color: var(--text);">Waiting for quiz to start...</h3>
@@ -633,6 +633,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const timePerQuestion = {{ quiz.time_per_question or 30 }};
     const ratingTime = 10;
     const totalDuration = totalQuestions * (timePerQuestion + ratingTime);
+    const isCreator = {{ 'true' if quiz.creator_id == session.user_id else 'false' }};
     
     let currentQuestionIndex = 0;
     let timer = timePerQuestion;
@@ -649,18 +650,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let isReconnecting = false;
     let hasAnsweredCurrent = false;
     
-    // ============================================
-    // POLLING CONFIGURATION
-    // ============================================
-    
     let pollInterval = 1500;
     let pollTimer = null;
     let consecutiveNoChanges = 0;
     let lastState = null;
-    
-    // ============================================
-    // TOAST HELPER
-    // ============================================
     
     function showToast(message, type, duration) {
         if (typeof window.showToast === 'function') {
@@ -684,10 +677,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }, duration || 4000);
         }
     }
-    
-    // ============================================
-    // NOTIFICATION HELPERS
-    // ============================================
     
     function showNotification(text) {
         const banner = document.getElementById('notificationBanner');
@@ -740,10 +729,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {}
     }
     
-    // ============================================
-    // TOTAL TIMER UPDATE
-    // ============================================
-    
     function updateTotalTimer(remaining) {
         const display = document.getElementById('totalTimerDisplay');
         const progress = document.getElementById('totalProgressFill');
@@ -768,19 +753,37 @@ document.addEventListener('DOMContentLoaded', function() {
         progress.style.width = pct + '%';
     }
     
-    // ============================================
-    // FORMAT TIME
-    // ============================================
-    
     function formatTime(seconds) {
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
         return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     }
     
-    // ============================================
-    // SMART POLLING - FIXED FOR RECONNECTION
-    // ============================================
+    function updateCreatorProgress(progressData) {
+        if (!isCreator) return;
+        const container = document.getElementById('creatorProgressList');
+        if (!container) return;
+        if (!progressData || progressData.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 4px 0;">No participants yet</div>';
+            return;
+        }
+        let html = '';
+        progressData.forEach(p => {
+            const pct = totalQuestions > 0 ? Math.round((p.current_question_index / totalQuestions) * 100) : 0;
+            const statusClass = p.current_question_index >= totalQuestions ? 'done' : 'waiting';
+            const statusText = p.current_question_index >= totalQuestions ? '✅ Done' : '⏳ Playing';
+            html += `
+                <div class="progress-item">
+                    <span class="name">${p.name}</span>
+                    <div class="bar-wrap">
+                        <div class="fill" style="width: ${pct}%;"></div>
+                    </div>
+                    <span class="status ${statusClass}">${statusText}</span>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
     
     function pollQuizState() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
@@ -790,6 +793,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.warn('Polling error:', data.error);
                     pollInterval = Math.min(pollInterval + 500, 5000);
                     resetPollTimer();
+                    return;
+                }
+                
+                if (data.redirect_url) {
+                    clearInterval(timerInterval);
+                    clearTimeout(pollTimer);
+                    window.location.href = data.redirect_url;
                     return;
                 }
                 
@@ -806,14 +816,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     lastState = stateHash;
                 }
                 
-                // Update total timer
                 if (data.remaining_time !== undefined) {
                     updateTotalTimer(data.remaining_time);
                 }
                 
                 const currentStatus = data.status;
                 
-                // If quiz finished - redirect to results
                 if (currentStatus === 'finished') {
                     if (!quizEnded) {
                         quizEnded = true;
@@ -822,22 +830,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // Handle reconnection: check if participant has answered current question
+                if (isCreator && data.participant_progress) {
+                    updateCreatorProgress(data.participant_progress);
+                }
+                
                 if (currentStatus === 'active') {
-                    // Check if we need to restore state
                     if (data.current_question_answered && !hasAnsweredCurrent && !isAnswered) {
-                        // Participant already answered this question but page refreshed
                         isReconnecting = true;
                         hasAnsweredCurrent = true;
                         isAnswered = true;
                         showReconnectionNotice();
                         
-                        // Restore the question with answer state
                         const currentQ = data.current_question_index;
                         const totalQ = data.total_questions;
                         
                         if (currentQ < totalQ) {
-                            // Load the question with answer state
                             loadQuestionWithState(currentQ, {
                                 already_answered: true,
                                 answer: data.current_question_answer,
@@ -847,7 +854,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                     
-                    // If quiz became active (started)
                     if (currentStatus === 'active' && previousStatus === 'waiting') {
                         if (!notificationShown) {
                             notificationShown = true;
@@ -861,17 +867,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                     
-                    // If quiz is active and we haven't loaded a question yet
                     if (currentStatus === 'active' && quizStarted && !questionData && !isCompleted) {
                         loadQuestion();
                         return;
                     }
                     
-                    // If quiz is active and we have a question but need to refresh
                     if (currentStatus === 'active' && quizStarted && questionData) {
                         if (data.current_question_index !== undefined && 
                             data.current_question_index !== currentQuestionIndex) {
-                            // Make sure we don't skip if the user just answered
                             if (!isAnswered) {
                                 loadQuestion();
                             }
@@ -880,13 +883,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 
-                // Check if participant completed all questions
                 if (data.is_completed && !isCompleted) {
                     showCompletedState(data);
                     return;
                 }
                 
-                // If all participants completed, redirect to results
                 if (data.all_completed && currentStatus === 'active') {
                     window.location.href = '/live-quiz/results/' + quizId;
                     return;
@@ -900,10 +901,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 resetPollTimer();
             });
     }
-    
-    // ============================================
-    // LOAD QUESTION WITH STATE (for reconnection)
-    // ============================================
     
     function loadQuestionWithState(index, state) {
         fetch('/live-quiz/get-question/' + quizId + '?t=' + Date.now() + '&index=' + index)
@@ -926,7 +923,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     if (state && state.already_answered) {
                         renderAnsweredQuestion(data, state);
-                        // Don't start timer for already answered questions
                         clearInterval(timerInterval);
                         const display = document.getElementById('timerDisplay');
                         if (display) {
@@ -950,10 +946,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(loadQuestion, 2000);
             });
     }
-    
-    // ============================================
-    // RENDER ANSWERED QUESTION (for reconnection)
-    // ============================================
     
     function renderAnsweredQuestion(data, state) {
         const question = data.question;
@@ -1011,10 +1003,6 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
     }
     
-    // ============================================
-    // QUESTION LOADING
-    // ============================================
-    
     function loadQuestion() {
         if (isCompleted) return;
         
@@ -1031,7 +1019,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 if (data.question) {
-                    // Check if this question is already answered (reconnection case)
                     if (data.already_answered) {
                         isReconnecting = true;
                         hasAnsweredCurrent = true;
@@ -1043,7 +1030,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             correct: data.correct,
                             explanation: data.explanation
                         });
-                        // Don't start timer for already answered questions
                         clearInterval(timerInterval);
                         const display = document.getElementById('timerDisplay');
                         if (display) {
@@ -1071,10 +1057,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(loadQuestion, 2000);
             });
     }
-    
-    // ============================================
-    // RENDER QUESTION
-    // ============================================
     
     function renderQuestion(data) {
         const question = data.question;
@@ -1114,10 +1096,6 @@ document.addEventListener('DOMContentLoaded', function() {
         timer = timePerQuestion;
         updateTimerDisplay();
     }
-    
-    // ============================================
-    // TIMER
-    // ============================================
     
     function startTimer() {
         clearInterval(timerInterval);
@@ -1161,10 +1139,6 @@ document.addEventListener('DOMContentLoaded', function() {
             display.classList.add('stopped');
         }
     }
-    
-    // ============================================
-    // ANSWER ACTIONS
-    // ============================================
     
     window.selectOption = function(value) {
         if (isAnswered) return;
@@ -1241,10 +1215,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     
-    // ============================================
-    // SKIP QUESTION
-    // ============================================
-    
     window.skipQuestion = function() {
         if (isAnswered && !hasAnsweredCurrent) {
             const container = document.getElementById('feedbackContainer');
@@ -1308,10 +1278,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     
-    // ============================================
-    // SUBMIT RATING
-    // ============================================
-    
     window.submitRating = function(rating) {
         if (isRated) return;
         isRated = true;
@@ -1350,11 +1316,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             clearInterval(timerInterval);
             
-            if (data.completed) {
+            if (data.completed && data.status === 'completed') {
                 isCompleted = true;
-                setTimeout(function() {
-                    pollQuizState();
-                }, 500);
+                showCompletedState({ completed_count: 0, total_participants: 0, remaining_time: 0 });
+            } else if (data.completed) {
+                isCompleted = true;
+                showCompletedState({ completed_count: 0, total_participants: 0, remaining_time: 0 });
             } else {
                 questionData = null;
                 hasAnsweredCurrent = false;
@@ -1371,10 +1338,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     
-    // ============================================
-    // COMPLETED STATE
-    // ============================================
-    
     function showCompletedState(data) {
         if (isCompleted) return;
         isCompleted = true;
@@ -1387,7 +1350,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <p>Waiting for other participants to finish...</p>
                 <div class="waiting-info">
                     <div class="stat">
-                        <div class="number">${data.completed_count || 0}/${data.total_participants || 0}</div>
+                        <div class="number" id="completedCount">${data.completed_count || 0}/${data.total_participants || 0}</div>
                         <div class="label">Participants completed</div>
                     </div>
                     <div class="stat">
@@ -1413,10 +1376,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
-    
-    // ============================================
-    // LEADERBOARD
-    // ============================================
     
     let leaderboardTimer = null;
     let leaderboardInterval = 3000;
@@ -1462,10 +1421,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
-    // ============================================
-    // RESET POLLING TIMER
-    // ============================================
-    
     function resetPollTimer() {
         if (pollTimer) {
             clearTimeout(pollTimer);
@@ -1476,25 +1431,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }, pollInterval);
     }
     
-    // ============================================
-    // INITIALIZATION
-    // ============================================
-    
-    // Start polling
     resetPollTimer();
     setTimeout(pollQuizState, 100);
     
-    // Update leaderboard
     leaderboardTimer = setTimeout(updateLeaderboard, 3000);
     
-    // Clean up intervals on page unload
     window.addEventListener('beforeunload', function() {
         if (pollTimer) clearTimeout(pollTimer);
         if (leaderboardTimer) clearTimeout(leaderboardTimer);
         if (timerInterval) clearInterval(timerInterval);
     });
     
-    // Expose functions globally
     window.selectOption = selectOption;
     window.skipQuestion = skipQuestion;
     window.submitRating = submitRating;

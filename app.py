@@ -384,6 +384,11 @@ def health_check():
         'critical_issues': critical_issues
     }), status_code
 
+@app.route('/docs')
+def docs():
+    return render_template('docs.html')
+
+
 # ============================================
 # BACKUP TRIGGER ENDPOINT
 # ============================================

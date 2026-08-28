@@ -348,7 +348,6 @@
         box-shadow: 0 4px 12px rgba(0, 136, 204, 0.35);
     }
 
-    /* Quiz Started Alert */
     .quiz-started-alert {
         background: #10B981;
         color: white;
@@ -401,13 +400,11 @@
 {% block dashboard_content %}
 <div class="waiting-room-container">
 
-    <!-- Quiz Started Alert (shown when quiz starts) -->
     <div class="quiz-started-alert" id="quizStartedAlert">
         <span class="spinner"></span>
         🚀 Quiz has started! Redirecting to play page...
     </div>
 
-    <!-- Quiz Info -->
     <div class="quiz-info-card">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
             <div>
@@ -424,7 +421,6 @@
         </div>
     </div>
 
-    <!-- Join Code -->
     <div class="join-code-card">
         <div class="label">📌 Share this code</div>
         <div class="join-code-display">
@@ -443,7 +439,6 @@
         </div>
     </div>
 
-    <!-- Participants -->
     <div class="participants-card">
         <div class="header">
             <h3>👥 Participants</h3>
@@ -473,7 +468,6 @@
         </div>
     </div>
 
-    <!-- Actions -->
     <div class="actions-card">
         {% if is_creator %}
             <div class="status-message" id="statusMessage">
@@ -505,10 +499,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const isCreator = {{ 'true' if is_creator else 'false' }};
     const quizId = '{{ quiz.id }}';
     const quizStatus = '{{ quiz.status }}';
-    
-    // ============================================
-    // SHARE FUNCTIONS
-    // ============================================
     
     function copyCode(code) {
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -551,10 +541,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     window.shareTelegram = shareTelegram;
     
-    // ============================================
-    // START QUIZ (Creator only)
-    // ============================================
-    
     const startBtn = document.getElementById('startQuizBtn');
     if (startBtn) {
         startBtn.addEventListener('click', function() {
@@ -574,7 +560,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Creator redirects to play page
                         window.location.href = '/live-quiz/play/' + quizId;
                     } else {
                         if (window.showToast) {
@@ -605,10 +590,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // ============================================
-    // CRITICAL FIX: POLL QUIZ STATUS FOR REDIRECT
-    // ============================================
-    
     let isRedirecting = false;
     
     function checkQuizStatus() {
@@ -624,15 +605,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 const status = data.status;
                 
-                // If quiz is active - REDIRECT TO PLAY PAGE
                 if (status === 'active') {
                     isRedirecting = true;
                     
-                    // Show alert
                     const alert = document.getElementById('quizStartedAlert');
                     if (alert) alert.classList.add('show');
                     
-                    // Play notification sound
                     try {
                         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                         const osc = audioCtx.createOscillator();
@@ -659,23 +637,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         }, 200);
                     } catch (e) {}
                     
-                    // Redirect to play page after 1 second (show alert briefly)
                     setTimeout(function() {
                         window.location.href = '/live-quiz/play/' + quizId;
                     }, 1000);
                     return;
                 }
                 
-                // If quiz is finished - REDIRECT TO RESULTS
                 if (status === 'finished') {
                     isRedirecting = true;
                     window.location.href = '/live-quiz/results/' + quizId;
                     return;
                 }
                 
-                // If quiz is waiting, update participant count
                 if (status === 'waiting') {
-                    // Update participant count if available
                     if (data.total_participants !== undefined) {
                         const countEl = document.getElementById('participantCount');
                         const labelEl = document.getElementById('participantCountLabel');
@@ -684,7 +658,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (labelEl) labelEl.textContent = data.total_participants + ' joined';
                         if (waitingEl) waitingEl.textContent = data.total_participants;
                         
-                        // Update start button if creator
                         if (startBtn) {
                             if (data.total_participants >= 2) {
                                 startBtn.disabled = false;
@@ -701,7 +674,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         }
                         
-                        // Update participant list if count changed
                         if (data.total_participants !== lastKnownCount) {
                             lastKnownCount = data.total_participants;
                             refreshParticipantList();
@@ -713,10 +685,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.warn('Status check fetch error:', err);
             });
     }
-    
-    // ============================================
-    // REFRESH PARTICIPANT LIST
-    // ============================================
     
     let lastKnownCount = {{ participant_count }};
     
@@ -740,20 +708,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(function() {});
     }
     
-    // ============================================
-    // START POLLING
-    // ============================================
-    
-    // Check quiz status every 2 seconds (critical for redirect)
     const statusInterval = setInterval(checkQuizStatus, 2000);
     
-    // Initial check immediately
     setTimeout(checkQuizStatus, 100);
     
-    // Also refresh participant list every 5 seconds
     setInterval(refreshParticipantList, 5000);
     
-    // Clean up on page unload
     window.addEventListener('beforeunload', function() {
         clearInterval(statusInterval);
     });

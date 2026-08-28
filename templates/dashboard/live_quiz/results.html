@@ -7,18 +7,65 @@
 {% block extra_css %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
+<style>
+    .result-hero .medal {
+        font-size: 48px;
+        margin-bottom: 8px;
+    }
+    .result-hero .rank-detail {
+        font-size: 14px;
+        opacity: 0.9;
+    }
+    .result-hero .rank-detail strong {
+        color: white;
+    }
+    .celebrate {
+        animation: celeb 0.8s ease;
+    }
+    @keyframes celeb {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+    .final-banner {
+        background: #10B981;
+        color: white;
+        padding: 12px 20px;
+        border-radius: var(--radius-sm);
+        text-align: center;
+        font-weight: 600;
+        margin-bottom: 16px;
+        animation: slideDown 0.5s ease;
+    }
+    .final-banner i {
+        margin-right: 8px;
+    }
+    .leaderboard-full .row .rank-badge.medal {
+        font-size: 18px;
+        line-height: 1;
+    }
+    .leaderboard-full .row .rank-badge.medal.gold { color: #F59E0B; }
+    .leaderboard-full .row .rank-badge.medal.silver { color: #9CA3AF; }
+    .leaderboard-full .row .rank-badge.medal.bronze { color: #D97706; }
+    
+    @media (max-width: 480px) {
+        .result-hero .medal {
+            font-size: 32px;
+        }
+        .result-hero .rank-detail {
+            font-size: 12px;
+        }
+    }
+</style>
 {% endblock %}
 
 {% block dashboard_content %}
 <div style="max-width: 800px; margin: 0 auto;">
-    <!-- Breadcrumb -->
-    <div class="breadcrumb">
-        <a href="{{ url_for('live_quiz.index') }}">Live Quiz</a>
-        <span class="separator">/</span>
-        <span class="current">Results</span>
+
+    <div class="final-banner" id="finalBanner">
+        <i class="fas fa-trophy"></i> Quiz Complete! 🎉
     </div>
 
-    <!-- Quiz Info -->
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
         <div>
             <h2 style="font-size: 22px; font-weight: 700; color: var(--text);">
@@ -29,23 +76,27 @@
             </p>
         </div>
         <div style="font-size: 14px; color: var(--text-secondary); background: var(--background); padding: 4px 14px; border-radius: 10px;">
-            👥 {{ participants|length }} participants
+            👥 <span id="participantCount">{{ participants|length }}</span> participants
         </div>
     </div>
 
-    <!-- Your Score Hero -->
     {% if user_participant %}
-    <div class="result-hero">
+    <div class="result-hero" id="resultHero">
+        <div class="medal">
+            {% if user_participant.ranking == 1 %}🥇
+            {% elif user_participant.ranking == 2 %}🥈
+            {% elif user_participant.ranking == 3 %}🥉
+            {% else %}🏅{% endif %}
+        </div>
         <div class="score">{{ user_participant.score }}</div>
         <div class="percentage">
             {{ ((user_participant.score / (quiz.question_count * 2)) * 100)|round(0) }}%
         </div>
-        <div class="rank">
-            🏅 Rank: <strong>#{{ user_participant.ranking or '-' }}</strong> of {{ participants|length }} participants
+        <div class="rank-detail">
+            🏆 Rank: <strong>#{{ user_participant.ranking or '-' }}</strong> of {{ participants|length }} participants
         </div>
     </div>
 
-    <!-- Stats -->
     <div class="result-stats">
         <div class="stat correct">
             <div class="number">✅ {{ user_participant.correct_count or 0 }}</div>
@@ -62,7 +113,6 @@
     </div>
     {% endif %}
 
-    <!-- Question Analysis (Creator only) -->
     {% if is_creator %}
     <div class="result-analysis" id="analysisContainer">
         <div class="title">📊 Question Analysis</div>
@@ -74,12 +124,11 @@
     </div>
     {% endif %}
 
-    <!-- Full Leaderboard -->
     <div style="margin-bottom: 20px;">
         <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 12px;">
             🏆 Full Leaderboard
         </h3>
-        <div class="leaderboard-full">
+        <div class="leaderboard-full" id="leaderboardFull">
             <div class="header">
                 <span>#</span>
                 <span>Player</span>
@@ -88,53 +137,54 @@
                 <span style="text-align: center;">❌</span>
                 <span style="text-align: center;">Status</span>
             </div>
-            {% for p in participants %}
-                {% set isYou = p.student_id == session.user_id %}
-                <div class="row {% if isYou %}you{% endif %}">
-                    <span>
-                        {% if loop.index == 1 %}
-                            <span class="rank-badge gold">🥇</span>
-                        {% elif loop.index == 2 %}
-                            <span class="rank-badge silver">🥈</span>
-                        {% elif loop.index == 3 %}
-                            <span class="rank-badge bronze">🥉</span>
-                        {% else %}
-                            <span class="rank-badge normal">#{{ loop.index }}</span>
-                        {% endif %}
-                    </span>
-                    <span>
-                        {% set student = p.student or {} %}
-                        {{ student.get('first_name', 'Unknown') }}
-                        {{ student.get('last_name', '') }}
-                        {% if isYou %}<span style="color: var(--primary); font-weight: 600;"> (You)</span>{% endif %}
-                        <span style="font-size: 10px; color: var(--text-muted); display: block;">
-                            #{{ student.get('public_id', '----') }}
+            <div id="leaderboardRows">
+                {% for p in participants %}
+                    {% set isYou = p.student_id == session.user_id %}
+                    <div class="row {% if isYou %}you{% endif %}" data-student="{{ p.student_id }}">
+                        <span>
+                            {% if loop.index == 1 %}
+                                <span class="rank-badge medal gold">🥇</span>
+                            {% elif loop.index == 2 %}
+                                <span class="rank-badge medal silver">🥈</span>
+                            {% elif loop.index == 3 %}
+                                <span class="rank-badge medal bronze">🥉</span>
+                            {% else %}
+                                <span class="rank-badge normal">#{{ loop.index }}</span>
+                            {% endif %}
                         </span>
-                    </span>
-                    <span style="text-align: center; font-weight: 700; color: var(--primary);">
-                        {{ p.score }}
-                    </span>
-                    <span style="text-align: center; color: #10B981;">
-                        {{ p.correct_count or 0 }}
-                    </span>
-                    <span style="text-align: center; color: #EF4444;">
-                        {{ p.wrong_count or 0 }}
-                    </span>
-                    <span style="text-align: center;">
-                        {% if p.status == 'left' %}
-                            <span class="status-tag left">Left early</span>
-                        {% elif p.status == 'completed' %}
-                            <span class="status-tag completed">✅ Done</span>
-                        {% else %}
-                            <span class="status-tag playing">🔄 Active</span>
-                        {% endif %}
-                    </span>
-                </div>
-            {% endfor %}
+                        <span>
+                            {% set student = p.student or {} %}
+                            {{ student.get('first_name', 'Unknown') }}
+                            {{ student.get('last_name', '') }}
+                            {% if isYou %}<span style="color: var(--primary); font-weight: 600;"> (You)</span>{% endif %}
+                            <span style="font-size: 10px; color: var(--text-muted); display: block;">
+                                #{{ student.get('public_id', '----') }}
+                            </span>
+                        </span>
+                        <span style="text-align: center; font-weight: 700; color: var(--primary);">
+                            {{ p.score }}
+                        </span>
+                        <span style="text-align: center; color: #10B981;">
+                            {{ p.correct_count or 0 }}
+                        </span>
+                        <span style="text-align: center; color: #EF4444;">
+                            {{ p.wrong_count or 0 }}
+                        </span>
+                        <span style="text-align: center;">
+                            {% if p.status == 'left' %}
+                                <span class="status-tag left">Left early</span>
+                            {% elif p.status == 'completed' or p.ranking %}
+                                <span class="status-tag completed">✅ Done</span>
+                            {% else %}
+                                <span class="status-tag playing">🔄 Active</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
 
-    <!-- Actions -->
     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
         <a href="{{ url_for('dashboard.home') }}" style="padding: 10px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); font-weight: 500; transition: var(--transition);">
             <i class="fas fa-home"></i> Home
@@ -154,6 +204,37 @@
 document.addEventListener('DOMContentLoaded', function() {
     const quizId = '{{ quiz.id }}';
     const isCreator = {{ 'true' if is_creator else 'false' }};
+    const totalParticipants = {{ participants|length }};
+    
+    function pollResults() {
+        fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.warn('Results poll error:', data.error);
+                    setTimeout(pollResults, 5000);
+                    return;
+                }
+                
+                const countEl = document.getElementById('participantCount');
+                if (countEl && data.total_participants !== undefined) {
+                    countEl.textContent = data.total_participants;
+                }
+                
+                setTimeout(pollResults, 3000);
+            })
+            .catch(function(err) {
+                console.warn('Results poll error:', err);
+                setTimeout(pollResults, 5000);
+            });
+    }
+    
+    function fetchLeaderboard() {
+        fetch('/live-quiz/leaderboard/' + quizId + '?t=' + Date.now())
+            .then(response => response.json())
+            .then(data => {})
+            .catch(function(err) {});
+    }
     
     if (isCreator) {
         fetch('/live-quiz/analysis/' + quizId + '?t=' + Date.now())
@@ -201,6 +282,14 @@ document.addEventListener('DOMContentLoaded', function() {
         window.location.href = '/live-quiz/export/' + quizId;
     }
     window.exportResults = exportResults;
+    
+    const hero = document.getElementById('resultHero');
+    if (hero) {
+        const rank = {{ user_participant.ranking if user_participant else 0 }};
+        if (rank >= 1 && rank <= 3) {
+            hero.classList.add('celebrate');
+        }
+    }
 });
 </script>
 {% endblock %}
