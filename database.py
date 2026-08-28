@@ -88,9 +88,39 @@ def release_db_init_lock(fd: int) -> None:
     if fd:
         try:
             fcntl.flock(fd, fcntl.LOCK_UN)
-            fd.close()
         except Exception as e:
             logger.warning(f"Failed to release DB init lock: {e}")
+        finally:
+            try:
+                fd.close()
+            except:
+                pass
+
+
+# ============================================
+# DATABASE CONNECTION HELPER
+# ============================================
+
+def _get_connection(db_path: str = None, timeout: int = 10):
+    """Get a direct database connection."""
+    if db_path is None:
+        db_path = Config.DATABASE_PATH
+    
+    try:
+        db_dir = os.path.dirname(db_path)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
+        
+        conn = sqlite3.connect(db_path, timeout=timeout)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
+        conn.execute("PRAGMA synchronous = NORMAL")
+        return conn
+    except Exception as e:
+        logger.error(f"Database connection error: {e}")
+        raise
 
 
 # ============================================
@@ -115,7 +145,7 @@ def verify_database_exists() -> bool:
 def verify_database_openable() -> Tuple[bool, Optional[str]]:
     """Check if the database can be opened."""
     try:
-        conn = sqlite3.connect(Config.DATABASE_PATH, timeout=5)
+        conn = _get_connection(timeout=5)
         conn.close()
         return True, None
     except Exception as e:
@@ -125,7 +155,7 @@ def verify_database_openable() -> Tuple[bool, Optional[str]]:
 def verify_database_integrity() -> Tuple[bool, Optional[str]]:
     """Run PRAGMA integrity_check on the database."""
     try:
-        conn = sqlite3.connect(Config.DATABASE_PATH, timeout=10)
+        conn = _get_connection(timeout=10)
         cursor = conn.execute("PRAGMA integrity_check")
         result = cursor.fetchone()
         conn.close()
@@ -140,7 +170,7 @@ def verify_database_integrity() -> Tuple[bool, Optional[str]]:
 def verify_wal_enabled() -> Tuple[bool, Optional[str]]:
     """Check if WAL mode is enabled."""
     try:
-        conn = sqlite3.connect(Config.DATABASE_PATH, timeout=5)
+        conn = _get_connection(timeout=5)
         cursor = conn.execute("PRAGMA journal_mode")
         result = cursor.fetchone()
         conn.close()
@@ -155,7 +185,7 @@ def verify_wal_enabled() -> Tuple[bool, Optional[str]]:
 def verify_database_writable() -> Tuple[bool, Optional[str]]:
     """Check if the database is writable."""
     try:
-        conn = sqlite3.connect(Config.DATABASE_PATH, timeout=5)
+        conn = _get_connection(timeout=5)
         conn.execute("CREATE TEMP TABLE IF NOT EXISTS _write_test (id INTEGER)")
         conn.execute("INSERT INTO _write_test (id) VALUES (1)")
         conn.execute("DELETE FROM _write_test WHERE id = 1")
@@ -214,7 +244,7 @@ def create_database_schema() -> Tuple[bool, Optional[str]]:
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
         
-        conn = sqlite3.connect(Config.DATABASE_PATH)
+        conn = _get_connection()
         conn.execute("PRAGMA foreign_keys = ON")
         
         with open(schema_path, 'r') as f:
@@ -232,7 +262,7 @@ def create_database_schema() -> Tuple[bool, Optional[str]]:
 def enable_wal_mode() -> Tuple[bool, Optional[str]]:
     """Enable WAL mode on the database."""
     try:
-        conn = sqlite3.connect(Config.DATABASE_PATH)
+        conn = _get_connection()
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA wal_autocheckpoint = 1000")
         conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
@@ -285,7 +315,7 @@ def verify_database_full() -> Dict[str, Any]:
         return results
     
     try:
-        conn = sqlite3.connect(Config.DATABASE_PATH, timeout=10)
+        conn = _get_connection()
         
         # Check schema version
         results['schema_version'] = get_schema_version(conn)
@@ -426,7 +456,7 @@ def get_database_health() -> Dict[str, Any]:
         health['errors'].append(f"Database not writable: {error}")
     
     try:
-        conn = sqlite3.connect(Config.DATABASE_PATH, timeout=5)
+        conn = _get_connection()
         
         # Check tables
         tables_ok, missing = verify_tables_exist(conn)

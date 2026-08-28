@@ -48,13 +48,29 @@ if not os.path.exists(LOG_DIR):
     except Exception:
         pass
 
-# Request ID filter
+# ============================================
+# FIXED: RequestIDFilter - Safe access to g
+# ============================================
+
 class RequestIDFilter(logging.Filter):
+    """
+    A logging filter that adds request_id to log records.
+    Uses a fallback value if g.request_id is not available.
+    """
     def filter(self, record):
-        record.request_id = getattr(g, 'request_id', 'no-req')
+        try:
+            # Safely access g, with fallback if not in request context
+            record.request_id = getattr(g, 'request_id', 'no-req')
+        except RuntimeError:
+            # This happens when logging outside of a request context
+            record.request_id = 'no-req'
         return True
 
-# Setup main log
+# ============================================
+# SETUP LOGGING HANDLERS
+# ============================================
+
+# Main application log
 log_file = os.path.join(LOG_DIR, 'app.log')
 try:
     file_handler = RotatingFileHandler(
@@ -63,13 +79,13 @@ try:
         backupCount=Config.LOG_BACKUP_COUNT
     )
     file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
-    file_handler.setLevel(getattr(logging, Config.LOG_LEVEL))
+    file_handler.setLevel(getattr(logging, Config.LOG_LEVEL, logging.WARNING))
 except Exception as e:
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
     file_handler.setLevel(logging.WARNING)
 
-# Setup error log (separate file for errors)
+# Separate error log file
 error_log_file = os.path.join(LOG_DIR, 'error.log')
 try:
     error_file_handler = RotatingFileHandler(
@@ -84,21 +100,34 @@ except Exception as e:
     error_file_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
     error_file_handler.setLevel(logging.ERROR)
 
-# Console handler
+# Console handler for errors
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(logging.Formatter(log_format, log_datefmt))
 console_handler.setLevel(logging.ERROR)
 
-# Root logger
-logger = logging.getLogger(__name__)
-logger.setLevel(getattr(logging, Config.LOG_LEVEL))
-logger.addHandler(file_handler)
-logger.addHandler(error_file_handler)
-logger.addHandler(console_handler)
-logger.addFilter(RequestIDFilter())
+# ============================================
+# APPLY FILTER TO ROOT LOGGER
+# ============================================
+
+# Create and apply the filter
+request_id_filter = RequestIDFilter()
+
+# Apply to all handlers and the root logger
+for handler in [file_handler, error_file_handler, console_handler]:
+    handler.addFilter(request_id_filter)
+
+# Configure the root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(getattr(logging, Config.LOG_LEVEL, logging.WARNING))
+root_logger.addHandler(file_handler)
+root_logger.addHandler(error_file_handler)
+root_logger.addHandler(console_handler)
 
 # Suppress Flask's default logging
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+# Module-level logger
+logger = logging.getLogger(__name__)
 
 # ============================================
 # STARTUP VERIFICATION - CRITICAL
@@ -238,7 +267,7 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(groups_bp)
 app.register_blueprint(pdfs_bp)
 app.register_blueprint(admin_bp)
-app.register_blueprint(admin_errors_bp)  # NEW
+app.register_blueprint(admin_errors_bp)
 app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
 app.register_blueprint(notifications_bp)
@@ -568,5 +597,4 @@ if __name__ == '__main__':
     print(f"Log directory: {Config.LOG_DIR}")
     print(f"Backup directory: {Config.BACKUP_DIR}")
     print(f"Debug mode: {debug_mode}")
-    print(f"Request ID: {g.request_id if hasattr(g, 'request_id') else 'N/A'}")
     app.run(debug=debug_mode, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))

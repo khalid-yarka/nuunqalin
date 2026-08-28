@@ -7,10 +7,9 @@
 import os
 import sys
 import logging
+from typing import Dict
 from config import Config
 from database import initialize_database_startup, verify_database_full
-from error_models import ensure_error_table
-from errors import send_error_email
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +22,7 @@ def verify_startup() -> bool:
     errors = []
     
     # 1. Validate configuration
+    logger.info("Validating configuration...")
     config_errors = Config.validate()
     if config_errors:
         for error in config_errors:
@@ -37,12 +37,15 @@ def verify_startup() -> bool:
             logger.critical(f"Database error: {error}")
             errors.append(f"Database: {error}")
     
-    # 3. Ensure error table exists
+    # 3. Ensure error table exists - using direct connection
     logger.info("Ensuring error table exists...")
     try:
+        from error_models import ensure_error_table
         if not ensure_error_table():
             logger.critical("Failed to create error_logs table")
             errors.append("Database: Cannot create error_logs table")
+        else:
+            logger.info("Error table verified")
     except Exception as e:
         logger.critical(f"Error table creation failed: {e}")
         errors.append(f"Database: Error table - {e}")
@@ -72,8 +75,9 @@ def verify_startup() -> bool:
         error_message = "\n".join(errors)
         logger.critical(f"Startup verification FAILED:\n{error_message}")
         
-        # Send email for critical startup errors
+        # Try to send email for critical startup errors (gracefully handle failures)
         try:
+            from errors import send_error_email
             send_error_email({
                 'request_id': 'startup',
                 'timestamp': __import__('datetime').datetime.now().isoformat(),
@@ -120,8 +124,11 @@ def get_startup_health() -> dict:
         health['errors'].extend(config_errors)
     
     # Check database
-    from database import get_database_health
-    health['database'] = get_database_health()
+    try:
+        from database import get_database_health
+        health['database'] = get_database_health()
+    except Exception as e:
+        health['errors'].append(f"Database health check: {e}")
     
     # Check error table
     try:
