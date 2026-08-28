@@ -17,8 +17,6 @@ class Config:
     # ============================================
     
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-    
-    # Admin error dashboard password
     ADMIN_ERROR_PASSWORD = os.getenv('ADMIN_ERROR_PASSWORD', '')
     
     # ============================================
@@ -32,7 +30,6 @@ class Config:
     else:
         DATABASE_PATH = str(BASE_DIR / 'nuunplatform.db')
     
-    # Database connection settings
     DB_TIMEOUT = float(os.getenv('DB_TIMEOUT', '30.0'))
     DB_BUSY_TIMEOUT = int(os.getenv('DB_BUSY_TIMEOUT', '30000'))
     DB_RETRY_ATTEMPTS = int(os.getenv('DB_RETRY_ATTEMPTS', '7'))
@@ -41,18 +38,17 @@ class Config:
     DB_RETRY_BACKOFF_MULTIPLIER = float(os.getenv('DB_RETRY_BACKOFF_MULTIPLIER', '2.0'))
     
     # ============================================
-    # SESSION
+    # SESSION — SECURE SETTINGS
     # ============================================
     
     SESSION_TYPE = 'filesystem'
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
     
-    # Session security
-    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+    # CRITICAL: Set these according to your deployment
+    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'true').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     
-    # Admin session timeout (30 minutes)
     ADMIN_SESSION_TIMEOUT = int(os.getenv('ADMIN_SESSION_TIMEOUT', '1800'))
     
     # ============================================
@@ -81,7 +77,7 @@ class Config:
     # FILE UPLOADS
     # ============================================
     
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
+    MAX_CONTENT_LENGTH = 50 * 1024 * 1024
     
     # ============================================
     # BACKUP CONFIGURATION
@@ -129,8 +125,6 @@ class Config:
     SMTP_TO = os.getenv('SMTP_TO', '')
     
     EMAIL_ENABLED = bool(SMTP_USER and SMTP_PASSWORD and SMTP_TO)
-    
-    # Error email deduplication window (seconds)
     ERROR_EMAIL_DEDUP_WINDOW = int(os.getenv('ERROR_EMAIL_DEDUP_WINDOW', '300'))
     
     # ============================================
@@ -146,14 +140,12 @@ class Config:
     
     @classmethod
     def ensure_directories(cls):
-        """Create necessary directories if they don't exist."""
         directories = [
             cls.BACKUP_DIR,
             cls.LOG_DIR,
             os.path.dirname(cls.UPLOAD_FOLDER),
             os.path.dirname(cls.DATABASE_PATH)
         ]
-        
         for directory in directories:
             if directory and not os.path.exists(directory):
                 try:
@@ -163,15 +155,11 @@ class Config:
     
     @classmethod
     def validate(cls):
-        """Validate critical configuration."""
         errors = []
-        
         if not cls.SECRET_KEY or cls.SECRET_KEY == 'dev-secret-key-change-in-production':
             errors.append("SECRET_KEY must be set to a secure value in production")
-        
         if not cls.ADMIN_ERROR_PASSWORD:
             errors.append("ADMIN_ERROR_PASSWORD must be set in .env")
-        
         if cls.EMAIL_ENABLED:
             if not cls.SMTP_USER:
                 errors.append("SMTP_USER is missing")
@@ -179,8 +167,6 @@ class Config:
                 errors.append("SMTP_PASSWORD is missing")
             if not cls.SMTP_TO:
                 errors.append("SMTP_TO is missing")
-        
         return errors
 
-# Ensure directories exist when config is loaded
 Config.ensure_directories()
