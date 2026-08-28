@@ -80,10 +80,9 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Redirect after 1.5 seconds
     setTimeout(function() {
         window.location.href = "{{ url_for('live_quiz.lobby') }}";
     }, 1500);
 });
 </script>
-{% endblock %}  
+{% endblock %}

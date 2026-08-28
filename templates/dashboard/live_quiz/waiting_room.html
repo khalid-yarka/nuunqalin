@@ -413,11 +413,6 @@
                     <span>📚 {{ quiz.subjects.name if quiz.subjects else 'Unknown Subject' }}</span>
                     <span>❓ {{ quiz.question_count }} questions</span>
                     <span>⏱️ {{ quiz.time_per_question }}s each</span>
-                    {% if not quiz.is_public %}
-                        <span style="color: var(--primary);">🔒 Private</span>
-                    {% else %}
-                        <span style="color: #10B981;">🌐 Public</span>
-                    {% endif %}
                 </div>
             </div>
             <div class="participant-count-badge">
@@ -442,12 +437,6 @@
                 <i class="fab fa-telegram-plane"></i> Telegram
             </a>
         </div>
-        {% if quiz.is_public %}
-            <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
-                <i class="fas fa-globe"></i> This quiz is public and also visible in the 
-                <a href="{{ url_for('live_quiz.lobby') }}" style="color: var(--primary); text-decoration: none;">Lobby</a>
-            </div>
-        {% endif %}
     </div>
 
     <div class="participants-card">
