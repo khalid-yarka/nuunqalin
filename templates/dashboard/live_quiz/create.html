@@ -7,13 +7,142 @@
 {% block extra_css %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
+<style>
+    .privacy-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 16px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: var(--transition);
+        background: var(--surface);
+        text-align: center;
+    }
+
+    .privacy-option:hover {
+        border-color: var(--text-muted);
+        background: var(--background);
+    }
+
+    .privacy-option.selected {
+        border-color: var(--primary);
+        background: var(--primary-light);
+        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
+    }
+
+    .privacy-option .privacy-icon {
+        font-size: 32px;
+        margin-bottom: 4px;
+    }
+
+    .privacy-option .privacy-label {
+        font-weight: 700;
+        color: var(--text);
+        font-size: 16px;
+    }
+
+    .privacy-option .privacy-desc {
+        font-size: 12px;
+        color: var(--text-secondary);
+        text-align: center;
+    }
+
+    .privacy-option .privacy-badge {
+        margin-top: 6px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .privacy-option .privacy-badge.recommended {
+        color: var(--primary);
+    }
+
+    .privacy-option .privacy-badge.private {
+        color: var(--text-muted);
+    }
+
+    .question-count-options {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+    }
+
+    .question-count-options label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: var(--transition);
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--text);
+    }
+
+    .question-count-options label:hover {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+
+    .question-count-options label.selected {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+
+    .question-count-options input[type="radio"] {
+        display: none;
+    }
+
+    [data-theme="dark"] .question-count-options label.selected {
+        border-color: #FF6B70 !important;
+        background: rgba(255, 107, 112, 0.15) !important;
+        color: #FFFFFF !important;
+    }
+
+    [data-theme="dark"] .question-count-options label:hover {
+        border-color: #FF6B70 !important;
+        background: rgba(255, 107, 112, 0.1) !important;
+        color: #FFFFFF !important;
+    }
+
+    [data-theme="dark"] .privacy-option {
+        background: var(--surface);
+        border-color: var(--border);
+    }
+
+    [data-theme="dark"] .privacy-option:hover {
+        background: var(--surface-alt);
+    }
+
+    [data-theme="dark"] .privacy-option.selected {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+
+    @media (max-width: 480px) {
+        .privacy-option .privacy-icon {
+            font-size: 24px;
+        }
+        .privacy-option .privacy-label {
+            font-size: 14px;
+        }
+        .privacy-option .privacy-desc {
+            font-size: 11px;
+        }
+    }
+</style>
 {% endblock %}
 
 {% block dashboard_content %}
 <div style="max-width: 640px; margin: 0 auto;">
+
     <!-- Breadcrumb -->
     <div class="breadcrumb">
-        <a href="{{ url_for('live_quiz.index') }}">Live Quiz</a>
+        <a href="{{ url_for('live_quiz.lobby') }}">Live Quiz Lobby</a>
         <span class="separator">/</span>
         <span class="current">Create</span>
     </div>
@@ -33,6 +162,7 @@
                 <input type="hidden" name="subject_id" value="{{ subject_id }}">
                 <input type="hidden" name="question_count" value="{{ available }}">
                 <input type="hidden" name="title" value="{{ title }}">
+                <input type="hidden" name="is_public" value="{{ is_public or 1 }}">
                 <button type="submit" style="padding: 8px 20px; background: #F59E0B; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
                     Proceed with {{ available }} Questions
                 </button>
@@ -40,7 +170,7 @@
             <a href="{{ url_for('live_quiz.create') }}" style="padding: 8px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); font-weight: 500; transition: var(--transition);">
                 Select Another Subject
             </a>
-            <a href="{{ url_for('live_quiz.index') }}" style="padding: 8px 20px; background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; border-radius: var(--radius-sm); text-decoration: none; font-weight: 500; transition: var(--transition);">
+            <a href="{{ url_for('live_quiz.lobby') }}" style="padding: 8px 20px; background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; border-radius: var(--radius-sm); text-decoration: none; font-weight: 500; transition: var(--transition);">
                 Cancel
             </a>
         </div>
@@ -87,11 +217,39 @@
             </div>
 
             <!-- Title (Optional) -->
-            <div class="form-group" style="margin-bottom: 24px;">
+            <div class="form-group" style="margin-bottom: 20px;">
                 <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
                     🏷️ Quiz Title <span style="color: var(--text-muted); font-weight: 400;">(Optional)</span>
                 </label>
                 <input type="text" name="title" placeholder="e.g., Friday Challenge" value="{{ title or '' }}" style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--surface); color: var(--text); transition: var(--transition);">
+            </div>
+
+            <!-- ========================================== -->
+            <!-- PRIVACY SETTINGS - NEW FEATURE            -->
+            <!-- ========================================== -->
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 8px;">
+                    🔒 Privacy Settings
+                </label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <label class="privacy-option selected" id="publicLabel">
+                        <input type="radio" name="is_public" value="1" checked style="position: absolute; opacity: 0; width: 0; height: 0;">
+                        <span class="privacy-icon">🌐</span>
+                        <span class="privacy-label">Public</span>
+                        <span class="privacy-desc">Visible in lobby, anyone can join</span>
+                        <span class="privacy-badge recommended">✓ Recommended</span>
+                    </label>
+                    <label class="privacy-option" id="privateLabel">
+                        <input type="radio" name="is_public" value="0" style="position: absolute; opacity: 0; width: 0; height: 0;">
+                        <span class="privacy-icon">🔒</span>
+                        <span class="privacy-label">Private</span>
+                        <span class="privacy-desc">Only accessible via join code</span>
+                        <span class="privacy-badge private">Not in lobby</span>
+                    </label>
+                </div>
+                <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); text-align: center;">
+                    💡 Public quizzes help build community and attract more participants.
+                </div>
             </div>
 
             <!-- Buttons -->
@@ -99,7 +257,7 @@
                 <button type="submit" style="flex: 1; padding: 12px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 16px; cursor: pointer; transition: var(--transition);">
                     <i class="fas fa-rocket"></i> Create Quiz
                 </button>
-                <a href="{{ url_for('live_quiz.index') }}" style="flex: 1; padding: 12px; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); font-weight: 500; text-align: center; transition: var(--transition);">
+                <a href="{{ url_for('live_quiz.lobby') }}" style="flex: 1; padding: 12px; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); font-weight: 500; text-align: center; transition: var(--transition);">
                     Cancel
                 </a>
             </div>
@@ -114,6 +272,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Question count selection
     document.querySelectorAll('.question-count-options label').forEach(function(label) {
         label.addEventListener('click', function() {
             const siblings = this.parentElement.querySelectorAll('label');
@@ -127,6 +286,35 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Privacy toggle
+    const publicLabel = document.getElementById('publicLabel');
+    const privateLabel = document.getElementById('privateLabel');
+    const publicRadio = document.querySelector('input[name="is_public"][value="1"]');
+    const privateRadio = document.querySelector('input[name="is_public"][value="0"]');
+
+    function updatePrivacySelection() {
+        if (publicRadio.checked) {
+            publicLabel.classList.add('selected');
+            privateLabel.classList.remove('selected');
+        } else {
+            privateLabel.classList.add('selected');
+            publicLabel.classList.remove('selected');
+        }
+    }
+
+    publicLabel.addEventListener('click', function() {
+        publicRadio.checked = true;
+        updatePrivacySelection();
+    });
+
+    privateLabel.addEventListener('click', function() {
+        privateRadio.checked = true;
+        updatePrivacySelection();
+    });
+
+    // Initialize
+    updatePrivacySelection();
 });
 </script>
 {% endblock %}

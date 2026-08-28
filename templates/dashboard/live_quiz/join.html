@@ -13,16 +13,21 @@
 <div style="max-width: 480px; margin: 0 auto;">
     <!-- Breadcrumb -->
     <div class="breadcrumb">
-        <a href="{{ url_for('live_quiz.index') }}">Live Quiz</a>
+        <a href="{{ url_for('live_quiz.lobby') }}">Live Quiz Lobby</a>
         <span class="separator">/</span>
-        <span class="current">Join</span>
+        <span class="current">Join with Code</span>
     </div>
 
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; box-shadow: var(--shadow-sm);">
         <div style="text-align: center; margin-bottom: 24px;">
             <div style="font-size: 48px; margin-bottom: 8px;">🔑</div>
-            <h2 style="font-size: 22px; font-weight: 700; color: var(--text);">Join Live Quiz</h2>
+            <h2 style="font-size: 22px; font-weight: 700; color: var(--text);">Join with Code</h2>
             <p style="color: var(--text-secondary); font-size: 14px; margin-top: 2px;">Enter the join code to participate</p>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">
+                <i class="fas fa-info-circle"></i> 
+                For public quizzes, you can also join directly from the 
+                <a href="{{ url_for('live_quiz.lobby') }}" style="color: var(--primary); text-decoration: none;">Lobby</a>.
+            </p>
         </div>
 
         <form method="POST" action="{{ url_for('live_quiz.join') }}">
@@ -44,8 +49,8 @@
         </form>
 
         <div style="margin-top: 16px; text-align: center;">
-            <a href="{{ url_for('live_quiz.index') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 14px; transition: var(--transition);">
-                <i class="fas fa-arrow-left"></i> Back to Live Quiz
+            <a href="{{ url_for('live_quiz.lobby') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 14px; transition: var(--transition);">
+                <i class="fas fa-arrow-left"></i> Browse Lobby
             </a>
         </div>
     </div>

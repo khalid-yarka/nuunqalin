@@ -10,7 +10,8 @@ from db import (
     get_live_quiz_creator_id, get_active_live_quiz,
     get_live_quiz_by_id, get_questions_by_subject, is_admin,
     get_student_by_id,
-    notify_live_quiz_start, notify_live_quiz_results, notify_participant_joined
+    notify_live_quiz_start, notify_live_quiz_results, notify_participant_joined,
+    get_live_quizzes_lobby, get_live_quiz_stats, can_join_live_quiz
 )
 from config import Config
 from utils import get_somali_time_db, get_somali_time_display
@@ -162,14 +163,14 @@ _cleanup_thread = start_cache_cleanup()
 
 
 # ============================================
-# PRIORITY 4: CENTRALIZED FINALIZE FUNCTION
+# CENTRALIZED FINALIZE FUNCTION (FIXED)
 # ============================================
 
 def finalize_live_quiz(quiz_id: int) -> dict:
     """
     Finalize a live quiz: set status to finished, calculate rankings,
     clear cache, and send notifications.
-    Returns a dict with success status and any errors.
+    FIXED: Force flush cache before reading participants.
     """
     try:
         quiz = get_live_quiz_by_id(quiz_id)
@@ -179,17 +180,20 @@ def finalize_live_quiz(quiz_id: int) -> dict:
         if quiz.get('status') == 'finished':
             return {'success': True, 'message': 'Already finished'}
 
+        # CRITICAL FIX: Force flush all pending writes to database
+        cache = get_quiz_cache()
+        cache.force_flush()
+
         # 1. Update quiz status
         update_live_quiz(quiz_id, {
             'status': 'finished',
             'ended_at': get_somali_time_db()
         })
 
-        # 2. Get all participants
+        # 2. Get all participants from database (NOT from cache)
         participants = get_live_quiz_participants_with_names(quiz_id)
         if not participants:
             # No participants, just finish
-            cache = get_quiz_cache()
             cache.remove_quiz(quiz_id)
             return {'success': True, 'message': 'Quiz finished (no participants)'}
 
@@ -200,8 +204,7 @@ def finalize_live_quiz(quiz_id: int) -> dict:
         for i, p in enumerate(sorted_parts, 1):
             update_live_quiz_participant(p['id'], {'ranking': i})
 
-        # 5. Clear from cache
-        cache = get_quiz_cache()
+        # 5. Remove from cache to force fresh reads
         cache.remove_quiz(quiz_id)
 
         # 6. Send notifications
@@ -224,10 +227,120 @@ def finalize_live_quiz(quiz_id: int) -> dict:
 
 @live_quiz_bp.route('/')
 def index():
+    """Redirect to lobby."""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
-    return render_template('dashboard/live_quiz/index.html')
+    return redirect(url_for('live_quiz.lobby'))
+
+
+@live_quiz_bp.route('/lobby')
+def lobby():
+    """Live Quiz Lobby - Browse all public quizzes."""
+    if 'user_id' not in session:
+        flash('Please login first.', 'error')
+        return redirect(url_for('login'))
+
+    # Get filter parameters
+    status_filter = request.args.get('status', '')
+    subject_filter = request.args.get('subject', '')
+    search = request.args.get('search', '').strip()
+    page = int(request.args.get('page', 1))
+    per_page = 20
+
+    # Convert subject filter to int if provided
+    subject_id = None
+    if subject_filter and subject_filter.isdigit():
+        subject_id = int(subject_filter)
+
+    # Get quizzes
+    quizzes, total = get_live_quizzes_lobby(
+        user_id=session['user_id'],
+        status_filter=status_filter if status_filter else None,
+        subject_filter=subject_id,
+        search=search if search else None,
+        page=page,
+        per_page=per_page
+    )
+
+    # Get stats
+    stats = get_live_quiz_stats()
+
+    # Get all subjects for filter
+    subjects = get_all_subjects()
+
+    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+
+    return render_template(
+        'dashboard/live_quiz/lobby.html',
+        quizzes=quizzes,
+        stats=stats,
+        subjects=subjects,
+        status_filter=status_filter,
+        subject_filter=subject_filter,
+        search=search,
+        page=page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages
+    )
+
+
+@live_quiz_bp.route('/lobby/join/<quiz_id>', methods=['POST'])
+def lobby_join(quiz_id):
+    """Join a quiz directly from the lobby (no code needed)."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Please login first'}), 401
+
+    # Check if user can join
+    can_join, reason = can_join_live_quiz(quiz_id, session['user_id'])
+    if not can_join:
+        return jsonify({'error': reason}), 400
+
+    quiz = get_live_quiz_by_id(quiz_id)
+    if not quiz:
+        return jsonify({'error': 'Quiz not found'}), 404
+
+    # Check if already joined
+    participant = get_live_quiz_participant(quiz_id, session['user_id'])
+    if participant:
+        return jsonify({
+            'success': True,
+            'redirect': url_for('live_quiz.waiting_room', quiz_id=quiz_id),
+            'already_joined': True
+        })
+
+    # Add participant
+    add_live_quiz_participant(quiz_id, session['user_id'])
+
+    # Add to cache
+    cache = get_quiz_cache()
+    user = get_student_by_id(session['user_id'])
+    user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
+    cache.add_participant(quiz_id, session['user_id'], {
+        'name': user_name,
+        'score': 0,
+        'current_question_index': 0,
+        'correct_count': 0,
+        'wrong_count': 0,
+        'skipped_count': 0,
+        'answers': {},
+        'ratings': {},
+        'status': 'active'
+    })
+
+    # Notify creator
+    notify_participant_joined(
+        quiz_id,
+        quiz.get('title', 'Live Quiz'),
+        user_name,
+        quiz['creator_id']
+    )
+
+    return jsonify({
+        'success': True,
+        'redirect': url_for('live_quiz.waiting_room', quiz_id=quiz_id)
+    })
 
 
 @live_quiz_bp.route('/create', methods=['GET', 'POST'])
@@ -242,6 +355,7 @@ def create():
         subject_id = request.form.get('subject_id', '').strip()
         question_count = int(request.form.get('question_count', 10))
         title = request.form.get('title', '').strip()
+        is_public = int(request.form.get('is_public', 1))
 
         if not subject_id:
             flash('Please select a subject.', 'error')
@@ -260,7 +374,8 @@ def create():
                                    available=available,
                                    requested=question_count,
                                    subject_id=subject_id,
-                                   title=title)
+                                   title=title,
+                                   is_public=is_public)
 
         join_code = generate_unique_join_code()
         question_ids = [q['id'] for q in questions]
@@ -275,7 +390,8 @@ def create():
             'max_participants': Config.LIVE_QUIZ_MAX_PARTICIPANTS,
             'time_per_question': Config.LIVE_QUIZ_TIME_PER_QUESTION,
             'current_question_index': 0,
-            'question_ids': question_ids
+            'question_ids': question_ids,
+            'is_public': is_public
         }
 
         quiz = create_live_quiz(data)
@@ -317,6 +433,7 @@ def create_with_available():
     subject_id = request.form.get('subject_id', '').strip()
     question_count = int(request.form.get('question_count', 10))
     title = request.form.get('title', '').strip()
+    is_public = int(request.form.get('is_public', 1))
 
     questions, available = get_questions_for_subject(subject_id, question_count)
 
@@ -337,7 +454,8 @@ def create_with_available():
         'max_participants': Config.LIVE_QUIZ_MAX_PARTICIPANTS,
         'time_per_question': Config.LIVE_QUIZ_TIME_PER_QUESTION,
         'current_question_index': 0,
-        'question_ids': question_ids
+        'question_ids': question_ids,
+        'is_public': is_public
     }
 
     quiz = create_live_quiz(data)
@@ -372,6 +490,7 @@ def create_with_available():
 
 @live_quiz_bp.route('/join', methods=['GET', 'POST'])
 def join():
+    """Join via join code (legacy method)."""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
@@ -388,6 +507,11 @@ def join():
         if not quiz:
             flash('Invalid join code or quiz has already started.', 'error')
             return render_template('dashboard/live_quiz/join.html')
+
+        # Check if private (if private, code is the only way)
+        if not quiz.get('is_public', 1):
+            # Private quiz - code is the only way
+            pass
 
         participant = get_live_quiz_participant(quiz['id'], session['user_id'])
         if participant:
@@ -1071,6 +1195,10 @@ def export_results(quiz_id):
         }
     )
 
+
+# ============================================
+# ADMIN ENDPOINTS (cache management)
+# ============================================
 
 @live_quiz_bp.route('/flush-cache', methods=['POST'])
 def flush_cache_endpoint():

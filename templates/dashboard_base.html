@@ -592,8 +592,8 @@
                 Quizzes
             </a>
             
-            <!-- LIVE QUIZ LINK -->
-            <a href="{{ url_for('live_quiz.index') }}" class="nav-item {% if request.endpoint.startswith('live_quiz.') %}active{% endif %}">
+            <!-- LIVE QUIZ LINK - UPDATED TO LOBBY -->
+            <a href="{{ url_for('live_quiz.lobby') }}" class="nav-item {% if request.endpoint.startswith('live_quiz.') %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-bolt"></i></span>
                 Live Quiz
                 <span class="nav-badge">⚡</span>
@@ -718,7 +718,7 @@
                         <a href="{{ url_for('dashboard.home') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Home</a>
                         <a href="{{ url_for('dashboard.profile') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Profile</a>
                         <a href="{{ url_for('quiz.index') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Quizzes</a>
-                        <a href="{{ url_for('live_quiz.index') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Live Quiz</a>
+                        <a href="{{ url_for('live_quiz.lobby') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Live Quiz</a>
                         <a href="{{ url_for('groups.list_groups') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">Groups</a>
                         <a href="{{ url_for('pdfs.list_pdfs') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">PDFs</a>
                     </div>
