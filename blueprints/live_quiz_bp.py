@@ -13,7 +13,7 @@ from db import (
     notify_live_quiz_start, notify_live_quiz_results, notify_participant_joined,
     get_live_quizzes_lobby, get_live_quiz_stats, can_join_live_quiz,
     leave_live_quiz, rejoin_live_quiz, get_active_participants,
-    delete_live_quiz
+    delete_live_quiz, get_user_active_quiz
 )
 from config import Config
 from utils import get_somali_time_db, get_somali_time_display
@@ -24,6 +24,7 @@ from io import StringIO
 from datetime import datetime, timezone
 import time
 import threading
+import re
 from quiz_cache import get_quiz_cache, flush_cache, cleanup_cache
 
 live_quiz_bp = Blueprint('live_quiz', __name__, url_prefix='/live-quiz')
@@ -294,6 +295,11 @@ def lobby_join(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Please login first'}), 401
 
+    # FIX: Check if user is already in another active/waiting quiz
+    active_quiz = get_user_active_quiz(session['user_id'])
+    if active_quiz and active_quiz != int(quiz_id):
+        return jsonify({'error': 'You are already in another quiz. Please leave that quiz first.'}), 400
+
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
         return jsonify({'error': 'Quiz not found'}), 404
@@ -536,6 +542,12 @@ def join():
             # Private quiz - code is the only way
             pass
 
+        # FIX: Check if user is already in another active/waiting quiz
+        active_quiz = get_user_active_quiz(session['user_id'])
+        if active_quiz and active_quiz != quiz['id']:
+            flash('You are already in another quiz. Please leave that quiz first.', 'error')
+            return render_template('dashboard/live_quiz/join.html')
+
         participant = get_live_quiz_participant(quiz['id'], session['user_id'])
         if participant:
             if participant['status'] == 'left':
@@ -635,6 +647,33 @@ def waiting_room(quiz_id):
                          user_participant_status=user_participant_status)
 
 
+# ============================================
+# NEW: Waiting room participants JSON endpoint
+# ============================================
+@live_quiz_bp.route('/waiting-room/participants/<quiz_id>')
+def waiting_room_participants(quiz_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    quiz = get_live_quiz_by_id(quiz_id)
+    if not quiz:
+        return jsonify({'error': 'Quiz not found'}), 404
+
+    participants_data = get_live_quiz_participants(quiz_id)
+    formatted = []
+    for p in participants_data:
+        student = p.get('student', {})
+        formatted.append({
+            'id': p['id'],
+            'student_id': p['student_id'],
+            'name': f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown',
+            'public_id': student.get('public_id', '----'),
+            'status': p.get('status', 'active'),
+            'is_creator': p['student_id'] == quiz['creator_id']
+        })
+    return jsonify({'participants': formatted, 'count': len(formatted)})
+
+
 @live_quiz_bp.route('/start/<quiz_id>', methods=['POST'])
 def start_quiz(quiz_id):
     if 'user_id' not in session:
@@ -698,11 +737,12 @@ def start_quiz(quiz_id):
 
     notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
 
+    # Trigger browser notifications for all participants (will be handled by waiting room polling)
     return jsonify({'success': True, 'quiz_id': quiz_id})
 
 
 # ============================================
-# UPDATED QUIZ STATE WITH ABORT LOGIC
+# UPDATED QUIZ STATE WITH ABORT LOGIC & FIXES
 # ============================================
 
 @live_quiz_bp.route('/quiz-state/<quiz_id>')
@@ -755,9 +795,19 @@ def quiz_state(quiz_id):
             })
 
         # ============================================
-        # Get all participants for active count
+        # FIX: Force fresh database read for participant counts
         # ============================================
-        all_participants = get_all_participants_safe(quiz_id)
+        db_participants = get_live_quiz_participants_with_names(quiz_id)
+        all_participants = []
+        for p in db_participants:
+            # Build participant dict with all fields
+            part = dict(p)
+            # Ensure we have name
+            student = p.get('student', {})
+            part['name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown'
+            all_participants.append(part)
+
+        # Count active participants (status != 'left')
         active_participants = [p for p in all_participants if p.get('status') != 'left']
         active_count = len(active_participants)
 
@@ -815,12 +865,13 @@ def quiz_state(quiz_id):
             })
 
         # ============================================
-        # Check if all active participants completed
+        # FIX: Check if all active participants completed (using fresh data)
         # ============================================
         completed_count = sum(1 for p in active_participants if p.get('current_question_index', 0) >= total_questions)
         all_completed = completed_count == active_count and active_count > 0
 
-        if all_completed and quiz.get('status') == 'active':
+        # Only finalize if at least 2 participants and all completed
+        if all_completed and quiz.get('status') == 'active' and active_count >= 2:
             finalize_live_quiz(quiz_id)
             return jsonify({
                 'status': 'finished',
@@ -859,10 +910,12 @@ def quiz_state(quiz_id):
                 response['current_question_answer'] = answers[str(qid)].get('answer')
                 response['current_question_correct'] = answers[str(qid)].get('correct', False)
 
-        # If user is creator, include participant progress
+        # ============================================
+        # FIX: Creator progress - use fresh data and include all statuses
+        # ============================================
         if quiz.get('creator_id') == session['user_id']:
             progress = []
-            for p in active_participants:
+            for p in all_participants:  # Use all participants, not just active
                 progress.append({
                     'user_id': p.get('student_id'),
                     'name': p.get('name', 'Unknown'),

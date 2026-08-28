@@ -447,6 +447,9 @@
     .creator-progress .progress-item .status.waiting {
         color: #F59E0B;
     }
+    .creator-progress .progress-item .status.left {
+        color: #EF4444;
+    }
 
     /* Leave Button */
     .btn-leave {
@@ -753,6 +756,47 @@ document.addEventListener('DOMContentLoaded', function() {
     const MAX_ACTIVE_ATTEMPTS = 25;  // ~38 seconds for active loading
     
     // ============================================
+    // RESTORE STATE FROM sessionStorage (resume after reload)
+    // ============================================
+    function restoreStateFromStorage() {
+        try {
+            const saved = sessionStorage.getItem('live_quiz_' + quizId);
+            if (saved) {
+                const state = JSON.parse(saved);
+                if (state && state.currentQuestionIndex !== undefined) {
+                    console.log('Restoring state from sessionStorage:', state);
+                    currentQuestionIndex = state.currentQuestionIndex;
+                    isAnswered = state.isAnswered || false;
+                    isRated = state.isRated || false;
+                    isCompleted = state.isCompleted || false;
+                    quizStarted = state.quizStarted || false;
+                    hasAnsweredCurrent = state.hasAnsweredCurrent || false;
+                    // We can't restore questionData, but we'll reload it from server
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to restore state:', e);
+        }
+    }
+
+    function saveStateToStorage() {
+        try {
+            const state = {
+                currentQuestionIndex: currentQuestionIndex,
+                isAnswered: isAnswered,
+                isRated: isRated,
+                isCompleted: isCompleted,
+                quizStarted: quizStarted,
+                hasAnsweredCurrent: hasAnsweredCurrent,
+                timestamp: Date.now()
+            };
+            sessionStorage.setItem('live_quiz_' + quizId, JSON.stringify(state));
+        } catch (e) {
+            console.warn('Failed to save state:', e);
+        }
+    }
+    
+    // ============================================
     // FETCH WITH TIMEOUT
     // ============================================
     function fetchWithTimeout(url, options, timeout = 10000) {
@@ -917,6 +961,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     }
     
+    // ============================================
+    // FIX: UPDATED CREATOR PROGRESS - All statuses
+    // ============================================
     function updateCreatorProgress(progressData) {
         if (!isCreator) return;
         const container = document.getElementById('creatorProgressList');
@@ -928,8 +975,15 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = '';
         progressData.forEach(p => {
             const pct = totalQuestions > 0 ? Math.round((p.current_question_index / totalQuestions) * 100) : 0;
-            const statusClass = p.current_question_index >= totalQuestions ? 'done' : 'waiting';
-            const statusText = p.current_question_index >= totalQuestions ? '✅ Done' : '⏳ Playing';
+            let statusClass = 'waiting';
+            let statusText = '⏳ Playing';
+            if (p.status === 'left') {
+                statusClass = 'left';
+                statusText = '🔴 Left';
+            } else if (p.current_question_index >= totalQuestions) {
+                statusClass = 'done';
+                statusText = '✅ Done';
+            }
             html += `
                 <div class="progress-item">
                     <span class="name">${p.name}</span>
@@ -962,6 +1016,8 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // Clear session storage
+                    sessionStorage.removeItem('live_quiz_' + quizId);
                     window.location.href = data.redirect;
                 } else {
                     alert(data.error || 'Failed to leave quiz');
@@ -1023,7 +1079,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (data.error) {
                     console.warn('Polling error:', data.error);
-                    // Increase interval and retry, but don't count attempts for errors
                     pollInterval = Math.min(pollInterval + 500, 5000);
                     resetPollTimer();
                     return;
@@ -1033,13 +1088,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // FIX: Handle waiting state - no timeout
                 // ============================================
                 if (data.status === 'waiting') {
-                    // Reset active attempts since we're waiting
                     activeAttempts = 0;
                     previousStatus = 'waiting';
-                    // Update participant count if available
-                    if (data.total_participants !== undefined) {
-                        // Update UI if needed
-                    }
                     resetPollTimer();
                     return;
                 }
@@ -1082,20 +1132,17 @@ document.addEventListener('DOMContentLoaded', function() {
                             return;
                         }
                     } else {
-                        // Reset attempts once we have data
                         activeAttempts = 0;
                     }
                     
                     // Check if we already have a question loaded
                     if (questionData) {
-                        // If question index changed, load new question
                         if (data.current_question_index !== undefined && 
                             data.current_question_index !== currentQuestionIndex) {
                             if (!isAnswered) {
                                 loadQuestion();
                             }
                         }
-                        // Update timer
                         if (data.remaining_time !== undefined) {
                             updateTotalTimer(data.remaining_time);
                         }
@@ -1121,9 +1168,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     
-                    // If we have a question but it's not loaded yet, wait
                     if (!questionData && !isCompleted) {
-                        // Keep trying
                         resetPollTimer();
                         return;
                     }
@@ -1142,19 +1187,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     lastState = stateHash;
                 }
                 
-                // Update remaining time
                 if (data.remaining_time !== undefined) {
                     updateTotalTimer(data.remaining_time);
                 }
                 
-                // Check if all participants completed
+                // ============================================
+                // FIX: all_completed - only redirect if current user also completed
+                // ============================================
                 if (data.all_completed && data.status === 'active') {
-                    sendBrowserNotification(
-                        '🏆 All Finished!',
-                        'All participants have completed the quiz!',
-                        '/live-quiz/results/' + quizId
-                    );
-                    window.location.href = '/live-quiz/results/' + quizId;
+                    // Only redirect if current user has also completed
+                    if (data.is_completed) {
+                        sendBrowserNotification(
+                            '🏆 All Finished!',
+                            'All participants have completed the quiz!',
+                            '/live-quiz/results/' + quizId
+                        );
+                        window.location.href = '/live-quiz/results/' + quizId;
+                    } else {
+                        // Still playing - show waiting state
+                        showWaitingForOthers(data);
+                    }
                     return;
                 }
                 
@@ -1169,10 +1221,27 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(function(err) {
                 console.warn('Polling fetch error:', err);
-                // Don't count errors as attempts
                 pollInterval = Math.min(pollInterval + 500, 5000);
                 resetPollTimer();
             });
+    }
+    
+    // ============================================
+    // SHOW WAITING FOR OTHERS (when all_completed but user not done)
+    // ============================================
+    function showWaitingForOthers(data) {
+        const container = document.getElementById('questionContainer');
+        if (!container) return;
+        // Show a message that others have finished but user is still playing
+        // Keep the question card visible with a note
+        const existing = container.querySelector('.waiting-for-others');
+        if (!existing) {
+            const div = document.createElement('div');
+            div.className = 'waiting-for-others';
+            div.style.cssText = 'margin-top: 12px; padding: 10px; background: #FEF3C7; border-radius: var(--radius-sm); text-align: center; font-size: 13px; color: #92400E; border: 1px solid #FDE68A;';
+            div.innerHTML = '⏳ Other participants have finished. Complete your remaining questions to see results.';
+            container.appendChild(div);
+        }
     }
     
     function loadQuestionWithState(index, state) {
@@ -1217,6 +1286,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (progressBar) {
                         progressBar.style.width = ((data.index / data.total) * 100) + '%';
                     }
+                    // Save state after loading question
+                    saveStateToStorage();
                 }
             })
             .catch(function(err) {
@@ -1319,6 +1390,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             display.textContent = '--';
                             display.className = 'question-timer stopped';
                         }
+                        saveStateToStorage();
                         return;
                     }
                     
@@ -1333,6 +1405,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (progressBar) {
                         progressBar.style.width = ((data.index / data.total) * 100) + '%';
                     }
+                    saveStateToStorage();
                 }
             })
             .catch(function(err) {
@@ -1496,15 +1569,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             updateTimerDisplay();
+            saveStateToStorage();
         })
         .catch(function(error) {
             console.error('Submit answer error:', error);
-            // Re-enable all buttons
             buttons.forEach(b => b.disabled = false);
             if (skipBtn) skipBtn.disabled = false;
             isAnswered = false;
             hasAnsweredCurrent = false;
-            // Reset selected button text
             if (selectedBtn) {
                 selectedBtn.innerHTML = originalText;
             }
@@ -1561,6 +1633,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             clearInterval(timerInterval);
             questionData = null;
+            saveStateToStorage();
             setTimeout(function() {
                 loadQuestion();
             }, 600);
@@ -1615,13 +1688,17 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (data.completed && data.status === 'completed') {
                 isCompleted = true;
+                // Save completed state
+                saveStateToStorage();
                 showCompletedState({ completed_count: 0, total_participants: 0, remaining_time: 0 });
             } else if (data.completed) {
                 isCompleted = true;
+                saveStateToStorage();
                 showCompletedState({ completed_count: 0, total_participants: 0, remaining_time: 0 });
             } else {
                 questionData = null;
                 hasAnsweredCurrent = false;
+                saveStateToStorage();
                 setTimeout(function() {
                     loadQuestion();
                 }, 600);
@@ -1672,6 +1749,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 1000);
             }
         }
+        saveStateToStorage();
     }
     
     let leaderboardTimer = null;
@@ -1728,8 +1806,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // ============================================
-    // INITIALIZATION
+    // INITIALIZATION - Restore state from sessionStorage
     // ============================================
+    
+    // Restore state if available
+    restoreStateFromStorage();
     
     // Start polling - this will handle waiting, active, finished states
     resetPollTimer();
@@ -1738,11 +1819,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update leaderboard
     leaderboardTimer = setTimeout(updateLeaderboard, 3000);
     
-    // Clean up intervals on page unload
+    // Clean up intervals and storage on page unload
     window.addEventListener('beforeunload', function() {
         if (pollTimer) clearTimeout(pollTimer);
         if (leaderboardTimer) clearTimeout(leaderboardTimer);
         if (timerInterval) clearInterval(timerInterval);
+        // Keep sessionStorage for resume after reload
     });
     
     // Expose functions globally
