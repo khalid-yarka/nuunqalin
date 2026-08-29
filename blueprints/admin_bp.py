@@ -8,6 +8,7 @@ from db import (
     get_subject_by_name, bulk_create_questions, check_question_exists,
     create_notification_for_all_users
 )
+from error_models import get_error_stats
 from functools import wraps
 import json
 import secrets
@@ -15,8 +16,12 @@ import secrets
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
+# ============================================
+# DECORATORS
+# ============================================
+
 def admin_required(f):
-    """Decorator to require admin access"""
+    """Decorator to require admin access."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -30,7 +35,7 @@ def admin_required(f):
 
 
 def validate_csrf():
-    """Validate CSRF token from form or header."""
+    """Validate CSRF token from form or header; aborts on failure."""
     token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
     if not token or token != session.get('csrf_token'):
         abort(403, 'CSRF token validation failed')
@@ -43,20 +48,22 @@ def validate_csrf():
 @admin_bp.route('/')
 @admin_required
 def dashboard():
-    """Admin dashboard"""
+    """Admin dashboard with stats and error logs summary."""
     users = get_all_students()
     groups = get_all_groups()
     pdfs = get_all_pdfs()
     subjects = get_all_subjects()
     questions = get_all_questions()
-    
+    error_stats = get_error_stats()
+
     return render_template('dashboard/admin/dashboard.html',
                          users_count=len(users),
                          groups_count=len(groups),
                          pdfs_count=len(pdfs),
                          subjects_count=len(subjects),
                          questions_count=len(questions),
-                         quiz_attempts=0)
+                         quiz_attempts=0,
+                         error_stats=error_stats)
 
 
 # ============================================
@@ -66,19 +73,16 @@ def dashboard():
 @admin_bp.route('/bulk-import', methods=['GET', 'POST'])
 @admin_required
 def bulk_import():
-    """Bulk import questions via JSON"""
+    """Bulk import questions via JSON."""
     subjects = get_all_subjects()
     subject_names = [s['name'] for s in subjects]
-    
+
     if request.method == 'POST':
-        # Validate CSRF
         validate_csrf()
-        
-        # Get the JSON data
+
         json_data = request.form.get('json_data', '').strip()
         file_data = request.files.get('json_file')
-        
-        # Parse JSON from either textarea or file
+
         if file_data and file_data.filename:
             try:
                 content = file_data.read().decode('utf-8')
@@ -95,101 +99,68 @@ def bulk_import():
         else:
             flash('Please paste JSON or upload a file.', 'error')
             return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
-        
-        # Validate structure
+
         if 'metadata' not in data:
             flash('Missing "metadata" section in JSON.', 'error')
             return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
-        
+
         if 'questions' not in data or not data['questions']:
             flash('Missing or empty "questions" array in JSON.', 'error')
             return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
-        
-        # Get subject from metadata
+
         subject_name = data['metadata'].get('subject', '').strip()
         if not subject_name:
             flash('Subject is required in metadata.', 'error')
             return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
-        
-        # Look up subject in database
+
         subject = get_subject_by_name(subject_name)
         if not subject:
             available = ', '.join(subject_names)
             flash(f'Subject "{subject_name}" not found. Available subjects: {available}', 'error')
             return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
-        
+
         subject_id = subject['id']
         chapter = data['metadata'].get('chapter', '').strip()
-        
-        # Process each question
+
         questions_to_import = []
         errors = []
         duplicates = []
-        
+
         for idx, q in enumerate(data['questions'], 1):
-            # Validate required fields
             if not q.get('question', '').strip():
-                errors.append({
-                    'index': idx,
-                    'question': 'Unknown',
-                    'error': 'Question text is required'
-                })
+                errors.append({'index': idx, 'question': 'Unknown', 'error': 'Question text is required'})
                 continue
-            
+
             if not q.get('options') or len(q['options']) < 3:
-                errors.append({
-                    'index': idx,
-                    'question': q.get('question', 'Unknown'),
-                    'error': 'Minimum 3 options required'
-                })
+                errors.append({'index': idx, 'question': q.get('question', 'Unknown'), 'error': 'Minimum 3 options required'})
                 continue
-            
+
             if len(q['options']) > 6:
-                errors.append({
-                    'index': idx,
-                    'question': q.get('question', 'Unknown'),
-                    'error': 'Maximum 6 options allowed'
-                })
+                errors.append({'index': idx, 'question': q.get('question', 'Unknown'), 'error': 'Maximum 6 options allowed'})
                 continue
-            
+
             if not q.get('correct') or q['correct'] < 1 or q['correct'] > len(q['options']):
-                errors.append({
-                    'index': idx,
-                    'question': q.get('question', 'Unknown'),
-                    'error': 'Invalid correct answer index'
-                })
+                errors.append({'index': idx, 'question': q.get('question', 'Unknown'), 'error': 'Invalid correct answer index'})
                 continue
-            
+
             difficulty = q.get('difficulty', 1)
             if difficulty < 1 or difficulty > 5:
-                errors.append({
-                    'index': idx,
-                    'question': q.get('question', 'Unknown'),
-                    'error': 'Difficulty must be 1-5'
-                })
+                errors.append({'index': idx, 'question': q.get('question', 'Unknown'), 'error': 'Difficulty must be 1-5'})
                 continue
-            
-            # Check for duplicates
+
             question_text = q['question'].strip()
             if check_question_exists(question_text, subject_id):
-                duplicates.append({
-                    'index': idx,
-                    'question': question_text,
-                    'error': 'Duplicate question'
-                })
+                duplicates.append({'index': idx, 'question': question_text, 'error': 'Duplicate question'})
                 continue
-            
-            # Build options dictionary (convert array to dict with A, B, C, ...)
+
             options_dict = {}
             option_labels = ['A', 'B', 'C', 'D', 'E', 'F']
             for i, opt in enumerate(q['options']):
                 if i < len(option_labels):
                     options_dict[option_labels[i]] = opt.strip()
-            
-            # Convert correct index to letter
+
             correct_letter = option_labels[q['correct'] - 1]
-            
-            # Build question data
+
             question_data = {
                 'subject_id': subject_id,
                 'question_text': question_text,
@@ -202,10 +173,8 @@ def bulk_import():
                 'created_by': session['user_id'],
                 'updated_by': session['user_id']
             }
-            
             questions_to_import.append(question_data)
-        
-        # If there are errors, show them
+
         if errors or duplicates:
             return render_template('dashboard/admin/bulk_import.html',
                                  subjects=subjects,
@@ -216,57 +185,51 @@ def bulk_import():
                                  subject_name=subject_name,
                                  chapter=chapter,
                                  total_questions=len(data['questions']))
-        
-        # If no errors, import all
+
         if questions_to_import:
             result = bulk_create_questions(questions_to_import, session['user_id'])
-            
             if result['imported'] > 0:
                 flash(f'✅ {result["imported"]} questions imported successfully!', 'success')
             if result['errors']:
                 flash(f'⚠️ {len(result["errors"])} questions failed to import.', 'error')
-            
             return redirect(url_for('admin.admin_questions'))
         else:
             flash('No valid questions to import.', 'error')
-            return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
-    
+
     return render_template('dashboard/admin/bulk_import.html', subjects=subjects)
 
 
 @admin_bp.route('/bulk-preview', methods=['POST'])
 @admin_required
 def bulk_preview():
-    """Preview questions before import"""
+    """Preview questions before import."""
     subjects = get_all_subjects()
     subject_names = [s['name'] for s in subjects]
-    
+
     json_data = request.form.get('json_data', '').strip()
-    
     if not json_data:
         return jsonify({'error': 'No JSON data provided'}), 400
-    
+
     try:
         data = json.loads(json_data)
     except json.JSONDecodeError as e:
         return jsonify({'error': f'Invalid JSON: {str(e)}'}), 400
-    
+
     if 'metadata' not in data:
         return jsonify({'error': 'Missing metadata section'}), 400
-    
+
     if 'questions' not in data or not data['questions']:
         return jsonify({'error': 'Missing or empty questions array'}), 400
-    
+
     subject_name = data['metadata'].get('subject', '').strip()
     if not subject_name:
         return jsonify({'error': 'Subject is required'}), 400
-    
+
     subject = get_subject_by_name(subject_name)
     if not subject:
         available = ', '.join(subject_names)
         return jsonify({'error': f'Subject "{subject_name}" not found. Available: {available}'}), 400
-    
-    # Preview data
+
     preview = []
     for idx, q in enumerate(data['questions'], 1):
         preview.append({
@@ -277,19 +240,19 @@ def bulk_preview():
             'has_explanation': bool(q.get('explanation', '').strip()),
             'tags': ', '.join(q.get('tags', []))[:30]
         })
-    
+
     return jsonify({
         'subject': subject_name,
         'chapter': data['metadata'].get('chapter', ''),
         'total': len(data['questions']),
-        'preview': preview[:10]  # Show first 10 only
+        'preview': preview[:10]
     })
 
 
 @admin_bp.route('/bulk-template')
 @admin_required
 def bulk_template():
-    """Download template JSON file"""
+    """Download template JSON file."""
     template = {
         "metadata": {
             "subject": "Geography",
@@ -314,7 +277,7 @@ def bulk_template():
             }
         ]
     }
-    
+
     response = jsonify(template)
     response.headers['Content-Disposition'] = 'attachment; filename=bulk_import_template.json'
     response.headers['Content-Type'] = 'application/json'
@@ -328,47 +291,44 @@ def bulk_template():
 @admin_bp.route('/users/delete/<user_id>', methods=['POST'])
 @admin_required
 def delete_user(user_id):
-    """Delete a user permanently with options"""
-    # Validate CSRF
+    """Delete a user permanently with options."""
     validate_csrf()
-    
+
     if user_id == session['user_id']:
         flash('You cannot delete your own account.', 'error')
         return redirect(url_for('admin.admin_users'))
-    
+
     keep_ratings = request.form.get('keep_ratings') == 'on'
     delete_attempts = request.form.get('delete_attempts') == 'on'
-    
+
     success, message = db_delete_user(user_id, session['user_id'], keep_ratings, delete_attempts)
-    
+
     if success:
         flash('User deleted successfully!', 'success')
     else:
         flash(f'Error deleting user: {message}', 'error')
-    
+
     return redirect(url_for('admin.admin_users'))
+
 
 @admin_bp.route('/deleted-users')
 @admin_required
 def deleted_users():
-    """View deleted users (recovery)"""
+    """View deleted users (recovery)."""
     deleted = get_deleted_users()
     return render_template('dashboard/admin/deleted_users.html', deleted=deleted)
+
 
 @admin_bp.route('/deleted-users/restore/<deleted_id>', methods=['POST'])
 @admin_required
 def restore_deleted_user(deleted_id):
-    """Restore a deleted user"""
-    # Validate CSRF
+    """Restore a deleted user."""
     validate_csrf()
-    
     success, message = db_restore_user(deleted_id)
-    
     if success:
         flash('User restored successfully!', 'success')
     else:
         flash(f'Error restoring user: {message}', 'error')
-    
     return redirect(url_for('admin.deleted_users'))
 
 
@@ -382,22 +342,21 @@ def admin_groups():
     groups = get_all_groups()
     return render_template('dashboard/admin/groups.html', groups=groups)
 
+
 @admin_bp.route('/groups/add', methods=['POST'])
 @admin_required
 def add_group():
-    # Validate CSRF
     validate_csrf()
-    
     name = request.form.get('name', '').strip()
     platform = request.form.get('platform', '')
     invite_link = request.form.get('invite_link', '').strip()
     description = request.form.get('description', '').strip()
     category = request.form.get('category', '').strip()
-    
+
     if not name or not platform or not invite_link:
         flash('Name, platform, and invite link are required.', 'error')
         return redirect(url_for('admin.admin_groups'))
-    
+
     data = {
         'name': name,
         'platform': platform,
@@ -405,20 +364,18 @@ def add_group():
         'description': description,
         'category': category if category else ''
     }
-    
+
     if create_group(data):
         flash('Group added successfully!', 'success')
     else:
         flash('Error adding group.', 'error')
-    
     return redirect(url_for('admin.admin_groups'))
+
 
 @admin_bp.route('/groups/delete/<group_id>', methods=['POST'])
 @admin_required
 def delete_group(group_id):
-    # Validate CSRF
     validate_csrf()
-    
     if delete_group(group_id):
         flash('Group deleted successfully!', 'success')
     else:
@@ -436,12 +393,11 @@ def admin_pdfs():
     pdfs = get_all_pdfs()
     return render_template('dashboard/admin/pdfs.html', pdfs=pdfs)
 
+
 @admin_bp.route('/pdfs/add', methods=['POST'])
 @admin_required
 def add_pdf():
-    # Validate CSRF
     validate_csrf()
-    
     title = request.form.get('title', '').strip()
     description = request.form.get('description', '').strip()
     file_url = request.form.get('file_url', '').strip()
@@ -449,11 +405,11 @@ def add_pdf():
     subject = request.form.get('subject', '').strip()
     grade = request.form.get('grade', '').strip()
     category = request.form.get('category', '').strip()
-    
+
     if not title or not file_url or not telegram_download_url:
         flash('Title, file URL, and Telegram download URL are required.', 'error')
         return redirect(url_for('admin.admin_pdfs'))
-    
+
     data = {
         'title': title,
         'description': description,
@@ -464,20 +420,18 @@ def add_pdf():
         'category': category if category else '',
         'view_count': 0
     }
-    
+
     if create_pdf(data):
         flash('PDF added successfully!', 'success')
     else:
         flash('Error adding PDF.', 'error')
-    
     return redirect(url_for('admin.admin_pdfs'))
+
 
 @admin_bp.route('/pdfs/delete/<pdf_id>', methods=['POST'])
 @admin_required
 def delete_pdf(pdf_id):
-    # Validate CSRF
     validate_csrf()
-    
     if delete_pdf(pdf_id):
         flash('PDF deleted successfully!', 'success')
     else:
@@ -495,33 +449,30 @@ def admin_subjects():
     subjects = get_all_subjects()
     return render_template('dashboard/admin/subjects.html', subjects=subjects)
 
+
 @admin_bp.route('/subjects/add', methods=['POST'])
 @admin_required
 def add_subject():
-    # Validate CSRF
     validate_csrf()
-    
     name = request.form.get('name', '').strip()
     icon = request.form.get('icon', '').strip()
-    
+
     if not name:
         flash('Subject name is required.', 'error')
         return redirect(url_for('admin.admin_subjects'))
-    
+
     data = {'name': name, 'icon': icon if icon else '📚'}
     if create_subject(data):
         flash('Subject added successfully!', 'success')
     else:
         flash('Error adding subject. Name may already exist.', 'error')
-    
     return redirect(url_for('admin.admin_subjects'))
+
 
 @admin_bp.route('/subjects/delete/<subject_id>', methods=['POST'])
 @admin_required
 def delete_subject(subject_id):
-    # Validate CSRF
     validate_csrf()
-    
     if delete_subject(subject_id):
         flash('Subject deleted successfully!', 'success')
     else:
@@ -540,12 +491,11 @@ def admin_questions():
     subjects = get_all_subjects()
     return render_template('dashboard/admin/questions.html', questions=questions, subjects=subjects)
 
+
 @admin_bp.route('/questions/add', methods=['POST'])
 @admin_required
 def add_question():
-    # Validate CSRF
     validate_csrf()
-    
     subject_id = request.form.get('subject_id', '')
     question_text = request.form.get('question_text', '').strip()
     option_a = request.form.get('option_a', '').strip()
@@ -558,18 +508,17 @@ def add_question():
     chapter = request.form.get('chapter', '').strip()
     tags = request.form.get('tags', '').strip()
     explanation = request.form.get('explanation', '').strip()
-    
+
     if not subject_id or not question_text or not option_a or not option_b or not option_c or not correct_answer:
         flash('Subject, question, options A-C, and correct answer are required.', 'error')
         return redirect(url_for('admin.admin_questions'))
-    
-    # Build options dictionary
+
     options = {'A': option_a, 'B': option_b, 'C': option_c}
     if option_d:
         options['D'] = option_d
     if option_e:
         options['E'] = option_e
-    
+
     data = {
         'subject_id': subject_id,
         'question_text': question_text,
@@ -582,20 +531,18 @@ def add_question():
         'created_by': session['user_id'],
         'updated_by': session['user_id']
     }
-    
+
     if create_question(data):
         flash('Question added successfully!', 'success')
     else:
         flash('Error adding question.', 'error')
-    
     return redirect(url_for('admin.admin_questions'))
+
 
 @admin_bp.route('/questions/delete/<question_id>', methods=['POST'])
 @admin_required
 def delete_question(question_id):
-    # Validate CSRF
     validate_csrf()
-    
     if delete_question(question_id):
         flash('Question archived successfully!', 'success')
     else:
@@ -613,22 +560,20 @@ def admin_users():
     users = get_all_students()
     return render_template('dashboard/admin/users.html', users=users)
 
+
 @admin_bp.route('/users/toggle_admin/<user_id>', methods=['POST'])
 @admin_required
 def toggle_user_admin(user_id):
-    # Validate CSRF
     validate_csrf()
-    
     if user_id == session['user_id']:
         flash('You cannot change your own admin status.', 'error')
         return redirect(url_for('admin.admin_users'))
-    
+
     result = toggle_admin(user_id)
     if result:
         flash('Admin status updated successfully!', 'success')
     else:
         flash('Error updating admin status.', 'error')
-    
     return redirect(url_for('admin.admin_users'))
 
 
@@ -639,20 +584,17 @@ def toggle_user_admin(user_id):
 @admin_bp.route('/announcement', methods=['GET', 'POST'])
 @admin_required
 def admin_announcement():
-    """Admin page to send announcements"""
+    """Admin page to send announcements to all users."""
     if request.method == 'POST':
-        # Validate CSRF
         validate_csrf()
-        
         title = request.form.get('title', '').strip()
         body = request.form.get('body', '').strip()
         link = request.form.get('link', '').strip()
-        
+
         if not title or not body:
             flash('Title and body are required.', 'error')
             return render_template('dashboard/admin/announcement.html')
-        
-        # Send to all users
+
         create_notification_for_all_users(
             type='admin',
             title=title,
@@ -660,8 +602,8 @@ def admin_announcement():
             link=link or '/dashboard',
             icon='📢'
         )
-        
+
         flash('✅ Announcement sent to all users!', 'success')
         return redirect(url_for('admin.dashboard'))
-    
+
     return render_template('dashboard/admin/announcement.html')

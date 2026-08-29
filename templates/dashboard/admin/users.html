@@ -85,7 +85,7 @@
 </div>
 
 <!-- Delete Modal -->
-<div id="deleteModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+<div id="deleteModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
     <div style="background: var(--surface); border-radius: var(--radius); padding: 32px; max-width: 480px; width: 90%; box-shadow: var(--shadow-lg);">
         <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 8px;">⚠️ Delete User</h3>
         <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">
@@ -95,6 +95,8 @@
             This action will back up the user data and remove them permanently.
         </p>
         <form id="deleteForm" method="POST" action="">
+            <!-- CSRF token added here -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div style="margin-bottom: 12px;">
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer;">
                     <input type="checkbox" name="keep_ratings" checked>
