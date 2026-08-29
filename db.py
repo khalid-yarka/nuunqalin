@@ -5,6 +5,7 @@ import string
 import logging
 import time
 import os
+from typing import Optional
 from datetime import datetime, timezone, timedelta
 from flask import g, current_app
 from config import Config
@@ -2353,3 +2354,24 @@ def delete_live_quiz(quiz_id: int) -> bool:
     except Exception as e:
         logger.error(f"Error deleting live quiz {quiz_id}: {e}")
         return False
+
+def get_user_active_quiz(user_id: int) -> Optional[int]:
+    """
+    Get the ID of any waiting/active quiz the user is currently participating in.
+    Returns quiz_id or None if not in any quiz.
+    """
+    try:
+        cursor = execute_with_retry("""
+            SELECT lqp.quiz_id
+            FROM live_quiz_participants lqp
+            JOIN live_quizzes lq ON lqp.quiz_id = lq.id
+            WHERE lqp.student_id = ?
+              AND lqp.status != 'left'
+              AND lq.status IN ('waiting', 'active')
+            LIMIT 1
+        """, (user_id,))
+        result = cursor.fetchone()
+        return result['quiz_id'] if result else None
+    except Exception as e:
+        logger.error(f"Error getting user active quiz: {e}")
+        return None

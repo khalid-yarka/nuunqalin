@@ -221,6 +221,24 @@ app.config['SESSION_COOKIE_HTTPONLY'] = Config.SESSION_COOKIE_HTTPONLY
 app.config['SESSION_COOKIE_SAMESITE'] = Config.SESSION_COOKIE_SAMESITE
 
 # ============================================
+# CACHE INITIALIZATION
+# ============================================
+
+try:
+    from cache import get_cache_manager, start_worker
+    cache_manager = get_cache_manager()
+    logger.info("Cache manager initialized.")
+
+    # Start the write-behind worker in a background thread.
+    # For production, consider running a separate process.
+    if Config.REDIS_URL and os.getenv('CACHE_WORKER_ENABLED', 'true').lower() == 'true':
+        start_worker()
+        logger.info("Cache worker started.")
+except Exception as e:
+    logger.error(f"Cache initialization failed: {e}")
+
+
+# ============================================
 # REQUEST CONTEXT - Request ID
 # ============================================
 

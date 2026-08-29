@@ -170,3 +170,52 @@ class Config:
         return errors
 
 Config.ensure_directories()
+
+# ============================================
+# CACHE CONFIGURATION
+# ============================================
+
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CACHE_LOCAL_MAX_SIZE = int(os.getenv('CACHE_LOCAL_MAX_SIZE', '1000'))
+CACHE_LOCAL_TTL = int(os.getenv('CACHE_LOCAL_TTL', '60'))  # seconds
+CACHE_SERIALIZATION = os.getenv('CACHE_SERIALIZATION', 'json')  # 'json', 'pickle', 'msgpack'
+REDIS_MAX_CONNECTIONS = int(os.getenv('REDIS_MAX_CONNECTIONS', '10'))
+
+# Cache TTLs per namespace (seconds)
+CACHE_TTL = {
+    'user': {
+        'profile': 300,      # 5 minutes
+        'preferences': 600,
+    },
+    'subject': {
+        'list': 3600,        # 1 hour
+        'data': 1800,
+    },
+    'quiz': {
+        'state': 60,         # 1 minute (live quiz state)
+        'participants': 30,
+        'leaderboard': 10,
+    },
+    'leaderboard': {
+        'global': 30,
+        'subject': 30,
+    },
+    'pdf': {
+        'list': 600,
+        'metadata': 600,
+    },
+    'group': {
+        'list': 600,
+        'data': 600,
+    },
+    'notification': {
+        'unread': 10,
+        'list': 60,
+    },
+    'admin': {
+        'stats': 300,
+    },
+    'session': {
+        'data': 86400,       # 1 day (matches session timeout)
+    },
+}
