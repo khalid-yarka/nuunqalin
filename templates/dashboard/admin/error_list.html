@@ -10,130 +10,10 @@
        MINIMAL ENHANCEMENTS – BASE CLASSES RETAINED
        ============================================ */
 
-    /* Accent colours for stat icons */
-    .stat-card.accent-critical .stat-icon { color: #EF4444; }
-    .stat-card.accent-error .stat-icon { color: #F59E0B; }
-    .stat-card.accent-warning .stat-icon { color: #3B82F6; }
-    .stat-card.accent-resolved .stat-icon { color: #10B981; }
-
-    /* Filter bar – uses base .filter-bar if you have one; otherwise simple */
-    .filter-bar {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 12px 16px;
-        margin-bottom: 20px;
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-        align-items: center;
-        box-shadow: var(--shadow-sm);
-    }
-    .filter-bar select,
-    .filter-bar input {
-        padding: 8px 12px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        font-size: 13px;
-        background: var(--surface);
-        color: var(--text);
-        transition: border-color 0.2s ease;
-    }
-    .filter-bar select:focus,
-    .filter-bar input:focus {
-        border-color: var(--primary);
-        outline: none;
-        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.08);
-    }
-    .filter-bar .btn {
-        padding: 8px 16px;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 13px;
-        cursor: pointer;
-        border: none;
-        transition: all 0.2s ease;
-    }
-    .filter-bar .btn-primary {
-        background: var(--primary);
-        color: white;
-    }
-    .filter-bar .btn-primary:hover {
-        background: var(--primary-hover);
-    }
-    .filter-bar .btn-secondary {
-        background: var(--surface);
-        color: var(--text);
-        border: 1px solid var(--border);
-    }
-    .filter-bar .btn-secondary:hover {
-        background: var(--background);
-        border-color: var(--primary);
-        color: var(--primary);
-    }
-    .filter-bar .btn-danger {
-        background: #FEF2F2;
-        color: #DC2626;
-        border: 1px solid #FCA5A5;
-    }
-    .filter-bar .btn-danger:hover {
-        background: #FEE2E2;
-        border-color: #DC2626;
-    }
-
-    /* Table – base styles from dashboard.css for tables */
-    .table-container {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        overflow: hidden;
-        box-shadow: var(--shadow-sm);
-    }
-    .table-container .table-header {
-        padding: 12px 20px;
-        background: var(--background);
-        border-bottom: 1px solid var(--border);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-    .table-container .table-header strong {
-        color: var(--text);
-    }
-
-    .error-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-    }
-    .error-table th {
-        padding: 10px 14px;
-        text-align: left;
-        background: var(--background);
-        color: var(--text-secondary);
-        font-weight: 600;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        border-bottom: 1px solid var(--border);
-        position: sticky;
-        top: 0;
-        z-index: 10;
-    }
-    .error-table td {
-        padding: 10px 14px;
-        border-bottom: 1px solid var(--border-light);
-        color: var(--text);
-        vertical-align: middle;
-    }
-    .error-table tr:hover td {
-        background: var(--primary-light);
-    }
-    .error-table tr.resolved td {
-        opacity: 0.6;
-    }
+    .stat-card.accent-critical .stat-icon { color: #EF4444; background: #FEF2F2; }
+    .stat-card.accent-error .stat-icon { color: #F59E0B; background: #FFFBEB; }
+    .stat-card.accent-warning .stat-icon { color: #3B82F6; background: #EFF6FF; }
+    .stat-card.accent-resolved .stat-icon { color: #10B981; background: #ECFDF5; }
 
     .severity-badge {
         display: inline-block;
@@ -193,39 +73,6 @@
         color: white;
     }
 
-    .pagination {
-        display: flex;
-        gap: 6px;
-        justify-content: center;
-        padding: 16px;
-        border-top: 1px solid var(--border);
-        flex-wrap: wrap;
-    }
-    .pagination .page-link {
-        padding: 6px 14px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        text-decoration: none;
-        color: var(--text-secondary);
-        font-size: 13px;
-        transition: all 0.2s ease;
-    }
-    .pagination .page-link:hover {
-        background: var(--primary-light);
-        border-color: var(--primary);
-        color: var(--primary);
-    }
-    .pagination .page-link.active {
-        background: var(--primary);
-        color: white;
-        border-color: var(--primary);
-    }
-    .pagination .page-link.disabled {
-        opacity: 0.5;
-        pointer-events: none;
-    }
-
-    /* Responsive */
     @media (max-width: 768px) {
         .filter-bar {
             flex-direction: column;
@@ -245,14 +92,12 @@
 {% block dashboard_content %}
 <div style="max-width: 100%;">
 
-    <!-- Breadcrumb -->
     <div class="breadcrumb">
         <a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
         <span class="separator">/</span>
         <span class="current">Error Logs</span>
     </div>
 
-    <!-- Header -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
         <div>
             <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
@@ -270,7 +115,6 @@
         </div>
     </div>
 
-    <!-- Stats Mini Grid – base .stats-grid -->
     <div class="stats-grid" style="margin-bottom: 20px;">
         <div class="stat-card accent-critical">
             <span class="stat-icon">🔴</span>
@@ -294,7 +138,6 @@
         </div>
     </div>
 
-    <!-- Filter Bar -->
     <form method="GET" id="filterForm" class="filter-bar">
         <select name="severity" onchange="this.form.submit()">
             <option value="">All Severities</option>
@@ -309,7 +152,7 @@
             <option value="1" {% if resolved == '1' %}selected{% endif %}>Resolved</option>
         </select>
 
-        <div style="display: flex; gap: 6px; flex: 1; min-width: 180px;">
+        <div class="search-wrapper">
             <input type="text" name="search" placeholder="Search errors..." value="{{ search or '' }}">
             <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i></button>
         </div>
@@ -323,7 +166,6 @@
         </button>
     </form>
 
-    <!-- Table -->
     <div class="table-container">
         <div class="table-header">
             <span><strong>{{ total }}</strong> errors found</span>
@@ -384,7 +226,6 @@
                 </table>
             </div>
 
-            <!-- Pagination -->
             {% if total_pages > 1 %}
                 <div class="pagination">
                     <a href="?page=1&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" class="page-link {% if page == 1 %}disabled{% endif %}">First</a>

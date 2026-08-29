@@ -11,34 +11,13 @@
        ============================================ */
 
     /* Accent colours for stat icons – using existing .stat-icon */
-    .stat-card.accent-blue .stat-icon { color: #3B82F6; }
-    .stat-card.accent-green .stat-icon { color: #10B981; }
-    .stat-card.accent-orange .stat-icon { color: #F59E0B; }
-    .stat-card.accent-purple .stat-icon { color: #8B5CF6; }
-    .stat-card.accent-red .stat-icon { color: #EF4444; }
+    .stat-card.accent-blue .stat-icon { color: #3B82F6; background: #EFF6FF; }
+    .stat-card.accent-green .stat-icon { color: #10B981; background: #ECFDF5; }
+    .stat-card.accent-orange .stat-icon { color: #F59E0B; background: #FFFBEB; }
+    .stat-card.accent-purple .stat-icon { color: #8B5CF6; background: #F3E8FF; }
+    .stat-card.accent-red .stat-icon { color: #EF4444; background: #FEF2F2; }
 
-    /* Subtle hover lift – non‑intrusive */
-    .stat-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
-    }
-
-    /* Quick action card hover – base .quick-action-card already has styles */
-    .quick-action-card:hover {
-        transform: translateX(4px);
-        border-color: var(--primary);
-        background: var(--primary-light);
-        box-shadow: var(--shadow-md);
-    }
-    .quick-action-card .qa-arrow {
-        transition: transform 0.2s ease;
-    }
-    .quick-action-card:hover .qa-arrow {
-        transform: translateX(4px);
-        color: var(--primary);
-    }
-
-    /* Error alert – consistent with base alerts */
+    /* Error alert */
     .error-alert {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -84,7 +63,6 @@
         border-color: var(--primary);
     }
 
-    /* Section title – optional */
     .section-title {
         font-size: 16px;
         font-weight: 600;
@@ -115,12 +93,10 @@
 {% block dashboard_content %}
 <div style="max-width: 100%;">
 
-    <!-- Breadcrumb -->
     <div class="breadcrumb">
         <span class="current">Admin Dashboard</span>
     </div>
 
-    <!-- Header -->
     <div style="margin-bottom: 24px;">
         <h1 style="font-size: 24px; font-weight: 700; color: var(--text);">
             ⚙️ Admin Dashboard
@@ -133,7 +109,6 @@
         </p>
     </div>
 
-    <!-- Stats Grid – base .stats-grid and .stat-card -->
     <div class="stats-grid">
         <div class="stat-card accent-primary">
             <span class="stat-icon">👥</span>
@@ -167,7 +142,6 @@
         </div>
     </div>
 
-    <!-- Error Alert (conditional) -->
     {% if error_stats and error_stats.unresolved > 0 %}
     <div class="error-alert">
         <div class="left">
@@ -185,7 +159,6 @@
     </div>
     {% endif %}
 
-    <!-- Quick Actions – base .quick-actions-grid and .quick-action-card -->
     <div style="margin-bottom: 28px;">
         <h3 class="section-title">
             <span>🚀 Quick Actions</span>
@@ -259,7 +232,6 @@
         </div>
     </div>
 
-    <!-- Recent Activity – base .activity-feed -->
     <div class="activity-feed">
         <div class="feed-header">
             <h3><i class="fas fa-clock" style="color: var(--primary); margin-right: 8px;"></i> Recent Activity</h3>

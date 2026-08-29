@@ -6,10 +6,6 @@
 
 {% block extra_css %}
 <style>
-    /* ============================================
-       ERROR DETAIL – MINIMAL ENHANCEMENTS
-       ============================================ */
-
     .detail-card {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -179,7 +175,6 @@
 {% block dashboard_content %}
 <div style="max-width: 100%;">
 
-    <!-- Breadcrumb -->
     <div class="breadcrumb">
         <a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
         <span class="separator">/</span>
@@ -188,10 +183,8 @@
         <span class="current">#{{ error.id }}</span>
     </div>
 
-    <!-- Detail Card -->
     <div class="detail-card">
 
-        <!-- Header -->
         <div class="header">
             <div>
                 <div class="title">{{ error.error_type }}</div>
@@ -209,7 +202,6 @@
             </div>
         </div>
 
-        <!-- Meta Grid -->
         <div class="meta-grid">
             <div class="meta-item">
                 <div class="meta-label">Request ID</div>
@@ -229,13 +221,11 @@
             </div>
         </div>
 
-        <!-- Error Message -->
         <div class="detail-section">
             <div class="section-label">🔍 Error Message</div>
             <div class="section-content mono">{{ error.error_message or 'No message' }}</div>
         </div>
 
-        <!-- Request Info -->
         <div class="detail-section">
             <div class="section-label">🌐 Request Information</div>
             <div class="section-content">
@@ -245,7 +235,6 @@
             </div>
         </div>
 
-        <!-- User Description -->
         {% if error.user_description %}
         <div class="detail-section">
             <div class="section-label">📋 User Description</div>
@@ -253,13 +242,11 @@
         </div>
         {% endif %}
 
-        <!-- Stack Trace -->
         <div class="detail-section">
             <div class="section-label">📊 Stack Trace</div>
             <div class="section-content mono">{{ error.stack_trace or 'No stack trace available' }}</div>
         </div>
 
-        <!-- Resolution Note -->
         {% if error.resolution_note %}
         <div class="detail-section">
             <div class="section-label">✅ Resolution Note</div>
@@ -269,7 +256,6 @@
         </div>
         {% endif %}
 
-        <!-- Actions -->
         <div class="action-bar">
             {% if not error.resolved %}
                 <button onclick="resolveError({{ error.id }})" class="btn btn-success"><i class="fas fa-check"></i> Mark Resolved</button>
