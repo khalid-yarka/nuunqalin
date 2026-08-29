@@ -7,122 +7,38 @@
 {% block extra_css %}
 <style>
     /* ============================================
-       ENHANCED ADMIN DASHBOARD – EXTENDING BASE
+       ENHANCEMENTS ONLY – BASE CLASSES RETAINED
        ============================================ */
 
-    /* Stats cards – base .stat-card gets extra polish */
-    .stat-card {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .stat-card:hover {
-        transform: translateY(-4px);
-        box-shadow: var(--shadow-md);
-    }
-
-    .stat-card .stat-icon {
-        font-size: 24px;
-        opacity: 1;
-        background: var(--primary-light);
-        width: 44px;
-        height: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 10px;
-        margin-bottom: 8px;
-        color: var(--primary);
-    }
-
-    /* Accent colours for icons */
+    /* Stat card accent colors for icons (base .stat-card is preserved) */
     .stat-card.accent-blue .stat-icon { background: #EFF6FF; color: #3B82F6; }
     .stat-card.accent-green .stat-icon { background: #ECFDF5; color: #10B981; }
     .stat-card.accent-orange .stat-icon { background: #FFFBEB; color: #F59E0B; }
     .stat-card.accent-purple .stat-icon { background: #F3E8FF; color: #8B5CF6; }
     .stat-card.accent-red .stat-icon { background: #FEF2F2; color: #EF4444; }
 
-    .stat-card .stat-number {
-        font-size: 28px;
-        font-weight: 700;
-        margin: 2px 0;
-        line-height: 1.2;
+    /* Subtle hover lift for stat cards (non‑intrusive) */
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
     }
 
-    .stat-card .stat-label {
-        font-size: 13px;
-        color: var(--text-secondary);
-        font-weight: 500;
-    }
-
-    /* Quick actions – base .quick-action-card with enhancements */
-    .quick-action-card {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        border-radius: var(--radius-sm);
-        background: var(--surface);
-        border: 1px solid var(--border);
-        padding: 16px 20px;
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        text-decoration: none;
-        color: var(--text);
-        box-shadow: var(--shadow-sm);
-    }
-
+    /* Quick action card enhancements – base .quick-action-card is preserved */
     .quick-action-card:hover {
         transform: translateX(4px);
         border-color: var(--primary);
         background: var(--primary-light);
         box-shadow: var(--shadow-md);
     }
-
-    .quick-action-card .qa-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        flex-shrink: 0;
-    }
-
-    .quick-action-card .qa-icon.primary { background: var(--primary-light); color: var(--primary); }
-    .quick-action-card .qa-icon.green { background: #ECFDF5; color: #10B981; }
-    .quick-action-card .qa-icon.orange { background: #FFFBEB; color: #F59E0B; }
-    .quick-action-card .qa-icon.blue { background: #EFF6FF; color: #3B82F6; }
-    .quick-action-card .qa-icon.purple { background: #F3E8FF; color: #8B5CF6; }
-    .quick-action-card .qa-icon.red { background: #FEF2F2; color: #EF4444; }
-    .quick-action-card .qa-icon.teal { background: #ECFDF5; color: #14B8A6; }
-
-    .quick-action-card .qa-text {
-        flex: 1;
-    }
-
-    .quick-action-card .qa-text .qa-title {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text);
-    }
-
-    .quick-action-card .qa-text .qa-sub {
-        font-size: 12px;
-        color: var(--text-secondary);
-    }
-
     .quick-action-card .qa-arrow {
-        color: var(--text-muted);
         transition: transform 0.2s ease;
     }
-
     .quick-action-card:hover .qa-arrow {
         transform: translateX(4px);
         color: var(--primary);
     }
 
-    /* Error alert – clean and consistent */
+    /* Error alert – uses base .alert style (mimics .alert class) */
     .error-alert {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -137,28 +53,22 @@
         box-shadow: var(--shadow-sm);
         border-left: 4px solid #EF4444;
     }
-
     .error-alert .left {
         display: flex;
         align-items: center;
         gap: 12px;
     }
-
     .error-alert .left .icon {
         font-size: 20px;
         color: #EF4444;
     }
-
     .error-alert .left .text {
         font-size: 14px;
         color: var(--text);
     }
-
     .error-alert .left .text strong {
-        font-weight: 600;
         color: #EF4444;
     }
-
     .error-alert .right a {
         font-size: 13px;
         font-weight: 600;
@@ -169,13 +79,12 @@
         border-radius: var(--radius-sm);
         transition: all 0.2s ease;
     }
-
     .error-alert .right a:hover {
         background: var(--primary-light);
         border-color: var(--primary);
     }
 
-    /* Section title */
+    /* Section title – optional */
     .section-title {
         font-size: 16px;
         font-weight: 600;
@@ -185,7 +94,6 @@
         align-items: center;
         gap: 8px;
     }
-
     .section-title .badge {
         font-size: 11px;
         font-weight: 600;
@@ -195,28 +103,11 @@
         border-radius: 10px;
     }
 
-    /* Responsive tweaks */
+    /* Responsive tweaks – keep base responsive */
     @media (max-width: 768px) {
-        .stat-card .stat-number {
-            font-size: 22px;
-        }
-        .quick-action-card {
-            padding: 12px 16px;
-        }
         .error-alert {
             flex-direction: column;
             align-items: flex-start;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .stat-card .stat-number {
-            font-size: 18px;
-        }
-        .stat-card .stat-icon {
-            width: 36px;
-            height: 36px;
-            font-size: 18px;
         }
     }
 </style>
@@ -225,7 +116,7 @@
 {% block dashboard_content %}
 <div style="max-width: 100%;">
 
-    <!-- Breadcrumb -->
+    <!-- Breadcrumb – base class -->
     <div class="breadcrumb">
         <span class="current">Admin Dashboard</span>
     </div>
@@ -243,41 +134,41 @@
         </p>
     </div>
 
-    <!-- Stats Grid (using base .stats-grid and .stat-card) -->
+    <!-- Stats Grid – base .stats-grid and .stat-card -->
     <div class="stats-grid">
         <div class="stat-card accent-primary">
-            <div class="stat-icon">👥</div>
+            <span class="stat-icon">👥</span>
             <div class="stat-number primary">{{ users_count }}</div>
             <div class="stat-label">Total Users</div>
         </div>
         <div class="stat-card accent-blue">
-            <div class="stat-icon">📚</div>
+            <span class="stat-icon">📚</span>
             <div class="stat-number" style="color: #3B82F6;">{{ subjects_count }}</div>
             <div class="stat-label">Subjects</div>
         </div>
         <div class="stat-card accent-orange">
-            <div class="stat-icon">❓</div>
+            <span class="stat-icon">❓</span>
             <div class="stat-number" style="color: #F59E0B;">{{ questions_count }}</div>
             <div class="stat-label">Questions</div>
         </div>
         <div class="stat-card accent-green">
-            <div class="stat-icon">📄</div>
+            <span class="stat-icon">📄</span>
             <div class="stat-number" style="color: #10B981;">{{ pdfs_count }}</div>
             <div class="stat-label">PDFs</div>
         </div>
         <div class="stat-card accent-purple">
-            <div class="stat-icon">👥</div>
+            <span class="stat-icon">👥</span>
             <div class="stat-number" style="color: #8B5CF6;">{{ groups_count }}</div>
             <div class="stat-label">Groups</div>
         </div>
         <div class="stat-card accent-red">
-            <div class="stat-icon">📝</div>
+            <span class="stat-icon">📝</span>
             <div class="stat-number" style="color: #EF4444;">{{ quiz_attempts }}</div>
             <div class="stat-label">Quiz Attempts</div>
         </div>
     </div>
 
-    <!-- Error Alert (if unresolved errors exist) -->
+    <!-- Error Alert (conditional) -->
     {% if error_stats and error_stats.unresolved > 0 %}
     <div class="error-alert">
         <div class="left">
@@ -295,7 +186,7 @@
     </div>
     {% endif %}
 
-    <!-- Quick Actions (using base .quick-actions-grid and .quick-action-card) -->
+    <!-- Quick Actions – base .quick-actions-grid and .quick-action-card -->
     <div style="margin-bottom: 28px;">
         <h3 class="section-title">
             <span>🚀 Quick Actions</span>
@@ -369,7 +260,7 @@
         </div>
     </div>
 
-    <!-- Recent Activity (base .activity-feed) -->
+    <!-- Recent Activity – base .activity-feed -->
     <div class="activity-feed">
         <div class="feed-header">
             <h3><i class="fas fa-clock" style="color: var(--primary); margin-right: 8px;"></i> Recent Activity</h3>

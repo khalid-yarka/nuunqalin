@@ -6,47 +6,17 @@
 
 {% block extra_css %}
 <style>
-    /* Stats cards – same enhancements as dashboard */
-    .stat-card {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        position: relative;
-        overflow: hidden;
-    }
-    .stat-card:hover {
-        transform: translateY(-4px);
-        box-shadow: var(--shadow-md);
-    }
-    .stat-card .stat-icon {
-        font-size: 24px;
-        opacity: 1;
-        background: var(--primary-light);
-        width: 44px;
-        height: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 10px;
-        margin-bottom: 8px;
-        color: var(--primary);
-    }
+    /* ============================================
+       ERROR LIST – BASE CLASSES + ENHANCEMENTS
+       ============================================ */
+
+    /* Stat card accent colors */
     .stat-card.accent-critical .stat-icon { background: #FEF2F2; color: #EF4444; }
     .stat-card.accent-error .stat-icon { background: #FFFBEB; color: #F59E0B; }
     .stat-card.accent-warning .stat-icon { background: #EFF6FF; color: #3B82F6; }
     .stat-card.accent-resolved .stat-icon { background: #ECFDF5; color: #10B981; }
 
-    .stat-card .stat-number {
-        font-size: 28px;
-        font-weight: 700;
-        margin: 2px 0;
-        line-height: 1.2;
-    }
-    .stat-card .stat-label {
-        font-size: 13px;
-        color: var(--text-secondary);
-        font-weight: 500;
-    }
-
-    /* Filter bar */
+    /* Filter bar – consistent with base */
     .filter-bar {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -65,7 +35,6 @@
         font-size: 13px;
         background: var(--surface);
         color: var(--text);
-        transition: border-color 0.2s ease;
     }
     .filter-bar select:focus, .filter-bar input:focus {
         border-color: var(--primary);
@@ -108,7 +77,28 @@
         border-color: #DC2626;
     }
 
-    /* Table enhancements */
+    /* Table – base .table style (minimal adjustments) */
+    .table-container {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+    .table-container .table-header {
+        padding: 12px 20px;
+        background: var(--background);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+    .table-container .table-header strong {
+        color: var(--text);
+    }
+
     .error-table {
         width: 100%;
         border-collapse: collapse;
@@ -231,6 +221,7 @@
         pointer-events: none;
     }
 
+    /* Responsive */
     @media (max-width: 768px) {
         .filter-bar {
             flex-direction: column;
@@ -262,9 +253,7 @@
             <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
                 <i class="fas fa-exclamation-triangle" style="color: #EF4444;"></i> Error Logs
             </h2>
-            <p style="color: var(--text-secondary); font-size: 14px;">
-                View and manage system errors
-            </p>
+            <p style="color: var(--text-secondary); font-size: 14px;">View and manage system errors</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <span style="background: #EF4444; color: white; padding: 4px 14px; border-radius: 12px; font-size: 13px; font-weight: 600;">
@@ -276,25 +265,25 @@
         </div>
     </div>
 
-    <!-- Stats Mini Grid -->
+    <!-- Stats Mini Grid – base .stats-grid -->
     <div class="stats-grid" style="margin-bottom: 20px;">
         <div class="stat-card accent-critical">
-            <div class="stat-icon">🔴</div>
+            <span class="stat-icon">🔴</span>
             <div class="stat-number" style="color: #EF4444;">{{ stats.critical or 0 }}</div>
             <div class="stat-label">Critical</div>
         </div>
         <div class="stat-card accent-error">
-            <div class="stat-icon">🟠</div>
+            <span class="stat-icon">🟠</span>
             <div class="stat-number" style="color: #F59E0B;">{{ stats.error or 0 }}</div>
             <div class="stat-label">Errors</div>
         </div>
         <div class="stat-card accent-warning">
-            <div class="stat-icon">🔵</div>
+            <span class="stat-icon">🔵</span>
             <div class="stat-number" style="color: #3B82F6;">{{ stats.warning or 0 }}</div>
             <div class="stat-label">Warnings</div>
         </div>
         <div class="stat-card accent-resolved">
-            <div class="stat-icon">✅</div>
+            <span class="stat-icon">✅</span>
             <div class="stat-number" style="color: #10B981;">{{ stats.resolved or 0 }}</div>
             <div class="stat-label">Resolved</div>
         </div>
@@ -329,9 +318,9 @@
         </button>
     </form>
 
-    <!-- Error Table -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);">
-        <div style="padding: 12px 20px; background: var(--background); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-secondary);">
+    <!-- Table -->
+    <div class="table-container">
+        <div class="table-header">
             <span><strong>{{ total }}</strong> errors found</span>
             <span>Page {{ page }} of {{ total_pages }}</span>
         </div>
