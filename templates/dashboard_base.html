@@ -3,7 +3,9 @@
 {% block title %}Dashboard - Student Platform{% endblock %}
 
 {% block extra_css %}
+<!-- Dashboard Layout CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+<!-- live_quiz.css is NOT loaded globally; it will be loaded only on live quiz pages -->
 {% block dashboard_css %}{% endblock %}
 {% endblock %}
 

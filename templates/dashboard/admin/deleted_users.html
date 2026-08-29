@@ -4,16 +4,16 @@
 
 {% block page_title %}Deleted Users{% endblock %}
 
+<!-- No custom CSS needed -->
+
 {% block dashboard_content %}
 <div style="max-width: 100%;">
-    <!-- Breadcrumb -->
     <div class="breadcrumb">
         <a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
         <span class="separator">/</span>
         <span class="current">Deleted Users</span>
     </div>
 
-    <!-- Header -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
         <div>
             <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
@@ -21,50 +21,46 @@
             </h2>
             <p style="color: var(--text-secondary); font-size: 14px;">Recover deleted users from backup</p>
         </div>
-        <a href="{{ url_for('admin.admin_users') }}" style="padding: 8px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); transition: var(--transition);">
-            <i class="fas fa-arrow-left"></i> Back to Users
-        </a>
+        <a href="{{ url_for('admin.admin_users') }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Back to Users</a>
     </div>
 
-    <!-- Deleted Users List -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);">
-        <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--background);">
-            <span style="font-weight: 600; color: var(--text);">Deleted Users ({{ deleted|length }})</span>
+    <div class="table-container">
+        <div class="table-header">
+            <span><strong>{{ deleted|length }}</strong> deleted users</span>
         </div>
         {% if deleted %}
             <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                    <thead style="background: var(--background);">
+                <table class="table">
+                    <thead>
                         <tr>
-                            <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">ID</th>
-                            <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Name</th>
-                            <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Phone</th>
-                            <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Deleted By</th>
-                            <th style="padding: 12px 16px; text-align: left; color: var(--text-secondary); font-weight: 600;">Deleted At</th>
-                            <th style="padding: 12px 16px; text-align: center; color: var(--text-secondary); font-weight: 600;">Actions</th>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Phone</th>
+                            <th>Deleted By</th>
+                            <th>Deleted At</th>
+                            <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for user in deleted %}
-                            <tr style="border-top: 1px solid var(--border);">
-                                <td style="padding: 12px 16px; color: var(--text-secondary); font-family: monospace; font-size: 12px;">#{{ user.public_id or '----' }}</td>
-                                <td style="padding: 12px 16px; color: var(--text); font-weight: 500;">{{ user.first_name }} {{ user.last_name or '' }}</td>
-                                <td style="padding: 12px 16px; color: var(--text);">{{ user.phone_number }}</td>
-                                <td style="padding: 12px 16px; color: var(--text-secondary);">
+                            <tr>
+                                <td style="font-family: monospace; font-size: 12px; color: var(--text-secondary);">#{{ user.public_id or '----' }}</td>
+                                <td style="font-weight: 500;">{{ user.first_name }} {{ user.last_name or '' }}</td>
+                                <td>{{ user.phone_number }}</td>
+                                <td>
                                     {% if user.deleted_by_data %}
                                         #{{ user.deleted_by_data.public_id }} {{ user.deleted_by_data.first_name }}
                                     {% else %}
                                         System
                                     {% endif %}
                                 </td>
-                                <td style="padding: 12px 16px; color: var(--text-secondary); font-size: 13px;">
+                                <td style="font-size: 13px; color: var(--text-secondary);">
                                     {{ user.deleted_at|replace('T', ' ')|truncate(16, True, '') }}
                                 </td>
-                                <td style="padding: 12px 16px; text-align: center;">
+                                <td style="text-align: center;">
                                     <form method="POST" action="{{ url_for('admin.restore_deleted_user', deleted_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Restore this user?');">
-                                        <button type="submit" style="padding: 4px 12px; background: #ECFDF5; color: #10B981; border: 1px solid #A7F3D0; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; transition: var(--transition);">
-                                            <i class="fas fa-undo"></i> Restore
-                                        </button>
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-undo"></i> Restore</button>
                                     </form>
                                 </td>
                             </tr>
@@ -73,9 +69,9 @@
                 </table>
             </div>
         {% else %}
-            <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
-                <div style="font-size: 40px; opacity: 0.3; margin-bottom: 8px;">🗑️</div>
-                <p>No deleted users found.</p>
+            <div class="empty-state">
+                <span class="empty-icon">🗑️</span>
+                <div class="empty-title">No deleted users found</div>
             </div>
         {% endif %}
     </div>

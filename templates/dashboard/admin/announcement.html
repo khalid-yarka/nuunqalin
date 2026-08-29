@@ -4,17 +4,30 @@
 
 {% block page_title %}Send Announcement{% endblock %}
 
+{% block dashboard_css %}
+<style>
+    /* Page-specific – uses .card and .form-control from style.css */
+    [data-theme="dark"] .form-control {
+        background: var(--surface-alt) !important;
+        border-color: var(--border) !important;
+        color: var(--text) !important;
+    }
+    [data-theme="dark"] .form-control:focus {
+        border-color: #FF6B70 !important;
+        box-shadow: 0 0 0 3px rgba(255, 107, 112, 0.1) !important;
+    }
+</style>
+{% endblock %}
+
 {% block dashboard_content %}
 <div style="max-width: 640px; margin: 0 auto;">
 
-    <!-- Breadcrumb -->
     <div class="breadcrumb">
         <a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
         <span class="separator">/</span>
         <span class="current">Send Announcement</span>
     </div>
 
-    <!-- Header -->
     <div style="margin-bottom: 24px;">
         <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
             <i class="fas fa-bullhorn" style="color: var(--primary);"></i> Send Announcement
@@ -22,34 +35,25 @@
         <p style="color: var(--text-secondary); font-size: 14px;">Send a notification to all users on the platform</p>
     </div>
 
-    <!-- Form -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; box-shadow: var(--shadow-sm);">
+    <div class="card">
         <form method="POST" action="{{ url_for('notifications.admin_announcement') }}">
-            <div style="margin-bottom: 20px;">
-                <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
-                    📢 Title <span style="color: var(--primary);">*</span>
-                </label>
-                <input type="text" name="title" placeholder="e.g., New Questions Added!" required 
-                       style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--surface); color: var(--text); transition: var(--transition);">
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Short, catchy title (max 100 chars)</div>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+                <label class="form-label">📢 Title <span class="required">*</span></label>
+                <input type="text" name="title" placeholder="e.g., New Questions Added!" class="form-control" required>
+                <span class="form-hint">Short, catchy title (max 100 chars)</span>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
-                    📝 Message <span style="color: var(--primary);">*</span>
-                </label>
-                <textarea name="body" rows="5" placeholder="Your announcement message here..." required 
-                          style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--surface); color: var(--text); transition: var(--transition); resize: vertical;"></textarea>
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Clear, informative message (max 500 chars)</div>
+            <div class="form-group">
+                <label class="form-label">📝 Message <span class="required">*</span></label>
+                <textarea name="body" rows="5" placeholder="Your announcement message here..." class="form-control" required></textarea>
+                <span class="form-hint">Clear, informative message (max 500 chars)</span>
             </div>
 
-            <div style="margin-bottom: 24px;">
-                <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
-                    🔗 Link (Optional)
-                </label>
-                <input type="text" name="link" placeholder="e.g., /quiz or /live-quiz" 
-                       style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--surface); color: var(--text); transition: var(--transition);">
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Users will be directed here when they click the notification</div>
+            <div class="form-group">
+                <label class="form-label">🔗 Link (Optional)</label>
+                <input type="text" name="link" placeholder="e.g., /quiz or /live-quiz" class="form-control">
+                <span class="form-hint">Users will be directed here when they click the notification</span>
             </div>
 
             <div style="background: var(--background); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 24px; border: 1px solid var(--border);">
@@ -60,18 +64,13 @@
             </div>
 
             <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                <button type="submit" style="padding: 12px 32px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 16px; cursor: pointer; transition: var(--transition);">
-                    <i class="fas fa-paper-plane"></i> Send Announcement
-                </button>
-                <a href="{{ url_for('admin.dashboard') }}" style="padding: 12px 32px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text); font-weight: 500; transition: var(--transition);">
-                    Cancel
-                </a>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send Announcement</button>
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>
 
-    <!-- Recent Announcements (Optional) -->
-    <div style="margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow-sm);">
+    <div style="margin-top: 16px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm);">
         <div style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px;">
             <i class="fas fa-clock"></i>
             <span>Recent announcements will appear here once sent.</span>
@@ -79,18 +78,4 @@
     </div>
 
 </div>
-
-<style>
-    [data-theme="dark"] input, 
-    [data-theme="dark"] textarea {
-        background: var(--surface-alt) !important;
-        border-color: var(--border) !important;
-        color: var(--text) !important;
-    }
-    [data-theme="dark"] input:focus,
-    [data-theme="dark"] textarea:focus {
-        border-color: var(--primary) !important;
-        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
-    }
-</style>
 {% endblock %}

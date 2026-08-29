@@ -4,16 +4,11 @@
 
 {% block page_title %}Error Logs{% endblock %}
 
-{% block extra_css %}
+{% block dashboard_css %}
 <style>
     /* ============================================
-       MINIMAL ENHANCEMENTS – BASE CLASSES RETAINED
+       ERROR LIST – MINIMAL PAGE-SPECIFIC STYLES
        ============================================ */
-
-    .stat-card.accent-critical .stat-icon { color: #EF4444; background: #FEF2F2; }
-    .stat-card.accent-error .stat-icon { color: #F59E0B; background: #FFFBEB; }
-    .stat-card.accent-warning .stat-icon { color: #3B82F6; background: #EFF6FF; }
-    .stat-card.accent-resolved .stat-icon { color: #10B981; background: #ECFDF5; }
 
     .severity-badge {
         display: inline-block;
@@ -73,15 +68,12 @@
         color: white;
     }
 
+    .stat-card.accent-critical .stat-icon { color: #EF4444; background: #FEF2F2; }
+    .stat-card.accent-error .stat-icon { color: #F59E0B; background: #FFFBEB; }
+    .stat-card.accent-warning .stat-icon { color: #3B82F6; background: #EFF6FF; }
+    .stat-card.accent-resolved .stat-icon { color: #10B981; background: #ECFDF5; }
+
     @media (max-width: 768px) {
-        .filter-bar {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .error-table th,
-        .error-table td {
-            padding: 6px 10px;
-        }
         .error-table .hide-mobile {
             display: none;
         }
@@ -106,15 +98,12 @@
             <p style="color: var(--text-secondary); font-size: 14px;">View and manage system errors</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <span style="background: #EF4444; color: white; padding: 4px 14px; border-radius: 12px; font-size: 13px; font-weight: 600;">
-                {{ stats.unresolved or 0 }} unresolved
-            </span>
-            <span style="background: var(--background); color: var(--text-secondary); padding: 4px 14px; border-radius: 12px; font-size: 13px;">
-                Total: {{ stats.total or 0 }}
-            </span>
+            <span class="badge badge-danger">{{ stats.unresolved or 0 }} unresolved</span>
+            <span class="badge" style="background: var(--background); color: var(--text-secondary);">Total: {{ stats.total or 0 }}</span>
         </div>
     </div>
 
+    <!-- Stats Mini Grid -->
     <div class="stats-grid" style="margin-bottom: 20px;">
         <div class="stat-card accent-critical">
             <span class="stat-icon">🔴</span>
@@ -138,22 +127,23 @@
         </div>
     </div>
 
+    <!-- Filter Bar -->
     <form method="GET" id="filterForm" class="filter-bar">
-        <select name="severity" onchange="this.form.submit()">
+        <select name="severity" class="form-control" onchange="this.form.submit()">
             <option value="">All Severities</option>
             <option value="CRITICAL" {% if severity == 'CRITICAL' %}selected{% endif %}>Critical</option>
             <option value="ERROR" {% if severity == 'ERROR' %}selected{% endif %}>Error</option>
             <option value="WARNING" {% if severity == 'WARNING' %}selected{% endif %}>Warning</option>
         </select>
 
-        <select name="resolved" onchange="this.form.submit()">
+        <select name="resolved" class="form-control" onchange="this.form.submit()">
             <option value="">All Status</option>
             <option value="0" {% if resolved == '0' %}selected{% endif %}>Unresolved</option>
             <option value="1" {% if resolved == '1' %}selected{% endif %}>Resolved</option>
         </select>
 
         <div class="search-wrapper">
-            <input type="text" name="search" placeholder="Search errors..." value="{{ search or '' }}">
+            <input type="text" name="search" placeholder="Search errors..." value="{{ search or '' }}" class="form-control">
             <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i></button>
         </div>
 
@@ -166,6 +156,7 @@
         </button>
     </form>
 
+    <!-- Table -->
     <div class="table-container">
         <div class="table-header">
             <span><strong>{{ total }}</strong> errors found</span>
@@ -174,7 +165,7 @@
 
         {% if errors %}
             <div style="overflow-x: auto;">
-                <table class="error-table">
+                <table class="table">
                     <thead>
                         <tr>
                             <th>Severity</th>
@@ -183,8 +174,8 @@
                             <th>Message</th>
                             <th>URL</th>
                             <th>Status</th>
-                            <th class="hide-mobile">#</th>
-                            <th>Actions</th>
+                            <th class="hide-mobile" style="text-align: center;">#</th>
+                            <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -226,6 +217,7 @@
                 </table>
             </div>
 
+            <!-- Pagination -->
             {% if total_pages > 1 %}
                 <div class="pagination">
                     <a href="?page=1&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" class="page-link {% if page == 1 %}disabled{% endif %}">First</a>
@@ -242,9 +234,9 @@
                 </div>
             {% endif %}
         {% else %}
-            <div style="text-align: center; padding: 60px 20px; color: var(--text-secondary);">
-                <div style="font-size: 48px; opacity: 0.3; margin-bottom: 12px;">🎉</div>
-                <h3 style="font-size: 18px; font-weight: 600; color: var(--text);">No errors found</h3>
+            <div class="empty-state">
+                <span class="empty-icon">🎉</span>
+                <div class="empty-title">No errors found</div>
                 <p style="font-size: 14px;">Everything is running smoothly!</p>
             </div>
         {% endif %}

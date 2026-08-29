@@ -24,45 +24,12 @@
         box-shadow: var(--shadow-lg);
     }
 
-    .auth-card .icon {
-        font-size: 48px;
-        margin-bottom: 8px;
-        display: block;
-    }
-
-    .auth-card h1 {
-        font-size: 22px;
-        font-weight: 700;
-        color: var(--text);
-        margin-bottom: 4px;
-    }
-
-    .auth-card p {
-        color: var(--text-secondary);
-        font-size: 14px;
-        margin-bottom: 20px;
-    }
-
-    .auth-card .divider {
-        border: none;
-        height: 2px;
-        background: linear-gradient(to right, transparent, var(--border), transparent);
-        margin: 16px 0;
-    }
-
-    .auth-card .form-group {
-        text-align: left;
-        margin-bottom: 16px;
-    }
-
-    .auth-card .form-group label {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--text);
-        display: block;
-        margin-bottom: 4px;
-    }
-
+    .auth-card .icon { font-size: 48px; margin-bottom: 8px; display: block; }
+    .auth-card h1 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .auth-card p { color: var(--text-secondary); font-size: 14px; margin-bottom: 20px; }
+    .auth-card .divider { border: none; height: 2px; background: linear-gradient(to right, transparent, var(--border), transparent); margin: 16px 0; }
+    .auth-card .form-group { text-align: left; margin-bottom: 16px; }
+    .auth-card .form-group label { font-size: 13px; font-weight: 600; color: var(--text); display: block; margin-bottom: 4px; }
     .auth-card .input-wrapper {
         display: flex;
         align-items: center;
@@ -71,18 +38,12 @@
         border: 2px solid var(--border);
         transition: all 0.3s ease;
     }
-
     .auth-card .input-wrapper:focus-within {
         border-color: var(--primary);
         box-shadow: 0 0 0 4px rgba(255, 49, 56, 0.10);
         background: var(--surface);
     }
-
-    .auth-card .input-wrapper .input-icon {
-        padding: 0 0 0 14px;
-        color: var(--text-muted);
-    }
-
+    .auth-card .input-wrapper .input-icon { padding: 0 0 0 14px; color: var(--text-muted); }
     .auth-card .input-wrapper input {
         width: 100%;
         padding: 12px 14px 12px 10px;
@@ -93,7 +54,6 @@
         outline: none;
         font-family: inherit;
     }
-
     .auth-card .btn-submit {
         width: 100%;
         padding: 12px;
@@ -107,13 +67,11 @@
         transition: all 0.3s ease;
         box-shadow: 0 4px 14px rgba(255, 49, 56, 0.30);
     }
-
     .auth-card .btn-submit:hover {
         background: var(--primary-hover);
         transform: translateY(-2px);
         box-shadow: 0 6px 20px rgba(255, 49, 56, 0.40);
     }
-
     .auth-card .security-notice {
         background: #FEF3C7;
         border: 1px solid #FDE68A;
@@ -124,26 +82,10 @@
         margin-top: 16px;
         text-align: left;
     }
-
-    .auth-card .security-notice i {
-        margin-right: 6px;
-    }
-
-    .auth-card .footer {
-        margin-top: 16px;
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-
-    .auth-card .footer a {
-        color: var(--primary);
-        text-decoration: none;
-        font-weight: 600;
-    }
-
-    .auth-card .footer a:hover {
-        text-decoration: underline;
-    }
+    .auth-card .security-notice i { margin-right: 6px; }
+    .auth-card .footer { margin-top: 16px; font-size: 13px; color: var(--text-secondary); }
+    .auth-card .footer a { color: var(--primary); text-decoration: none; font-weight: 600; }
+    .auth-card .footer a:hover { text-decoration: underline; }
 
     [data-theme="dark"] .auth-card .input-wrapper {
         background: var(--surface-alt);
@@ -167,12 +109,9 @@
         <span class="icon">🔒</span>
         <h1>Admin Access</h1>
         <p>Enter the admin password to access the error dashboard</p>
-
         <hr class="divider">
-
         <form method="POST" action="{{ url_for('admin_errors.login') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
             <div class="form-group">
                 <label>🔑 Admin Password</label>
                 <div class="input-wrapper">
@@ -180,23 +119,10 @@
                     <input type="password" name="password" placeholder="Enter admin password" required autofocus>
                 </div>
             </div>
-
-            <button type="submit" class="btn-submit">
-                <i class="fas fa-sign-in-alt"></i> Login
-            </button>
+            <button type="submit" class="btn-submit"><i class="fas fa-sign-in-alt"></i> Login</button>
         </form>
-
-        <div class="security-notice">
-            <i class="fas fa-shield-alt"></i>
-            This area is restricted to authorized administrators only.
-            All access attempts are logged.
-        </div>
-
-        <div class="footer">
-            <a href="{{ url_for('dashboard.home') }}">
-                <i class="fas fa-arrow-left"></i> Return to Dashboard
-            </a>
-        </div>
+        <div class="security-notice"><i class="fas fa-shield-alt"></i> This area is restricted to authorized administrators only. All access attempts are logged.</div>
+        <div class="footer"><a href="{{ url_for('dashboard.home') }}"><i class="fas fa-arrow-left"></i> Return to Dashboard</a></div>
     </div>
 </div>
 {% endblock %}
