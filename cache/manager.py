@@ -23,7 +23,7 @@ class CacheManager:
         - L1: LocalMemoryBackend (per‑process, ultra‑fast)
         - L2: RedisBackend (distributed, persistent)
 
-    If Redis is unavailable, the manager falls back to L1 only.
+    If Redis is unavailable or not configured, the manager falls back to L1 only.
     """
 
     def __init__(
@@ -37,14 +37,17 @@ class CacheManager:
         self._local = LocalMemoryBackend(max_size=local_max_size, default_ttl=local_ttl)
         self._redis = None
         self._redis_available = False
-        if redis_url:
+        if redis_url and redis_url.strip():
             try:
                 self._redis = RedisBackend(redis_url, max_connections=redis_max_connections)
                 self._redis_available = True
+                logger.info("Redis backend initialized successfully.")
             except Exception as e:
                 logger.error(f"Failed to initialize Redis backend: {e}")
                 self._redis = None
                 self._redis_available = False
+        else:
+            logger.info("Redis URL not provided; using local cache only.")
 
         self._default_serialization = default_serialization
         self._lock_ttl = 5  # seconds for stampede prevention lock
@@ -198,8 +201,6 @@ class CacheManager:
             count = redis.invalidate_pattern(pattern)
             # Clear local cache for matched keys? Can't pattern-delete easily.
             # We'll clear all local cache to be safe (aggressive, but ensures consistency).
-            # Alternatively, we could iterate and delete, but that's expensive.
-            # For simplicity, we'll clear local entirely if Redis invalidation succeeds.
             if count > 0:
                 self._local._cache.clear()
             return count
@@ -256,10 +257,10 @@ def get_cache_manager() -> CacheManager:
             if _cache_manager is None:
                 from config import Config
                 _cache_manager = CacheManager(
-                    redis_url=Config.REDIS_URL,
-                    local_max_size=Config.CACHE_LOCAL_MAX_SIZE,
-                    local_ttl=Config.CACHE_LOCAL_TTL,
-                    default_serialization=Config.CACHE_SERIALIZATION,
-                    redis_max_connections=Config.REDIS_MAX_CONNECTIONS,
+                    redis_url=getattr(Config, 'REDIS_URL', ''),   # Safe fallback
+                    local_max_size=getattr(Config, 'CACHE_LOCAL_MAX_SIZE', 1000),
+                    local_ttl=getattr(Config, 'CACHE_LOCAL_TTL', 60),
+                    default_serialization=getattr(Config, 'CACHE_SERIALIZATION', 'json'),
+                    redis_max_connections=getattr(Config, 'REDIS_MAX_CONNECTIONS', 10),
                 )
     return _cache_manager

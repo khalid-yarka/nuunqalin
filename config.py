@@ -5,10 +5,6 @@ from pathlib import Path
 
 load_dotenv()
 
-# ============================================
-# BASE DIRECTORY - Absolute Path Resolution
-# ============================================
-
 BASE_DIR = Path(__file__).resolve().parent
 
 class Config:
@@ -20,7 +16,7 @@ class Config:
     ADMIN_ERROR_PASSWORD = os.getenv('ADMIN_ERROR_PASSWORD', '')
     
     # ============================================
-    # DATABASE - Absolute Path
+    # DATABASE
     # ============================================
     
     DATABASE_PATH = os.getenv('DATABASE_PATH')
@@ -38,21 +34,18 @@ class Config:
     DB_RETRY_BACKOFF_MULTIPLIER = float(os.getenv('DB_RETRY_BACKOFF_MULTIPLIER', '2.0'))
     
     # ============================================
-    # SESSION — SECURE SETTINGS
+    # SESSION
     # ============================================
     
     SESSION_TYPE = 'filesystem'
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
-    
-    # CRITICAL: Set these according to your deployment
     SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'true').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
-    
     ADMIN_SESSION_TIMEOUT = int(os.getenv('ADMIN_SESSION_TIMEOUT', '1800'))
     
     # ============================================
-    # PATHS - Absolute
+    # PATHS
     # ============================================
     
     BACKUP_DIR = os.getenv('BACKUP_DIR')
@@ -73,14 +66,10 @@ class Config:
     if not os.path.isabs(UPLOAD_FOLDER):
         UPLOAD_FOLDER = str(BASE_DIR / UPLOAD_FOLDER)
     
-    # ============================================
-    # FILE UPLOADS
-    # ============================================
-    
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024
     
     # ============================================
-    # BACKUP CONFIGURATION
+    # BACKUP
     # ============================================
     
     BACKUP_ENABLED = os.getenv('BACKUP_ENABLED', 'true').lower() == 'true'
@@ -90,7 +79,7 @@ class Config:
     BACKUP_RETENTION_MONTHLY = int(os.getenv('BACKUP_RETENTION_MONTHLY', '12'))
     
     # ============================================
-    # QUIZ CONFIGURATION
+    # QUIZ
     # ============================================
     
     RATING_TIME = int(os.getenv('RATING_TIME', '10'))
@@ -114,7 +103,7 @@ class Config:
     LOG_BACKUP_COUNT = int(os.getenv('LOG_BACKUP_COUNT', '5'))
     
     # ============================================
-    # EMAIL CONFIGURATION
+    # EMAIL
     # ============================================
     
     SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.gmail.com')
@@ -123,7 +112,6 @@ class Config:
     SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
     SMTP_FROM = os.getenv('SMTP_FROM', '')
     SMTP_TO = os.getenv('SMTP_TO', '')
-    
     EMAIL_ENABLED = bool(SMTP_USER and SMTP_PASSWORD and SMTP_TO)
     ERROR_EMAIL_DEDUP_WINDOW = int(os.getenv('ERROR_EMAIL_DEDUP_WINDOW', '300'))
     
@@ -135,7 +123,30 @@ class Config:
     ERROR_LOG_SAMPLE_RATE = float(os.getenv('ERROR_LOG_SAMPLE_RATE', '1.0'))
     
     # ============================================
-    # ENSURE DIRECTORIES EXIST
+    # CACHE (NEW)
+    # ============================================
+    
+    REDIS_URL = os.getenv('REDIS_URL', '')  # Empty string means disabled
+    CACHE_LOCAL_MAX_SIZE = int(os.getenv('CACHE_LOCAL_MAX_SIZE', '1000'))
+    CACHE_LOCAL_TTL = int(os.getenv('CACHE_LOCAL_TTL', '60'))
+    CACHE_SERIALIZATION = os.getenv('CACHE_SERIALIZATION', 'json')
+    REDIS_MAX_CONNECTIONS = int(os.getenv('REDIS_MAX_CONNECTIONS', '10'))
+    
+    # Cache TTLs per namespace (seconds)
+    CACHE_TTL = {
+        'user': {'profile': 300, 'preferences': 600},
+        'subject': {'list': 3600, 'data': 1800},
+        'quiz': {'state': 60, 'participants': 30, 'leaderboard': 10},
+        'leaderboard': {'global': 30, 'subject': 30},
+        'pdf': {'list': 600, 'metadata': 600},
+        'group': {'list': 600, 'data': 600},
+        'notification': {'unread': 10, 'list': 60},
+        'admin': {'stats': 300},
+        'session': {'data': 86400},
+    }
+    
+    # ============================================
+    # DIRECTORY CREATION & VALIDATION
     # ============================================
     
     @classmethod
@@ -170,52 +181,3 @@ class Config:
         return errors
 
 Config.ensure_directories()
-
-# ============================================
-# CACHE CONFIGURATION
-# ============================================
-
-REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-CACHE_LOCAL_MAX_SIZE = int(os.getenv('CACHE_LOCAL_MAX_SIZE', '1000'))
-CACHE_LOCAL_TTL = int(os.getenv('CACHE_LOCAL_TTL', '60'))  # seconds
-CACHE_SERIALIZATION = os.getenv('CACHE_SERIALIZATION', 'json')  # 'json', 'pickle', 'msgpack'
-REDIS_MAX_CONNECTIONS = int(os.getenv('REDIS_MAX_CONNECTIONS', '10'))
-
-# Cache TTLs per namespace (seconds)
-CACHE_TTL = {
-    'user': {
-        'profile': 300,      # 5 minutes
-        'preferences': 600,
-    },
-    'subject': {
-        'list': 3600,        # 1 hour
-        'data': 1800,
-    },
-    'quiz': {
-        'state': 60,         # 1 minute (live quiz state)
-        'participants': 30,
-        'leaderboard': 10,
-    },
-    'leaderboard': {
-        'global': 30,
-        'subject': 30,
-    },
-    'pdf': {
-        'list': 600,
-        'metadata': 600,
-    },
-    'group': {
-        'list': 600,
-        'data': 600,
-    },
-    'notification': {
-        'unread': 10,
-        'list': 60,
-    },
-    'admin': {
-        'stats': 300,
-    },
-    'session': {
-        'data': 86400,       # 1 day (matches session timeout)
-    },
-}

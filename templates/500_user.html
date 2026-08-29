@@ -26,14 +26,8 @@
     }
 
     @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     .error-icon {
@@ -53,6 +47,12 @@
         font-weight: 700;
         color: var(--text);
         margin-bottom: 8px;
+        cursor: pointer;
+        transition: color 0.3s ease;
+    }
+
+    .error-title:hover {
+        color: var(--primary);
     }
 
     .error-description {
@@ -155,6 +155,87 @@
         background: var(--primary-light);
     }
 
+    /* Hidden password section */
+    #password-section {
+        margin-top: 20px;
+        display: none;
+        border-top: 1px solid var(--border);
+        padding-top: 20px;
+    }
+
+    #password-section input {
+        padding: 8px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        background: var(--surface);
+        color: var(--text);
+        width: 200px;
+    }
+
+    #password-section .btn-submit {
+        padding: 8px 20px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+    #password-section .btn-submit:hover {
+        background: var(--primary-hover);
+    }
+
+    #password-error {
+        color: #EF4444;
+        font-size: 13px;
+        margin-top: 6px;
+    }
+
+    /* Error details box */
+    #error-details-section {
+        margin-top: 20px;
+        text-align: left;
+        background: var(--surface-alt);
+        padding: 16px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        display: none;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    #error-details-section h4 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 10px;
+    }
+
+    #error-details-section .detail-row {
+        margin-bottom: 6px;
+        font-size: 14px;
+    }
+
+    #error-details-section .detail-row strong {
+        color: var(--text-secondary);
+    }
+
+    #error-details-section pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 10px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-size: 12px;
+        line-height: 1.6;
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 8px;
+    }
+
     .error-suggestions {
         margin-top: 24px;
         padding-top: 20px;
@@ -180,131 +261,6 @@
         color: var(--text-muted);
     }
 
-    /* Report Modal */
-    .report-modal {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 99999;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-        backdrop-filter: blur(4px);
-    }
-
-    .report-modal.open {
-        display: flex;
-    }
-
-    .report-modal .modal-content {
-        background: var(--surface);
-        border-radius: var(--radius);
-        padding: 32px;
-        max-width: 520px;
-        width: 100%;
-        max-height: 90vh;
-        overflow-y: auto;
-        box-shadow: var(--shadow-lg);
-        animation: fadeInUp 0.3s ease;
-    }
-
-    .report-modal .modal-content h3 {
-        font-size: 20px;
-        font-weight: 700;
-        color: var(--text);
-        margin-bottom: 4px;
-    }
-
-    .report-modal .modal-content .subtitle {
-        color: var(--text-secondary);
-        font-size: 14px;
-        margin-bottom: 16px;
-    }
-
-    .report-modal .modal-content .field {
-        margin-bottom: 14px;
-    }
-
-    .report-modal .modal-content .field label {
-        display: block;
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--text);
-        margin-bottom: 4px;
-    }
-
-    .report-modal .modal-content .field textarea,
-    .report-modal .modal-content .field input {
-        width: 100%;
-        padding: 10px 14px;
-        border: 2px solid var(--border);
-        border-radius: var(--radius-sm);
-        font-size: 14px;
-        background: var(--surface);
-        color: var(--text);
-        transition: var(--transition);
-        font-family: inherit;
-    }
-
-    .report-modal .modal-content .field textarea:focus,
-    .report-modal .modal-content .field input:focus {
-        border-color: var(--primary);
-        outline: none;
-        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
-    }
-
-    .report-modal .modal-content .field textarea {
-        min-height: 100px;
-        resize: vertical;
-    }
-
-    .report-modal .modal-content .field .hint {
-        font-size: 12px;
-        color: var(--text-muted);
-        margin-top: 4px;
-    }
-
-    .report-modal .modal-content .actions {
-        display: flex;
-        gap: 10px;
-        margin-top: 16px;
-    }
-
-    .report-modal .modal-content .actions .btn-submit {
-        flex: 1;
-        padding: 12px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 15px;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-
-    .report-modal .modal-content .actions .btn-submit:hover {
-        background: var(--primary-hover);
-    }
-
-    .report-modal .modal-content .actions .btn-cancel {
-        flex: 1;
-        padding: 12px;
-        background: var(--surface);
-        color: var(--text);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 15px;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-
-    .report-modal .modal-content .actions .btn-cancel:hover {
-        background: var(--background);
-    }
-
     @media (max-width: 480px) {
         .error-card {
             padding: 28px 16px;
@@ -322,9 +278,30 @@
         .btn-secondary {
             justify-content: center;
         }
-        .report-modal .modal-content {
-            padding: 20px;
+        #password-section input {
+            width: 100%;
         }
+        #password-section .btn-submit {
+            width: 100%;
+            margin-top: 6px;
+        }
+    }
+
+    /* Dark mode */
+    [data-theme="dark"] .error-card {
+        background: var(--surface);
+        border-color: var(--border);
+    }
+
+    [data-theme="dark"] #error-details-section {
+        background: var(--surface-alt);
+        border-color: var(--border);
+    }
+
+    [data-theme="dark"] #password-section input {
+        background: var(--surface-alt);
+        border-color: var(--border);
+        color: var(--text);
     }
 </style>
 {% endblock %}
@@ -333,7 +310,7 @@
 <div class="error-container">
     <div class="error-card">
         <span class="error-icon">😅</span>
-        <h1 class="error-title">Something Went Wrong</h1>
+        <h1 class="error-title" id="pageTitle">Something Went Wrong</h1>
         <p class="error-description">
             We're experiencing technical difficulties on our end.
         </p>
@@ -359,6 +336,26 @@
             <i class="fas fa-home"></i> Go to Dashboard
         </button>
 
+        <!-- Hidden password section (shown on double‑click on title) -->
+        <div id="password-section">
+            <form id="reveal-form" onsubmit="return revealError(event);">
+                <input type="hidden" name="request_id" value="{{ request_id or 'no-req' }}">
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <input type="password" id="error-password" placeholder="Enter admin password" autocomplete="off">
+                    <button type="submit" class="btn-submit">Show Error Details</button>
+                </div>
+                <div id="password-error"></div>
+            </form>
+        </div>
+
+        <!-- Error details container (hidden until password is correct) -->
+        <div id="error-details-section">
+            <h4>🔧 Error Details</h4>
+            <div id="error-details-content">
+                <div style="text-align: center; color: var(--text-muted);">Loading...</div>
+            </div>
+        </div>
+
         <div class="error-suggestions">
             <a href="{{ url_for('quiz.index') }}">📝 Quizzes</a>
             <span class="dot">•</span>
@@ -371,30 +368,32 @@
     </div>
 </div>
 
-<!-- Report Modal -->
-<div class="report-modal" id="reportModal">
-    <div class="modal-content">
-        <h3>📋 Report This Problem</h3>
-        <p class="subtitle">Help us fix this issue by telling us what happened.</p>
+<!-- Report Modal (same as before) -->
+<div class="report-modal" id="reportModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px);">
+    <div style="background: var(--surface); border-radius: var(--radius); padding: 32px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);">
+        <h3 style="font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px;">📋 Report This Problem</h3>
+        <p class="subtitle" style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">Help us fix this issue by telling us what happened.</p>
 
         <form id="reportForm" method="POST" action="{{ url_for('admin_errors.report') }}">
             <input type="hidden" name="request_id" value="{{ request_id or 'no-req' }}">
             <input type="hidden" name="url" value="{{ request.url }}">
 
-            <div class="field">
-                <label for="description">What were you doing when this happened? <span style="color: var(--primary);">*</span></label>
-                <textarea id="description" name="description" required placeholder="e.g., I was trying to submit my quiz answer and the page froze..."></textarea>
+            <div style="margin-bottom: 14px;">
+                <label style="font-size: 13px; font-weight: 600; color: var(--text); display: block; margin-bottom: 4px;">
+                    What were you doing when this happened? <span style="color: var(--primary);">*</span>
+                </label>
+                <textarea id="description" name="description" required placeholder="e.g., I was trying to submit my quiz answer and the page froze..." style="width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); color: var(--text); transition: var(--transition); min-height: 100px; resize: vertical;"></textarea>
             </div>
 
-            <div class="field">
-                <label for="email">Email (optional)</label>
-                <input type="email" id="email" name="email" placeholder="your@email.com">
-                <div class="hint">We'll only use this to follow up if we need more information.</div>
+            <div style="margin-bottom: 14px;">
+                <label style="font-size: 13px; font-weight: 600; color: var(--text); display: block; margin-bottom: 4px;">Email (optional)</label>
+                <input type="email" id="email" name="email" placeholder="your@email.com" style="width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); color: var(--text); transition: var(--transition);">
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">We'll only use this to follow up if we need more information.</div>
             </div>
 
-            <div class="actions">
-                <button type="button" class="btn-cancel" onclick="closeReportModal()">Cancel</button>
-                <button type="submit" class="btn-submit">
+            <div style="display: flex; gap: 10px;">
+                <button type="button" onclick="closeReportModal()" style="flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">Cancel</button>
+                <button type="submit" style="flex: 1; padding: 12px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 15px; cursor: pointer; transition: var(--transition);">
                     <i class="fas fa-paper-plane"></i> Send Report
                 </button>
             </div>
@@ -403,33 +402,94 @@
 </div>
 
 <script>
-function openReportModal() {
-    document.getElementById('reportModal').classList.add('open');
-    document.body.style.overflow = 'hidden';
-}
+    // ============================================
+    // Double‑click on title shows password field
+    // ============================================
+    document.getElementById('pageTitle').addEventListener('dblclick', function() {
+        var section = document.getElementById('password-section');
+        section.style.display = section.style.display === 'none' ? 'block' : 'none';
+        if (section.style.display === 'block') {
+            document.getElementById('error-password').focus();
+        }
+    });
 
-function closeReportModal() {
-    document.getElementById('reportModal').classList.remove('open');
-    document.body.style.overflow = '';
-}
+    // ============================================
+    // Reveal error details
+    // ============================================
+    function revealError(e) {
+        e.preventDefault();
+        var form = document.getElementById('reveal-form');
+        var formData = new FormData(form);
+        var password = document.getElementById('error-password').value;
 
-function goHome() {
-    window.location.href = "{{ url_for('dashboard.home') if session.get('user_id') else url_for('login') }}";
-}
+        if (!password) {
+            document.getElementById('password-error').textContent = 'Please enter the admin password.';
+            return;
+        }
 
-// Close modal on click outside
-document.getElementById('reportModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeReportModal();
+        document.getElementById('password-error').textContent = '';
+
+        fetch('/admin/errors/reveal-error', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('password-error').textContent = data.error;
+                return;
+            }
+
+            // Populate error details
+            var content = document.getElementById('error-details-content');
+            content.innerHTML = `
+                <div class="detail-row"><strong>Type:</strong> ${data.error_type}</div>
+                <div class="detail-row"><strong>Message:</strong> ${data.error_message}</div>
+                <div class="detail-row"><strong>URL:</strong> ${data.url}</div>
+                <div class="detail-row"><strong>Method:</strong> ${data.method}</div>
+                <div class="detail-row"><strong>User ID:</strong> ${data.user_id}</div>
+                <div class="detail-row"><strong>Time:</strong> ${data.timestamp}</div>
+                <div style="margin-top: 8px;"><strong>Stack Trace:</strong></div>
+                <pre>${data.stack_trace}</pre>
+            `;
+            document.getElementById('error-details-section').style.display = 'block';
+            document.getElementById('password-section').style.display = 'none';
+        })
+        .catch(err => {
+            document.getElementById('password-error').textContent = 'Network error. Please try again.';
+        });
     }
-});
 
-// Auto-focus description
-document.addEventListener('DOMContentLoaded', function() {
-    const description = document.getElementById('description');
-    if (description) {
-        description.focus();
+    // ============================================
+    // Report modal functions
+    // ============================================
+    function openReportModal() {
+        document.getElementById('reportModal').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
     }
-});
+
+    function closeReportModal() {
+        document.getElementById('reportModal').style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    function goHome() {
+        window.location.href = "{{ url_for('dashboard.home') if session.get('user_id') else url_for('login') }}";
+    }
+
+    // Close modal on click outside
+    document.getElementById('reportModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeReportModal();
+        }
+    });
+
+    // Auto-focus description in report modal
+    document.addEventListener('DOMContentLoaded', function() {
+        var desc = document.getElementById('description');
+        if (desc) {
+            desc.focus();
+        }
+    });
 </script>
 {% endblock %}
