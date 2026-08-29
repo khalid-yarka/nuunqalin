@@ -6,181 +6,59 @@
 
 {% block extra_css %}
 <style>
-    .detail-container {
-        max-width: 100%;
-    }
-
     .detail-card {
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        padding: 32px;
+        padding: 28px 32px;
         box-shadow: var(--shadow-sm);
-        margin-bottom: 20px;
     }
-
     .detail-card .header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
         flex-wrap: wrap;
         gap: 12px;
-        margin-bottom: 16px;
+        margin-bottom: 20px;
         padding-bottom: 16px;
         border-bottom: 1px solid var(--border);
     }
-
-    .detail-card .header .left .title {
+    .detail-card .header .title {
         font-size: 20px;
         font-weight: 700;
         color: var(--text);
     }
-
-    .detail-card .header .left .sub {
+    .detail-card .header .sub {
         font-size: 14px;
         color: var(--text-secondary);
+        margin-top: 2px;
     }
-
-    .detail-card .header .badges {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
-    .detail-card .header .badges .badge {
+    .badge {
         padding: 4px 14px;
         border-radius: 12px;
         font-size: 12px;
         font-weight: 600;
+        display: inline-block;
     }
-
-    .badge.critical { background: #FEF2F2; color: #DC2626; }
-    .badge.error { background: #FFFBEB; color: #D97706; }
-    .badge.warning { background: #EFF6FF; color: #2563EB; }
-    .badge.resolved { background: #ECFDF5; color: #10B981; }
-    .badge.unresolved { background: #FEF2F2; color: #DC2626; }
-
-    .detail-section {
-        margin-bottom: 20px;
-    }
-
-    .detail-section:last-child {
-        margin-bottom: 0;
-    }
-
-    .detail-section .label {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 4px;
-    }
-
-    .detail-section .value {
-        font-size: 14px;
-        color: var(--text);
-        word-break: break-all;
-        line-height: 1.6;
-    }
-
-    .detail-section .value.mono {
-        font-family: 'Courier New', monospace;
-        font-size: 13px;
-        background: var(--background);
-        padding: 12px 16px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--border);
-        overflow-x: auto;
-        white-space: pre-wrap;
-        word-break: break-all;
-        max-height: 500px;
-        overflow-y: auto;
-    }
-
-    .detail-section .value .highlight {
-        color: var(--primary);
-        font-weight: 600;
-    }
-
-    .detail-actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        padding-top: 16px;
-        border-top: 1px solid var(--border);
-    }
-
-    .detail-actions .btn {
-        padding: 8px 20px;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 13px;
-        cursor: pointer;
-        transition: var(--transition);
-        border: none;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .btn-primary {
-        background: var(--primary);
-        color: white;
-    }
-
-    .btn-primary:hover {
-        background: var(--primary-hover);
-        transform: translateY(-2px);
-    }
-
-    .btn-success {
-        background: #10B981;
-        color: white;
-    }
-
-    .btn-success:hover {
-        background: #059669;
-        transform: translateY(-2px);
-    }
-
-    .btn-secondary {
-        background: var(--surface);
-        color: var(--text);
-        border: 1px solid var(--border);
-    }
-
-    .btn-secondary:hover {
-        background: var(--background);
-        border-color: var(--primary);
-        color: var(--primary);
-    }
-
-    .btn-danger {
-        background: #DC2626;
-        color: white;
-    }
-
-    .btn-danger:hover {
-        background: #B91C1C;
-        transform: translateY(-2px);
-    }
+    .badge-critical { background: #FEF2F2; color: #DC2626; }
+    .badge-error { background: #FFFBEB; color: #D97706; }
+    .badge-warning { background: #EFF6FF; color: #2563EB; }
+    .badge-resolved { background: #ECFDF5; color: #10B981; }
+    .badge-unresolved { background: #FEF2F2; color: #DC2626; }
+    .badge-dismissed { background: #F3F4F6; color: #6B7280; }
 
     .meta-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 12px;
-        margin-bottom: 16px;
+        margin-bottom: 20px;
     }
-
     .meta-item {
         background: var(--background);
         padding: 10px 14px;
         border-radius: var(--radius-sm);
         border: 1px solid var(--border);
     }
-
     .meta-item .meta-label {
         font-size: 10px;
         font-weight: 600;
@@ -188,78 +66,109 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-
     .meta-item .meta-value {
         font-size: 14px;
         font-weight: 600;
         color: var(--text);
         margin-top: 2px;
+        word-break: break-all;
     }
+    .stack-trace {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        background: #1A1A2E;
+        color: #D4D4D4;
+        padding: 16px;
+        border-radius: var(--radius-sm);
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .user-note {
+        background: var(--primary-light);
+        padding: 12px 16px;
+        border-radius: var(--radius-sm);
+        border-left: 4px solid var(--primary);
+    }
+    .action-bar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+    }
+    .action-bar .btn {
+        padding: 8px 20px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 13px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        display: inline-block;
+    }
+    .btn-success { background: #10B981; color: white; }
+    .btn-success:hover { background: #059669; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--background); border-color: var(--primary); color: var(--primary); }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-refresh { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-refresh:hover { background: var(--background); border-color: var(--primary); color: var(--primary); }
 
     @media (max-width: 768px) {
-        .detail-card {
-            padding: 20px;
-        }
-        .detail-card .header {
-            flex-direction: column;
-        }
-        .meta-grid {
-            grid-template-columns: 1fr 1fr;
-        }
+        .detail-card { padding: 20px; }
+        .detail-card .header { flex-direction: column; }
+        .meta-grid { grid-template-columns: 1fr 1fr; }
     }
-
     @media (max-width: 480px) {
-        .meta-grid {
-            grid-template-columns: 1fr;
-        }
-        .detail-card .header .left .title {
-            font-size: 17px;
-        }
+        .detail-card { padding: 16px; }
+        .meta-grid { grid-template-columns: 1fr; }
+        .action-bar .btn { flex: 1; text-align: center; }
     }
-
-    [data-theme="dark"] .detail-card {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .detail-section .value.mono {
-        background: var(--surface-alt);
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .meta-item {
-        background: var(--surface-alt);
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .badge.critical { background: #3A1A1A; color: #F87171; }
-    [data-theme="dark"] .badge.error { background: #3A2E1A; color: #FCD34D; }
-    [data-theme="dark"] .badge.warning { background: #1A2A4A; color: #60A5FA; }
-    [data-theme="dark"] .badge.resolved { background: #1A3A2E; color: #34D399; }
-    [data-theme="dark"] .badge.unresolved { background: #3A1A1A; color: #F87171; }
 </style>
 {% endblock %}
 
 {% block dashboard_content %}
-<div class="detail-container">
+<div style="max-width: 100%;">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+        <a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
+        <span class="separator">/</span>
+        <a href="{{ url_for('admin_errors.index') }}">Error Logs</a>
+        <span class="separator">/</span>
+        <span class="current">#{{ error.id }}</span>
+    </div>
+
+    <!-- Detail Card -->
     <div class="detail-card">
+
+        <!-- Header -->
         <div class="header">
-            <div class="left">
-                <div class="title">Error Detail</div>
+            <div>
+                <div class="title">{{ error.error_type }}</div>
                 <div class="sub">{{ error.timestamp or 'Unknown time' }}</div>
             </div>
-            <div class="badges">
-                <span class="badge {{ error.severity|lower }}">{{ error.severity }}</span>
-                <span class="badge {% if error.resolved %}resolved{% else %}unresolved{% endif %}">
-                    {% if error.resolved %}Resolved{% else %}Active{% endif %}
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <span class="badge badge-{{ error.severity|lower }}">{{ error.severity }}</span>
+                <span class="badge 
+                    {% if error.resolved %}badge-resolved
+                    {% elif error.dismissed %}badge-dismissed
+                    {% else %}badge-unresolved{% endif %}">
+                    {% if error.resolved %}Resolved{% elif error.dismissed %}Dismissed{% else %}Active{% endif %}
                 </span>
-                <span style="font-family: 'Courier New', monospace; font-size: 13px; color: var(--text-secondary); padding: 4px 12px; background: var(--background); border-radius: 12px; border: 1px solid var(--border);">
+                <span style="font-family: monospace; font-size: 13px; color: var(--text-secondary); background: var(--background); padding: 4px 14px; border-radius: 12px; border: 1px solid var(--border);">
                     #{{ error.id }}
                 </span>
             </div>
         </div>
 
-        <!-- Meta Information -->
+        <!-- Meta Grid -->
         <div class="meta-grid">
             <div class="meta-item">
                 <div class="meta-label">Request ID</div>
@@ -279,65 +188,58 @@
             </div>
         </div>
 
-        <!-- Error Details -->
-        <div class="detail-section">
-            <div class="label">🔍 Error Type</div>
-            <div class="value"><span class="highlight">{{ error.error_type or 'Unknown' }}</span></div>
+        <!-- Error Message -->
+        <div style="margin-bottom: 16px;">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">🔍 Error Message</div>
+            <div style="font-family: 'Courier New', monospace; font-size: 14px; background: var(--background); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); overflow-x: auto; white-space: pre-wrap; word-break: break-all;">
+                {{ error.error_message or 'No message' }}
+            </div>
         </div>
 
-        <div class="detail-section">
-            <div class="label">📝 Error Message</div>
-            <div class="value mono">{{ error.error_message or 'No message' }}</div>
-        </div>
-
-        <div class="detail-section">
-            <div class="label">🌐 Request Information</div>
-            <div class="value">
+        <!-- Request Info -->
+        <div style="margin-bottom: 16px;">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">🌐 Request Information</div>
+            <div style="background: var(--background); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 14px; color: var(--text);">
                 <strong>URL:</strong> {{ error.url or 'N/A' }}<br>
                 <strong>Method:</strong> {{ error.method or 'N/A' }}<br>
                 <strong>IP:</strong> {{ error.ip_address or 'N/A' }}
             </div>
         </div>
 
+        <!-- User Description -->
         {% if error.user_description %}
-        <div class="detail-section">
-            <div class="label">📋 User Description</div>
-            <div class="value" style="background: var(--primary-light); padding: 12px 16px; border-radius: var(--radius-sm); border-left: 4px solid var(--primary);">
-                {{ error.user_description }}
+        <div style="margin-bottom: 16px;">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">📋 User Description</div>
+            <div class="user-note">{{ error.user_description }}</div>
+        </div>
+        {% endif %}
+
+        <!-- Stack Trace -->
+        <div style="margin-bottom: 16px;">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">📊 Stack Trace</div>
+            <div class="stack-trace">{{ error.stack_trace or 'No stack trace available' }}</div>
+        </div>
+
+        <!-- Resolution Note -->
+        {% if error.resolution_note %}
+        <div style="margin-bottom: 16px;">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">✅ Resolution Note</div>
+            <div style="background: #ECFDF5; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid #A7F3D0; color: #065F46;">
+                {{ error.resolution_note }}
             </div>
         </div>
         {% endif %}
 
-        <div class="detail-section">
-            <div class="label">📊 Stack Trace</div>
-            <div class="value mono">{{ error.stack_trace or 'No stack trace available' }}</div>
-        </div>
-
-        {% if error.resolution_note %}
-        <div class="detail-section">
-            <div class="label">✅ Resolution Note</div>
-            <div class="value">{{ error.resolution_note }}</div>
-        </div>
-        {% endif %}
-
         <!-- Actions -->
-        <div class="detail-actions">
+        <div class="action-bar">
             {% if not error.resolved %}
-                <button onclick="resolveError({{ error.id }})" class="btn btn-success">
-                    <i class="fas fa-check"></i> Mark as Resolved
-                </button>
+                <button onclick="resolveError({{ error.id }})" class="btn btn-success"><i class="fas fa-check"></i> Mark Resolved</button>
             {% endif %}
             {% if not error.dismissed %}
-                <button onclick="dismissError({{ error.id }})" class="btn btn-secondary">
-                    <i class="fas fa-times"></i> Dismiss
-                </button>
+                <button onclick="dismissError({{ error.id }})" class="btn btn-secondary"><i class="fas fa-times"></i> Dismiss</button>
             {% endif %}
-            <a href="{{ url_for('admin_errors.index') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back to List
-            </a>
-            <button onclick="location.reload()" class="btn btn-secondary">
-                <i class="fas fa-redo"></i> Refresh
-            </button>
+            <a href="{{ url_for('admin_errors.index') }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Back to List</a>
+            <button onclick="location.reload()" class="btn btn-refresh"><i class="fas fa-redo"></i> Refresh</button>
         </div>
     </div>
 </div>
@@ -345,44 +247,32 @@
 <script>
 function resolveError(id) {
     const note = prompt('Add resolution note (optional):');
-    
     fetch('/admin/errors/resolve/' + id, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'csrf_token={{ csrf_token }}&note=' + encodeURIComponent(note || '')
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Failed to resolve error: ' + (data.error || 'Unknown error'));
-        }
+        if (data.success) location.reload();
+        else alert('Failed to resolve error: ' + data.error);
     })
-    .catch(() => alert('Network error. Please try again.'));
+    .catch(() => alert('Network error.'));
 }
 
 function dismissError(id) {
     if (!confirm('Dismiss this error?')) return;
-    
     fetch('/admin/errors/dismiss/' + id, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'csrf_token={{ csrf_token }}'
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Failed to dismiss error: ' + (data.error || 'Unknown error'));
-        }
+        if (data.success) location.reload();
+        else alert('Failed to dismiss error: ' + data.error);
     })
-    .catch(() => alert('Network error. Please try again.'));
+    .catch(() => alert('Network error.'));
 }
 </script>
 {% endblock %}

@@ -1,154 +1,119 @@
 {% extends "dashboard_base.html" %}
 
-{% block title %}Error Dashboard - Admin{% endblock %}
+{% block title %}Error Logs - Admin{% endblock %}
 
-{% block page_title %}Error Dashboard{% endblock %}
+{% block page_title %}Error Logs{% endblock %}
 
 {% block extra_css %}
 <style>
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 12px;
-        margin-bottom: 20px;
+    /* Stats cards – same enhancements as dashboard */
+    .stat-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-md);
+    }
+    .stat-card .stat-icon {
+        font-size: 24px;
+        opacity: 1;
+        background: var(--primary-light);
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        margin-bottom: 8px;
+        color: var(--primary);
+    }
+    .stat-card.accent-critical .stat-icon { background: #FEF2F2; color: #EF4444; }
+    .stat-card.accent-error .stat-icon { background: #FFFBEB; color: #F59E0B; }
+    .stat-card.accent-warning .stat-icon { background: #EFF6FF; color: #3B82F6; }
+    .stat-card.accent-resolved .stat-icon { background: #ECFDF5; color: #10B981; }
+
+    .stat-card .stat-number {
+        font-size: 28px;
+        font-weight: 700;
+        margin: 2px 0;
+        line-height: 1.2;
+    }
+    .stat-card .stat-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        font-weight: 500;
     }
 
-    .stat-card {
+    /* Filter bar */
+    .filter-bar {
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
-        padding: 14px 16px;
-        text-align: center;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .stat-card .number {
-        font-size: 24px;
-        font-weight: 700;
-        line-height: 1.2;
-    }
-
-    .stat-card .label {
-        font-size: 11px;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-top: 2px;
-    }
-
-    .stat-card.critical .number { color: #DC2626; }
-    .stat-card.error .number { color: #F59E0B; }
-    .stat-card.warning .number { color: #3B82F6; }
-    .stat-card.resolved .number { color: #10B981; }
-    .stat-card.total .number { color: var(--text); }
-
-    .filter-bar {
+        padding: 12px 16px;
+        margin-bottom: 20px;
         display: flex;
-        gap: 10px;
+        gap: 12px;
         flex-wrap: wrap;
-        margin-bottom: 16px;
         align-items: center;
     }
-
-    .filter-bar select,
-    .filter-bar input {
+    .filter-bar select, .filter-bar input {
         padding: 8px 12px;
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
         font-size: 13px;
         background: var(--surface);
         color: var(--text);
-        transition: var(--transition);
+        transition: border-color 0.2s ease;
     }
-
-    .filter-bar select:focus,
-    .filter-bar input:focus {
+    .filter-bar select:focus, .filter-bar input:focus {
         border-color: var(--primary);
         outline: none;
         box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
     }
-
-    .filter-bar .search-wrapper {
-        display: flex;
-        gap: 6px;
-        flex: 1;
-        min-width: 200px;
-    }
-
-    .filter-bar .search-wrapper input {
-        flex: 1;
-    }
-
     .filter-bar .btn {
         padding: 8px 16px;
         border-radius: var(--radius-sm);
         font-weight: 600;
         font-size: 13px;
         cursor: pointer;
-        transition: var(--transition);
         border: none;
+        transition: all 0.2s ease;
     }
-
     .filter-bar .btn-primary {
         background: var(--primary);
         color: white;
     }
-
     .filter-bar .btn-primary:hover {
         background: var(--primary-hover);
     }
-
     .filter-bar .btn-secondary {
         background: var(--surface);
         color: var(--text);
         border: 1px solid var(--border);
     }
-
     .filter-bar .btn-secondary:hover {
         background: var(--background);
+        border-color: var(--primary);
+        color: var(--primary);
     }
-
     .filter-bar .btn-danger {
-        background: #DC2626;
-        color: white;
+        background: #FEF2F2;
+        color: #DC2626;
+        border: 1px solid #FCA5A5;
     }
-
     .filter-bar .btn-danger:hover {
-        background: #B91C1C;
+        background: #FEE2E2;
+        border-color: #DC2626;
     }
 
-    .table-container {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        overflow: hidden;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .table-container .table-header {
-        padding: 12px 16px;
-        background: var(--background);
-        border-bottom: 1px solid var(--border);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-
-    .table-container .table-header .count {
-        font-weight: 600;
-        color: var(--text);
-    }
-
+    /* Table enhancements */
     .error-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
     }
-
     .error-table th {
         padding: 10px 14px;
         text-align: left;
@@ -163,98 +128,73 @@
         top: 0;
         z-index: 10;
     }
-
     .error-table td {
         padding: 10px 14px;
         border-bottom: 1px solid var(--border-light);
         color: var(--text);
         vertical-align: middle;
     }
-
     .error-table tr:hover td {
         background: var(--primary-light);
     }
-
     .error-table tr.resolved td {
         opacity: 0.6;
     }
 
-    .error-table .severity-badge {
+    .severity-badge {
         display: inline-block;
         padding: 2px 10px;
         border-radius: 10px;
         font-size: 11px;
         font-weight: 600;
     }
-
     .severity-badge.critical { background: #FEF2F2; color: #DC2626; }
     .severity-badge.error { background: #FFFBEB; color: #D97706; }
     .severity-badge.warning { background: #EFF6FF; color: #2563EB; }
 
-    .error-table .status-badge {
+    .status-badge {
         display: inline-block;
         padding: 2px 10px;
         border-radius: 10px;
         font-size: 11px;
         font-weight: 600;
     }
-
     .status-badge.unresolved { background: #FEF2F2; color: #DC2626; }
     .status-badge.resolved { background: #ECFDF5; color: #10B981; }
     .status-badge.dismissed { background: #F3F4F6; color: #6B7280; }
 
-    .error-table .request-id {
-        font-family: 'Courier New', monospace;
-        font-size: 12px;
-        color: var(--text-secondary);
-    }
-
-    .error-table .actions {
-        display: flex;
-        gap: 4px;
-        flex-wrap: wrap;
-    }
-
-    .error-table .actions .btn-sm {
+    .action-btn {
         padding: 2px 10px;
         border-radius: var(--radius-sm);
         font-size: 11px;
         font-weight: 600;
-        cursor: pointer;
-        transition: var(--transition);
         border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
         text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
+        display: inline-block;
     }
-
-    .btn-sm.view {
+    .action-btn.view {
         background: var(--primary-light);
         color: var(--primary);
     }
-
-    .btn-sm.view:hover {
+    .action-btn.view:hover {
         background: var(--primary);
         color: white;
     }
-
-    .btn-sm.resolve {
+    .action-btn.resolve {
         background: #ECFDF5;
         color: #10B981;
     }
-
-    .btn-sm.resolve:hover {
+    .action-btn.resolve:hover {
         background: #10B981;
         color: white;
     }
-
-    .btn-sm.dismiss {
+    .action-btn.dismiss {
         background: #F3F4F6;
         color: #6B7280;
     }
-
-    .btn-sm.dismiss:hover {
+    .action-btn.dismiss:hover {
         background: #6B7280;
         color: white;
     }
@@ -265,8 +205,8 @@
         justify-content: center;
         padding: 16px;
         border-top: 1px solid var(--border);
+        flex-wrap: wrap;
     }
-
     .pagination .page-link {
         padding: 6px 14px;
         border: 1px solid var(--border);
@@ -274,161 +214,94 @@
         text-decoration: none;
         color: var(--text-secondary);
         font-size: 13px;
-        transition: var(--transition);
+        transition: all 0.2s ease;
     }
-
     .pagination .page-link:hover {
         background: var(--primary-light);
         border-color: var(--primary);
         color: var(--primary);
     }
-
     .pagination .page-link.active {
         background: var(--primary);
         color: white;
         border-color: var(--primary);
     }
-
     .pagination .page-link.disabled {
         opacity: 0.5;
         pointer-events: none;
     }
 
-    .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        color: var(--text-secondary);
-    }
-
-    .empty-state .icon {
-        font-size: 48px;
-        opacity: 0.3;
-        margin-bottom: 12px;
-    }
-
-    .empty-state .title {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--text);
-        margin-bottom: 4px;
-    }
-
     @media (max-width: 768px) {
-        .stats-grid {
-            grid-template-columns: repeat(3, 1fr);
-        }
         .filter-bar {
             flex-direction: column;
             align-items: stretch;
         }
-        .filter-bar .search-wrapper {
-            min-width: unset;
-        }
-        .error-table {
-            font-size: 12px;
-        }
-        .error-table th,
-        .error-table td {
+        .error-table th, .error-table td {
             padding: 6px 10px;
         }
         .error-table .hide-mobile {
             display: none;
         }
     }
-
-    @media (max-width: 480px) {
-        .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-        .stat-card .number {
-            font-size: 18px;
-        }
-    }
-
-    [data-theme="dark"] .stat-card {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .table-container {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .table-container .table-header {
-        background: var(--surface-alt);
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .error-table th {
-        background: var(--surface-alt);
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .error-table td {
-        border-color: var(--border-light);
-    }
-
-    [data-theme="dark"] .error-table tr:hover td {
-        background: var(--surface-alt);
-    }
-
-    [data-theme="dark"] .pagination {
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .pagination .page-link {
-        border-color: var(--border);
-        color: var(--text-secondary);
-    }
-
-    [data-theme="dark"] .pagination .page-link:hover {
-        background: var(--primary-light);
-        border-color: var(--primary);
-        color: var(--primary);
-    }
-
-    [data-theme="dark"] .pagination .page-link.active {
-        background: var(--primary);
-        color: white;
-        border-color: var(--primary);
-    }
 </style>
 {% endblock %}
 
 {% block dashboard_content %}
-<div class="error-dashboard">
+<div style="max-width: 100%;">
 
-    <!-- Stats -->
-    <div class="stats-grid">
-        <div class="stat-card total">
-            <div class="number">{{ stats.total or 0 }}</div>
-            <div class="label">Total Errors</div>
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+        <a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
+        <span class="separator">/</span>
+        <span class="current">Error Logs</span>
+    </div>
+
+    <!-- Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
+                <i class="fas fa-exclamation-triangle" style="color: #EF4444;"></i> Error Logs
+            </h2>
+            <p style="color: var(--text-secondary); font-size: 14px;">
+                View and manage system errors
+            </p>
         </div>
-        <div class="stat-card critical">
-            <div class="number">{{ stats.critical or 0 }}</div>
-            <div class="label">Critical</div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <span style="background: #EF4444; color: white; padding: 4px 14px; border-radius: 12px; font-size: 13px; font-weight: 600;">
+                {{ stats.unresolved or 0 }} unresolved
+            </span>
+            <span style="background: var(--background); color: var(--text-secondary); padding: 4px 14px; border-radius: 12px; font-size: 13px;">
+                Total: {{ stats.total or 0 }}
+            </span>
         </div>
-        <div class="stat-card error">
-            <div class="number">{{ stats.error or 0 }}</div>
-            <div class="label">Errors</div>
+    </div>
+
+    <!-- Stats Mini Grid -->
+    <div class="stats-grid" style="margin-bottom: 20px;">
+        <div class="stat-card accent-critical">
+            <div class="stat-icon">🔴</div>
+            <div class="stat-number" style="color: #EF4444;">{{ stats.critical or 0 }}</div>
+            <div class="stat-label">Critical</div>
         </div>
-        <div class="stat-card warning">
-            <div class="number">{{ stats.warning or 0 }}</div>
-            <div class="label">Warnings</div>
+        <div class="stat-card accent-error">
+            <div class="stat-icon">🟠</div>
+            <div class="stat-number" style="color: #F59E0B;">{{ stats.error or 0 }}</div>
+            <div class="stat-label">Errors</div>
         </div>
-        <div class="stat-card resolved">
-            <div class="number">{{ stats.resolved or 0 }}</div>
-            <div class="label">Resolved</div>
+        <div class="stat-card accent-warning">
+            <div class="stat-icon">🔵</div>
+            <div class="stat-number" style="color: #3B82F6;">{{ stats.warning or 0 }}</div>
+            <div class="stat-label">Warnings</div>
         </div>
-        <div class="stat-card">
-            <div class="number" style="color: #DC2626;">{{ stats.unresolved or 0 }}</div>
-            <div class="label">Unresolved</div>
+        <div class="stat-card accent-resolved">
+            <div class="stat-icon">✅</div>
+            <div class="stat-number" style="color: #10B981;">{{ stats.resolved or 0 }}</div>
+            <div class="stat-label">Resolved</div>
         </div>
     </div>
 
     <!-- Filter Bar -->
-    <form method="GET" class="filter-bar" id="filterForm">
+    <form method="GET" id="filterForm" class="filter-bar">
         <select name="severity" onchange="this.form.submit()">
             <option value="">All Severities</option>
             <option value="CRITICAL" {% if severity == 'CRITICAL' %}selected{% endif %}>Critical</option>
@@ -442,13 +315,14 @@
             <option value="1" {% if resolved == '1' %}selected{% endif %}>Resolved</option>
         </select>
 
-        <div class="search-wrapper">
+        <div style="display: flex; gap: 6px; flex: 1; min-width: 180px;">
             <input type="text" name="search" placeholder="Search errors..." value="{{ search or '' }}">
             <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i></button>
-            {% if search or severity or resolved %}
-                <a href="{{ url_for('admin_errors.index') }}" class="btn btn-secondary">Clear</a>
-            {% endif %}
         </div>
+
+        {% if search or severity or resolved %}
+            <a href="{{ url_for('admin_errors.index') }}" class="btn btn-secondary">Clear</a>
+        {% endif %}
 
         <button type="button" class="btn btn-danger" onclick="clearResolved()">
             <i class="fas fa-trash"></i> Clear Resolved
@@ -456,103 +330,87 @@
     </form>
 
     <!-- Error Table -->
-    <div class="table-container">
-        <div class="table-header">
-            <span>
-                <span class="count">{{ total }}</span> errors found
-                {% if search %} - searching: "{{ search }}"{% endif %}
-            </span>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);">
+        <div style="padding: 12px 20px; background: var(--background); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-secondary);">
+            <span><strong>{{ total }}</strong> errors found</span>
             <span>Page {{ page }} of {{ total_pages }}</span>
         </div>
 
         {% if errors %}
-            <table class="error-table">
-                <thead>
-                    <tr>
-                        <th>Severity</th>
-                        <th>Request ID</th>
-                        <th>Error Type</th>
-                        <th>Message</th>
-                        <th>URL</th>
-                        <th>Status</th>
-                        <th class="hide-mobile">Occurrences</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for error in errors %}
-                        <tr class="{% if error.resolved %}resolved{% endif %}">
-                            <td>
-                                <span class="severity-badge {{ error.severity|lower }}">
-                                    {{ error.severity }}
-                                </span>
-                            </td>
-                            <td>
-                                <a href="{{ url_for('admin_errors.by_request', request_id=error.request_id) }}" class="request-id">
-                                    {{ error.request_id[:8] }}
-                                </a>
-                            </td>
-                            <td>{{ error.error_type[:30] }}</td>
-                            <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                {{ error.error_message[:50] }}{% if error.error_message|length > 50 %}...{% endif %}
-                            </td>
-                            <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                {{ error.url[:40] }}{% if error.url|length > 40 %}...{% endif %}
-                            </td>
-                            <td>
-                                <span class="status-badge {% if error.resolved %}resolved{% elif error.dismissed %}dismissed{% else %}unresolved{% endif %}">
-                                    {% if error.resolved %}Resolved{% elif error.dismissed %}Dismissed{% else %}Active{% endif %}
-                                </span>
-                            </td>
-                            <td class="hide-mobile">{{ error.occurrence_count }}</td>
-                            <td>
-                                <div class="actions">
-                                    <a href="{{ url_for('admin_errors.detail', error_id=error.id) }}" class="btn-sm view">
-                                        <i class="fas fa-eye"></i>
+            <div style="overflow-x: auto;">
+                <table class="error-table">
+                    <thead>
+                        <tr>
+                            <th>Severity</th>
+                            <th>Request ID</th>
+                            <th>Error Type</th>
+                            <th>Message</th>
+                            <th>URL</th>
+                            <th>Status</th>
+                            <th class="hide-mobile">#</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for error in errors %}
+                            <tr class="{% if error.resolved %}resolved{% endif %}">
+                                <td>
+                                    <span class="severity-badge {{ error.severity|lower }}">{{ error.severity }}</span>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('admin_errors.by_request', request_id=error.request_id) }}" style="color: var(--primary); text-decoration: none; font-family: monospace; font-size: 12px;">
+                                        {{ error.request_id[:8] }}
                                     </a>
+                                </td>
+                                <td>{{ error.error_type[:30] }}</td>
+                                <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    {{ error.error_message[:50] }}{% if error.error_message|length > 50 %}...{% endif %}
+                                </td>
+                                <td style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary);">
+                                    {{ error.url[:40] }}{% if error.url|length > 40 %}...{% endif %}
+                                </td>
+                                <td>
+                                    <span class="status-badge {% if error.resolved %}resolved{% elif error.dismissed %}dismissed{% else %}unresolved{% endif %}">
+                                        {% if error.resolved %}Resolved{% elif error.dismissed %}Dismissed{% else %}Active{% endif %}
+                                    </span>
+                                </td>
+                                <td class="hide-mobile" style="text-align: center; color: var(--text-secondary);">{{ error.occurrence_count }}</td>
+                                <td style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;">
+                                    <a href="{{ url_for('admin_errors.detail', error_id=error.id) }}" class="action-btn view">View</a>
                                     {% if not error.resolved %}
-                                        <button onclick="resolveError({{ error.id }})" class="btn-sm resolve">
-                                            <i class="fas fa-check"></i>
-                                        </button>
+                                        <button onclick="resolveError({{ error.id }})" class="action-btn resolve">Resolve</button>
                                     {% endif %}
                                     {% if not error.dismissed %}
-                                        <button onclick="dismissError({{ error.id }})" class="btn-sm dismiss">
-                                            <i class="fas fa-times"></i>
-                                        </button>
+                                        <button onclick="dismissError({{ error.id }})" class="action-btn dismiss">Dismiss</button>
                                     {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
 
             <!-- Pagination -->
             {% if total_pages > 1 %}
                 <div class="pagination">
-                    <a href="?page=1&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" 
-                       class="page-link {% if page == 1 %}disabled{% endif %}">First</a>
-                    <a href="?page={{ page - 1 }}&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" 
-                       class="page-link {% if page == 1 %}disabled{% endif %}">Previous</a>
+                    <a href="?page=1&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" class="page-link {% if page == 1 %}disabled{% endif %}">First</a>
+                    <a href="?page={{ page - 1 }}&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" class="page-link {% if page == 1 %}disabled{% endif %}">Previous</a>
                     {% for p in range(1, total_pages + 1) %}
                         {% if p == page %}
                             <span class="page-link active">{{ p }}</span>
                         {% elif p <= page + 2 and p >= page - 2 %}
-                            <a href="?page={{ p }}&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" 
-                               class="page-link">{{ p }}</a>
+                            <a href="?page={{ p }}&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" class="page-link">{{ p }}</a>
                         {% endif %}
                     {% endfor %}
-                    <a href="?page={{ page + 1 }}&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" 
-                       class="page-link {% if page == total_pages %}disabled{% endif %}">Next</a>
-                    <a href="?page={{ total_pages }}&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" 
-                       class="page-link {% if page == total_pages %}disabled{% endif %}">Last</a>
+                    <a href="?page={{ page + 1 }}&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" class="page-link {% if page == total_pages %}disabled{% endif %}">Next</a>
+                    <a href="?page={{ total_pages }}&severity={{ severity }}&resolved={{ resolved }}&search={{ search }}" class="page-link {% if page == total_pages %}disabled{% endif %}">Last</a>
                 </div>
             {% endif %}
         {% else %}
-            <div class="empty-state">
-                <div class="icon">🎉</div>
-                <div class="title">No errors found</div>
-                <p>Everything is running smoothly! No errors match your filters.</p>
+            <div style="text-align: center; padding: 60px 20px; color: var(--text-secondary);">
+                <div style="font-size: 48px; opacity: 0.3; margin-bottom: 12px;">🎉</div>
+                <h3 style="font-size: 18px; font-weight: 600; color: var(--text);">No errors found</h3>
+                <p style="font-size: 14px;">Everything is running smoothly!</p>
             </div>
         {% endif %}
     </div>
@@ -561,57 +419,42 @@
 <script>
 function resolveError(id) {
     if (!confirm('Mark this error as resolved?')) return;
-    
     fetch('/admin/errors/resolve/' + id, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'csrf_token={{ csrf_token }}'
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Failed to resolve error: ' + data.error);
-        }
+        if (data.success) location.reload();
+        else alert('Failed to resolve error: ' + data.error);
     })
-    .catch(() => alert('Network error. Please try again.'));
+    .catch(() => alert('Network error.'));
 }
 
 function dismissError(id) {
     if (!confirm('Dismiss this error from the list?')) return;
-    
     fetch('/admin/errors/dismiss/' + id, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'csrf_token={{ csrf_token }}'
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Failed to dismiss error: ' + data.error);
-        }
+        if (data.success) location.reload();
+        else alert('Failed to dismiss error: ' + data.error);
     })
-    .catch(() => alert('Network error. Please try again.'));
+    .catch(() => alert('Network error.'));
 }
 
 function clearResolved() {
     if (!confirm('Delete all resolved errors? This cannot be undone.')) return;
-    
     fetch('/admin/errors/clear-resolved', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'csrf_token={{ csrf_token }}'
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
         if (data.success) {
             alert('Cleared ' + data.deleted + ' resolved errors.');
@@ -620,7 +463,7 @@ function clearResolved() {
             alert('Failed to clear resolved errors.');
         }
     })
-    .catch(() => alert('Network error. Please try again.'));
+    .catch(() => alert('Network error.'));
 }
 </script>
 {% endblock %}
