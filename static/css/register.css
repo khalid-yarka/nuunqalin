@@ -1,6 +1,16 @@
 /* ============================================
-   AUTH PAGES (Login + Register)
+   AUTH PAGES (Login + Register) – COMPLETE
    ============================================ */
+
+body.auth-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: var(--background);
+    margin: 0;
+}
 
 .auth-container {
     width: 100%;
@@ -129,7 +139,7 @@
 }
 
 .input-wrapper input::placeholder {
-    color: #B8A49C;
+    color: var(--text-muted);
 }
 
 .input-wrapper select {
@@ -150,7 +160,7 @@
     white-space: nowrap;
 }
 
-.phone-prefix + input {
+.phone-prefix+input {
     padding-left: 6px;
 }
 
@@ -158,7 +168,7 @@
 .toggle-password {
     padding-right: 14px;
     cursor: pointer;
-    color: #B8A49C;
+    color: var(--text-muted);
     font-size: 16px;
     transition: color 0.3s ease;
     background: none;
@@ -249,7 +259,7 @@
     width: 100%;
     padding: 16px;
     background: var(--primary);
-    color: var(--white);
+    color: white;
     border: none;
     border-radius: 12px;
     font-size: 17px;
@@ -313,7 +323,7 @@
 
 .auth-footer .terms {
     font-size: 12px;
-    color: #B8A49C;
+    color: var(--text-muted);
     margin-top: 12px;
 }
 
@@ -337,8 +347,17 @@
 }
 
 /* ============================================
-   DARK MODE - REGISTRATION HIGHLIGHT FIXES
+   DARK MODE
    ============================================ */
+
+[data-theme="dark"] .auth-card {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .input-wrapper {
+    background: var(--surface-alt) !important;
+}
 
 [data-theme="dark"] .input-wrapper:focus-within {
     border-color: #FF6B70 !important;
@@ -358,24 +377,6 @@
 
 [data-theme="dark"] .error-message.visible {
     color: #F87171 !important;
-}
-
-[data-theme="dark"] .auth-card {
-    background: var(--surface) !important;
-    border-color: var(--border) !important;
-}
-
-[data-theme="dark"] .input-wrapper {
-    background: var(--surface-alt) !important;
-}
-
-[data-theme="dark"] .input-wrapper input,
-[data-theme="dark"] .input-wrapper select {
-    color: var(--text) !important;
-}
-
-[data-theme="dark"] .input-wrapper input::placeholder {
-    color: var(--text-muted) !important;
 }
 
 [data-theme="dark"] .auth-title {

@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Student Platform{% endblock %}</title>
-    
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-    
-    <!-- Main CSS -->
+
+    <!-- Main CSS (Variables + Toasts + Dark Mode) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-    
+
     <!-- Page specific CSS -->
     {% block extra_css %}{% endblock %}
 </head>
@@ -18,10 +18,10 @@
     <!-- ============================================ -->
     <!-- TOAST NOTIFICATIONS -->
     <!-- ============================================ -->
-    <div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; gap: 10px; max-width: 380px; width: 100%; pointer-events: none;"></div>
+    <div id="toast-container"></div>
 
     <!-- ============================================ -->
-    <!-- FLASH MESSAGES (Legacy - will be replaced by toasts) -->
+    <!-- FLASH MESSAGES -->
     <!-- ============================================ -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -42,7 +42,7 @@
 
     <!-- Main JavaScript -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    
+
     <!-- Page specific JS -->
     {% block extra_js %}{% endblock %}
 </body>

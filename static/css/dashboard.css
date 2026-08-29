@@ -1,83 +1,16 @@
 /* ============================================
-   DASHBOARD LAYOUT - Sidebar + Top Nav
+   DASHBOARD – COMPLETE SELF-CONTAINED ADMIN LAYOUT
    ============================================ */
 
-/* Light Mode (Default) */
-:root {
-    --sidebar-width: 260px;
-    --sidebar-collapsed: 72px;
-    --navbar-height: 70px;
-    --primary: #FF3138;
-    --primary-hover: #E62B32;
-    --primary-light: #FFF0EC;
-    --background: #F8F6F5;
-    --surface: #FFFFFF;
-    --text: #1A1A2E;
-    --text-secondary: #6B7280;
-    --text-muted: #9CA3AF;
-    --border: #E5E7EB;
-    --border-light: #F1F2F4;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-    --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.12);
-    --radius: 16px;
-    --radius-sm: 10px;
-    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Dark Mode */
-[data-theme="dark"] {
-    --background: #1A1A2E;
-    --surface: #252540;
-    --surface-alt: #2D2D4A;
-    --text: #F1F1F1;
-    --text-secondary: #B0B0C8;
-    --text-muted: #7A7A9A;
-    --border: #3A3A5A;
-    --border-light: #2D2D4A;
-    --primary-light: #3A1A20;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5);
-    --white: #252540;
-    --highlight-bg: #4A2A40;
-    --highlight-text: #FFE0E0;
-    --highlight-border: #8B4A6A;
-}
-
 /* ============================================
-   RESET & BASE
+   VARIABLES – Inherited from style.css
    ============================================ */
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    overflow-x: hidden;
-    width: 100%;
-    max-width: 100vw;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
+/* All variables are in style.css */
+/* This file only adds dashboard-specific styles */
 
 /* ============================================
-   IMAGE RESPONSIVENESS - FIX FOR HUGE IMAGES
-   ============================================ */
-
-img,
-svg,
-video,
-iframe,
-embed,
-object {
-    max-width: 100% !important;
-    height: auto !important;
-}
-
-/* ============================================
-   DASHBOARD CONTAINER
+   DASHBOARD WRAPPER
    ============================================ */
 
 .dashboard-wrapper {
@@ -98,15 +31,16 @@ object {
     position: fixed;
     top: 0;
     left: 0;
-    width: var(--sidebar-width);
+    width: 260px;
     height: 100vh;
     background: var(--surface);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     z-index: 1000;
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease;
     flex-shrink: 0;
+    overflow-y: auto;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -124,7 +58,7 @@ object {
     align-items: center;
     gap: 12px;
     border-bottom: 1px solid var(--border);
-    min-height: var(--navbar-height);
+    min-height: 70px;
     flex-shrink: 0;
 }
 
@@ -332,21 +266,21 @@ object {
    ============================================ */
 
 .main-content {
-    margin-left: var(--sidebar-width);
+    margin-left: 260px;
     flex: 1;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
     transition: all 0.3s ease;
-    width: calc(100% - var(--sidebar-width));
-    max-width: calc(100% - var(--sidebar-width));
+    width: calc(100% - 260px);
+    max-width: calc(100% - 260px);
     overflow-x: hidden;
 }
 
 .top-navbar {
     position: sticky;
     top: 0;
-    height: var(--navbar-height);
+    height: 70px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     display: flex;
@@ -543,7 +477,7 @@ object {
 }
 
 /* ============================================
-   STATS GRID - FIXED LARGE ICON ISSUE
+   STATS GRID
    ============================================ */
 
 .stats-grid {
@@ -845,9 +779,15 @@ object {
 }
 
 @keyframes badgePop {
-    0% { transform: scale(0); }
-    70% { transform: scale(1.2); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(0);
+    }
+    70% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
 }
 
 .notification-dropdown {
@@ -931,7 +871,6 @@ object {
     text-decoration: underline;
 }
 
-/* Notification Item */
 .notification-item {
     display: flex;
     align-items: flex-start;
@@ -1014,7 +953,7 @@ object {
 }
 
 /* ============================================
-   SELECT / DROPDOWN / FORM ELEMENT STYLING
+   FORM ELEMENTS – Admin Specific
    ============================================ */
 
 select,
@@ -1058,30 +997,76 @@ select[multiple] {
 }
 
 /* ============================================
-   SCROLLBAR STYLING - GLOBAL
+   BUTTONS – Admin Specific
    ============================================ */
 
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    text-decoration: none;
 }
 
-::-webkit-scrollbar-track {
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(255, 49, 56, 0.30);
+}
+
+.btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
     background: var(--background);
-    border-radius: 10px;
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
-::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 10px;
+.btn-success {
+    background: #10B981;
+    color: white;
 }
 
-::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+.btn-success:hover {
+    background: #059669;
+}
+
+.btn-danger {
+    background: #EF4444;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #DC2626;
+}
+
+.btn-sm {
+    padding: 6px 14px;
+    font-size: 12px;
+}
+
+.btn-lg {
+    padding: 14px 28px;
+    font-size: 16px;
 }
 
 /* ============================================
-   FILTER BAR - FOR ADMIN ERROR PAGES
+   FILTER BAR
    ============================================ */
 
 .filter-bar {
@@ -1176,7 +1161,7 @@ select[multiple] {
 }
 
 /* ============================================
-   TABLE STYLES
+   TABLES
    ============================================ */
 
 .table-container {
@@ -1200,6 +1185,42 @@ select[multiple] {
 
 .table-container .table-header strong {
     color: var(--text);
+}
+
+.table-container table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.table-container table th {
+    padding: 10px 14px;
+    text-align: left;
+    background: var(--background);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.table-container table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text);
+    vertical-align: middle;
+}
+
+.table-container table tr:hover td {
+    background: var(--primary-light);
+}
+
+.table-container table tr.resolved td {
+    opacity: 0.6;
 }
 
 /* ============================================
@@ -1243,7 +1264,131 @@ select[multiple] {
 }
 
 /* ============================================
-   RESPONSIVE
+   BADGES
+   ============================================ */
+
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.badge-critical {
+    background: #FEF2F2;
+    color: #DC2626;
+}
+.badge-error {
+    background: #FFFBEB;
+    color: #D97706;
+}
+.badge-warning {
+    background: #EFF6FF;
+    color: #2563EB;
+}
+.badge-success {
+    background: #ECFDF5;
+    color: #10B981;
+}
+.badge-info {
+    background: #EFF6FF;
+    color: #3B82F6;
+}
+.badge-resolved {
+    background: #ECFDF5;
+    color: #10B981;
+}
+.badge-unresolved {
+    background: #FEF2F2;
+    color: #DC2626;
+}
+.badge-dismissed {
+    background: #F3F4F6;
+    color: #6B7280;
+}
+
+/* ============================================
+   MODAL
+   ============================================ */
+
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    padding: 20px;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 32px;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: var(--shadow-lg);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-content .modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.modal-content .modal-body {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+.modal-content .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.modal-content .modal-actions .btn {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+}
+
+/* ============================================
+   SCROLLBAR – Global for admin
+   ============================================ */
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* ============================================
+   RESPONSIVE – Admin
    ============================================ */
 
 @media (max-width: 1024px) {
@@ -1384,7 +1529,7 @@ select[multiple] {
 }
 
 /* ============================================
-   DARK MODE OVERRIDES
+   DARK MODE – Admin Overrides
    ============================================ */
 
 [data-theme="dark"] .sidebar {
@@ -1478,26 +1623,6 @@ select[multiple] {
 
 [data-theme="dark"] ::-webkit-scrollbar-thumb {
     background: var(--border) !important;
-}
-
-[data-theme="dark"] .badge-success {
-    background: #1A3A2E !important;
-    color: #D1FAE5 !important;
-}
-
-[data-theme="dark"] .badge-error {
-    background: #3A1A1A !important;
-    color: #FECACA !important;
-}
-
-[data-theme="dark"] .badge-warning {
-    background: #3A2E1A !important;
-    color: #FDE68A !important;
-}
-
-[data-theme="dark"] .badge-info {
-    background: #1A2A4A !important;
-    color: #93C5FD !important;
 }
 
 [data-theme="dark"] .stat-number.primary {

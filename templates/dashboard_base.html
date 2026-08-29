@@ -3,9 +3,16 @@
 {% block title %}Dashboard - Student Platform{% endblock %}
 
 {% block extra_css %}
+<!-- Dashboard CSS – COMPLETE SELF-CONTAINED ADMIN LAYOUT -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
+
 <style>
-    /* Quick stats cards - used on home page */
+    /* ============================================
+       DASHBOARD BASE – Minimal page-specific
+       ============================================ */
+
+    /* Stats cards – used on home page */
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -118,7 +125,6 @@
         transform: translateX(4px);
     }
 
-    /* Activity Feed */
     .activity-feed {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -238,10 +244,7 @@
         margin-bottom: 4px;
     }
 
-    /* ============================================
-       NOTIFICATION STYLES
-       ============================================ */
-
+    /* Notification styles */
     .notification-wrapper {
         position: relative;
         display: inline-block;
@@ -373,7 +376,6 @@
         text-decoration: underline;
     }
 
-    /* Notification Item */
     .notification-item {
         display: flex;
         align-items: flex-start;
@@ -455,33 +457,63 @@
         display: block;
     }
 
-    .notification-empty p {
-        font-size: 14px;
+    /* Dark mode overrides for dashboard */
+    [data-theme="dark"] .notification-dropdown {
+        background: var(--surface) !important;
+        border-color: var(--border) !important;
     }
 
-    /* Responsive */
+    [data-theme="dark"] .notification-item.unread {
+        background: var(--surface-alt) !important;
+        border-left: 3px solid #FF6B70 !important;
+    }
+
+    [data-theme="dark"] .stat-card {
+        background: var(--surface) !important;
+        border-color: var(--border) !important;
+    }
+
+    [data-theme="dark"] .quick-action-card {
+        background: var(--surface) !important;
+        border-color: var(--border) !important;
+    }
+
+    [data-theme="dark"] .quick-action-card:hover {
+        background: var(--primary-light) !important;
+        border-color: var(--primary) !important;
+    }
+
+    [data-theme="dark"] .activity-feed {
+        background: var(--surface) !important;
+        border-color: var(--border) !important;
+    }
+
+    [data-theme="dark"] .activity-item {
+        border-color: var(--border) !important;
+    }
+
+    [data-theme="dark"] .empty-state {
+        color: var(--text-muted) !important;
+    }
+
+    [data-theme="dark"] .stat-number.primary {
+        color: #FF6B70 !important;
+    }
+
     @media (max-width: 768px) {
         .stats-grid {
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
         }
-
         .stat-card {
             padding: 14px 10px;
         }
-
         .stat-card .stat-number {
             font-size: 22px;
         }
-
         .quick-actions-grid {
             grid-template-columns: 1fr;
         }
-
-        .activity-feed {
-            padding: 16px;
-        }
-
         .notification-dropdown {
             width: 320px;
             right: -60px;
@@ -493,50 +525,26 @@
             grid-template-columns: repeat(3, 1fr);
             gap: 8px;
         }
-
         .stat-card {
             padding: 12px 8px;
         }
-
         .stat-card .stat-number {
             font-size: 18px;
         }
-
         .stat-card .stat-label {
             font-size: 11px;
         }
-
         .activity-item {
             flex-wrap: wrap;
         }
-
         .activity-item .ai-time {
             width: 100%;
             padding-left: 50px;
         }
-
         .notification-dropdown {
             width: 290px;
             right: -80px;
         }
-    }
-
-    /* Dark Mode Overrides */
-    [data-theme="dark"] .notification-dropdown {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .notification-item.unread {
-        background: var(--surface-alt);
-    }
-
-    [data-theme="dark"] .notification-item:hover {
-        background: var(--primary-light);
-    }
-
-    [data-theme="dark"] .dropdown-header .mark-all-btn:hover {
-        background: var(--primary-light);
     }
 </style>
 {% block dashboard_css %}{% endblock %}
@@ -575,60 +583,63 @@
         <!-- Navigation -->
         <nav class="sidebar-nav">
             <div class="nav-label">Main</div>
-            
+
             <a href="{{ url_for('dashboard.home') }}" class="nav-item {% if request.endpoint == 'dashboard.home' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-home"></i></span>
                 Dashboard
             </a>
-            
+
             <a href="{{ url_for('dashboard.profile') }}" class="nav-item {% if request.endpoint == 'dashboard.profile' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-user"></i></span>
                 Profile
             </a>
-            
-            <!-- QUIZ LINK -->
+
             <a href="{{ url_for('quiz.index') }}" class="nav-item {% if request.endpoint.startswith('quiz.') %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-pencil-alt"></i></span>
                 Quizzes
             </a>
-            
-            <!-- LIVE QUIZ LINK - UPDATED TO LOBBY -->
+
             <a href="{{ url_for('live_quiz.lobby') }}" class="nav-item {% if request.endpoint.startswith('live_quiz.') %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-bolt"></i></span>
                 Live Quiz
                 <span class="nav-badge">⚡</span>
             </a>
-            
+
             <a href="{{ url_for('groups.list_groups') }}" class="nav-item {% if request.endpoint == 'groups.list_groups' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-users"></i></span>
                 Groups
             </a>
-            
+
             <a href="{{ url_for('pdfs.list_pdfs') }}" class="nav-item {% if request.endpoint == 'pdfs.list_pdfs' or request.endpoint == 'pdfs.view_pdf' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-file-pdf"></i></span>
                 PDFs
             </a>
-            
+
             <div class="nav-label" style="margin-top:12px;">Community</div>
-            
-            <!-- LEADERBOARD LINK -->
+
             <a href="{{ url_for('quiz.leaderboard') }}" class="nav-item {% if request.endpoint == 'quiz.leaderboard' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-trophy"></i></span>
                 Leaderboard
             </a>
-            
+
             <!-- ADMIN PANEL (only for admins) -->
             {% if session.is_admin %}
                 <div class="nav-label" style="margin-top:12px;">Admin</div>
-                
-                <a href="{{ url_for('admin.dashboard') }}" class="nav-item {% if request.endpoint.startswith('admin.') %}active{% endif %}">
+
+                <a href="{{ url_for('admin.dashboard') }}" class="nav-item {% if request.endpoint.startswith('admin.') and not request.endpoint.startswith('admin_errors.') %}active{% endif %}">
                     <span class="nav-icon"><i class="fas fa-cog"></i></span>
                     Admin Panel
+                </a>
+
+                <a href="{{ url_for('admin_errors.index') }}" class="nav-item {% if request.endpoint.startswith('admin_errors.') %}active{% endif %}">
+                    <span class="nav-icon"><i class="fas fa-exclamation-triangle"></i></span>
+                    Error Logs
+                    <span class="nav-badge" style="background: #DC2626;">!</span>
                 </a>
             {% endif %}
         </nav>
 
-        <!-- Sidebar Footer - ALWAYS VISIBLE (Logout only) -->
+        <!-- Sidebar Footer -->
         <div class="sidebar-footer">
             <a href="{{ url_for('logout') }}" class="nav-item logout">
                 <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
@@ -655,14 +666,14 @@
                     <i class="fas fa-moon moon-icon"></i>
                     <i class="fas fa-sun sun-icon" style="display: none;"></i>
                 </button>
-                
+
                 <!-- 🔔 NOTIFICATION BELL -->
                 <div class="notification-wrapper" id="notificationWrapper">
                     <button class="notification-toggle" id="notificationToggle" aria-label="Notifications">
                         <i class="fas fa-bell"></i>
                         <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
                     </button>
-                    
+
                     <!-- Notification Dropdown -->
                     <div class="notification-dropdown" id="notificationDropdown">
                         <div class="dropdown-header">
@@ -682,7 +693,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <span class="nav-divider"></span>
                 <a href="{{ url_for('dashboard.profile') }}" class="user-menu">
                     <div class="avatar-sm">
@@ -697,9 +708,8 @@
         <div class="page-content">
             {% block dashboard_content %}{% endblock %}
         </div>
-        <!-- ============================================ -->
-        <!-- FOOTER -->
-        <!-- ============================================ -->
+
+        <!-- Footer -->
         <footer style="margin-top: 40px; padding-top: 40px; border-top: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 32px 24px 20px;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 32px; max-width: 1200px; margin: 0 auto;">
                 <!-- Brand -->
@@ -710,7 +720,6 @@
                     </div>
                     <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.6;">Learn together, grow together. Empowering students through collaborative learning.</p>
                 </div>
-        
                 <!-- Quick Links -->
                 <div>
                     <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px;">Quick Links</h4>
@@ -723,7 +732,6 @@
                         <a href="{{ url_for('pdfs.list_pdfs') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 13px; transition: var(--transition);">PDFs</a>
                     </div>
                 </div>
-        
                 <!-- Social -->
                 <div>
                     <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px;">Connect With Us</h4>
@@ -742,7 +750,6 @@
                         </a>
                     </div>
                 </div>
-        
                 <!-- Support -->
                 <div>
                     <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px;">Support</h4>
@@ -754,7 +761,6 @@
                     </div>
                 </div>
             </div>
-        
             <!-- Copyright -->
             <div style="text-align: center; padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--border);">
                 <span style="color: var(--text-muted); font-size: 12px;">© 2026 NuunPlatform. All rights reserved. Made with Nuun for students.</span>

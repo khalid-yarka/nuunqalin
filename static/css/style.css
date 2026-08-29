@@ -1,33 +1,30 @@
 /* ============================================
-   MAIN STYLES
+   MAIN STYLES – VARIABLES + TOASTS + DARK MODE
    ============================================ */
 
-/* Brand Colors - Light Mode (Default) */
+/* Light Mode (Default) */
 :root {
     --primary: #FF3138;
     --primary-hover: #E62B32;
     --primary-light: #FFF0EC;
-    --accent: #F8D96B;
-    --accent-dark: #D8B84A;
     --background: #FFF8F6;
     --surface: #FFFFFF;
     --surface-alt: #FFF0EC;
     --text: #2A2A2A;
     --text-secondary: #6B7280;
     --text-muted: #9CA3AF;
-    --white: #FFFFFF;
     --border: #F1D9D2;
     --border-light: #F3E8E3;
-    --error: #FF3138;
-    --success: #10B981;
-    --warning: #F59E0B;
-    --info: #3B82F6;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
     --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.12);
     --radius: 16px;
     --radius-sm: 10px;
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --success: #10B981;
+    --error: #FF3138;
+    --warning: #F59E0B;
+    --info: #3B82F6;
 }
 
 /* Dark Mode */
@@ -50,7 +47,10 @@
     --highlight-border: #8B4A6A;
 }
 
-/* Reset */
+/* ============================================
+   BASE – Minimal, no layout conflicts
+   ============================================ */
+
 * {
     margin: 0;
     padding: 0;
@@ -61,17 +61,42 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: var(--background);
     color: var(--text);
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
     transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* ============================================
+   IMAGES – Global safe rule
+   ============================================ */
+
+img,
+svg,
+video,
+iframe,
+embed,
+object {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ============================================
+   LINKS – Global safe
+   ============================================ */
+
+a {
+    color: var(--primary);
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+a:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
 }
 
 /* ============================================
    TOAST NOTIFICATIONS
    ============================================ */
+
 #toast-container {
     position: fixed;
     top: 20px;
@@ -114,20 +139,36 @@ body {
     border-radius: 0 4px 4px 0;
 }
 
-.toast-success::before { background: var(--success); }
-.toast-error::before { background: var(--error); }
-.toast-info::before { background: var(--info); }
-.toast-warning::before { background: var(--warning); }
+.toast-success::before {
+    background: var(--success);
+}
+.toast-error::before {
+    background: var(--error);
+}
+.toast-info::before {
+    background: var(--info);
+}
+.toast-warning::before {
+    background: var(--warning);
+}
 
 .toast .toast-icon {
     font-size: 20px;
     flex-shrink: 0;
 }
 
-.toast-success .toast-icon { color: var(--success); }
-.toast-error .toast-icon { color: var(--error); }
-.toast-info .toast-icon { color: var(--info); }
-.toast-warning .toast-icon { color: var(--warning); }
+.toast-success .toast-icon {
+    color: var(--success);
+}
+.toast-error .toast-icon {
+    color: var(--error);
+}
+.toast-info .toast-icon {
+    color: var(--info);
+}
+.toast-warning .toast-icon {
+    color: var(--warning);
+}
 
 .toast .toast-content {
     flex: 1;
@@ -153,18 +194,77 @@ body {
 }
 
 @keyframes toastSlideIn {
-    from { opacity: 0; transform: translateX(30px); }
-    to { opacity: 1; transform: translateX(0); }
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 @keyframes toastSlideOut {
-    from { opacity: 1; transform: translateX(0); }
-    to { opacity: 0; transform: translateX(30px); }
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+}
+
+/* ============================================
+   DARK MODE TOGGLE BUTTON
+   ============================================ */
+
+.dark-mode-toggle {
+    background: none;
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+}
+
+.dark-mode-toggle:hover {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.dark-mode-toggle .sun-icon,
+.dark-mode-toggle .moon-icon {
+    transition: all 0.3s ease;
+}
+
+[data-theme="dark"] .dark-mode-toggle .sun-icon {
+    display: inline-block;
+}
+
+[data-theme="dark"] .dark-mode-toggle .moon-icon {
+    display: none;
+}
+
+[data-theme="light"] .dark-mode-toggle .sun-icon {
+    display: none;
+}
+
+[data-theme="light"] .dark-mode-toggle .moon-icon {
+    display: inline-block;
 }
 
 /* ============================================
    FLASH MESSAGES (Legacy)
    ============================================ */
+
 .flash-container {
     position: fixed;
     top: 20px;
@@ -213,35 +313,43 @@ body {
     opacity: 1;
 }
 
-.flash-success { border-left: 4px solid var(--success); }
-.flash-success i { color: var(--success); }
+.flash-success {
+    border-left: 4px solid var(--success);
+}
+.flash-success i {
+    color: var(--success);
+}
 
-.flash-error { border-left: 4px solid var(--error); }
-.flash-error i { color: var(--error); }
+.flash-error {
+    border-left: 4px solid var(--error);
+}
+.flash-error i {
+    color: var(--error);
+}
 
-.flash-info { border-left: 4px solid var(--info); }
-.flash-info i { color: var(--info); }
+.flash-info {
+    border-left: 4px solid var(--info);
+}
+.flash-info i {
+    color: var(--info);
+}
 
 @keyframes slideDown {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ============================================
-   RESPONSIVE
+   RESPONSIVE – ONLY for global elements
    ============================================ */
+
 @media (max-width: 480px) {
-    body {
-        padding: 12px;
-    }
-    .flash-container {
-        top: 12px;
-        width: 95%;
-    }
-    .flash-message {
-        font-size: 13px;
-        padding: 12px 14px;
-    }
     #toast-container {
         top: 12px;
         right: 12px;
@@ -251,94 +359,12 @@ body {
         padding: 12px 14px;
         font-size: 13px;
     }
-}
-
-/* ============================================
-   DARK MODE TOGGLE BUTTON
-   ============================================ */
-.dark-mode-toggle {
-    background: none;
-    border: none;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    font-size: 18px;
-    cursor: pointer;
-    transition: var(--transition);
-    position: relative;
-}
-
-.dark-mode-toggle:hover {
-    background: var(--primary-light);
-    color: var(--primary);
-}
-
-.dark-mode-toggle .sun-icon,
-.dark-mode-toggle .moon-icon {
-    transition: all 0.3s ease;
-}
-
-[data-theme="dark"] .dark-mode-toggle .sun-icon {
-    display: inline-block;
-}
-
-[data-theme="dark"] .dark-mode-toggle .moon-icon {
-    display: none;
-}
-
-[data-theme="light"] .dark-mode-toggle .sun-icon {
-    display: none;
-}
-
-[data-theme="light"] .dark-mode-toggle .moon-icon {
-    display: inline-block;
-}
-
-/* ============================================
-   DARK MODE - ADDITIONAL FIXES
-   ============================================ */
-
-[data-theme="dark"] .highlight,
-[data-theme="dark"] .highlighted {
-    background: var(--highlight-bg, #4A2A40) !important;
-    color: var(--highlight-text, #FFFFFF) !important;
-}
-
-[data-theme="dark"] .btn-primary {
-    background: #8B1A1A !important;
-}
-
-[data-theme="dark"] .btn-primary:hover {
-    background: #6A1414 !important;
-}
-
-[data-theme="dark"] .btn-secondary {
-    background: var(--surface-alt) !important;
-    border-color: var(--border) !important;
-    color: var(--text) !important;
-}
-
-[data-theme="dark"] .btn-secondary:hover {
-    background: var(--primary-light) !important;
-    border-color: var(--primary) !important;
-    color: var(--primary) !important;
-}
-
-[data-theme="dark"] input,
-[data-theme="dark"] textarea,
-[data-theme="dark"] select {
-    background: var(--surface-alt) !important;
-    border-color: var(--border) !important;
-    color: var(--text) !important;
-}
-
-[data-theme="dark"] input:focus,
-[data-theme="dark"] textarea:focus,
-[data-theme="dark"] select:focus {
-    border-color: #FF6B70 !important;
-    box-shadow: 0 0 0 3px rgba(255, 107, 112, 0.1) !important;
+    .flash-container {
+        top: 12px;
+        width: 95%;
+    }
+    .flash-message {
+        font-size: 13px;
+        padding: 12px 14px;
+    }
 }
