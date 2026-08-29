@@ -2375,3 +2375,113 @@ def get_user_active_quiz(user_id: int) -> Optional[int]:
     except Exception as e:
         logger.error(f"Error getting user active quiz: {e}")
         return None
+
+# ============================================
+# DASHBOARD ANALYTICS FUNCTIONS
+# ============================================
+
+def get_user_subject_performance(student_id: int):
+    """
+    Get average score per subject for a student.
+    Returns list of dicts with subject_name, avg_score (0-100), attempt_count.
+    """
+    try:
+        cursor = execute_with_retry("""
+            SELECT 
+                s.name as subject_name,
+                AVG((qa.score * 1.0 / qa.total_questions) * 100) as avg_score,
+                COUNT(qa.id) as attempt_count
+            FROM quiz_attempts qa
+            JOIN subjects s ON qa.subject_id = s.id
+            WHERE qa.student_id = ?
+            GROUP BY qa.subject_id
+            ORDER BY avg_score DESC
+        """, (student_id,))
+        results = cursor.fetchall()
+        return [dict(row) for row in results]
+    except Exception as e:
+        logger.error(f"Error fetching subject performance: {e}")
+        return []
+
+def get_user_recent_scores(student_id: int, limit: int = 10):
+    """
+    Get recent quiz scores for charting.
+    Returns list of dicts with score, total_questions, completed_at.
+    """
+    try:
+        cursor = execute_with_retry("""
+            SELECT score, total_questions, completed_at
+            FROM quiz_attempts
+            WHERE student_id = ?
+            ORDER BY completed_at DESC
+            LIMIT ?
+        """, (student_id, limit))
+        results = cursor.fetchall()
+        # Return in chronological order (oldest first for chart)
+        return [dict(row) for row in reversed(results)]
+    except Exception as e:
+        logger.error(f"Error fetching recent scores: {e}")
+        return []
+
+def get_total_correct_answers(student_id: int) -> int:
+    """
+    Get total correct answers across all quiz attempts.
+    """
+    try:
+        cursor = execute_with_retry("""
+            SELECT SUM(score) as total_correct
+            FROM quiz_attempts
+            WHERE student_id = ?
+        """, (student_id,))
+        result = cursor.fetchone()
+        return result['total_correct'] if result and result['total_correct'] else 0
+    except Exception as e:
+        logger.error(f"Error fetching total correct: {e}")
+        return 0
+
+def get_distinct_subjects_attempted(student_id: int) -> int:
+    """
+    Get number of unique subjects the user has attempted.
+    """
+    try:
+        cursor = execute_with_retry("""
+            SELECT COUNT(DISTINCT subject_id) as count
+            FROM quiz_attempts
+            WHERE student_id = ?
+        """, (student_id,))
+        result = cursor.fetchone()
+        return result['count'] if result else 0
+    except Exception as e:
+        logger.error(f"Error fetching distinct subjects: {e}")
+        return 0
+
+# ============================================
+# LIVE QUIZ SCHEDULING (NEW)
+# ============================================
+
+def get_scheduled_quizzes():
+    """Get all waiting/scheduled quizzes for the lobby."""
+    try:
+        cursor = execute_with_retry("""
+            SELECT * FROM live_quizzes 
+            WHERE status IN ('waiting', 'scheduled') 
+            ORDER BY scheduled_start ASC, created_at DESC
+        """)
+        results = cursor.fetchall()
+        return [dict(row) for row in results]
+    except Exception as e:
+        logger.error(f"Error fetching scheduled quizzes: {e}")
+        return []
+
+def transition_scheduled_quiz(quiz_id: int):
+    """Move a quiz from 'scheduled' to 'waiting' if start time has passed."""
+    try:
+        cursor = execute_with_retry("""
+            UPDATE live_quizzes 
+            SET status = 'waiting' 
+            WHERE id = ? AND status = 'scheduled' AND datetime(scheduled_start) <= datetime('now')
+        """, (quiz_id,), commit=True)
+        return True
+    except Exception as e:
+        logger.error(f"Error transitioning scheduled quiz: {e}")
+        return False

@@ -45,5 +45,108 @@
 
     <!-- Page specific JS -->
     {% block extra_js %}{% endblock %}
+
+    <!-- ============================================ -->
+    <!-- FLOATING THEME TOGGLE (Login/Register only)  -->
+    <!-- ============================================ -->
+    <div class="floating-theme-toggle" id="floatingThemeToggle" style="display: none; position: fixed; bottom: 24px; right: 24px; z-index: 10000;">
+        <button class="fab-theme" id="fabThemeBtn" style="width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 4px 20px rgba(0,0,0,0.15); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--text); transition: transform 0.2s ease, box-shadow 0.2s ease;">
+            <i class="fas fa-moon" id="fabThemeIcon"></i>
+        </button>
+        <div class="fab-popover" id="fabPopover" style="display: none; position: absolute; bottom: 60px; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; box-shadow: var(--shadow-lg); min-width: 160px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">
+            <div class="popover-title" style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Choose theme</div>
+            <div class="theme-option" data-theme="light" style="display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); font-size: 14px; color: var(--text);">
+                <i class="fas fa-sun"></i> <span>Light</span>
+            </div>
+            <div class="theme-option" data-theme="dark" style="display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); font-size: 14px; color: var(--text);">
+                <i class="fas fa-moon"></i> <span>Dark</span>
+            </div>
+            <div class="theme-option" data-theme="system" style="display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); font-size: 14px; color: var(--text);">
+                <i class="fas fa-desktop"></i> <span>System</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // Show toggle only on login/register pages
+            const isAuthPage = window.location.pathname === '/login' || window.location.pathname === '/register';
+            const toggle = document.getElementById('floatingThemeToggle');
+            if (!isAuthPage) {
+                if (toggle) toggle.style.display = 'none';
+                return;
+            }
+            if (toggle) toggle.style.display = 'block';
+
+            const btn = document.getElementById('fabThemeBtn');
+            const popover = document.getElementById('fabPopover');
+            const icon = document.getElementById('fabThemeIcon');
+            const options = document.querySelectorAll('.theme-option');
+
+            // Load saved theme
+            const savedTheme = localStorage.getItem('preferred-theme') || 'system';
+            function applyTheme(theme) {
+                if (theme === 'system') {
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                    icon.className = 'fas fa-desktop';
+                } else if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    icon.className = 'fas fa-moon';
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    icon.className = 'fas fa-sun';
+                }
+                // Highlight active option
+                options.forEach(opt => {
+                    const val = opt.dataset.theme;
+                    if (val === theme) {
+                        opt.style.background = 'var(--primary-light)';
+                        opt.style.color = 'var(--primary)';
+                    } else {
+                        opt.style.background = 'transparent';
+                        opt.style.color = 'var(--text)';
+                    }
+                });
+                localStorage.setItem('preferred-theme', theme);
+            }
+
+            // Apply initial
+            applyTheme(savedTheme);
+
+            // Toggle popover
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const isOpen = popover.style.display === 'block';
+                popover.style.display = isOpen ? 'none' : 'block';
+            });
+
+            // Close popover on outside click
+            document.addEventListener('click', function() {
+                popover.style.display = 'none';
+            });
+            popover.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+
+            // Option clicks
+            options.forEach(opt => {
+                opt.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const theme = this.dataset.theme;
+                    applyTheme(theme);
+                    popover.style.display = 'none';
+                });
+            });
+
+            // Listen for system preference changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+                const current = localStorage.getItem('preferred-theme') || 'system';
+                if (current === 'system') {
+                    document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS subjects (
 );
 
 -- ============================================
--- QUESTIONS TABLE (UPDATED with all columns)
+-- QUESTIONS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS questions (
@@ -134,7 +134,7 @@ CREATE INDEX IF NOT EXISTS idx_pdfs_category ON pdfs(category);
 CREATE INDEX IF NOT EXISTS idx_pdfs_view_count ON pdfs(view_count DESC);
 
 -- ============================================
--- LIVE QUIZZES TABLE
+-- LIVE QUIZZES TABLE (UPDATED with scheduling)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS live_quizzes (
@@ -144,13 +144,15 @@ CREATE TABLE IF NOT EXISTS live_quizzes (
     subject_id INTEGER NOT NULL,
     question_count INTEGER DEFAULT 10,
     join_code TEXT UNIQUE NOT NULL,
-    status TEXT DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'finished')),
+    status TEXT DEFAULT 'waiting' CHECK (status IN ('waiting', 'scheduled', 'active', 'finished')),
     max_participants INTEGER DEFAULT 50,
     time_per_question INTEGER DEFAULT 30,
     current_question_index INTEGER DEFAULT 0,
     question_ids TEXT,
     started_at TEXT,
     ended_at TEXT,
+    scheduled_start TEXT,  -- NEW: ISO timestamp for scheduled start
+    is_public INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (creator_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
@@ -161,6 +163,7 @@ CREATE INDEX IF NOT EXISTS idx_live_quizzes_status ON live_quizzes(status);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_creator ON live_quizzes(creator_id);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_subject ON live_quizzes(subject_id);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_created ON live_quizzes(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_live_quizzes_scheduled ON live_quizzes(scheduled_start);
 
 -- ============================================
 -- LIVE QUIZ PARTICIPANTS TABLE
@@ -260,7 +263,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at
 CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
 
 -- ============================================
--- NOTIFICATION PREFERENCES TABLE - UNCOMMENTED
+-- NOTIFICATION PREFERENCES TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS notification_preferences (
@@ -277,7 +280,7 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
 CREATE INDEX IF NOT EXISTS idx_pref_user ON notification_preferences(user_id);
 CREATE INDEX IF NOT EXISTS idx_pref_type ON notification_preferences(notification_type);
 
--- Additional indexes for frequently used queries
+-- Additional performance indexes
 CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);

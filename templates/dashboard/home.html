@@ -1,100 +1,693 @@
 {% extends "dashboard_base.html" %}
 
-{% block title %}Dashboard - Student Platform{% endblock %}
+{% block title %}Dashboard - NuunPlatform{% endblock %}
 
 {% block page_title %}Dashboard{% endblock %}
 
+{% block extra_css %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    /* ============================================
+       DASHBOARD V2 - ADVANCED UI
+       ============================================ */
+
+    /* Welcome Hero */
+    .welcome-hero {
+        background: linear-gradient(135deg, var(--primary) 0%, #B91C1C 100%);
+        border-radius: var(--radius);
+        padding: 20px 24px;
+        margin-bottom: 20px;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        box-shadow: 0 8px 30px rgba(255, 49, 56, 0.25);
+        position: relative;
+        overflow: hidden;
+    }
+    .welcome-hero::after {
+        content: '';
+        position: absolute;
+        right: -20px;
+        top: -20px;
+        width: 150px;
+        height: 150px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 50%;
+    }
+    .welcome-hero .text h1 {
+        font-size: 20px;
+        font-weight: 700;
+        margin: 0;
+    }
+    .welcome-hero .text h1 span {
+        color: #FCD34D;
+    }
+    .welcome-hero .text p {
+        opacity: 0.9;
+        margin: 4px 0 0 0;
+        font-size: 13px;
+    }
+    .welcome-hero .level-badge {
+        background: rgba(255,255,255,0.15);
+        backdrop-filter: blur(4px);
+        padding: 6px 16px;
+        border-radius: 30px;
+        border: 1px solid rgba(255,255,255,0.2);
+        text-align: center;
+        min-width: 100px;
+        z-index: 2;
+    }
+    .welcome-hero .level-badge .num {
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1;
+    }
+    .welcome-hero .level-badge .label {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.7;
+    }
+    .xp-bar-wrap {
+        margin-top: 6px;
+        background: rgba(0,0,0,0.2);
+        border-radius: 20px;
+        height: 6px;
+        width: 100%;
+        max-width: 280px;
+        overflow: hidden;
+        z-index: 2;
+    }
+    .xp-bar-wrap .fill {
+        height: 100%;
+        background: #FCD34D;
+        border-radius: 20px;
+        transition: width 0.8s ease;
+        width: 0%;
+    }
+    .xp-text {
+        font-size: 11px;
+        opacity: 0.8;
+        margin-top: 4px;
+        z-index: 2;
+    }
+
+    /* Stats Grid V2 */
+    .stats-grid-v2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .stat-card-v2 {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        box-shadow: var(--shadow-sm);
+        transition: var(--transition);
+    }
+    .stat-card-v2:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+    .stat-card-v2 .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+    .stat-card-v2 .stat-icon {
+        font-size: 18px;
+        opacity: 0.6;
+    }
+    .stat-card-v2 .stat-number {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1.2;
+    }
+    .stat-card-v2 .stat-label {
+        font-size: 10px;
+        color: var(--text-secondary);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    /* Two Column Layout */
+    .dashboard-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    /* Subject Mastery Card */
+    .mastery-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 18px;
+        box-shadow: var(--shadow-sm);
+    }
+    .mastery-card .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    .mastery-card .header h3 {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0;
+    }
+    .mastery-item {
+        margin-bottom: 10px;
+    }
+    .mastery-item:last-child {
+        margin-bottom: 0;
+    }
+    .mastery-item .info {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        margin-bottom: 2px;
+    }
+    .mastery-item .info .name {
+        color: var(--text);
+        font-weight: 500;
+    }
+    .mastery-item .info .pct {
+        color: var(--text-secondary);
+        font-weight: 600;
+    }
+    .mastery-item .bar-bg {
+        width: 100%;
+        height: 5px;
+        background: var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .mastery-item .bar-bg .fill {
+        height: 100%;
+        border-radius: 10px;
+        transition: width 1s ease;
+        width: 0%;
+    }
+    .mastery-item .bar-bg .fill.high { background: #10B981; }
+    .mastery-item .bar-bg .fill.medium { background: #F59E0B; }
+    .mastery-item .bar-bg .fill.low { background: #EF4444; }
+
+    /* Chart Card */
+    .chart-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 18px;
+        box-shadow: var(--shadow-sm);
+    }
+    .chart-card .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .chart-card .header h3 {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0;
+    }
+    .chart-card canvas {
+        max-height: 160px;
+        width: 100% !important;
+    }
+
+    /* Live Quiz Status (New) */
+    .live-status-card {
+        background: linear-gradient(135deg, #1E293B, #0F172A);
+        border-radius: var(--radius);
+        padding: 14px 18px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+    }
+    .live-status-card .left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .live-status-card .left .pulse {
+        width: 10px;
+        height: 10px;
+        background: #10B981;
+        border-radius: 50%;
+        animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+    .live-status-card .left .info h4 {
+        font-size: 14px;
+        font-weight: 600;
+        color: white;
+        margin: 0;
+    }
+    .live-status-card .left .info p {
+        font-size: 12px;
+        color: #94A3B8;
+        margin: 0;
+    }
+    .live-status-card .btn-go {
+        background: white;
+        color: #0F172A;
+        padding: 6px 18px;
+        border-radius: 30px;
+        font-weight: 700;
+        font-size: 13px;
+        text-decoration: none;
+        transition: var(--transition);
+    }
+    .live-status-card .btn-go:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 14px rgba(255,255,255,0.2);
+    }
+
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* Activity Feed V2 */
+    .activity-feed-v2 {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 18px;
+        box-shadow: var(--shadow-sm);
+    }
+    .activity-feed-v2 .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+    .activity-feed-v2 .header h3 {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .activity-feed-v2 .header a {
+        font-size: 12px;
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .activity-item-v2 {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border-light);
+    }
+    .activity-item-v2:last-child {
+        border-bottom: none;
+    }
+    .activity-item-v2 .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-top: 4px;
+        flex-shrink: 0;
+    }
+    .activity-item-v2 .dot.green { background: #10B981; }
+    .activity-item-v2 .dot.blue { background: #3B82F6; }
+    .activity-item-v2 .dot.gold { background: #F59E0B; }
+    .activity-item-v2 .content {
+        flex: 1;
+    }
+    .activity-item-v2 .content .title {
+        font-size: 14px;
+        color: var(--text);
+    }
+    .activity-item-v2 .content .meta {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+    .activity-item-v2 .points {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--primary);
+        flex-shrink: 0;
+    }
+
+    /* Empty State */
+    .empty-state-dash {
+        text-align: center;
+        padding: 40px 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+    .empty-state-dash .icon {
+        font-size: 48px;
+        opacity: 0.3;
+        margin-bottom: 12px;
+    }
+    .empty-state-dash h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0;
+    }
+    .empty-state-dash p {
+        color: var(--text-secondary);
+        font-size: 14px;
+        margin-top: 4px;
+    }
+    .empty-state-dash .btn {
+        display: inline-block;
+        margin-top: 16px;
+        padding: 10px 28px;
+        background: var(--primary);
+        color: white;
+        border-radius: var(--radius-sm);
+        text-decoration: none;
+        font-weight: 600;
+        transition: var(--transition);
+    }
+    .empty-state-dash .btn:hover {
+        background: var(--primary-hover);
+        transform: translateY(-2px);
+    }
+
+    @media (min-width: 768px) {
+        .dashboard-grid-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+        .stats-grid-v2 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+        .welcome-hero .text h1 {
+            font-size: 24px;
+        }
+    }
+    @media (max-width: 480px) {
+        .welcome-hero {
+            padding: 16px;
+        }
+        .welcome-hero .level-badge {
+            min-width: 80px;
+            padding: 4px 12px;
+        }
+        .welcome-hero .level-badge .num {
+            font-size: 20px;
+        }
+        .stat-card-v2 .stat-number {
+            font-size: 18px;
+        }
+        .stat-card-v2 {
+            padding: 10px 12px;
+        }
+    }
+
+    [data-theme="dark"] .live-status-card {
+        background: linear-gradient(135deg, #0F172A, #020617);
+        border-color: #334155;
+    }
+    [data-theme="dark"] .live-status-card .btn-go {
+        background: #1E293B;
+        color: white;
+    }
+    [data-theme="dark"] .mastery-card .bar-bg .fill.high { background: #34D399; }
+    [data-theme="dark"] .mastery-card .bar-bg .fill.medium { background: #FBBF24; }
+    [data-theme="dark"] .mastery-card .bar-bg .fill.low { background: #F87171; }
+</style>
+{% endblock %}
+
 {% block dashboard_content %}
 
-<!-- Welcome -->
-<div style="margin-bottom: 24px;">
-    <h1 style="font-size: 24px; font-weight: 700; color: var(--text);">
-        👋 Welcome, <span style="color: var(--primary);">{{ session.user_name }}</span>!
-    </h1>
-    <p style="color: var(--text-secondary); font-size: 15px; margin-top: 2px;">
-        Ready to learn something new today?
-    </p>
+<!-- ============================================ -->
+<!-- LIVE QUIZ STATUS CARD (Conditional)          -->
+<!-- ============================================ -->
+{% if active_quiz and active_quiz.status in ['waiting', 'scheduled', 'active'] %}
+<div class="live-status-card">
+    <div class="left">
+        <span class="pulse"></span>
+        <div class="info">
+            <h4>⚡ {{ active_quiz.title or 'Live Quiz' }}</h4>
+            <p>
+                {% if active_quiz.status == 'scheduled' %}
+                    ⏳ Scheduled to start soon
+                {% elif active_quiz.status == 'waiting' %}
+                    👥 Waiting in lobby
+                {% else %}
+                    🔴 Currently active
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    <a href="
+        {% if active_quiz.status == 'active' %}
+            {{ url_for('live_quiz.play', quiz_id=active_quiz.id) }}
+        {% else %}
+            {{ url_for('live_quiz.waiting_room', quiz_id=active_quiz.id) }}
+        {% endif %}
+    " class="btn-go">
+        {% if active_quiz.status == 'active' %}Continue →{% else %}View →{% endif %}
+    </a>
+</div>
+{% endif %}
+
+<!-- ============================================ -->
+<!-- GAMIFIED HERO                                -->
+<!-- ============================================ -->
+<div class="welcome-hero">
+    <div class="text">
+        <h1>{{ greeting }}, <span>{{ session.user_name }}</span>!</h1>
+        <p>{% if total_points > 0 %}You've earned <strong>{{ total_points }}</strong> XP total. Keep going!{% else %}Ready to start your learning journey?{% endif %}</p>
+    </div>
+    <div class="level-badge">
+        <div class="num">{{ level }}</div>
+        <div class="label">Level</div>
+        <div class="xp-bar-wrap">
+            <div class="fill" style="width: {{ (xp_in_level / xp_needed * 100)|round(0) }}%;"></div>
+        </div>
+        <div class="xp-text">{{ xp_in_level }} / {{ xp_needed }} XP</div>
+    </div>
 </div>
 
-<!-- Stats -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <span class="stat-icon">📚</span>
-        <div class="stat-number primary">{{ quiz_count or 0 }}</div>
-        <div class="stat-label">Quizzes Taken</div>
+<!-- ============================================ -->
+<!-- SMART STATS                                  -->
+<!-- ============================================ -->
+<div class="stats-grid-v2">
+    <div class="stat-card-v2">
+        <div class="top">
+            <span class="stat-number">{{ success_rate }}%</span>
+            <span class="stat-icon">📊</span>
+        </div>
+        <div class="stat-label">Mastery Score</div>
     </div>
-    <div class="stat-card">
-        <span class="stat-icon">🏆</span>
-        <div class="stat-number primary">{{ total_points or 0 }}</div>
-        <div class="stat-label">Total Points</div>
+    <div class="stat-card-v2">
+        <div class="top">
+            <span class="stat-number">{{ subjects_attempted }}</span>
+            <span class="stat-icon">📚</span>
+        </div>
+        <div class="stat-label">Subjects Attempted</div>
     </div>
-    <div class="stat-card">
-        <span class="stat-icon">✅</span>
-        <div class="stat-number primary">{{ success_rate or 0 }}%</div>
-        <div class="stat-label">Success Rate</div>
+    <div class="stat-card-v2">
+        <div class="top">
+            <span class="stat-number">{{ total_correct }}</span>
+            <span class="stat-icon">✅</span>
+        </div>
+        <div class="stat-label">Total Correct</div>
     </div>
-    <div class="stat-card">
-        <span class="stat-icon">🔥</span>
-        <div class="stat-number primary">{{ streak or 0 }}</div>
+    <div class="stat-card-v2">
+        <div class="top">
+            <span class="stat-number">{{ streak }}</span>
+            <span class="stat-icon">🔥</span>
+        </div>
         <div class="stat-label">Day Streak</div>
     </div>
 </div>
 
-<!-- Quick Actions -->
-<div class="quick-actions-grid">
-    <a href="{{ url_for('quiz.index') }}" class="quick-action-card">
-        <span class="qa-icon"><i class="fas fa-pencil-alt"></i></span>
-        <span class="qa-text">
-            <span class="qa-title">Start a Quiz</span>
-            <span class="qa-sub">Test your knowledge</span>
-        </span>
-        <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
-    </a>
-    <a href="{{ url_for('dashboard.profile') }}" class="quick-action-card">
-        <span class="qa-icon"><i class="fas fa-user"></i></span>
-        <span class="qa-text">
-            <span class="qa-title">My Profile</span>
-            <span class="qa-sub">View your progress</span>
-        </span>
-        <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
-    </a>
-    <a href="{{ url_for('quiz.leaderboard') }}" class="quick-action-card">
-        <span class="qa-icon"><i class="fas fa-trophy"></i></span>
-        <span class="qa-text">
-            <span class="qa-title">Leaderboard</span>
-            <span class="qa-sub">See top performers</span>
-        </span>
-        <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
-    </a>
-</div>
-
-<!-- Recent Activity -->
-<div class="activity-feed">
-    <div class="feed-header">
-        <h3><i class="fas fa-clock" style="color: var(--primary); margin-right: 8px;"></i> Recent Activity</h3>
-        <a href="{{ url_for('quiz.history') }}">View All</a>
+<!-- ============================================ -->
+<!-- CORE: MASTERY + CHART                        -->
+<!-- ============================================ -->
+<div class="dashboard-grid-2">
+    <!-- Subject Mastery -->
+    <div class="mastery-card">
+        <div class="header">
+            <h3>🎯 Subject Mastery</h3>
+            <span style="font-size: 12px; color: var(--text-secondary);">{{ subject_performance|length }} subjects</span>
+        </div>
+        {% if subject_performance %}
+            {% for subject in subject_performance[:5] %}
+                {% set pct = subject.avg_score|round(0) %}
+                {% set cls = 'high' if pct >= 70 else 'medium' if pct >= 40 else 'low' %}
+                <div class="mastery-item">
+                    <div class="info">
+                        <span class="name">{{ subject.subject_name }}</span>
+                        <span class="pct">{{ pct }}%</span>
+                    </div>
+                    <div class="bar-bg">
+                        <div class="fill {{ cls }}" style="width: {{ pct }}%;"></div>
+                    </div>
+                </div>
+            {% endfor %}
+            {% if subject_performance|length > 5 %}
+                <div style="text-align: center; margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+                    + {{ subject_performance|length - 5 }} more subjects
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="empty-state-dash" style="padding: 20px;">
+                <div class="icon" style="font-size: 32px;">📖</div>
+                <p style="font-size: 13px;">Complete a quiz to see your mastery!</p>
+                <a href="{{ url_for('quiz.index') }}" class="btn" style="padding: 6px 18px; font-size: 13px;">Start Quiz</a>
+            </div>
+        {% endif %}
     </div>
 
+    <!-- Performance Chart -->
+    <div class="chart-card">
+        <div class="header">
+            <h3>📈 Performance Trend</h3>
+            <span style="font-size: 12px; color: var(--text-secondary);">Last {{ chart_data|length }} quizzes</span>
+        </div>
+        {% if chart_data %}
+            <canvas id="performanceChart"></canvas>
+        {% else %}
+            <div class="empty-state-dash" style="padding: 20px;">
+                <div class="icon" style="font-size: 32px;">📊</div>
+                <p style="font-size: 13px;">No data yet. Take a quiz to see your progress!</p>
+                <a href="{{ url_for('quiz.index') }}" class="btn" style="padding: 6px 18px; font-size: 13px;">Start Quiz</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ============================================ -->
+<!-- ACTIVITY FEED                                -->
+<!-- ============================================ -->
+<div class="activity-feed-v2">
+    <div class="header">
+        <h3>🕒 Recent Activity</h3>
+        <a href="{{ url_for('quiz.history') }}">View All</a>
+    </div>
     {% if recent_activity %}
         {% for activity in recent_activity %}
-            <div class="activity-item">
-                <span class="ai-icon {{ activity.icon_class or 'blue' }}">
-                    <i class="fas {{ activity.icon or 'fa-check' }}"></i>
-                </span>
-                <div class="ai-content">
-                    <div class="ai-title">{{ activity.title|safe }}</div>
-                    <div class="ai-meta">{{ activity.meta or '' }}</div>
+            <div class="activity-item-v2">
+                <span class="dot {{ activity.color }}"></span>
+                <div class="content">
+                    <div class="title">{{ activity.title|safe }}</div>
+                    <div class="meta">{{ activity.meta }}</div>
                 </div>
-                <span class="ai-time">{{ activity.time or 'Just now' }}</span>
+                <span class="points">{{ activity.points }}</span>
             </div>
         {% endfor %}
     {% else %}
-        <div class="empty-state">
-            <div class="empty-icon">🚀</div>
-            <div class="empty-title">No activity yet</div>
-            <p style="font-size: 14px;">Start your first quiz to track your progress!</p>
+        <div class="empty-state-dash" style="padding: 20px;">
+            <div class="icon" style="font-size: 32px;">🚀</div>
+            <p style="font-size: 13px;">No activity yet. Start your first quiz!</p>
+            <a href="{{ url_for('quiz.index') }}" class="btn" style="padding: 6px 18px; font-size: 13px;">Start Quiz</a>
         </div>
     {% endif %}
 </div>
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ============================================
+    // PERFORMANCE CHART
+    // ============================================
+    const chartData = {{ chart_data|tojson }};
+    const chartLabels = {{ chart_labels|tojson }};
+
+    if (chartData && chartData.length > 0 && document.getElementById('performanceChart')) {
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+
+        // Determine if dark mode
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const textColor = isDark ? '#94A3B8' : '#64748B';
+        const gridColor = isDark ? '#1E293B' : '#E2E8F0';
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    label: 'Score %',
+                    data: chartData,
+                    borderColor: '#FF3138',
+                    backgroundColor: 'rgba(255, 49, 56, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#FF3138',
+                    pointBorderColor: '#FFFFFF',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.y + '%';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            color: textColor,
+                            font: { size: 10 },
+                            stepSize: 25
+                        },
+                        grid: {
+                            color: gridColor,
+                            drawBorder: false,
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: textColor,
+                            font: { size: 9 },
+                            maxRotation: 45,
+                            minRotation: 30
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                }
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

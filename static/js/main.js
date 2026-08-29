@@ -1,236 +1,174 @@
 // ============================================
-// MAIN JAVASCRIPT
+// MAIN.JS - GLOBAL UTILITIES
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    // ============================================
-    // TOAST NOTIFICATIONS
-    // ============================================
-    
-    // Convert old flash messages to toasts
-    const flashContainer = document.getElementById('flashContainer');
-    if (flashContainer) {
-        const flashMessages = flashContainer.querySelectorAll('.flash-message');
-        flashMessages.forEach(function(msg) {
-            const category = msg.classList.contains('flash-success') ? 'success' :
-                           msg.classList.contains('flash-error') ? 'error' :
-                           msg.classList.contains('flash-info') ? 'info' : 'warning';
-            const message = msg.textContent.trim();
-            showToast(message, category);
-            msg.remove();
-        });
-        flashContainer.remove();
-    }
 
     // ============================================
-    // DARK MODE - FIXED
+    // THEME PERSISTENCE (Global)
     // ============================================
-    
-    const darkModeToggle = document.getElementById('darkModeToggle');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    // Get saved theme or system preference
-    let currentTheme = localStorage.getItem('theme') || 
-                      (prefersDark.matches ? 'dark' : 'light');
-    
-    function setTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('theme', theme);
-        currentTheme = theme;
-        
-        // Update toggle icon
-        if (darkModeToggle) {
-            const moonIcon = darkModeToggle.querySelector('.moon-icon');
-            const sunIcon = darkModeToggle.querySelector('.sun-icon');
-            if (theme === 'dark') {
-                if (moonIcon) moonIcon.style.display = 'none';
-                if (sunIcon) sunIcon.style.display = 'inline-block';
-            } else {
-                if (moonIcon) moonIcon.style.display = 'inline-block';
-                if (sunIcon) sunIcon.style.display = 'none';
+    (function() {
+        const savedTheme = localStorage.getItem('preferred-theme') || 'system';
+        if (savedTheme === 'system') {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+        } else {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+
+        // Listen for system changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+            const current = localStorage.getItem('preferred-theme') || 'system';
+            if (current === 'system') {
+                document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
             }
-        }
-    }
-    
-    // Apply initial theme
-    setTheme(currentTheme);
-    
-    // Toggle theme on click - with error handling
-    if (darkModeToggle) {
-        darkModeToggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            setTheme(newTheme);
         });
-    } else {
-        // Fallback: find by class if ID fails
-        const toggleBtn = document.querySelector('.dark-mode-toggle');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                setTheme(newTheme);
-            });
-        }
-    }
-    
-    // Listen for system theme changes
-    prefersDark.addEventListener('change', function(e) {
-        if (!localStorage.getItem('theme')) {
-            setTheme(e.matches ? 'dark' : 'light');
-        }
-    });
+    })();
 
     // ============================================
-    // TOAST FUNCTIONS
+    // TOAST SYSTEM
     // ============================================
-    
-    function showToast(message, type = 'info', duration = 4000) {
+    window.showToast = function(message, type, duration) {
+        type = type || 'info';
+        duration = duration || 4000;
+
         const container = document.getElementById('toast-container');
-        if (!container) {
-            // Fallback: create container
-            const newContainer = document.createElement('div');
-            newContainer.id = 'toast-container';
-            newContainer.style.cssText = `
-                position: fixed; top: 20px; right: 20px; z-index: 99999;
-                display: flex; flex-direction: column; gap: 10px;
-                max-width: 380px; width: 100%; pointer-events: none;
-            `;
-            document.body.appendChild(newContainer);
-        }
-        
-        const toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) return;
-        
+        if (!container) return;
+
         const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        
-        const icons = {
-            success: 'fa-check-circle',
-            error: 'fa-exclamation-circle',
-            warning: 'fa-exclamation-triangle',
-            info: 'fa-info-circle'
-        };
-        
+        toast.className = 'toast toast-' + type;
         toast.innerHTML = `
-            <span class="toast-icon"><i class="fas ${icons[type] || icons.info}"></i></span>
-            <span class="toast-content">${message}</span>
-            <button class="toast-close" aria-label="Close">&times;</button>
+            <span class="toast-icon">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
+            </span>
+            <span class="toast-message">${message}</span>
+            <button class="toast-close">&times;</button>
         `;
-        
-        toastContainer.appendChild(toast);
-        
-        const closeBtn = toast.querySelector('.toast-close');
-        closeBtn.addEventListener('click', function() {
-            removeToast(toast);
-        });
-        
+
+        container.appendChild(toast);
+
+        // Auto dismiss
         const timeout = setTimeout(function() {
-            removeToast(toast);
+            toast.remove();
         }, duration);
-        
+
+        // Close button
+        toast.querySelector('.toast-close').addEventListener('click', function() {
+            clearTimeout(timeout);
+            toast.remove();
+        });
+
+        // Hover pause
         toast.addEventListener('mouseenter', function() {
             clearTimeout(timeout);
         });
-        
         toast.addEventListener('mouseleave', function() {
             setTimeout(function() {
-                removeToast(toast);
-            }, duration);
+                toast.remove();
+            }, 1500);
         });
-        
-        return toast;
-    }
-    
-    function removeToast(toast) {
-        if (toast.classList.contains('toast-removing')) return;
-        toast.classList.add('toast-removing');
-        setTimeout(function() {
-            toast.remove();
-        }, 300);
-    }
-    
-    window.showToast = showToast;
+    };
 
     // ============================================
-    // LOADING STATES
+    // AUTO-DISMISS FLASH MESSAGES
     // ============================================
-    
-    document.querySelectorAll('form').forEach(function(form) {
-        form.addEventListener('submit', function() {
-            const btn = this.querySelector('button[type="submit"]');
-            if (btn) {
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-                btn.disabled = true;
-                
-                setTimeout(function() {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                }, 30000);
-            }
-        });
-    });
-
-    // ============================================
-    // AUTO-CLOSE LEGACY FLASH MESSAGES
-    // ============================================
-    
-    document.querySelectorAll('.flash-message:not([data-toast])').forEach(function(msg) {
+    const flashContainer = document.getElementById('flashContainer');
+    if (flashContainer) {
         setTimeout(function() {
-            if (msg) {
-                msg.style.opacity = '0';
-                msg.style.transform = 'translateY(-10px)';
-                msg.style.transition = 'all 0.4s ease';
-                setTimeout(function() {
-                    msg.remove();
-                }, 400);
-            }
+            flashContainer.style.transition = 'opacity 0.5s ease';
+            flashContainer.style.opacity = '0';
+            setTimeout(function() {
+                flashContainer.remove();
+            }, 500);
         }, 5000);
-    });
-});
-
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
-
-function togglePassword(btn) {
-    const input = btn.parentElement.querySelector('input');
-    const icon = btn.querySelector('i');
-    
-    if (input.type === 'password') {
-        input.type = 'text';
-        icon.className = 'fas fa-eye-slash';
-    } else {
-        input.type = 'password';
-        icon.className = 'fas fa-eye';
     }
-}
 
-function copyToClipboard(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function() {
-            window.showToast('Copied to clipboard!', 'success');
-        }).catch(function() {
-            fallbackCopy(text);
+    // ============================================
+    // CSRF TOKEN HELPER (for AJAX)
+    // ============================================
+    window.getCsrfToken = function() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta) return meta.content;
+        const input = document.querySelector('input[name="csrf_token"]');
+        if (input) return input.value;
+        return '';
+    };
+
+    // ============================================
+    // DARK MODE TOGGLE (for dashboard)
+    // ============================================
+    const darkToggle = document.getElementById('darkModeToggle');
+    if (darkToggle) {
+        darkToggle.addEventListener('click', function() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('preferred-theme', newTheme);
+
+            // Update icons
+            const moon = this.querySelector('.moon-icon');
+            const sun = this.querySelector('.sun-icon');
+            if (moon && sun) {
+                if (newTheme === 'dark') {
+                    moon.style.display = 'none';
+                    sun.style.display = 'inline-block';
+                } else {
+                    moon.style.display = 'inline-block';
+                    sun.style.display = 'none';
+                }
+            }
         });
-    } else {
-        fallbackCopy(text);
-    }
-}
 
-function fallbackCopy(text) {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.left = '-9999px';
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-        document.execCommand('copy');
-        window.showToast('Copied to clipboard!', 'success');
-    } catch (e) {
-        window.showToast('Failed to copy.', 'error');
+        // Set initial icon state
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const moon = darkToggle.querySelector('.moon-icon');
+        const sun = darkToggle.querySelector('.sun-icon');
+        if (moon && sun) {
+            if (currentTheme === 'dark') {
+                moon.style.display = 'none';
+                sun.style.display = 'inline-block';
+            } else {
+                moon.style.display = 'inline-block';
+                sun.style.display = 'none';
+            }
+        }
     }
-    document.body.removeChild(textarea);
-}
+
+    // ============================================
+    // SIDEBAR TOGGLE (Mobile)
+    // ============================================
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    if (menuToggle && sidebar && overlay) {
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('open');
+        }
+
+        menuToggle.addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', toggleSidebar);
+    }
+
+    // ============================================
+    // NOTIFICATION DROPDOWN TOGGLE
+    // ============================================
+    const notifToggle = document.getElementById('notificationToggle');
+    const notifDropdown = document.getElementById('notificationDropdown');
+
+    if (notifToggle && notifDropdown) {
+        notifToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            notifDropdown.classList.toggle('open');
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!notifDropdown.contains(e.target) && e.target !== notifToggle) {
+                notifDropdown.classList.remove('open');
+            }
+        });
+    }
+
+    console.log('✅ NuunPlatform main.js loaded');
+});

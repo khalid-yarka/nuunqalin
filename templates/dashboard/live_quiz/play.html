@@ -8,634 +8,115 @@
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    .quiz-notification {
-        background: var(--primary);
-        color: white;
-        padding: 12px 20px;
-        border-radius: var(--radius-sm);
-        margin-bottom: 16px;
-        text-align: center;
-        font-weight: 600;
-        animation: slideDown 0.5s ease;
-        display: none;
-        box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25);
-    }
-    .quiz-notification.show {
-        display: block;
-    }
-    @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    .reconnection-notice {
-        background: #3B82F6;
-        color: white;
-        padding: 10px 16px;
-        border-radius: var(--radius-sm);
-        margin-bottom: 12px;
-        text-align: center;
-        font-weight: 500;
-        display: none;
-        animation: slideDown 0.5s ease;
-    }
-    .reconnection-notice.show {
-        display: block;
-    }
-    .rating-reminder {
-        margin-top: 8px;
-        padding: 8px 14px;
-        background: #FEF3C7;
-        border-radius: var(--radius-sm);
-        font-size: 13px;
-        color: #92400E;
-        text-align: center;
-        border: 1px solid #FDE68A;
-    }
-    [data-theme="dark"] .rating-reminder {
-        background: #3A2E1A;
-        color: #FCD34D;
-        border-color: #92400E;
-    }
-    .question-timer.stopped {
-        color: var(--text-muted);
-    }
-    
-    .leaderboard-mini {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 12px 16px;
-        margin-bottom: 16px;
-    }
-    .leaderboard-mini .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 6px;
-    }
-    .leaderboard-mini .header .title {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .leaderboard-mini .header .rank-badge {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--primary);
-        background: var(--primary-light);
-        padding: 2px 10px;
-        border-radius: 10px;
-    }
-    .lb-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 3px 0;
-        font-size: 13px;
-    }
-    .lb-item .rank {
-        font-weight: 600;
-        color: var(--text-secondary);
-        min-width: 24px;
-    }
-    .lb-item .name {
-        color: var(--text);
-        flex: 1;
-        margin-left: 8px;
-    }
-    .lb-item .score {
-        font-weight: 700;
-        color: var(--primary);
-    }
-    .lb-item.you {
-        background: var(--primary-light);
-        padding: 3px 8px;
-        border-radius: 6px;
-        font-weight: 600;
-    }
-    
-    .question-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 24px;
-        box-shadow: var(--shadow-sm);
-    }
-    .question-text {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--text);
-        line-height: 1.5;
-        margin-bottom: 20px;
-    }
-    .options-container {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-    .option-btn {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 12px 16px;
-        background: var(--surface);
-        border: 2px solid var(--border);
-        border-radius: var(--radius-sm);
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 15px;
-        color: var(--text);
-        width: 100%;
-        text-align: left;
-    }
-    .option-btn:hover:not(:disabled) {
-        border-color: var(--primary);
-        background: var(--primary-light);
-    }
-    .option-btn:disabled {
-        cursor: not-allowed;
-        opacity: 0.6;
-    }
-    .option-btn .letter {
-        font-weight: 700;
-        color: var(--text-secondary);
-        min-width: 28px;
-        flex-shrink: 0;
-    }
-    .option-btn.correct {
-        border-color: #10B981;
-        background: #ECFDF5;
-    }
-    .option-btn.correct .letter {
-        color: #10B981;
-    }
-    .option-btn.wrong {
-        border-color: #EF4444;
-        background: #FEF2F2;
-    }
-    .option-btn.wrong .letter {
-        color: #EF4444;
-    }
-    .skip-btn {
-        padding: 8px 16px;
-        background: #FEF2F2;
-        color: #DC2626;
-        border: 1px solid #FCA5A5;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        cursor: pointer;
-        transition: var(--transition);
-        margin-top: 12px;
-        font-size: 13px;
-    }
-    .skip-btn:hover:not(:disabled) {
-        background: #FEE2E2;
-    }
-    .skip-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    
-    .feedback-area {
-        margin-top: 16px;
-        padding: 14px 18px;
-        border-radius: var(--radius-sm);
-    }
-    .feedback-area.success {
-        background: #ECFDF5;
-        border: 1px solid #A7F3D0;
-    }
-    .feedback-area.error {
-        background: #FEF2F2;
-        border: 1px solid #FCA5A5;
-    }
-    .feedback-area.skipped {
-        background: #FFFBEB;
-        border: 1px solid #FDE68A;
-    }
-    .feedback-area .feedback-title {
-        font-weight: 600;
-        font-size: 15px;
-    }
-    .rating-buttons {
-        display: flex;
-        gap: 10px;
-        margin-top: 10px;
-    }
-    .rating-buttons button {
-        padding: 6px 18px;
-        border: none;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 13px;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-    .rating-buttons .haa {
-        background: #10B981;
-        color: white;
-    }
-    .rating-buttons .haa:hover:not(:disabled) {
-        background: #059669;
-    }
-    .rating-buttons .may {
-        background: #EF4444;
-        color: white;
-    }
-    .rating-buttons .may:hover:not(:disabled) {
-        background: #DC2626;
-    }
-    .rating-buttons button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    
-    .completed-state {
-        text-align: center;
-        padding: 30px 20px;
-    }
-    .completed-state .icon {
-        font-size: 56px;
-        margin-bottom: 12px;
-    }
-    .completed-state h3 {
-        font-size: 20px;
-        font-weight: 700;
-        color: var(--text);
-    }
-    .completed-state p {
-        color: var(--text-secondary);
-        font-size: 14px;
-        margin-top: 4px;
-    }
-    .completed-state .waiting-info {
-        margin-top: 16px;
-        display: flex;
-        justify-content: center;
-        gap: 32px;
-        flex-wrap: wrap;
-    }
-    .completed-state .waiting-info .stat {
-        text-align: center;
-    }
-    .completed-state .waiting-info .stat .number {
-        font-size: 24px;
-        font-weight: 700;
-        color: var(--primary);
-    }
-    .completed-state .waiting-info .stat .label {
-        font-size: 12px;
-        color: var(--text-secondary);
-    }
-    
-    .quiz-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 12px;
-        padding: 12px 16px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-    }
-    .quiz-header .title-section {
-        flex: 1;
-        min-width: 0;
-    }
-    .quiz-header .title-section h3 {
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--text);
-        margin: 0;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .quiz-header .title-section .meta {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-top: 2px;
-        font-size: 12px;
-        color: var(--text-secondary);
-    }
-    .quiz-header .timer-section {
-        text-align: right;
-        flex-shrink: 0;
-    }
-    .quiz-header .timer-section .question-timer {
-        font-size: 24px;
-        font-weight: 700;
-        font-family: monospace;
-        transition: color 0.3s ease;
-    }
-    .quiz-header .timer-section .question-timer.warning {
-        color: #F59E0B;
-    }
-    .quiz-header .timer-section .question-timer.danger {
-        color: #EF4444;
-        animation: pulse 0.5s ease-in-out infinite;
-    }
-    .quiz-header .timer-section .label {
-        font-size: 10px;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .total-timer-progress {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 10px 16px;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-    .total-timer-progress .progress-bar-wrap {
-        flex: 1;
-        min-width: 100px;
-        height: 6px;
-        background: var(--border);
-        border-radius: 10px;
-        overflow: hidden;
-        position: relative;
-    }
-    .total-timer-progress .progress-bar-wrap .fill {
-        height: 100%;
-        background: var(--primary);
-        border-radius: 10px;
-        transition: width 0.5s ease;
-    }
-    .total-timer-progress .time-display {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text);
-        font-family: monospace;
-        white-space: nowrap;
-        min-width: 60px;
-        text-align: right;
-    }
-    .total-timer-progress .time-display.warning {
-        color: #F59E0B;
-    }
-    .total-timer-progress .time-display.danger {
-        color: #EF4444;
-        animation: pulse 0.5s ease-in-out infinite;
-    }
-    .total-timer-progress .status-label {
-        font-size: 12px;
-        color: var(--text-secondary);
-        white-space: nowrap;
-    }
-    
-    .creator-progress {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 12px 16px;
-        margin-bottom: 16px;
-    }
-    .creator-progress .cp-title {
-        font-weight: 600;
-        font-size: 14px;
-        margin-bottom: 6px;
-        color: var(--text);
-    }
-    .creator-progress .progress-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 4px 0;
-        font-size: 13px;
-    }
-    .creator-progress .progress-item .name {
-        flex: 1;
-        color: var(--text);
-        min-width: 60px;
-    }
-    .creator-progress .progress-item .bar-wrap {
-        width: 100px;
-        height: 6px;
-        background: var(--border);
-        border-radius: 4px;
-        overflow: hidden;
-        flex-shrink: 0;
-    }
-    .creator-progress .progress-item .bar-wrap .fill {
-        height: 100%;
-        background: var(--primary);
-        border-radius: 4px;
-        transition: width 0.3s ease;
-    }
-    .creator-progress .progress-item .status {
-        font-size: 11px;
-        font-weight: 600;
-        color: var(--text-secondary);
-        min-width: 50px;
-        text-align: right;
-    }
-    .creator-progress .progress-item .status.done {
-        color: #10B981;
-    }
-    .creator-progress .progress-item .status.waiting {
-        color: #F59E0B;
-    }
-    .creator-progress .progress-item .status.left {
-        color: #EF4444;
-    }
-
-    /* Leave Button */
-    .btn-leave {
-        margin-top: 16px;
-        width: 100%;
-        padding: 10px 20px;
-        background: transparent;
-        color: #EF4444;
-        border: 2px solid #EF4444;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 14px;
-        cursor: pointer;
-        transition: var(--transition);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    }
-
-    .btn-leave:hover {
-        background: #FEF2F2;
-        border-color: #DC2626;
-        color: #DC2626;
-    }
-
-    .btn-leave:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    /* Error/Abort State */
-    .error-state {
-        text-align: center;
-        padding: 40px 20px;
-    }
-    .error-state .icon {
-        font-size: 56px;
-        margin-bottom: 12px;
-    }
-    .error-state h3 {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--text);
-        margin-bottom: 4px;
-    }
-    .error-state p {
-        font-size: 14px;
-        color: var(--text-secondary);
-        margin-bottom: 16px;
-    }
-    .error-state .btn {
-        display: inline-block;
-        padding: 10px 28px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 15px;
-        text-decoration: none;
-        transition: var(--transition);
-        cursor: pointer;
-    }
-    .error-state .btn:hover {
-        background: var(--primary-hover);
-        transform: translateY(-2px);
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-    }
-    
-    @media (max-width: 768px) {
-        .question-text { font-size: 16px; }
-        .quiz-header .timer-section .question-timer { font-size: 20px; }
-        .total-timer-progress { padding: 8px 12px; gap: 8px; }
-        .total-timer-progress .time-display { font-size: 12px; min-width: 50px; }
-        .total-timer-progress .status-label { font-size: 10px; }
-        .creator-progress .progress-item .bar-wrap { width: 60px; }
-    }
-    @media (max-width: 480px) {
-        .question-card { padding: 16px; }
-        .question-text { font-size: 15px; }
-        .option-btn { padding: 10px 12px; font-size: 14px; }
-        .quiz-header .title-section h3 { font-size: 14px; }
-        .quiz-header .timer-section .question-timer { font-size: 18px; }
-        .completed-state .waiting-info { gap: 16px; }
-        .completed-state .waiting-info .stat .number { font-size: 20px; }
-        .rating-buttons button { padding: 4px 14px; font-size: 12px; }
-        .skip-btn { font-size: 12px; padding: 6px 12px; }
-        .creator-progress .progress-item .bar-wrap { width: 40px; }
-        .creator-progress .progress-item .status { font-size: 10px; min-width: 40px; }
-        .btn-leave { font-size: 13px; padding: 8px 16px; }
-        .error-state .icon { font-size: 40px; }
-    }
-    @media (max-width: 360px) {
-        .question-text { font-size: 14px; }
-        .option-btn { padding: 8px 10px; font-size: 13px; }
-        .option-btn .letter { min-width: 22px; }
-        .quiz-header { padding: 8px 12px; }
-        .quiz-header .title-section h3 { font-size: 13px; }
-        .quiz-header .timer-section .question-timer { font-size: 16px; }
-        .total-timer-progress { padding: 6px 10px; }
-        .total-timer-progress .time-display { font-size: 11px; min-width: 40px; }
-        .total-timer-progress .status-label { font-size: 9px; }
-    }
-
-    [data-theme="dark"] .quiz-notification {
-        background: #8B1A1A;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-    }
-    [data-theme="dark"] .reconnection-notice {
-        background: #1A3A6A;
-    }
-    [data-theme="dark"] .option-btn.correct {
-        border-color: #10B981;
-        background: #1A3A2E;
-    }
-    [data-theme="dark"] .option-btn.wrong {
-        border-color: #EF4444;
-        background: #3A1A1A;
-    }
-    [data-theme="dark"] .feedback-area.success {
-        background: #1A3A2E;
-        border-color: #10B981;
-        color: #D1FAE5;
-    }
-    [data-theme="dark"] .feedback-area.error {
-        background: #3A1A1A;
-        border-color: #EF4444;
-        color: #FECACA;
-    }
-    [data-theme="dark"] .feedback-area.skipped {
-        background: #3A2E1A;
-        border-color: #F59E0B;
-        color: #FDE68A;
-    }
-    [data-theme="dark"] .lb-item.you {
-        background: var(--primary-light);
-    }
-    [data-theme="dark"] .leaderboard-mini {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .quiz-header {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .total-timer-progress {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .question-card {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .option-btn {
-        background: var(--surface);
-        border-color: var(--border);
-        color: var(--text);
-    }
-    [data-theme="dark"] .option-btn:hover:not(:disabled) {
-        border-color: var(--primary);
-        background: var(--primary-light);
-    }
-    [data-theme="dark"] .creator-progress {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .btn-leave {
-        color: #F87171;
-        border-color: #F87171;
-    }
-    [data-theme="dark"] .btn-leave:hover {
-        background: #3A1A1A;
-        border-color: #F87171;
-        color: #FCA5A5;
-    }
-    [data-theme="dark"] .error-state .btn {
-        background: #8B1A1A;
-    }
-    [data-theme="dark"] .error-state .btn:hover {
-        background: #6A1414;
-    }
+    .quiz-notification { background: var(--primary); color: white; padding: 12px 20px; border-radius: var(--radius-sm); margin-bottom: 16px; text-align: center; font-weight: 600; animation: slideDown 0.5s ease; display: none; box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25); }
+    .quiz-notification.show { display: block; }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    .reconnection-notice { background: #3B82F6; color: white; padding: 10px 16px; border-radius: var(--radius-sm); margin-bottom: 12px; text-align: center; font-weight: 500; display: none; animation: slideDown 0.5s ease; }
+    .reconnection-notice.show { display: block; }
+    .rating-reminder { margin-top: 8px; padding: 8px 14px; background: #FEF3C7; border-radius: var(--radius-sm); font-size: 13px; color: #92400E; text-align: center; border: 1px solid #FDE68A; }
+    [data-theme="dark"] .rating-reminder { background: #3A2E1A; color: #FCD34D; border-color: #92400E; }
+    .question-timer.stopped { color: var(--text-muted); }
+    .leaderboard-mini { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; }
+    .leaderboard-mini .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .leaderboard-mini .header .title { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+    .leaderboard-mini .header .rank-badge { font-size: 12px; font-weight: 600; color: var(--primary); background: var(--primary-light); padding: 2px 10px; border-radius: 10px; }
+    .lb-item { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 13px; }
+    .lb-item .rank { font-weight: 600; color: var(--text-secondary); min-width: 24px; }
+    .lb-item .name { color: var(--text); flex: 1; margin-left: 8px; }
+    .lb-item .score { font-weight: 700; color: var(--primary); }
+    .lb-item.you { background: var(--primary-light); padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+    .question-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); }
+    .question-text { font-size: 18px; font-weight: 600; color: var(--text); line-height: 1.5; margin-bottom: 20px; }
+    .options-container { display: flex; flex-direction: column; gap: 8px; }
+    .option-btn { display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.3s ease; font-size: 15px; color: var(--text); width: 100%; text-align: left; }
+    .option-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-light); }
+    .option-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+    .option-btn .letter { font-weight: 700; color: var(--text-secondary); min-width: 28px; flex-shrink: 0; }
+    .option-btn.correct { border-color: #10B981; background: #ECFDF5; }
+    .option-btn.correct .letter { color: #10B981; }
+    .option-btn.wrong { border-color: #EF4444; background: #FEF2F2; }
+    .option-btn.wrong .letter { color: #EF4444; }
+    .skip-btn { padding: 8px 16px; background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition); margin-top: 12px; font-size: 13px; }
+    .skip-btn:hover:not(:disabled) { background: #FEE2E2; }
+    .skip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .feedback-area { margin-top: 16px; padding: 14px 18px; border-radius: var(--radius-sm); }
+    .feedback-area.success { background: #ECFDF5; border: 1px solid #A7F3D0; }
+    .feedback-area.error { background: #FEF2F2; border: 1px solid #FCA5A5; }
+    .feedback-area.skipped { background: #FFFBEB; border: 1px solid #FDE68A; }
+    .feedback-area .feedback-title { font-weight: 600; font-size: 15px; }
+    .rating-buttons { display: flex; gap: 10px; margin-top: 10px; }
+    .rating-buttons button { padding: 6px 18px; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 13px; cursor: pointer; transition: var(--transition); }
+    .rating-buttons .haa { background: #10B981; color: white; }
+    .rating-buttons .haa:hover:not(:disabled) { background: #059669; }
+    .rating-buttons .may { background: #EF4444; color: white; }
+    .rating-buttons .may:hover:not(:disabled) { background: #DC2626; }
+    .rating-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .completed-state { text-align: center; padding: 30px 20px; }
+    .completed-state .icon { font-size: 56px; margin-bottom: 12px; }
+    .completed-state h3 { font-size: 20px; font-weight: 700; color: var(--text); }
+    .completed-state p { color: var(--text-secondary); font-size: 14px; margin-top: 4px; }
+    .completed-state .waiting-info { margin-top: 16px; display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; }
+    .completed-state .waiting-info .stat { text-align: center; }
+    .completed-state .waiting-info .stat .number { font-size: 24px; font-weight: 700; color: var(--primary); }
+    .completed-state .waiting-info .stat .label { font-size: 12px; color: var(--text-secondary); }
+    .quiz-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+    .quiz-header .title-section { flex: 1; min-width: 0; }
+    .quiz-header .title-section h3 { font-size: 16px; font-weight: 600; color: var(--text); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .quiz-header .title-section .meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 2px; font-size: 12px; color: var(--text-secondary); }
+    .quiz-header .timer-section { text-align: right; flex-shrink: 0; }
+    .quiz-header .timer-section .question-timer { font-size: 24px; font-weight: 700; font-family: monospace; transition: color 0.3s ease; }
+    .quiz-header .timer-section .question-timer.warning { color: #F59E0B; }
+    .quiz-header .timer-section .question-timer.danger { color: #EF4444; animation: pulse 0.5s ease-in-out infinite; }
+    .quiz-header .timer-section .label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .total-timer-progress { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .total-timer-progress .progress-bar-wrap { flex: 1; min-width: 100px; height: 6px; background: var(--border); border-radius: 10px; overflow: hidden; position: relative; }
+    .total-timer-progress .progress-bar-wrap .fill { height: 100%; background: var(--primary); border-radius: 10px; transition: width 0.5s ease; }
+    .total-timer-progress .time-display { font-size: 14px; font-weight: 600; color: var(--text); font-family: monospace; white-space: nowrap; min-width: 60px; text-align: right; }
+    .total-timer-progress .time-display.warning { color: #F59E0B; }
+    .total-timer-progress .time-display.danger { color: #EF4444; animation: pulse 0.5s ease-in-out infinite; }
+    .total-timer-progress .status-label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+    .creator-progress { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; }
+    .creator-progress .cp-title { font-weight: 600; font-size: 14px; margin-bottom: 6px; color: var(--text); }
+    .creator-progress .progress-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
+    .creator-progress .progress-item .name { flex: 1; color: var(--text); min-width: 60px; }
+    .creator-progress .progress-item .bar-wrap { width: 100px; height: 6px; background: var(--border); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
+    .creator-progress .progress-item .bar-wrap .fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.3s ease; }
+    .creator-progress .progress-item .status { font-size: 11px; font-weight: 600; color: var(--text-secondary); min-width: 50px; text-align: right; }
+    .creator-progress .progress-item .status.done { color: #10B981; }
+    .creator-progress .progress-item .status.waiting { color: #F59E0B; }
+    .creator-progress .progress-item .status.left { color: #EF4444; }
+    .btn-leave { margin-top: 16px; width: 100%; padding: 10px 20px; background: transparent; color: #EF4444; border: 2px solid #EF4444; border-radius: var(--radius-sm); font-weight: 600; font-size: 14px; cursor: pointer; transition: var(--transition); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-leave:hover { background: #FEF2F2; border-color: #DC2626; color: #DC2626; }
+    .btn-leave:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error-state { text-align: center; padding: 40px 20px; }
+    .error-state .icon { font-size: 56px; margin-bottom: 12px; }
+    .error-state h3 { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .error-state p { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; }
+    .error-state .btn { display: inline-block; padding: 10px 28px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 15px; text-decoration: none; transition: var(--transition); cursor: pointer; }
+    .error-state .btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    @media (max-width: 768px) { .question-text { font-size: 16px; } .quiz-header .timer-section .question-timer { font-size: 20px; } .total-timer-progress { padding: 8px 12px; gap: 8px; } .total-timer-progress .time-display { font-size: 12px; min-width: 50px; } .total-timer-progress .status-label { font-size: 10px; } .creator-progress .progress-item .bar-wrap { width: 60px; } }
+    @media (max-width: 480px) { .question-card { padding: 16px; } .question-text { font-size: 15px; } .option-btn { padding: 10px 12px; font-size: 14px; } .quiz-header .title-section h3 { font-size: 14px; } .quiz-header .timer-section .question-timer { font-size: 18px; } .completed-state .waiting-info { gap: 16px; } .completed-state .waiting-info .stat .number { font-size: 20px; } .rating-buttons button { padding: 4px 14px; font-size: 12px; } .skip-btn { font-size: 12px; padding: 6px 12px; } .creator-progress .progress-item .bar-wrap { width: 40px; } .creator-progress .progress-item .status { font-size: 10px; min-width: 40px; } .btn-leave { font-size: 13px; padding: 8px 16px; } .error-state .icon { font-size: 40px; } }
+    @media (max-width: 360px) { .question-text { font-size: 14px; } .option-btn { padding: 8px 10px; font-size: 13px; } .option-btn .letter { min-width: 22px; } .quiz-header { padding: 8px 12px; } .quiz-header .title-section h3 { font-size: 13px; } .quiz-header .timer-section .question-timer { font-size: 16px; } .total-timer-progress { padding: 6px 10px; } .total-timer-progress .time-display { font-size: 11px; min-width: 40px; } .total-timer-progress .status-label { font-size: 9px; } }
+    [data-theme="dark"] .quiz-notification { background: #8B1A1A; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
+    [data-theme="dark"] .reconnection-notice { background: #1A3A6A; }
+    [data-theme="dark"] .option-btn.correct { border-color: #10B981; background: #1A3A2E; }
+    [data-theme="dark"] .option-btn.wrong { border-color: #EF4444; background: #3A1A1A; }
+    [data-theme="dark"] .feedback-area.success { background: #1A3A2E; border-color: #10B981; color: #D1FAE5; }
+    [data-theme="dark"] .feedback-area.error { background: #3A1A1A; border-color: #EF4444; color: #FECACA; }
+    [data-theme="dark"] .feedback-area.skipped { background: #3A2E1A; border-color: #F59E0B; color: #FDE68A; }
+    [data-theme="dark"] .lb-item.you { background: var(--primary-light); }
+    [data-theme="dark"] .leaderboard-mini { background: var(--surface); border-color: var(--border); }
+    [data-theme="dark"] .quiz-header { background: var(--surface); border-color: var(--border); }
+    [data-theme="dark"] .total-timer-progress { background: var(--surface); border-color: var(--border); }
+    [data-theme="dark"] .question-card { background: var(--surface); border-color: var(--border); }
+    [data-theme="dark"] .option-btn { background: var(--surface); border-color: var(--border); color: var(--text); }
+    [data-theme="dark"] .option-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-light); }
+    [data-theme="dark"] .creator-progress { background: var(--surface); border-color: var(--border); }
+    [data-theme="dark"] .btn-leave { color: #F87171; border-color: #F87171; }
+    [data-theme="dark"] .btn-leave:hover { background: #3A1A1A; border-color: #F87171; color: #FCA5A5; }
+    [data-theme="dark"] .error-state .btn { background: #8B1A1A; }
+    [data-theme="dark"] .error-state .btn:hover { background: #6A1414; }
 </style>
 {% endblock %}
 
@@ -710,7 +191,6 @@
         </div>
     </div>
 
-    <!-- Leave Quiz Button -->
     {% if quiz.creator_id != session.user_id and quiz.status != 'finished' %}
         <button class="btn-leave" id="leaveBtn">
             <i class="fas fa-sign-out-alt"></i> Leave Quiz
@@ -748,15 +228,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let pollTimer = null;
     let consecutiveNoChanges = 0;
     let lastState = null;
+    let activeAttempts = 0;
+    const MAX_ACTIVE_ATTEMPTS = 25;
     
     // ============================================
-    // FIX: Separate attempt counters per state
-    // ============================================
-    let activeAttempts = 0;          // Only count when status is active and no question loaded
-    const MAX_ACTIVE_ATTEMPTS = 25;  // ~38 seconds for active loading
-    
-    // ============================================
-    // RESTORE STATE FROM sessionStorage (resume after reload)
+    // RESTORE STATE FROM sessionStorage
     // ============================================
     function restoreStateFromStorage() {
         try {
@@ -771,29 +247,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     isCompleted = state.isCompleted || false;
                     quizStarted = state.quizStarted || false;
                     hasAnsweredCurrent = state.hasAnsweredCurrent || false;
-                    // We can't restore questionData, but we'll reload it from server
                 }
             }
-        } catch (e) {
-            console.warn('Failed to restore state:', e);
-        }
+        } catch (e) { console.warn('Failed to restore state:', e); }
     }
-
     function saveStateToStorage() {
         try {
-            const state = {
-                currentQuestionIndex: currentQuestionIndex,
-                isAnswered: isAnswered,
-                isRated: isRated,
-                isCompleted: isCompleted,
-                quizStarted: quizStarted,
-                hasAnsweredCurrent: hasAnsweredCurrent,
-                timestamp: Date.now()
-            };
+            const state = { currentQuestionIndex, isAnswered, isRated, isCompleted, quizStarted, hasAnsweredCurrent, timestamp: Date.now() };
             sessionStorage.setItem('live_quiz_' + quizId, JSON.stringify(state));
-        } catch (e) {
-            console.warn('Failed to save state:', e);
-        }
+        } catch (e) { console.warn('Failed to save state:', e); }
     }
     
     // ============================================
@@ -804,129 +266,64 @@ document.addEventListener('DOMContentLoaded', function() {
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         return fetch(url, { ...options, signal: controller.signal })
             .finally(() => clearTimeout(timeoutId))
-            .catch(error => {
-                if (error.name === 'AbortError') {
-                    throw new Error('Request timeout');
-                }
-                throw error;
-            });
+            .catch(error => { if (error.name === 'AbortError') throw new Error('Request timeout'); throw error; });
     }
     
     // ============================================
-    // BROWSER NOTIFICATION FUNCTIONS
+    // BROWSER NOTIFICATION
     // ============================================
-    
     function requestNotificationPermission() {
-        if ('Notification' in window) {
-            if (Notification.permission === 'default') {
-                Notification.requestPermission();
-            }
-        }
+        if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
     }
-
     function sendBrowserNotification(title, body, url) {
-        if (!('Notification' in window) || Notification.permission !== 'granted') {
-            return;
-        }
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
         try {
-            const notification = new Notification(title, {
-                body: body,
-                icon: '/static/images/logo.png',
-                tag: 'live-quiz-' + quizId,
-                requireInteraction: true
-            });
-            notification.onclick = function() {
-                window.focus();
-                if (url) {
-                    window.location.href = url;
-                }
-                notification.close();
-            };
-            setTimeout(function() {
-                notification.close();
-            }, 10000);
-        } catch (e) {
-            console.warn('Browser notification error:', e);
-        }
+            const notification = new Notification(title, { body, icon: '/static/images/logo.png', tag: 'live-quiz-' + quizId, requireInteraction: true });
+            notification.onclick = function() { window.focus(); if (url) window.location.href = url; notification.close(); };
+            setTimeout(() => notification.close(), 10000);
+        } catch (e) { console.warn('Browser notification error:', e); }
     }
-
-    // Request notification permission on page load
     requestNotificationPermission();
     
     // ============================================
     // TOAST HELPER
     // ============================================
-    
     function showToast(message, type, duration) {
-        if (typeof window.showToast === 'function') {
-            window.showToast(message, type || 'info', duration || 4000);
-        } else {
+        if (typeof window.showToast === 'function') { window.showToast(message, type || 'info', duration || 4000); }
+        else {
             const toast = document.createElement('div');
-            toast.style.cssText = `
-                position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
-                background: ${type === 'error' ? '#DC2626' : type === 'success' ? '#10B981' : '#1A1A2E'};
-                color: white; padding: 10px 20px; border-radius: 8px;
-                font-size: 14px; font-weight: 500; z-index: 9999;
-                box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-                max-width: 90%; text-align: center;
-            `;
+            toast.style.cssText = `position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: ${type === 'error' ? '#DC2626' : type === 'success' ? '#10B981' : '#1A1A2E'}; color: white; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 9999; box-shadow: 0 4px 16px rgba(0,0,0,0.25); max-width: 90%; text-align: center;`;
             toast.textContent = message;
             document.body.appendChild(toast);
-            setTimeout(function() {
-                toast.style.opacity = '0';
-                toast.style.transition = 'opacity 0.3s ease';
-                setTimeout(function() { toast.remove(); }, 400);
-            }, duration || 4000);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s ease'; setTimeout(() => toast.remove(), 400); }, duration || 4000);
         }
     }
     
     function showNotification(text) {
         const banner = document.getElementById('notificationBanner');
         const textEl = document.getElementById('notificationText');
-        if (banner && textEl) {
-            textEl.textContent = text;
-            banner.classList.add('show');
-            clearTimeout(banner._hideTimeout);
-            banner._hideTimeout = setTimeout(function() {
-                banner.classList.remove('show');
-            }, 5000);
-        }
+        if (banner && textEl) { textEl.textContent = text; banner.classList.add('show'); clearTimeout(banner._hideTimeout); banner._hideTimeout = setTimeout(() => banner.classList.remove('show'), 5000); }
     }
-    
     function showReconnectionNotice() {
         const notice = document.getElementById('reconnectionNotice');
-        if (notice) {
-            notice.classList.add('show');
-            setTimeout(function() {
-                notice.classList.remove('show');
-            }, 3000);
-        }
+        if (notice) { notice.classList.add('show'); setTimeout(() => notice.classList.remove('show'), 3000); }
     }
-    
     function playNotificationSound() {
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.frequency.value = 880;
-            oscillator.type = 'sine';
-            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-            oscillator.start(audioCtx.currentTime);
-            oscillator.stop(audioCtx.currentTime + 0.3);
-            setTimeout(function() {
-                const osc2 = audioCtx.createOscillator();
-                const gain2 = audioCtx.createGain();
-                osc2.connect(gain2);
-                gain2.connect(audioCtx.destination);
-                osc2.frequency.value = 1100;
-                osc2.type = 'sine';
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.value = 880; osc.type = 'sine';
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
+            setTimeout(() => {
+                const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain();
+                osc2.connect(gain2); gain2.connect(audioCtx.destination);
+                osc2.frequency.value = 1100; osc2.type = 'sine';
                 gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
                 gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-                osc2.start(audioCtx.currentTime);
-                osc2.stop(audioCtx.currentTime + 0.2);
+                osc2.start(audioCtx.currentTime); osc2.stop(audioCtx.currentTime + 0.2);
             }, 200);
         } catch (e) {}
     }
@@ -935,34 +332,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const display = document.getElementById('totalTimerDisplay');
         const progress = document.getElementById('totalProgressFill');
         if (!display || !progress) return;
-        if (remaining <= 0) {
-            display.textContent = '00:00';
-            display.className = 'time-display danger';
-            progress.style.width = '0%';
-            return;
-        }
-        const minutes = Math.floor(remaining / 60);
-        const seconds = Math.floor(remaining % 60);
+        if (remaining <= 0) { display.textContent = '00:00'; display.className = 'time-display danger'; progress.style.width = '0%'; return; }
+        const minutes = Math.floor(remaining / 60); const seconds = Math.floor(remaining % 60);
         display.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
-        if (remaining < 60) {
-            display.className = 'time-display danger';
-        } else if (remaining < 300) {
-            display.className = 'time-display warning';
-        } else {
-            display.className = 'time-display';
-        }
+        if (remaining < 60) display.className = 'time-display danger';
+        else if (remaining < 300) display.className = 'time-display warning';
+        else display.className = 'time-display';
         const pct = Math.max(0, (remaining / totalDuration) * 100);
         progress.style.width = pct + '%';
     }
-    
-    function formatTime(seconds) {
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-    }
+    function formatTime(seconds) { const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60); return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'); }
     
     // ============================================
-    // FIX: UPDATED CREATOR PROGRESS - All statuses
+    // CREATOR PROGRESS - FIXED (no duplicates)
     // ============================================
     function updateCreatorProgress(progressData) {
         if (!isCreator) return;
@@ -975,265 +357,125 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = '';
         progressData.forEach(p => {
             const pct = totalQuestions > 0 ? Math.round((p.current_question_index / totalQuestions) * 100) : 0;
-            let statusClass = 'waiting';
-            let statusText = '⏳ Playing';
-            if (p.status === 'left') {
-                statusClass = 'left';
-                statusText = '🔴 Left';
-            } else if (p.current_question_index >= totalQuestions) {
-                statusClass = 'done';
-                statusText = '✅ Done';
-            }
-            html += `
-                <div class="progress-item">
-                    <span class="name">${p.name}</span>
-                    <div class="bar-wrap">
-                        <div class="fill" style="width: ${pct}%;"></div>
-                    </div>
-                    <span class="status ${statusClass}">${statusText}</span>
-                </div>
-            `;
+            let statusClass = 'waiting', statusText = '⏳ Playing';
+            if (p.status === 'left') { statusClass = 'left'; statusText = '🔴 Left'; }
+            else if (p.current_question_index >= totalQuestions) { statusClass = 'done'; statusText = '✅ Done'; }
+            html += `<div class="progress-item"><span class="name">${p.name}</span><div class="bar-wrap"><div class="fill" style="width: ${pct}%;"></div></div><span class="status ${statusClass}">${statusText}</span></div>`;
         });
         container.innerHTML = html;
     }
     
     // ============================================
-    // LEAVE QUIZ FUNCTION
+    // LEAVE QUIZ
     // ============================================
-    
     const leaveBtn = document.getElementById('leaveBtn');
     if (leaveBtn) {
         leaveBtn.addEventListener('click', function() {
-            if (!confirm('Are you sure you want to leave this quiz? You will be able to rejoin only if the quiz is still waiting.')) return;
-            
-            leaveBtn.disabled = true;
-            leaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leaving...';
-            
-            fetchWithTimeout('/live-quiz/leave/' + quizId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Clear session storage
-                    sessionStorage.removeItem('live_quiz_' + quizId);
-                    window.location.href = data.redirect;
-                } else {
-                    alert(data.error || 'Failed to leave quiz');
-                    leaveBtn.disabled = false;
-                    leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
-                }
-            })
-            .catch(function(err) {
-                alert('Error leaving quiz. Please try again.');
-                leaveBtn.disabled = false;
-                leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
-            });
+            if (!confirm('Are you sure you want to leave this quiz?')) return;
+            leaveBtn.disabled = true; leaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leaving...';
+            fetchWithTimeout('/live-quiz/leave/' + quizId, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) { sessionStorage.removeItem('live_quiz_' + quizId); window.location.href = data.redirect; }
+                    else { alert(data.error || 'Failed to leave quiz'); leaveBtn.disabled = false; leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz'; }
+                })
+                .catch(() => { alert('Error leaving quiz.'); leaveBtn.disabled = false; leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz'; });
         });
     }
     
     // ============================================
     // SHOW ERROR STATE
     // ============================================
-    
     function showErrorState(message, redirectUrl) {
         const container = document.getElementById('questionContainer');
         if (!container) return;
-        
-        // Stop all polling and timers
-        clearInterval(timerInterval);
-        clearTimeout(pollTimer);
-        clearTimeout(leaderboardTimer);
-        
-        container.innerHTML = `
-            <div class="error-state">
-                <div class="icon">⚠️</div>
-                <h3>Unable to load quiz</h3>
-                <p>${message || 'This quiz is no longer available or has been deleted.'}</p>
-                <a href="${redirectUrl || '/live-quiz/lobby'}" class="btn">
-                    <i class="fas fa-arrow-left"></i> Return to Lobby
-                </a>
-            </div>
-        `;
-        
+        clearInterval(timerInterval); clearTimeout(pollTimer); clearTimeout(leaderboardTimer);
+        container.innerHTML = `<div class="error-state"><div class="icon">⚠️</div><h3>Unable to load quiz</h3><p>${message || 'This quiz is no longer available.'}</p><a href="${redirectUrl || '/live-quiz/lobby'}" class="btn"><i class="fas fa-arrow-left"></i> Return to Lobby</a></div>`;
         showToast(message || 'Quiz unavailable', 'error', 5000);
     }
     
     // ============================================
-    // POLL QUIZ STATE - Fixed polling logic
+    // POLL QUIZ STATE
     // ============================================
-    
     function pollQuizState() {
         fetchWithTimeout('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now(), {}, 8000)
             .then(response => response.json())
             .then(data => {
-                // Handle abort
                 if (data.abort) {
-                    clearInterval(timerInterval);
-                    clearTimeout(pollTimer);
-                    clearTimeout(leaderboardTimer);
+                    clearInterval(timerInterval); clearTimeout(pollTimer); clearTimeout(leaderboardTimer);
                     showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby');
                     return;
                 }
+                if (data.error) { console.warn('Polling error:', data.error); pollInterval = Math.min(pollInterval + 500, 5000); resetPollTimer(); return; }
                 
-                if (data.error) {
-                    console.warn('Polling error:', data.error);
-                    pollInterval = Math.min(pollInterval + 500, 5000);
-                    resetPollTimer();
-                    return;
+                if (data.status === 'waiting' || data.status === 'scheduled') {
+                    activeAttempts = 0; previousStatus = data.status; resetPollTimer(); return;
                 }
                 
-                // ============================================
-                // FIX: Handle waiting state - no timeout
-                // ============================================
-                if (data.status === 'waiting') {
-                    activeAttempts = 0;
-                    previousStatus = 'waiting';
-                    resetPollTimer();
-                    return;
-                }
+                if (data.redirect_url) { clearInterval(timerInterval); clearTimeout(pollTimer); window.location.href = data.redirect_url; return; }
                 
-                // ============================================
-                // Handle redirect
-                // ============================================
-                if (data.redirect_url) {
-                    clearInterval(timerInterval);
-                    clearTimeout(pollTimer);
-                    window.location.href = data.redirect_url;
-                    return;
-                }
-                
-                // ============================================
-                // Handle finished
-                // ============================================
                 if (data.status === 'finished') {
                     if (!quizEnded) {
                         quizEnded = true;
-                        sendBrowserNotification(
-                            '🏆 Quiz Complete!',
-                            quizTitle + ' has finished. Check your results!',
-                            '/live-quiz/results/' + quizId
-                        );
+                        sendBrowserNotification('🏆 Quiz Complete!', quizTitle + ' has finished. Check your results!', '/live-quiz/results/' + quizId);
                         window.location.href = data.redirect_url || '/live-quiz/results/' + quizId;
                     }
                     return;
                 }
                 
-                // ============================================
-                // Handle active state with attempt counting
-                // ============================================
                 if (data.status === 'active') {
-                    // Only count attempts if we haven't loaded a question yet
                     if (!questionData && !isCompleted) {
                         activeAttempts++;
-                        if (activeAttempts > MAX_ACTIVE_ATTEMPTS) {
-                            showErrorState('Quiz is taking too long to load. Please try again.', '/live-quiz/lobby');
-                            return;
-                        }
-                    } else {
-                        activeAttempts = 0;
-                    }
+                        if (activeAttempts > MAX_ACTIVE_ATTEMPTS) { showErrorState('Quiz is taking too long to load. Please try again.', '/live-quiz/lobby'); return; }
+                    } else { activeAttempts = 0; }
                     
-                    // Check if we already have a question loaded
                     if (questionData) {
-                        if (data.current_question_index !== undefined && 
-                            data.current_question_index !== currentQuestionIndex) {
-                            if (!isAnswered) {
-                                loadQuestion();
-                            }
+                        if (data.current_question_index !== undefined && data.current_question_index !== currentQuestionIndex) {
+                            if (!isAnswered) loadQuestion();
                         }
-                        if (data.remaining_time !== undefined) {
-                            updateTotalTimer(data.remaining_time);
-                        }
+                        if (data.remaining_time !== undefined) updateTotalTimer(data.remaining_time);
                         resetPollTimer();
                         return;
                     }
                     
-                    // No question loaded yet - try to load
                     if (!quizStarted) {
                         quizStarted = true;
-                        if (!notificationShown) {
-                            notificationShown = true;
-                            showNotification('🚀 Quiz has started! Get ready!');
-                            playNotificationSound();
-                            sendBrowserNotification(
-                                '🚀 Quiz Started!',
-                                quizTitle + ' has begun! Get ready to answer!',
-                                '/live-quiz/play/' + quizId
-                            );
-                        }
+                        if (!notificationShown) { notificationShown = true; showNotification('🚀 Quiz has started! Get ready!'); playNotificationSound(); sendBrowserNotification('🚀 Quiz Started!', quizTitle + ' has begun!', '/live-quiz/play/' + quizId); }
                         loadQuestion();
                         resetPollTimer();
                         return;
                     }
-                    
-                    if (!questionData && !isCompleted) {
-                        resetPollTimer();
-                        return;
-                    }
+                    if (!questionData && !isCompleted) { resetPollTimer(); return; }
                 }
                 
-                // Update state hash for change detection
                 const stateHash = JSON.stringify(data);
-                if (stateHash === lastState) {
-                    consecutiveNoChanges++;
-                    if (consecutiveNoChanges > 5) {
-                        pollInterval = Math.min(pollInterval + 200, 3000);
-                    }
-                } else {
-                    consecutiveNoChanges = 0;
-                    pollInterval = Math.max(pollInterval - 100, 1000);
-                    lastState = stateHash;
-                }
+                if (stateHash === lastState) { consecutiveNoChanges++; if (consecutiveNoChanges > 5) pollInterval = Math.min(pollInterval + 200, 3000); }
+                else { consecutiveNoChanges = 0; pollInterval = Math.max(pollInterval - 100, 1000); lastState = stateHash; }
                 
-                if (data.remaining_time !== undefined) {
-                    updateTotalTimer(data.remaining_time);
-                }
+                if (data.remaining_time !== undefined) updateTotalTimer(data.remaining_time);
                 
-                // ============================================
-                // FIX: all_completed - only redirect if current user also completed
-                // ============================================
+                // CRITICAL FIX: Only redirect if user is also completed
                 if (data.all_completed && data.status === 'active') {
-                    // Only redirect if current user has also completed
                     if (data.is_completed) {
-                        sendBrowserNotification(
-                            '🏆 All Finished!',
-                            'All participants have completed the quiz!',
-                            '/live-quiz/results/' + quizId
-                        );
+                        sendBrowserNotification('🏆 All Finished!', 'All participants have completed!', '/live-quiz/results/' + quizId);
                         window.location.href = '/live-quiz/results/' + quizId;
                     } else {
-                        // Still playing - show waiting state
                         showWaitingForOthers(data);
                     }
                     return;
                 }
                 
-                // Check if current user completed
-                if (data.is_completed && !isCompleted) {
-                    showCompletedState(data);
-                    return;
-                }
+                if (data.is_completed && !isCompleted) { showCompletedState(data); return; }
                 
                 previousStatus = data.status;
                 resetPollTimer();
             })
-            .catch(function(err) {
-                console.warn('Polling fetch error:', err);
-                pollInterval = Math.min(pollInterval + 500, 5000);
-                resetPollTimer();
-            });
+            .catch(function(err) { console.warn('Polling fetch error:', err); pollInterval = Math.min(pollInterval + 500, 5000); resetPollTimer(); });
     }
     
-    // ============================================
-    // SHOW WAITING FOR OTHERS (when all_completed but user not done)
-    // ============================================
     function showWaitingForOthers(data) {
         const container = document.getElementById('questionContainer');
         if (!container) return;
-        // Show a message that others have finished but user is still playing
-        // Keep the question card visible with a note
         const existing = container.querySelector('.waiting-for-others');
         if (!existing) {
             const div = document.createElement('div');
@@ -1244,238 +486,90 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    function loadQuestionWithState(index, state) {
-        fetchWithTimeout('/live-quiz/get-question/' + quizId + '?t=' + Date.now() + '&index=' + index, {}, 8000)
+    function loadQuestion() {
+        if (isCompleted) return;
+        fetchWithTimeout('/live-quiz/get-question/' + quizId + '?t=' + Date.now(), {}, 8000)
             .then(response => response.json())
             .then(data => {
-                if (data.abort) {
-                    showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby');
-                    return;
-                }
-                
-                if (data.error) {
-                    if (data.completed) {
-                        isCompleted = true;
-                        pollQuizState();
-                    } else if (data.waiting) {
-                        setTimeout(loadQuestion, 1000);
-                    }
-                    return;
-                }
+                if (data.abort) { showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby'); return; }
+                if (data.error) { if (data.completed) { isCompleted = true; pollQuizState(); } else if (data.waiting) { setTimeout(loadQuestion, 1000); } return; }
                 if (data.question) {
-                    questionData = data;
-                    currentQuestionIndex = data.index;
-                    isAnswered = true;
-                    isRated = false;
-                    
-                    if (state && state.already_answered) {
-                        renderAnsweredQuestion(data, state);
+                    if (data.already_answered) {
+                        isReconnecting = true; hasAnsweredCurrent = true; isAnswered = true;
+                        showReconnectionNotice();
+                        renderAnsweredQuestion(data, { already_answered: true, answer: data.answer, correct: data.correct, explanation: data.explanation });
                         clearInterval(timerInterval);
-                        const display = document.getElementById('timerDisplay');
-                        if (display) {
-                            display.textContent = '--';
-                            display.className = 'question-timer stopped';
-                        }
-                    } else {
-                        isAnswered = false;
-                        renderQuestion(data);
-                        startTimer();
+                        const display = document.getElementById('timerDisplay'); if (display) { display.textContent = '--'; display.className = 'question-timer stopped'; }
+                        saveStateToStorage();
+                        return;
                     }
-                    
-                    const progressBar = document.getElementById('progressBar');
-                    if (progressBar) {
-                        progressBar.style.width = ((data.index / data.total) * 100) + '%';
-                    }
-                    // Save state after loading question
+                    questionData = data; currentQuestionIndex = data.index; isAnswered = false; isRated = false; hasAnsweredCurrent = false;
+                    renderQuestion(data); startTimer();
+                    const progressBar = document.getElementById('progressBar'); if (progressBar) progressBar.style.width = ((data.index / data.total) * 100) + '%';
                     saveStateToStorage();
                 }
             })
-            .catch(function(err) {
-                console.warn('Load question error:', err);
-                setTimeout(loadQuestion, 2000);
-            });
+            .catch(function(err) { console.warn('Load question error:', err); setTimeout(loadQuestion, 2000); });
     }
     
     function renderAnsweredQuestion(data, state) {
-        const question = data.question;
-        const index = data.index;
-        const total = data.total;
-        
-        const currentQ = document.getElementById('currentQ');
-        const totalQ = document.getElementById('totalQ');
-        if (currentQ) currentQ.textContent = index + 1;
-        if (totalQ) totalQ.textContent = total;
-        
-        const container = document.getElementById('questionContainer');
-        if (!container) return;
-        
-        const answer = state.answer;
-        const isCorrect = state.correct;
-        const correctAnswer = question.correct_answer;
-        const explanation = question.explanation || '';
-        
-        let optionsHtml = '';
-        const letters = ['A', 'B', 'C'];
+        const question = data.question; const index = data.index; const total = data.total;
+        const currentQ = document.getElementById('currentQ'); const totalQ = document.getElementById('totalQ');
+        if (currentQ) currentQ.textContent = index + 1; if (totalQ) totalQ.textContent = total;
+        const container = document.getElementById('questionContainer'); if (!container) return;
+        const answer = state.answer; const isCorrect = state.correct; const correctAnswer = question.correct_answer; const explanation = question.explanation || '';
+        let optionsHtml = ''; const letters = ['A', 'B', 'C'];
         letters.forEach(letter => {
             let classes = 'option-btn';
             if (letter === correctAnswer) classes += ' correct';
             if (letter === answer && !isCorrect) classes += ' wrong';
             const checked = letter === answer ? '✓ ' : '';
-            optionsHtml += `
-                <button class="${classes}" disabled>
-                    <span class="letter">${letter}.</span>
-                    <span>${checked}${question.options[letter]}</span>
-                </button>
-            `;
+            optionsHtml += `<button class="${classes}" disabled><span class="letter">${letter}.</span><span>${checked}${question.options[letter]}</span></button>`;
         });
-        
         container.innerHTML = `
             <div class="question-text">${question.question_text}</div>
-            <div class="options-container">
-                ${optionsHtml}
-            </div>
+            <div class="options-container">${optionsHtml}</div>
             <div id="feedbackContainer">
                 <div class="feedback-area ${isCorrect ? 'success' : 'error'}">
-                    <div class="feedback-title">
-                        ${isCorrect ? '✅ CORRECT! +2 points' : '❌ WRONG! 0 points'}
-                    </div>
+                    <div class="feedback-title">${isCorrect ? '✅ CORRECT! +2 points' : '❌ WRONG! 0 points'}</div>
                     ${explanation ? `<div style="font-size: 14px; margin-top: 4px; color: var(--text-secondary);">💡 ${explanation}</div>` : ''}
-                    <div style="margin-top: 10px; font-size: 13px; color: var(--text-secondary);">
-                        You already answered this question. Please rate it to continue.
-                    </div>
-                    <div class="rating-buttons">
-                        <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
-                        <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
-                    </div>
+                    <div style="margin-top: 10px; font-size: 13px; color: var(--text-secondary);">You already answered this question. Please rate it to continue.</div>
+                    <div class="rating-buttons"><button class="haa" onclick="submitRating('HAA')">✅ HAA</button><button class="may" onclick="submitRating('MAY')">❌ MAY</button></div>
                 </div>
-            </div>
-        `;
-    }
-    
-    function loadQuestion() {
-        if (isCompleted) return;
-        
-        fetchWithTimeout('/live-quiz/get-question/' + quizId + '?t=' + Date.now(), {}, 8000)
-            .then(response => response.json())
-            .then(data => {
-                if (data.abort) {
-                    showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby');
-                    return;
-                }
-                
-                if (data.error) {
-                    if (data.completed) {
-                        isCompleted = true;
-                        pollQuizState();
-                    } else if (data.waiting) {
-                        setTimeout(loadQuestion, 1000);
-                    }
-                    return;
-                }
-                if (data.question) {
-                    if (data.already_answered) {
-                        isReconnecting = true;
-                        hasAnsweredCurrent = true;
-                        isAnswered = true;
-                        showReconnectionNotice();
-                        renderAnsweredQuestion(data, {
-                            already_answered: true,
-                            answer: data.answer,
-                            correct: data.correct,
-                            explanation: data.explanation
-                        });
-                        clearInterval(timerInterval);
-                        const display = document.getElementById('timerDisplay');
-                        if (display) {
-                            display.textContent = '--';
-                            display.className = 'question-timer stopped';
-                        }
-                        saveStateToStorage();
-                        return;
-                    }
-                    
-                    questionData = data;
-                    currentQuestionIndex = data.index;
-                    isAnswered = false;
-                    isRated = false;
-                    hasAnsweredCurrent = false;
-                    renderQuestion(data);
-                    startTimer();
-                    const progressBar = document.getElementById('progressBar');
-                    if (progressBar) {
-                        progressBar.style.width = ((data.index / data.total) * 100) + '%';
-                    }
-                    saveStateToStorage();
-                }
-            })
-            .catch(function(err) {
-                console.warn('Load question error:', err);
-                setTimeout(loadQuestion, 2000);
-            });
+            </div>`;
     }
     
     function renderQuestion(data) {
-        const question = data.question;
-        const index = data.index;
-        const total = data.total;
-        
-        const currentQ = document.getElementById('currentQ');
-        const totalQ = document.getElementById('totalQ');
-        if (currentQ) currentQ.textContent = index + 1;
-        if (totalQ) totalQ.textContent = total;
-        
-        const container = document.getElementById('questionContainer');
-        if (!container) return;
-        
+        const question = data.question; const index = data.index; const total = data.total;
+        const currentQ = document.getElementById('currentQ'); const totalQ = document.getElementById('totalQ');
+        if (currentQ) currentQ.textContent = index + 1; if (totalQ) totalQ.textContent = total;
+        const container = document.getElementById('questionContainer'); if (!container) return;
         container.innerHTML = `
             <div class="question-text">${question.question_text}</div>
             <div class="options-container" id="optionsContainer">
-                <button class="option-btn" data-value="A" onclick="selectOption('A')">
-                    <span class="letter">A.</span>
-                    <span>${question.options.A}</span>
-                </button>
-                <button class="option-btn" data-value="B" onclick="selectOption('B')">
-                    <span class="letter">B.</span>
-                    <span>${question.options.B}</span>
-                </button>
-                <button class="option-btn" data-value="C" onclick="selectOption('C')">
-                    <span class="letter">C.</span>
-                    <span>${question.options.C}</span>
-                </button>
+                <button class="option-btn" data-value="A" onclick="selectOption('A')"><span class="letter">A.</span><span>${question.options.A}</span></button>
+                <button class="option-btn" data-value="B" onclick="selectOption('B')"><span class="letter">B.</span><span>${question.options.B}</span></button>
+                <button class="option-btn" data-value="C" onclick="selectOption('C')"><span class="letter">C.</span><span>${question.options.C}</span></button>
             </div>
-            <button class="skip-btn" onclick="skipQuestion()" id="skipBtn">
-                <i class="fas fa-forward"></i> Skip Question
-            </button>
-            <div id="feedbackContainer"></div>
-        `;
-        
-        timer = timePerQuestion;
-        updateTimerDisplay();
+            <button class="skip-btn" onclick="skipQuestion()" id="skipBtn"><i class="fas fa-forward"></i> Skip Question</button>
+            <div id="feedbackContainer"></div>`;
+        timer = timePerQuestion; updateTimerDisplay();
     }
     
     function startTimer() {
-        clearInterval(timerInterval);
-        timer = timePerQuestion;
-        updateTimerDisplay();
-        
+        clearInterval(timerInterval); timer = timePerQuestion; updateTimerDisplay();
         timerInterval = setInterval(() => {
-            timer--;
-            updateTimerDisplay();
-            
+            timer--; updateTimerDisplay();
             if (timer <= 0) {
                 clearInterval(timerInterval);
-                if (!isAnswered) {
-                    skipQuestion();
-                } else {
+                if (!isAnswered) skipQuestion();
+                else {
                     const container = document.getElementById('feedbackContainer');
-                    if (container) {
-                        const existing = container.querySelector('.rating-reminder');
-                        if (!existing) {
-                            const reminder = document.createElement('div');
-                            reminder.className = 'rating-reminder';
-                            reminder.textContent = '⏰ Please rate this question to continue!';
-                            container.appendChild(reminder);
-                        }
+                    if (container && !container.querySelector('.rating-reminder')) {
+                        const reminder = document.createElement('div');
+                        reminder.className = 'rating-reminder';
+                        reminder.textContent = '⏰ Please rate this question to continue!';
+                        container.appendChild(reminder);
                     }
                 }
             }
@@ -1483,186 +577,94 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function updateTimerDisplay() {
-        const display = document.getElementById('timerDisplay');
-        if (!display) return;
-        display.textContent = timer;
-        display.className = 'question-timer';
-        if (timer <= 5 && !isAnswered) {
-            display.classList.add('danger');
-        } else if (timer <= 10 && !isAnswered) {
-            display.classList.add('warning');
-        } else if (isAnswered) {
-            display.classList.add('stopped');
-        }
+        const display = document.getElementById('timerDisplay'); if (!display) return;
+        display.textContent = timer; display.className = 'question-timer';
+        if (timer <= 5 && !isAnswered) display.classList.add('danger');
+        else if (timer <= 10 && !isAnswered) display.classList.add('warning');
+        else if (isAnswered) display.classList.add('stopped');
     }
     
     // ============================================
-    // FIX: SELECT OPTION - Better error handling
+    // SELECT / SKIP / RATING
     // ============================================
     window.selectOption = function(value) {
         if (isAnswered) return;
-        if (!questionData) {
-            showToast('Question not loaded. Please wait.', 'warning');
-            return;
-        }
-        
-        isAnswered = true;
-        hasAnsweredCurrent = true;
-        
-        const buttons = document.querySelectorAll('.option-btn');
-        const skipBtn = document.getElementById('skipBtn');
-        buttons.forEach(b => b.disabled = true);
-        if (skipBtn) skipBtn.disabled = true;
-        
+        if (!questionData) { showToast('Question not loaded. Please wait.', 'warning'); return; }
+        isAnswered = true; hasAnsweredCurrent = true;
+        const buttons = document.querySelectorAll('.option-btn'); const skipBtn = document.getElementById('skipBtn');
+        buttons.forEach(b => b.disabled = true); if (skipBtn) skipBtn.disabled = true;
         const selectedBtn = document.querySelector(`.option-btn[data-value="${value}"]`);
         const originalText = selectedBtn ? selectedBtn.innerHTML : '';
-        if (selectedBtn) {
-            selectedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
-        }
+        if (selectedBtn) selectedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
         
         fetchWithTimeout('/live-quiz/submit-answer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                quiz_id: quizId,
-                question_id: questionData.question.id,
-                answer: value
-            })
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quiz_id: quizId, question_id: questionData.question.id, answer: value })
         }, 8000)
         .then(response => response.json())
         .then(data => {
             answerData = data;
-            
             buttons.forEach(b => {
                 b.disabled = true;
-                if (b.dataset.value === data.correct_answer) {
-                    b.classList.add('correct');
-                }
-                if (b.dataset.value === value && !data.correct) {
-                    b.classList.add('wrong');
-                }
+                if (b.dataset.value === data.correct_answer) b.classList.add('correct');
+                if (b.dataset.value === value && !data.correct) b.classList.add('wrong');
                 const letter = b.querySelector('.letter');
-                if (letter) {
-                    const text = b.textContent.replace(letter.textContent, '').trim();
-                    const checked = b.dataset.value === value ? '✓ ' : '';
-                    b.innerHTML = `<span class="letter">${letter.textContent}</span><span>${checked}${text}</span>`;
-                }
+                if (letter) { const text = b.textContent.replace(letter.textContent, '').trim(); const checked = b.dataset.value === value ? '✓ ' : ''; b.innerHTML = `<span class="letter">${letter.textContent}</span><span>${checked}${text}</span>`; }
             });
-            
             const container = document.getElementById('feedbackContainer');
             if (container) {
                 container.innerHTML = `
                     <div class="feedback-area ${data.correct ? 'success' : 'error'}">
-                        <div class="feedback-title">
-                            ${data.correct ? '✅ CORRECT! +2 points' : '❌ WRONG! 0 points'}
-                        </div>
+                        <div class="feedback-title">${data.correct ? '✅ CORRECT! +2 points' : '❌ WRONG! 0 points'}</div>
                         ${data.explanation ? `<div style="font-size: 14px; margin-top: 4px; color: var(--text-secondary);">💡 ${data.explanation}</div>` : ''}
-                        <div style="margin-top: 10px; font-size: 13px; color: var(--text-secondary);">
-                            Rate this question to continue
-                        </div>
-                        <div class="rating-buttons">
-                            <button class="haa" onclick="submitRating('HAA')">✅ HAA</button>
-                            <button class="may" onclick="submitRating('MAY')">❌ MAY</button>
-                        </div>
-                    </div>
-                `;
+                        <div style="margin-top: 10px; font-size: 13px; color: var(--text-secondary);">Rate this question to continue</div>
+                        <div class="rating-buttons"><button class="haa" onclick="submitRating('HAA')">✅ HAA</button><button class="may" onclick="submitRating('MAY')">❌ MAY</button></div>
+                    </div>`;
             }
-            
-            updateTimerDisplay();
-            saveStateToStorage();
+            updateTimerDisplay(); saveStateToStorage();
         })
-        .catch(function(error) {
-            console.error('Submit answer error:', error);
-            buttons.forEach(b => b.disabled = false);
-            if (skipBtn) skipBtn.disabled = false;
-            isAnswered = false;
-            hasAnsweredCurrent = false;
-            if (selectedBtn) {
-                selectedBtn.innerHTML = originalText;
-            }
-            showToast('Error submitting answer. Please try again.', 'error');
-        });
+        .catch(function(error) { console.error('Submit answer error:', error); buttons.forEach(b => b.disabled = false); if (skipBtn) skipBtn.disabled = false; isAnswered = false; hasAnsweredCurrent = false; if (selectedBtn) selectedBtn.innerHTML = originalText; showToast('Error submitting answer. Please try again.', 'error'); });
     };
     
     window.skipQuestion = function() {
         if (isAnswered && !hasAnsweredCurrent) {
             const container = document.getElementById('feedbackContainer');
-            if (container) {
-                const existing = container.querySelector('.rating-reminder');
-                if (!existing) {
-                    const reminder = document.createElement('div');
-                    reminder.className = 'rating-reminder';
-                    reminder.textContent = '⏰ You already answered! Please rate this question to continue.';
-                    container.appendChild(reminder);
-                }
+            if (container && !container.querySelector('.rating-reminder')) {
+                const reminder = document.createElement('div');
+                reminder.className = 'rating-reminder';
+                reminder.textContent = '⏰ You already answered! Please rate this question to continue.';
+                container.appendChild(reminder);
             }
             return;
         }
-        
         if (isAnswered) return;
-        
-        isAnswered = true;
-        hasAnsweredCurrent = true;
-        
-        const buttons = document.querySelectorAll('.option-btn');
-        const skipBtn = document.getElementById('skipBtn');
-        buttons.forEach(b => b.disabled = true);
-        if (skipBtn) skipBtn.disabled = true;
+        isAnswered = true; hasAnsweredCurrent = true;
+        const buttons = document.querySelectorAll('.option-btn'); const skipBtn = document.getElementById('skipBtn');
+        buttons.forEach(b => b.disabled = true); if (skipBtn) skipBtn.disabled = true;
         
         fetchWithTimeout('/live-quiz/skip-question', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                quiz_id: quizId,
-                question_id: questionData.question.id
-            })
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quiz_id: quizId, question_id: questionData.question.id })
         }, 8000)
         .then(response => response.json())
         .then(data => {
             const container = document.getElementById('feedbackContainer');
-            if (container) {
-                container.innerHTML = `
-                    <div class="feedback-area skipped">
-                        <div class="feedback-title">⏭️ Skipped! 0 points</div>
-                        <div style="margin-top: 6px; font-size: 13px; color: var(--text-secondary);">
-                            Moving to next question...
-                        </div>
-                    </div>
-                `;
-            }
-            
-            clearInterval(timerInterval);
-            questionData = null;
-            saveStateToStorage();
-            setTimeout(function() {
-                loadQuestion();
-            }, 600);
+            if (container) container.innerHTML = `<div class="feedback-area skipped"><div class="feedback-title">⏭️ Skipped! 0 points</div><div style="margin-top: 6px; font-size: 13px; color: var(--text-secondary);">Moving to next question...</div></div>`;
+            clearInterval(timerInterval); questionData = null; saveStateToStorage();
+            setTimeout(() => loadQuestion(), 600);
         })
-        .catch(function(error) {
-            console.error('Skip question error:', error);
-            buttons.forEach(b => b.disabled = false);
-            if (skipBtn) skipBtn.disabled = false;
-            isAnswered = false;
-            hasAnsweredCurrent = false;
-            showToast('Error skipping question. Please try again.', 'error');
-        });
+        .catch(function(error) { console.error('Skip question error:', error); buttons.forEach(b => b.disabled = false); if (skipBtn) skipBtn.disabled = false; isAnswered = false; hasAnsweredCurrent = false; showToast('Error skipping question. Please try again.', 'error'); });
     };
     
     window.submitRating = function(rating) {
         if (isRated) return;
         isRated = true;
-        
         const buttons = document.querySelectorAll('.rating-buttons button');
         buttons.forEach(b => b.disabled = true);
         
         fetchWithTimeout('/live-quiz/submit-rating', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                quiz_id: quizId,
-                question_id: questionData.question.id,
-                rating: rating
-            })
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quiz_id: quizId, question_id: questionData.question.id, rating: rating })
         }, 8000)
         .then(response => response.json())
         .then(data => {
@@ -1675,41 +677,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     ratingDiv.style.cssText = 'margin-top: 8px; font-weight: 600; color: var(--primary);';
                     ratingDiv.textContent = `⭐ Rated: ${ratingText}`;
                     feedback.appendChild(ratingDiv);
-                    
-                    const ratingBtns = feedback.querySelector('.rating-buttons');
-                    if (ratingBtns) ratingBtns.remove();
-                    
-                    const reminder = feedback.querySelector('.rating-reminder');
-                    if (reminder) reminder.remove();
+                    const ratingBtns = feedback.querySelector('.rating-buttons'); if (ratingBtns) ratingBtns.remove();
+                    const reminder = feedback.querySelector('.rating-reminder'); if (reminder) reminder.remove();
                 }
             }
-            
             clearInterval(timerInterval);
-            
             if (data.completed && data.status === 'completed') {
-                isCompleted = true;
-                // Save completed state
-                saveStateToStorage();
+                isCompleted = true; saveStateToStorage();
                 showCompletedState({ completed_count: 0, total_participants: 0, remaining_time: 0 });
             } else if (data.completed) {
-                isCompleted = true;
-                saveStateToStorage();
+                isCompleted = true; saveStateToStorage();
                 showCompletedState({ completed_count: 0, total_participants: 0, remaining_time: 0 });
             } else {
-                questionData = null;
-                hasAnsweredCurrent = false;
-                saveStateToStorage();
-                setTimeout(function() {
-                    loadQuestion();
-                }, 600);
+                questionData = null; hasAnsweredCurrent = false; saveStateToStorage();
+                setTimeout(() => loadQuestion(), 600);
             }
         })
-        .catch(function(error) {
-            console.error('Submit rating error:', error);
-            buttons.forEach(b => b.disabled = false);
-            isRated = false;
-            showToast('Error submitting rating. Please try again.', 'error');
-        });
+        .catch(function(error) { console.error('Submit rating error:', error); buttons.forEach(b => b.disabled = false); isRated = false; showToast('Error submitting rating. Please try again.', 'error'); });
     };
     
     function showCompletedState(data) {
@@ -1723,111 +707,66 @@ document.addEventListener('DOMContentLoaded', function() {
                 <h3>You've completed all questions!</h3>
                 <p>Waiting for other participants to finish...</p>
                 <div class="waiting-info">
-                    <div class="stat">
-                        <div class="number" id="completedCount">${data.completed_count || 0}/${data.total_participants || 0}</div>
-                        <div class="label">Participants completed</div>
-                    </div>
-                    <div class="stat">
-                        <div class="number" id="waitingTimer">${formatTime(data.remaining_time || 0)}</div>
-                        <div class="label">Time remaining</div>
-                    </div>
+                    <div class="stat"><div class="number" id="completedCount">${data.completed_count || 0}/${data.total_participants || 0}</div><div class="label">Participants completed</div></div>
+                    <div class="stat"><div class="number" id="waitingTimer">${formatTime(data.remaining_time || 0)}</div><div class="label">Time remaining</div></div>
                 </div>
-            </div>
-        `;
+            </div>`;
         if (data.remaining_time) {
             let remaining = data.remaining_time;
             const timerDisplay = document.getElementById('waitingTimer');
             if (timerDisplay) {
-                const interval = setInterval(() => {
-                    remaining--;
-                    if (remaining <= 0) {
-                        timerDisplay.textContent = '00:00';
-                        clearInterval(interval);
-                    } else {
-                        timerDisplay.textContent = formatTime(remaining);
-                    }
-                }, 1000);
+                const interval = setInterval(() => { remaining--; if (remaining <= 0) { timerDisplay.textContent = '00:00'; clearInterval(interval); } else { timerDisplay.textContent = formatTime(remaining); } }, 1000);
             }
         }
         saveStateToStorage();
     }
     
-    let leaderboardTimer = null;
-    let leaderboardInterval = 3000;
-    
+    // ============================================
+    // LEADERBOARD
+    // ============================================
+    let leaderboardTimer = null; let leaderboardInterval = 3000;
     function updateLeaderboard() {
-        if (leaderboardTimer) {
-            clearTimeout(leaderboardTimer);
-            leaderboardTimer = null;
-        }
-        
+        if (leaderboardTimer) { clearTimeout(leaderboardTimer); leaderboardTimer = null; }
         fetchWithTimeout('/live-quiz/leaderboard/' + quizId + '?t=' + Date.now(), {}, 8000)
             .then(response => response.json())
             .then(data => {
                 const list = document.getElementById('leaderboardList');
                 const top5 = data.leaderboard || [];
                 const userRank = data.user_rank || '-';
-                const rankBadge = document.getElementById('userRank');
-                if (rankBadge) rankBadge.textContent = userRank;
+                const rankBadge = document.getElementById('userRank'); if (rankBadge) rankBadge.textContent = userRank;
                 if (!list) return;
-                if (top5.length === 0) {
-                    list.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 8px 0;">No scores yet</div>';
-                    return;
-                }
+                if (top5.length === 0) { list.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 8px 0;">No scores yet</div>'; return; }
                 let html = '';
                 top5.forEach((item, i) => {
                     const isYou = item.student_id == '{{ session.user_id }}' || item.user_id == '{{ session.user_id }}';
                     const rankDisplay = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
-                    html += `
-                        <div class="lb-item ${isYou ? 'you' : ''}">
-                            <span class="rank">${rankDisplay}</span>
-                            <span class="name">${item.name || 'Player'}${isYou ? ' (You)' : ''}</span>
-                            <span class="score">${item.score} pts</span>
-                        </div>
-                    `;
+                    html += `<div class="lb-item ${isYou ? 'you' : ''}"><span class="rank">${rankDisplay}</span><span class="name">${item.name || 'Player'}${isYou ? ' (You)' : ''}</span><span class="score">${item.score} pts</span></div>`;
                 });
                 list.innerHTML = html;
-                
                 leaderboardTimer = setTimeout(updateLeaderboard, leaderboardInterval);
             })
-            .catch(function(err) {
-                console.warn('Leaderboard update error:', err);
-                leaderboardTimer = setTimeout(updateLeaderboard, 5000);
-            });
+            .catch(function(err) { console.warn('Leaderboard update error:', err); leaderboardTimer = setTimeout(updateLeaderboard, 5000); });
     }
     
     function resetPollTimer() {
-        if (pollTimer) {
-            clearTimeout(pollTimer);
-        }
-        pollTimer = setTimeout(function() {
-            pollQuizState();
-        }, pollInterval);
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = setTimeout(() => pollQuizState(), pollInterval);
     }
     
     // ============================================
-    // INITIALIZATION - Restore state from sessionStorage
+    // INIT
     // ============================================
-    
-    // Restore state if available
     restoreStateFromStorage();
-    
-    // Start polling - this will handle waiting, active, finished states
     resetPollTimer();
     setTimeout(pollQuizState, 100);
-    
-    // Update leaderboard
     leaderboardTimer = setTimeout(updateLeaderboard, 3000);
     
-    // Clean up intervals and storage on page unload
     window.addEventListener('beforeunload', function() {
         if (pollTimer) clearTimeout(pollTimer);
         if (leaderboardTimer) clearTimeout(leaderboardTimer);
         if (timerInterval) clearInterval(timerInterval);
-        // Keep sessionStorage for resume after reload
     });
     
-    // Expose functions globally
     window.selectOption = selectOption;
     window.skipQuestion = skipQuestion;
     window.submitRating = submitRating;

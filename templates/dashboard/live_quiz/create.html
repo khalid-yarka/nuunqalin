@@ -20,55 +20,27 @@
         background: var(--surface);
         text-align: center;
     }
-
     .privacy-option:hover {
         border-color: var(--text-muted);
         background: var(--background);
     }
-
     .privacy-option.selected {
         border-color: var(--primary);
         background: var(--primary-light);
         box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
     }
-
-    .privacy-option .privacy-icon {
-        font-size: 32px;
-        margin-bottom: 4px;
-    }
-
-    .privacy-option .privacy-label {
-        font-weight: 700;
-        color: var(--text);
-        font-size: 16px;
-    }
-
-    .privacy-option .privacy-desc {
-        font-size: 12px;
-        color: var(--text-secondary);
-        text-align: center;
-    }
-
-    .privacy-option .privacy-badge {
-        margin-top: 6px;
-        font-size: 11px;
-        font-weight: 600;
-    }
-
-    .privacy-option .privacy-badge.recommended {
-        color: var(--primary);
-    }
-
-    .privacy-option .privacy-badge.private {
-        color: var(--text-muted);
-    }
+    .privacy-option .privacy-icon { font-size: 32px; margin-bottom: 4px; }
+    .privacy-option .privacy-label { font-weight: 700; color: var(--text); font-size: 16px; }
+    .privacy-option .privacy-desc { font-size: 12px; color: var(--text-secondary); text-align: center; }
+    .privacy-option .privacy-badge { margin-top: 6px; font-size: 11px; font-weight: 600; }
+    .privacy-option .privacy-badge.recommended { color: var(--primary); }
+    .privacy-option .privacy-badge.private { color: var(--text-muted); }
 
     .question-count-options {
         display: grid;
         grid-template-columns: repeat(5, 1fr);
         gap: 8px;
     }
-
     .question-count-options label {
         display: flex;
         align-items: center;
@@ -82,57 +54,67 @@
         font-size: 15px;
         color: var(--text);
     }
-
     .question-count-options label:hover {
         border-color: var(--primary);
         background: var(--primary-light);
     }
-
     .question-count-options label.selected {
         border-color: var(--primary);
         background: var(--primary-light);
     }
+    .question-count-options input[type="radio"] { display: none; }
 
-    .question-count-options input[type="radio"] {
-        display: none;
+    .schedule-options {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
     }
+    .schedule-options label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: var(--text);
+        cursor: pointer;
+        padding: 6px 12px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        transition: var(--transition);
+    }
+    .schedule-options label:hover {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+    .schedule-options label.selected {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+    .schedule-options input[type="radio"] { display: none; }
 
     [data-theme="dark"] .question-count-options label.selected {
         border-color: #FF6B70 !important;
         background: rgba(255, 107, 112, 0.15) !important;
         color: #FFFFFF !important;
     }
-
     [data-theme="dark"] .question-count-options label:hover {
         border-color: #FF6B70 !important;
         background: rgba(255, 107, 112, 0.1) !important;
         color: #FFFFFF !important;
     }
-
-    [data-theme="dark"] .privacy-option {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-
-    [data-theme="dark"] .privacy-option:hover {
-        background: var(--surface-alt);
-    }
-
-    [data-theme="dark"] .privacy-option.selected {
-        border-color: var(--primary);
-        background: var(--primary-light);
-    }
+    [data-theme="dark"] .privacy-option { background: var(--surface); border-color: var(--border); }
+    [data-theme="dark"] .privacy-option:hover { background: var(--surface-alt); }
+    [data-theme="dark"] .privacy-option.selected { border-color: var(--primary); background: var(--primary-light); }
+    [data-theme="dark"] .schedule-options label { border-color: var(--border); }
+    [data-theme="dark"] .schedule-options label:hover { border-color: #FF6B70; background: rgba(255, 107, 112, 0.1); }
+    [data-theme="dark"] .schedule-options label.selected { border-color: #FF6B70; background: rgba(255, 107, 112, 0.15); }
 
     @media (max-width: 480px) {
-        .privacy-option .privacy-icon {
-            font-size: 24px;
-        }
-        .privacy-option .privacy-label {
-            font-size: 14px;
-        }
-        .privacy-option .privacy-desc {
-            font-size: 11px;
-        }
+        .privacy-option .privacy-icon { font-size: 24px; }
+        .privacy-option .privacy-label { font-size: 14px; }
+        .privacy-option .privacy-desc { font-size: 11px; }
+        .question-count-options { grid-template-columns: repeat(3, 1fr); }
+        .schedule-options label { font-size: 12px; padding: 4px 10px; }
     }
 </style>
 {% endblock %}
@@ -140,14 +122,12 @@
 {% block dashboard_content %}
 <div style="max-width: 640px; margin: 0 auto;">
 
-    <!-- Breadcrumb -->
     <div class="breadcrumb">
         <a href="{{ url_for('live_quiz.lobby') }}">Live Quiz Lobby</a>
         <span class="separator">/</span>
         <span class="current">Create</span>
     </div>
 
-    <!-- Not Enough Questions Dialog -->
     {% if not_enough %}
     <div style="background: #FEF3C7; border: 2px solid #F59E0B; border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
@@ -177,7 +157,6 @@
     </div>
     {% endif %}
 
-    <!-- Create Form -->
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; box-shadow: var(--shadow-sm);">
         <div style="text-align: center; margin-bottom: 24px;">
             <div style="font-size: 48px; margin-bottom: 8px;">🎯</div>
@@ -224,10 +203,8 @@
                 <input type="text" name="title" placeholder="e.g., Friday Challenge" value="{{ title or '' }}" style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--surface); color: var(--text); transition: var(--transition);">
             </div>
 
-            <!-- ========================================== -->
-            <!-- PRIVACY SETTINGS - NEW FEATURE            -->
-            <!-- ========================================== -->
-            <div class="form-group" style="margin-bottom: 24px;">
+            <!-- Privacy Settings -->
+            <div class="form-group" style="margin-bottom: 20px;">
                 <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 8px;">
                     🔒 Privacy Settings
                 </label>
@@ -249,6 +226,40 @@
                 </div>
                 <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); text-align: center;">
                     💡 Public quizzes help build community and attract more participants.
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- SCHEDULING (NEW)                          -->
+            <!-- ========================================== -->
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
+                    ⏰ Schedule Start
+                </label>
+                <div class="schedule-options" id="scheduleOptions">
+                    <label class="selected">
+                        <input type="radio" name="schedule_minutes" value="0" checked>
+                        <span>▶️ Start Now</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="schedule_minutes" value="5">
+                        <span>⏳ +5 min</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="schedule_minutes" value="10">
+                        <span>⏳ +10 min</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="schedule_minutes" value="15">
+                        <span>⏳ +15 min</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="schedule_minutes" value="30">
+                        <span>⏳ +30 min</span>
+                    </label>
+                </div>
+                <div style="margin-top: 6px; font-size: 12px; color: var(--text-muted);">
+                    <i class="fas fa-info-circle"></i> Participants will see a countdown. Browser notifications fire 1 minute before start.
                 </div>
             </div>
 
@@ -276,14 +287,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.question-count-options label').forEach(function(label) {
         label.addEventListener('click', function() {
             const siblings = this.parentElement.querySelectorAll('label');
-            siblings.forEach(function(s) {
-                s.classList.remove('selected');
-            });
+            siblings.forEach(function(s) { s.classList.remove('selected'); });
             this.classList.add('selected');
             const radio = this.querySelector('input[type="radio"]');
-            if (radio) {
-                radio.checked = true;
-            }
+            if (radio) radio.checked = true;
         });
     });
 
@@ -302,19 +309,20 @@ document.addEventListener('DOMContentLoaded', function() {
             publicLabel.classList.remove('selected');
         }
     }
-
-    publicLabel.addEventListener('click', function() {
-        publicRadio.checked = true;
-        updatePrivacySelection();
-    });
-
-    privateLabel.addEventListener('click', function() {
-        privateRadio.checked = true;
-        updatePrivacySelection();
-    });
-
-    // Initialize
+    publicLabel.addEventListener('click', function() { publicRadio.checked = true; updatePrivacySelection(); });
+    privateLabel.addEventListener('click', function() { privateRadio.checked = true; updatePrivacySelection(); });
     updatePrivacySelection();
+
+    // Schedule options toggle
+    const scheduleLabels = document.querySelectorAll('#scheduleOptions label');
+    scheduleLabels.forEach(function(label) {
+        label.addEventListener('click', function() {
+            scheduleLabels.forEach(function(l) { l.classList.remove('selected'); });
+            this.classList.add('selected');
+            const radio = this.querySelector('input[type="radio"]');
+            if (radio) radio.checked = true;
+        });
+    });
 });
 </script>
 {% endblock %}

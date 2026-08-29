@@ -1,10 +1,6 @@
 # ============================================
 # NUUNPLATFORM - MAIN APPLICATION
 # ============================================
-# Complete app.py with Redis Cache integration,
-# error handling with hidden password trick,
-# backup system, and all blueprints.
-# ============================================
 
 import os
 import sys
@@ -48,7 +44,6 @@ from blueprints.notifications_bp import notifications_bp
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = Config.LOG_DIR
 
-# Ensure log directory exists
 if not os.path.exists(LOG_DIR):
     try:
         os.makedirs(LOG_DIR, exist_ok=True)
@@ -190,7 +185,7 @@ def execute_backup(backup_type='daily'):
         return {'success': False, 'message': str(e)}
 
 # ============================================
-# CACHE INITIALIZATION (with graceful fallback)
+# CACHE INITIALIZATION
 # ============================================
 
 try:
@@ -198,7 +193,6 @@ try:
     cache_manager = get_cache_manager()
     logger.info("Cache manager initialized successfully.")
 
-    # Start the write‑behind worker only if Redis is configured and enabled
     if Config.REDIS_URL and Config.REDIS_URL.strip():
         if os.getenv('CACHE_WORKER_ENABLED', 'true').lower() == 'true':
             start_worker()
@@ -439,6 +433,30 @@ def register():
         school = request.form.get('school', '')
         school_manual = request.form.get('school_manual', '').strip()
         grade = request.form.get('grade', '')
+
+        # ============================================
+        # SERVER-SIDE NAME VALIDATION (Strict)
+        # ============================================
+        def validate_name(name):
+            if not name or len(name) < 4:
+                return False
+            if any(char.isdigit() for char in name):
+                return False
+            return True
+
+        if not validate_name(first_name):
+            logger.warning(f"Registration failed: Invalid first_name '{first_name}'")
+            flash('Registration failed. Please check your details.', 'error')
+            return render_template('register.html')
+
+        if not validate_name(last_name):
+            logger.warning(f"Registration failed: Invalid last_name '{last_name}'")
+            flash('Registration failed. Please check your details.', 'error')
+            return render_template('register.html')
+
+        if len(password) < 8:
+            flash('Registration failed. Please check your details.', 'error')
+            return render_template('register.html')
 
         if not phone.startswith('+252'):
             phone = '+252' + phone
