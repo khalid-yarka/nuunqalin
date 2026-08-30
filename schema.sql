@@ -287,3 +287,57 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id,
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_id, status);
+
+-- ============================================
+-- ACTIVITY LOGS (Audit Trail)
+-- ============================================
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    session_id TEXT,
+    activity_type TEXT NOT NULL,
+    severity TEXT DEFAULT 'info' CHECK (severity IN ('info', 'warning', 'critical')),
+    message TEXT NOT NULL,
+    metadata TEXT,  -- JSON
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_logs(activity_type);
+
+-- ============================================
+-- BACKUP CONFIGURATION (Web UI Settings)
+-- ============================================
+CREATE TABLE IF NOT EXISTS backup_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    daily_retention INTEGER DEFAULT 7,
+    weekly_retention INTEGER DEFAULT 4,
+    monthly_retention INTEGER DEFAULT 12,
+    scheduled_enabled INTEGER DEFAULT 0,
+    scheduled_type TEXT DEFAULT 'daily',
+    scheduled_time TEXT DEFAULT '02:00',
+    last_modified TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+INSERT OR IGNORE INTO backup_config (id) VALUES (1);
+
+-- ============================================
+-- BACKUP OPERATIONS LOG (optional, for dashboard)
+-- ============================================
+CREATE TABLE IF NOT EXISTS backup_operations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_type TEXT NOT NULL,  -- 'create', 'restore', 'delete', 'verify'
+    backup_filename TEXT,
+    triggered_by INTEGER,
+    status TEXT CHECK (status IN ('started', 'success', 'failed')),
+    message TEXT,
+    started_at TEXT DEFAULT (datetime('now', 'localtime')),
+    completed_at TEXT,
+    FOREIGN KEY (triggered_by) REFERENCES students(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_backup_ops_started ON backup_operations(started_at DESC);

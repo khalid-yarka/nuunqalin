@@ -909,6 +909,152 @@ class BackupManager:
             result['message'] = f"Export failed: {e}"
         return result
 
+    # ============================================
+    # WEB-READY RESTORE (with safety copy)
+    # ============================================
+
+    def restore_web(self, filename: str, admin_id: int = None) -> Dict:
+        """
+        Restore a backup with full safety and rollback.
+        Returns detailed status for web UI.
+        """
+        result = {
+            'success': False,
+            'message': '',
+            'safety_copy': None,
+            'backup_verified': False,
+            'safety_copy_verified': False,
+            'restore_completed': False
+        }
+
+        backup_path = os.path.join(self.backup_dir, filename)
+        if not os.path.exists(backup_path):
+            result['message'] = f"Backup file not found: {filename}"
+            return result
+
+        # Verify the backup file
+        ver_ok, ver_details = self.verify_backup(backup_path)
+        if not ver_ok:
+            result['message'] = f"Backup verification failed: {ver_details.get('error')}"
+            return result
+        result['backup_verified'] = True
+
+        # Create safety copy of current DB
+        safety_path = os.path.join(
+            self.temp_dir,
+            f"safety_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        )
+        try:
+            shutil.copy2(self.db_path, safety_path)
+            result['safety_copy'] = safety_path
+            # Verify safety copy is valid
+            ver_ok2, ver_details2 = self.verify_database_integrity(safety_path)
+            if not ver_ok2:
+                result['message'] = f"Safety copy integrity check failed: {ver_details2}"
+                return result
+            result['safety_copy_verified'] = True
+        except Exception as e:
+            result['message'] = f"Failed to create safety copy: {e}"
+            return result
+
+        # Perform restore
+        try:
+            # Uncompress to temp
+            temp_restore = os.path.join(self.temp_dir, f"temp_restore_{int(time.time())}.db")
+            with gzip.open(backup_path, 'rb') as f_in:
+                with open(temp_restore, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+
+            # Verify temp file
+            ver_ok3, ver_details3 = self.verify_database_integrity(temp_restore)
+            if not ver_ok3:
+                result['message'] = f"Restored database integrity check failed: {ver_details3}"
+                os.remove(temp_restore)
+                return result
+
+            # Remove WAL files
+            for p in [self.db_path + '-wal', self.db_path + '-shm']:
+                if os.path.exists(p):
+                    os.remove(p)
+
+            # Move temp to live DB
+            shutil.move(temp_restore, self.db_path)
+
+            # Verify live DB
+            live_ok, live_msg = self.verify_database_integrity(self.db_path)
+            if not live_ok:
+                # Rollback to safety copy
+                shutil.move(safety_path, self.db_path)
+                result['message'] = f"Restore failed, reverted to safety copy. Error: {live_msg}"
+                return result
+
+            # Success
+            result['success'] = True
+            result['restore_completed'] = True
+            result['message'] = f"Database restored successfully from {filename}"
+
+            # Update manifest
+            self.manifest['last_good'] = filename
+            self._update_last_good_link(backup_path)
+            self._save_manifest()
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Restore error: {e}", exc_info=True)
+            # Try to revert to safety copy
+            try:
+                if os.path.exists(safety_path):
+                    shutil.move(safety_path, self.db_path)
+                    result['message'] = f"Restore failed, reverted to safety copy. Error: {e}"
+                else:
+                    result['message'] = f"Restore failed: {e}"
+            except Exception as revert_error:
+                result['message'] = f"Restore failed and safety copy revert failed: {revert_error}"
+            return result
+
+    # ============================================
+    # GET BACKUP HEALTH SUMMARY (for UI)
+    # ============================================
+
+    def get_backup_health_summary(self) -> Dict:
+        """Return a summary for the admin dashboard."""
+        health = self.health_check()
+        latest = self.get_latest_valid_backup()
+        return {
+            'status': health['status'],
+            'total_backups': health['backup_count'],
+            'valid_backups': health['valid_count'],
+            'invalid_backups': health['invalid_count'],
+            'last_good': health['last_good'],
+            'last_created': health['last_created'],
+            'disk_free_mb': health['disk_free_mb'],
+            'total_size_mb': health['total_size_mb'],
+            'db_integrity': health['db_integrity'],
+            'wal_enabled': health.get('wal_enabled', False),
+            'latest_backup': latest,
+            'issues': health['issues'],
+            'backup_dir': self.backup_dir,
+            'db_path': self.db_path
+        }
+
+    # ============================================
+    # GET BACKUP DETAILS (for UI)
+    # ============================================
+
+    def get_backup_details(self, filename: str) -> Optional[Dict]:
+        """Return full details for a single backup from manifest."""
+        for entry in self.manifest['backups']:
+            if entry['filename'] == filename:
+                # Add file existence and size
+                file_path = os.path.join(self.backup_dir, filename)
+                entry['exists'] = os.path.exists(file_path)
+                if entry['exists']:
+                    entry['size_bytes'] = os.path.getsize(file_path)
+                else:
+                    entry['size_bytes'] = 0
+                return entry
+        return None
 
 # ============================================
 # FEATURE 20: INTERACTIVE DASHBOARD

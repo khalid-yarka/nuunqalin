@@ -37,6 +37,13 @@ from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
 from blueprints.notifications_bp import notifications_bp
 
+# NEW: Activity & Backup blueprints
+from blueprints.admin_activity_bp import admin_activity_bp
+from blueprints.admin_backup_bp import admin_backup_bp
+
+# NEW: Activity logger
+from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event
+
 # ============================================
 # BASE DIRECTORY & LOGGING
 # ============================================
@@ -269,6 +276,10 @@ app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
 app.register_blueprint(notifications_bp)
 
+# NEW: Activity & Backup
+app.register_blueprint(admin_activity_bp)
+app.register_blueprint(admin_backup_bp)
+
 # ============================================
 # REGISTER ERROR HANDLERS
 # ============================================
@@ -409,11 +420,17 @@ def login():
                 session['csrf_token'] = secrets.token_hex(32)
                 logger.info(f"User logged in: user_id={student['id']}")
                 flash('Welcome back!', 'success')
+
+                # Log activity
+                log_activity('user.login', f"User {student['id']} logged in", 'info', user_id=student['id'])
+
                 return redirect(url_for('dashboard.home'))
             else:
                 flash('Invalid password. Please try again.', 'error')
+                log_activity('user.login', f"Failed login attempt for {phone}", 'warning')
         else:
             flash('No account found with this phone number.', 'error')
+            log_activity('user.login', f"Unknown phone {phone} tried to login", 'warning')
 
     return render_template('login.html')
 
@@ -485,6 +502,7 @@ def register():
 
         if new_student:
             logger.info(f"New user registered: {phone}")
+            log_activity('user.register', f"New user registered: {new_student['id']}", 'info', user_id=new_student['id'])
             flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
         else:
@@ -494,7 +512,10 @@ def register():
 
 @app.route('/logout')
 def logout():
-    logger.info(f"User logged out: user_id={session.get('user_id')}")
+    user_id = session.get('user_id')
+    logger.info(f"User logged out: user_id={user_id}")
+    if user_id:
+        log_activity('user.logout', f"User {user_id} logged out", 'info', user_id=user_id)
     session.clear()
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))

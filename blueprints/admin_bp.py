@@ -6,7 +6,8 @@ from db import (
     create_question, delete_question, create_group, delete_group,
     create_pdf, delete_pdf, get_all_groups, get_all_pdfs,
     get_subject_by_name, bulk_create_questions, check_question_exists,
-    create_notification_for_all_users
+    create_notification_for_all_users,
+    execute_with_retry   # <-- ADDED to fix the missing import
 )
 from error_models import get_error_stats
 from functools import wraps
@@ -42,19 +43,36 @@ def validate_csrf():
 
 
 # ============================================
-# ADMIN DASHBOARD
+# ADMIN DASHBOARD – UPDATED
 # ============================================
 
 @admin_bp.route('/')
 @admin_required
 def dashboard():
-    """Admin dashboard with stats and error logs summary."""
+    """Admin dashboard with stats, activity feed, and backup health."""
     users = get_all_students()
     groups = get_all_groups()
     pdfs = get_all_pdfs()
     subjects = get_all_subjects()
     questions = get_all_questions()
     error_stats = get_error_stats()
+
+    # Get backup health
+    try:
+        from backup import BackupManager
+        manager = BackupManager()
+        backup_health = manager.get_backup_health_summary()
+    except Exception as e:
+        backup_health = {'status': 'error', 'issues': [str(e)]}
+
+    # Get recent activity (last 10)
+    try:
+        cursor = execute_with_retry(
+            "SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT 10"
+        )
+        recent_activity = [dict(row) for row in cursor.fetchall()]
+    except Exception:
+        recent_activity = []
 
     return render_template('dashboard/admin/dashboard.html',
                          users_count=len(users),
@@ -63,7 +81,9 @@ def dashboard():
                          subjects_count=len(subjects),
                          questions_count=len(questions),
                          quiz_attempts=0,
-                         error_stats=error_stats)
+                         error_stats=error_stats,
+                         backup_health=backup_health,
+                         recent_activity=recent_activity)
 
 
 # ============================================
