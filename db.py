@@ -1335,13 +1335,20 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
 # ============================================
 
 def create_live_quiz(data: dict):
+    """
+    Create a new live quiz.
+    Expects keys: creator_id, subject_id, question_count, join_code,
+                  question_ids, status, max_participants, time_per_question,
+                  current_question_index, title (optional),
+                  scheduled_start (optional), is_public (optional)
+    """
     try:
-        execute_with_retry("""
+        cursor = execute_with_retry("""
             INSERT INTO live_quizzes (
                 creator_id, title, subject_id, question_count, join_code,
                 status, max_participants, time_per_question, current_question_index,
-                question_ids, started_at, ended_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                question_ids, started_at, ended_at, scheduled_start, is_public, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             data['creator_id'],
             data.get('title', ''),
@@ -1355,10 +1362,15 @@ def create_live_quiz(data: dict):
             to_json(data.get('question_ids', [])),
             data.get('started_at'),
             data.get('ended_at'),
+            data.get('scheduled_start'),  # <-- new field
+            data.get('is_public', 1),     # <-- new field
             now()
         ), commit=True)
-        
-        cursor = execute_with_retry("SELECT * FROM live_quizzes WHERE join_code = ?", (data['join_code'],))
+
+        cursor = execute_with_retry(
+            "SELECT * FROM live_quizzes WHERE join_code = ?", 
+            (data['join_code'],)
+        )
         result = cursor.fetchone()
         return dict(result) if result else None
     except Exception as e:

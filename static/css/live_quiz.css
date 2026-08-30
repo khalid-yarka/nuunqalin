@@ -1221,6 +1221,147 @@
 }
 
 /* ============================================
+   SCHEDULED INFO
+   ============================================ */
+
+.scheduled-info {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+}
+
+.scheduled-info .scheduled-time {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.scheduled-info .scheduled-time strong {
+    color: var(--text);
+}
+
+.scheduled-info .countdown-large {
+    font-size: 36px;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--primary);
+    letter-spacing: 2px;
+}
+
+.scheduled-info .countdown-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* ============================================
+   READY BUTTON
+   ============================================ */
+
+.ready-btn {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+.ready-btn .hand-icon {
+    width: 20px;
+    height: 20px;
+    transition: all 0.3s ease;
+}
+
+.ready-btn .check-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    font-size: 10px;
+    font-weight: 700;
+    background: var(--surface);
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: #F59E0B;
+    border: 1px solid #F59E0B;
+    background: #FFF8E7;
+    transition: all 0.3s ease;
+}
+
+/* Active state */
+.ready-btn.active {
+    border-color: var(--primary);
+    background: var(--primary);
+    box-shadow: 0 0 16px 4px rgba(255, 49, 56, 0.3);
+    animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+.ready-btn.active .hand-icon {
+    color: #FCD34D;
+    animation: hand-bob 1.2s ease-in-out infinite;
+}
+
+.ready-btn.active .check-badge {
+    display: flex;
+}
+
+/* Inactive state hover */
+.ready-btn:not(.active):hover {
+    border-color: var(--text-muted);
+    background: var(--background);
+}
+
+/* Animations */
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 16px 4px rgba(255, 49, 56, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 24px 8px rgba(255, 49, 56, 0.15);
+    }
+}
+
+@keyframes hand-bob {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-4px);
+    }
+}
+
+/* Dark mode */
+[data-theme="dark"] .ready-btn.active {
+    box-shadow: 0 0 20px 6px rgba(255, 107, 112, 0.4);
+}
+
+[data-theme="dark"] .ready-btn .check-badge {
+    background: #3A2E1A;
+    border-color: #FBBF24;
+    color: #FBBF24;
+}
+
+[data-theme="dark"] .ready-btn.active .hand-icon {
+    color: #FBBF24;
+}
+
+/* ============================================
    DARK MODE OVERRIDES
    ============================================ */
 

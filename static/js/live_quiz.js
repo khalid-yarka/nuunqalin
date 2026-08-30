@@ -152,6 +152,11 @@ class LiveQuizManager {
 }
 
 // ============================================
+// READY BUTTON TOGGLE (handled in waiting_room.html)
+// ============================================
+// The ready button logic is now inside waiting_room.html to avoid duplication.
+
+// ============================================
 // EXPOSE GLOBALLY
 // ============================================
 

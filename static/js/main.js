@@ -7,14 +7,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     // THEME PERSISTENCE (Global)
     // ============================================
-    (function() {
-        const savedTheme = localStorage.getItem('preferred-theme') || 'system';
-        if (savedTheme === 'system') {
+    
+    // Define global applyTheme function
+    window.applyTheme = function(theme) {
+        if (theme === 'system') {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+            localStorage.setItem('preferred-theme', 'system');
         } else {
-            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('preferred-theme', theme);
         }
+        // Update floating toggle icon if present
+        const icon = document.getElementById('fabThemeIcon');
+        if (icon) {
+            if (theme === 'system') icon.className = 'fas fa-desktop';
+            else if (theme === 'dark') icon.className = 'fas fa-moon';
+            else icon.className = 'fas fa-sun';
+        }
+        // Also update dashboard popover if present (will be handled by its own highlight function)
+    };
+
+    // Apply saved theme on load
+    (function() {
+        const savedTheme = localStorage.getItem('preferred-theme') || 'system';
+        window.applyTheme(savedTheme);
 
         // Listen for system changes
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
@@ -95,44 +112,9 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // ============================================
-    // DARK MODE TOGGLE (for dashboard)
+    // DARK MODE TOGGLE (for floating toggle) - kept for compatibility
     // ============================================
-    const darkToggle = document.getElementById('darkModeToggle');
-    if (darkToggle) {
-        darkToggle.addEventListener('click', function() {
-            const current = document.documentElement.getAttribute('data-theme');
-            const newTheme = current === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('preferred-theme', newTheme);
-
-            // Update icons
-            const moon = this.querySelector('.moon-icon');
-            const sun = this.querySelector('.sun-icon');
-            if (moon && sun) {
-                if (newTheme === 'dark') {
-                    moon.style.display = 'none';
-                    sun.style.display = 'inline-block';
-                } else {
-                    moon.style.display = 'inline-block';
-                    sun.style.display = 'none';
-                }
-            }
-        });
-
-        // Set initial icon state
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const moon = darkToggle.querySelector('.moon-icon');
-        const sun = darkToggle.querySelector('.sun-icon');
-        if (moon && sun) {
-            if (currentTheme === 'dark') {
-                moon.style.display = 'none';
-                sun.style.display = 'inline-block';
-            } else {
-                moon.style.display = 'inline-block';
-                sun.style.display = 'none';
-            }
-        }
-    }
+    // (Floating toggle is handled in base.html with its own logic)
 
     // ============================================
     // SIDEBAR TOGGLE (Mobile)

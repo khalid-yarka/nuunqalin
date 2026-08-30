@@ -8,88 +8,14 @@
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    .waiting-room-container { max-width: 560px; margin: 0 auto; }
-    .quiz-info-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
-    .quiz-info-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--primary); }
-    .quiz-info-card .title { font-size: 18px; font-weight: 700; color: var(--text); margin: 0; }
-    .quiz-info-card .meta { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; font-size: 13px; color: var(--text-secondary); }
-    .quiz-info-card .meta span { display: flex; align-items: center; gap: 4px; }
-    .join-code-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm); text-align: center; }
-    .join-code-card .label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-    .join-code-display { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
-    .join-code-display .code { font-size: 32px; font-weight: 700; font-family: monospace; letter-spacing: 3px; color: var(--primary); background: var(--primary-light); padding: 6px 20px; border-radius: var(--radius-sm); border: 2px dashed var(--primary); }
-    .join-code-display .copy-btn { padding: 6px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); font-weight: 600; font-size: 13px; color: var(--text-secondary); cursor: pointer; transition: var(--transition); display: inline-flex; align-items: center; gap: 6px; }
-    .join-code-display .copy-btn:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
-    .participants-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
-    .participants-card .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .participants-card .header h3 { font-size: 15px; font-weight: 600; color: var(--text); margin: 0; }
-    .participants-card .header .count { font-size: 13px; color: var(--text-secondary); background: var(--background); padding: 2px 12px; border-radius: 12px; }
-    .participant-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
-    .participant-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--background); border-radius: var(--radius-sm); border: 1px solid var(--border-light); transition: var(--transition); }
-    .participant-item:hover { border-color: var(--border); }
-    .participant-item .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .participant-item .status-dot.active { background: #10B981; }
-    .participant-item .status-dot.left { background: #EF4444; }
-    .participant-item .name { font-weight: 500; color: var(--text); font-size: 14px; flex: 1; }
-    .participant-item .badge { font-size: 10px; padding: 2px 8px; border-radius: 8px; font-weight: 600; flex-shrink: 0; }
-    .participant-item .badge.creator { background: var(--primary); color: white; }
-    .participant-item .badge.you { background: #3B82F6; color: white; }
-    .participant-item .badge.left { background: #FEF2F2; color: #EF4444; border: 1px solid #FCA5A5; }
-    .participant-item .public-id { font-size: 11px; color: var(--text-muted); font-family: monospace; }
-    .participant-item.left { opacity: 0.6; background: var(--surface-alt); border-color: var(--border); }
-    .empty-participants { text-align: center; padding: 24px 12px; color: var(--text-secondary); }
-    .empty-participants .icon { font-size: 32px; opacity: 0.4; margin-bottom: 6px; }
-    .actions-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; box-shadow: var(--shadow-sm); text-align: center; }
-    .actions-card .status-message { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; }
-    .actions-card .status-message .highlight { color: var(--primary); font-weight: 600; }
-    .btn-start { padding: 14px 40px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 700; font-size: 18px; cursor: pointer; transition: var(--transition); width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn-start:hover:not(:disabled) { background: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 49, 56, 0.35); }
-    .btn-start:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
-    .waiting-message { padding: 16px 12px; }
-    .waiting-message .icon { font-size: 40px; margin-bottom: 8px; }
-    .waiting-message h4 { font-size: 18px; font-weight: 600; color: var(--text); margin: 0; }
-    .waiting-message p { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
-    .waiting-message .sub-info { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
-    .share-buttons { display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
-    .share-buttons a { padding: 6px 14px; border-radius: var(--radius-sm); font-weight: 600; font-size: 13px; text-decoration: none; transition: var(--transition); display: inline-flex; align-items: center; gap: 6px; }
-    .share-buttons .whatsapp { background: #25D366; color: white; }
-    .share-buttons .whatsapp:hover { background: #1DA851; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35); }
-    .share-buttons .telegram { background: #0088CC; color: white; }
-    .share-buttons .telegram:hover { background: #006699; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 136, 204, 0.35); }
-    .quiz-started-alert { background: #10B981; color: white; padding: 16px 20px; border-radius: var(--radius-sm); margin-bottom: 16px; text-align: center; font-weight: 600; animation: pulse 1.5s ease-in-out infinite; display: none; }
-    .quiz-started-alert.show { display: block; }
-    .quiz-started-alert .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .countdown-display { font-size: 48px; font-weight: 800; color: var(--primary); font-family: monospace; margin: 8px 0; }
-    .countdown-label { font-size: 14px; color: var(--text-secondary); }
-    .btn-leave { margin-top: 12px; padding: 10px 20px; background: transparent; color: #EF4444; border: 2px solid #EF4444; border-radius: var(--radius-sm); font-weight: 600; font-size: 14px; cursor: pointer; transition: var(--transition); width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn-leave:hover { background: #FEF2F2; border-color: #DC2626; color: #DC2626; }
-    .btn-leave:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-rejoin { margin-top: 12px; padding: 10px 20px; background: #10B981; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 14px; cursor: pointer; transition: var(--transition); width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn-rejoin:hover { background: #059669; transform: translateY(-2px); box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35); }
-    .btn-delete { margin-top: 10px; padding: 8px 20px; background: transparent; color: #EF4444; border: 1px solid #EF4444; border-radius: var(--radius-sm); font-weight: 600; font-size: 14px; cursor: pointer; transition: var(--transition); width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn-delete:hover { background: #FEF2F2; border-color: #DC2626; color: #DC2626; }
-    .notification-banner { background: #3B82F6; color: white; padding: 10px 16px; border-radius: var(--radius-sm); margin-bottom: 12px; display: none; align-items: center; gap: 10px; font-size: 14px; }
-    .notification-banner.show { display: flex; }
-    .notification-banner .btn-allow { background: white; color: #3B82F6; border: none; padding: 4px 14px; border-radius: 20px; font-weight: 600; cursor: pointer; font-size: 12px; }
-    [data-theme="dark"] .btn-delete { color: #F87171; border-color: #F87171; }
-    [data-theme="dark"] .btn-delete:hover { background: #3A1A1A; border-color: #F87171; color: #FCA5A5; }
-    @media (max-width: 480px) {
-        .waiting-room-container { padding: 0 4px; }
-        .quiz-info-card { padding: 16px; }
-        .quiz-info-card .title { font-size: 16px; }
-        .join-code-display .code { font-size: 24px; letter-spacing: 2px; padding: 4px 14px; }
-        .participant-item { padding: 6px 10px; font-size: 13px; }
-        .btn-start { font-size: 16px; padding: 12px 24px; }
-        .share-buttons a { font-size: 12px; padding: 4px 10px; }
-        .countdown-display { font-size: 36px; }
-    }
+    /* Additional page-specific styles if any */
 </style>
 {% endblock %}
 
 {% block dashboard_content %}
-<div class="waiting-room-container">
+<div class="waiting-room-container" data-quiz-id="{{ quiz.id }}">
 
+    <!-- Quiz Started Alert -->
     <div class="quiz-started-alert" id="quizStartedAlert">
         <span class="spinner"></span>
         🚀 Quiz has started! Redirecting to play page...
@@ -102,6 +28,7 @@
         <button class="btn-allow" onclick="requestNotificationPermission()">Allow</button>
     </div>
 
+    <!-- Quiz Info Card -->
     <div class="quiz-info-card">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
             <div>
@@ -117,6 +44,20 @@
         </div>
     </div>
 
+    <!-- Scheduled time & countdown (only for scheduled quizzes) -->
+    {% if quiz.status == 'scheduled' and quiz.scheduled_start %}
+    <div class="scheduled-info" id="scheduledInfo">
+        <div class="scheduled-time">
+            ⏳ Quiz starts at <strong id="startTimeDisplay">{{ quiz.scheduled_start|format_somali_time }}</strong> (Somali Time)
+        </div>
+        <div class="countdown-large" id="countdownLarge">
+            <span id="countdownTimer">--:--</span>
+        </div>
+        <div class="countdown-sub">Auto‑starts when timer hits zero</div>
+    </div>
+    {% endif %}
+
+    <!-- Join Code Card -->
     <div class="join-code-card">
         <div class="label">📌 Share this code</div>
         <div class="join-code-display">
@@ -134,13 +75,14 @@
         {% endif %}
     </div>
 
-    <!-- Countdown Display -->
+    <!-- Countdown Display (fallback) -->
     <div id="countdownContainer" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; text-align: center; display: none;">
         <div class="countdown-label">⏳ Quiz starts in</div>
         <div class="countdown-display" id="countdownDisplay">--:--</div>
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">The quiz will auto-start when the timer hits zero.</div>
     </div>
 
+    <!-- Participants Card -->
     <div class="participants-card">
         <div class="header">
             <h3>👥 Active Participants</h3>
@@ -148,8 +90,20 @@
         </div>
         <div class="participant-list" id="participantList">
             {% for p in participants %}
-                <div class="participant-item {% if p.status == 'left' %}left{% endif %}">
+                <div class="participant-item {% if p.status == 'left' %}left{% endif %}" data-student="{{ p.student_id }}">
                     <span class="status-dot {% if p.status == 'active' or p.status == 'completed' %}active{% else %}left{% endif %}"></span>
+
+                    <!-- READY BUTTON (only for current user) -->
+                    {% if p.student_id == session.user_id %}
+                        <button class="ready-btn" id="readyBtn" data-ready="false" aria-label="Toggle ready status">
+                            <svg class="hand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M18 11V7a2 2 0 0 0-4 0v4M14 11V5a2 2 0 0 0-4 0v6M10 11V3a2 2 0 0 0-4 0v8M6 11V7a2 2 0 0 0-4 0v4"/>
+                                <path d="M6 11v6a6 6 0 0 0 12 0v-6"/>
+                            </svg>
+                            <span class="check-badge">✓</span>
+                        </button>
+                    {% endif %}
+
                     <span class="name">
                         {{ p.name }}
                         {% if p.is_creator %}<span class="badge creator">👑 Creator</span>{% endif %}
@@ -164,6 +118,7 @@
         </div>
     </div>
 
+    <!-- Actions Card -->
     <div class="actions-card">
         {% if is_creator %}
             <div class="status-message" id="statusMessage">
@@ -274,9 +229,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     // COUNTDOWN & AUTO-START
     // ============================================
+    function formatTime(seconds) {
+        if (seconds < 0) return '00:00';
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
     function startCountdown(seconds) {
         const container = document.getElementById('countdownContainer');
         const display = document.getElementById('countdownDisplay');
+        const largeDisplay = document.getElementById('countdownTimer');
         if (!container || !display) return;
         container.style.display = 'block';
 
@@ -284,16 +247,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let remaining = seconds;
         display.textContent = formatTime(remaining);
+        if (largeDisplay) largeDisplay.textContent = formatTime(remaining);
 
         countdownInterval = setInterval(function() {
             remaining--;
             display.textContent = formatTime(remaining);
+            if (largeDisplay) largeDisplay.textContent = formatTime(remaining);
 
-            // Trigger notification at 60 seconds
+            // Notification at 60 seconds
             if (remaining <= 60 && remaining > 55 && !notificationSent) {
                 notificationSent = true;
                 if (Notification.permission === 'granted') {
-                    sendBrowserNotification('⏰ Quiz starting soon!', `"${quizTitle}" starts in ${remaining} seconds!`, window.location.href);
+                    sendBrowserNotification(
+                        '⏰ Quiz starting soon!',
+                        `"${quizTitle}" starts in ${remaining} seconds!`,
+                        window.location.href
+                    );
                     playNotificationSound();
                 }
             }
@@ -301,17 +270,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (remaining <= 0) {
                 clearInterval(countdownInterval);
                 container.style.display = 'none';
-                // Force poll to trigger auto-start
-                checkStatus();
+                // Auto-start will be triggered by backend polling
             }
         }, 1000);
-    }
-
-    function formatTime(seconds) {
-        if (seconds < 0) return '00:00';
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     }
 
     // ============================================
@@ -475,6 +436,28 @@ document.addEventListener('DOMContentLoaded', function() {
         const url = window.location.origin + '/live-quiz/join';
         window.open('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent('🎯 Join my live quiz!\n📌 Join Code: ' + code), '_blank');
     };
+
+    // ============================================
+    // READY BUTTON TOGGLE (Local state)
+    // ============================================
+    const readyBtn = document.getElementById('readyBtn');
+    if (readyBtn) {
+        // Load saved state from sessionStorage (per quiz)
+        const savedState = sessionStorage.getItem('ready_' + quizId);
+        if (savedState === 'true') {
+            readyBtn.dataset.ready = 'true';
+            readyBtn.classList.add('active');
+        }
+
+        readyBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const isActive = this.dataset.ready === 'true';
+            const newState = !isActive;
+            this.dataset.ready = newState.toString();
+            this.classList.toggle('active', newState);
+            sessionStorage.setItem('ready_' + quizId, newState.toString());
+        });
+    }
 
     // ============================================
     // INIT
