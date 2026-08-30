@@ -718,7 +718,7 @@
 
 <script>
 // ============================================
-// WAITING ROOM JAVASCRIPT
+// WAITING ROOM JAVASCRIPT – COMPLETE
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -798,7 +798,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // COUNTDOWN CIRCLE
+    // FORMAT TIME
     // ============================================
     function formatTime(seconds) {
         if (seconds < 0) return '00:00';
@@ -807,6 +807,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     }
 
+    // ============================================
+    // COUNTDOWN CIRCLE
+    // ============================================
     function startCountdown(seconds) {
         const container = document.querySelector('.wr-scheduled-info');
         if (!container) return;
@@ -835,345 +838,446 @@ document.addEventListener('DOMContentLoaded', function() {
                     sendBrowserNotification(
                         '⏰ Quiz starting soon!',
                         `"${quizTitle}" starts in ${remaining} seconds!`,
-                        window.location.href
+                        '/live-quiz/waiting-room/' + quizId
                     );
-                    playNotificationSound();
                 }
+                playNotificationSound();
             }
 
             if (remaining <= 0) {
                 clearInterval(countdownInterval);
-                container.style.display = 'none';
-                // Auto-start will be triggered by backend polling
+                // Auto-start will be handled by the state poller
+                // Show alert that quiz is starting
+                document.getElementById('quizStartedAlert').classList.add('show');
+                // We'll rely on the poller to redirect.
             }
         }, 1000);
     }
 
     // ============================================
-    // RENDER PARTICIPANTS (with ready button)
+    // PARTICIPANTS POLLING
     // ============================================
-    function renderParticipants(participants) {
-        if (!participantListEl) return;
-        if (!participants || participants.length === 0) {
-            participantListEl.innerHTML = `
-                <div class="wr-empty-participants">
-                    <div class="wr-empty-icon">👤</div>
-                    <div>No participants yet. Share the join code!</div>
-                </div>
-            `;
-            return;
-        }
-
-        let html = '';
-        participants.forEach(p => {
-            const isYou = parseInt(p.student_id) === parseInt(userId);
-            const statusClass = p.status === 'left' ? 'left' : 'active';
-            const readyClass = p.is_ready ? 'ready' : '';
-            const handHtml = p.is_ready ? '<span class="wr-ready-hand"><i class="fas fa-hand-peace"></i></span>' : '';
-
-            // Ready button for current user only
-            let readyButtonHtml = '';
-            if (isYou) {
-                const isReady = p.is_ready ? 'true' : 'false';
-                const activeClass = p.is_ready ? 'active' : '';
-                readyButtonHtml = `
-                    <button class="ready-btn ${activeClass}" data-ready="${isReady}" aria-label="Toggle ready status">
-                        <svg class="hand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M18 11V7a2 2 0 0 0-4 0v4M14 11V5a2 2 0 0 0-4 0v6M10 11V3a2 2 0 0 0-4 0v8M6 11V7a2 2 0 0 0-4 0v4"/>
-                            <path d="M6 11v6a6 6 0 0 0 12 0v-6"/>
-                        </svg>
-                        <span class="check-badge">✓</span>
-                    </button>
-                `;
-            }
-
-            html += `
-                <div class="wr-participant-item ${statusClass} ${readyClass}">
-                    <span class="wr-status-dot ${statusClass}"></span>
-                    <span class="wr-participant-name">
-                        ${p.name}
-                        ${p.is_creator ? '<span class="wr-badge creator">👑 Creator</span>' : ''}
-                        ${isYou ? '<span class="wr-badge you">You</span>' : ''}
-                        ${p.status === 'left' ? '<span class="wr-badge left">Left</span>' : ''}
-                    </span>
-                    <span class="wr-participant-id">#${p.public_id}</span>
-                    ${handHtml}
-                    ${readyButtonHtml}
-                </div>
-            `;
-        });
-        participantListEl.innerHTML = html;
-
-        // Re-attach ready button events
-        setupReadyButton();
-    }
-
-    // ============================================
-    // READY BUTTON SETUP
-    // ============================================
-    function setupReadyButton() {
-        const btn = document.querySelector('.ready-btn');
-        if (!btn) return;
-
-        if (btn._listenerAttached) return;
-
-        btn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            toggleReady(this);
-        });
-        btn._listenerAttached = true;
-    }
-
-    // ============================================
-    // TOGGLE READY
-    // ============================================
-    function toggleReady(btn) {
-        const isReady = btn.dataset.ready === 'true';
-        const newReady = !isReady;
-
-        // Optimistic UI update
-        btn.dataset.ready = newReady.toString();
-        btn.classList.toggle('active', newReady);
-
-        // Send to server
-        fetch('/live-quiz/toggle-ready/' + quizId, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_ready: newReady })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                // Revert on error
-                btn.dataset.ready = isReady.toString();
-                btn.classList.toggle('active', isReady);
-                showToast('Failed to update ready status', 'error');
-            }
-        })
-        .catch(function() {
-            btn.dataset.ready = isReady.toString();
-            btn.classList.toggle('active', isReady);
-            showToast('Network error', 'error');
-        });
-    }
-
-    // ============================================
-    // POLL PARTICIPANTS
-    // ============================================
-    function pollParticipants() {
+    function fetchParticipants() {
         if (isPolling) return;
         isPolling = true;
 
         fetch('/live-quiz/waiting-room/participants/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    console.warn('Participant poll error:', data.error);
-                    isPolling = false;
-                    return;
-                }
                 renderParticipants(data.participants);
-                const count = data.count || 0;
-                participantCountEl.textContent = count;
-                participantCountLabel.textContent = count + ' joined';
-                if (waitingCountEl) waitingCountEl.textContent = count;
-
-                // Update host status message
-                if (isCreator && statusMsg && startBtn) {
-                    const readyCount = data.participants.filter(p => p.is_ready && p.status !== 'left').length;
-                    if (readyCount >= 2) {
-                        statusMsg.innerHTML = `✅ Ready to start! <span class="highlight">${readyCount}</span> participants ready.`;
-                        startBtn.disabled = false;
-                    } else {
-                        statusMsg.innerHTML = `⚠️ Need at least <strong>2 active participants</strong> to start.`;
-                        startBtn.disabled = true;
-                    }
-                }
+                updateCounts(data.count);
                 isPolling = false;
             })
             .catch(function(err) {
-                console.warn('Poll participants error:', err);
+                console.warn('Error fetching participants:', err);
                 isPolling = false;
             });
     }
 
+    function renderParticipants(participants) {
+        participantList = participants || [];
+        if (!participantListEl) return;
+
+        if (participantList.length === 0) {
+            participantListEl.innerHTML = `
+                <div class="wr-empty-participants">
+                    <div class="wr-empty-icon">👥</div>
+                    <span>No participants yet. Share the join code!</span>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        const currentUserIsCreator = isCreator;
+        participantList.forEach(function(p) {
+            const isYou = p.student_id == userId;
+            const isCreator = p.is_creator;
+            const isLeft = p.status === 'left';
+            const isReady = p.is_ready;
+
+            let badge = '';
+            if (isCreator) badge += '<span class="wr-badge creator">Creator</span>';
+            if (isYou) badge += '<span class="wr-badge you">You</span>';
+            if (isLeft) badge += '<span class="wr-badge left">Left</span>';
+
+            let readyHand = '';
+            if (isReady && !isLeft) {
+                readyHand = '<span class="wr-ready-hand">✋</span>';
+            }
+
+            let statusDot = '<span class="wr-status-dot ' + (isLeft ? 'left' : 'active') + '"></span>';
+            let itemClass = 'wr-participant-item';
+            if (isLeft) itemClass += ' left';
+            if (isReady && !isLeft) itemClass += ' ready';
+
+            html += `
+                <div class="${itemClass}">
+                    ${statusDot}
+                    <span class="wr-participant-name">
+                        ${p.name || 'Unknown'}
+                        ${badge}
+                    </span>
+                    <span class="wr-participant-id">#${p.public_id || '----'}</span>
+                    ${readyHand}
+                </div>
+            `;
+        });
+
+        participantListEl.innerHTML = html;
+    }
+
+    function updateCounts(count) {
+        if (participantCountEl) participantCountEl.textContent = count;
+        if (participantCountLabel) participantCountLabel.textContent = count + ' joined';
+        if (waitingCountEl) {
+            // Count active (non-left)
+            const active = participantList.filter(p => p.status !== 'left').length;
+            waitingCountEl.textContent = active;
+        }
+
+        // Update start button & status message for creator
+        if (isCreator) {
+            const activeCount = participantList.filter(p => p.status !== 'left').length;
+            const readyCount = participantList.filter(p => p.is_ready && p.status !== 'left').length;
+
+            if (statusMsg) {
+                if (activeCount >= 2) {
+                    statusMsg.innerHTML = `✅ Ready to start! <span class="highlight">${activeCount}</span> participants ready.`;
+                } else {
+                    statusMsg.innerHTML = `⚠️ Need at least <strong>2 active participants</strong> to start. ${activeCount === 1 ? '<br><span class="sub-text">Share the join code to invite others!</span>' : ''}`;
+                }
+            }
+            if (startBtn) {
+                startBtn.disabled = activeCount < 2;
+            }
+        }
+    }
+
     // ============================================
-    // CHECK QUIZ STATE (for auto-redirect)
+    // READY TOGGLE
     // ============================================
-    function checkQuizState() {
-        if (isRedirecting) return;
+    function toggleReady() {
+        if (!isCreator) {
+            // For participants: toggle ready status
+            const btn = document.querySelector('.ready-btn');
+            if (!btn) return;
+            const isActive = btn.classList.contains('active');
+            const newState = !isActive;
+
+            fetch('/live-quiz/toggle-ready/' + quizId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_ready: newState })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    btn.classList.toggle('active', newState);
+                } else {
+                    showToast('Failed to update ready status', 'error');
+                }
+            })
+            .catch(function() {
+                showToast('Error updating ready status', 'error');
+            });
+        }
+    }
+
+    // ============================================
+    // START QUIZ
+    // ============================================
+    function startQuiz() {
+        if (!isCreator) return;
+        if (startBtn.disabled) return;
+
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+
+        fetch('/live-quiz/start/' + quizId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('🎯 Quiz started! Redirecting...', 'success');
+                document.getElementById('quizStartedAlert').classList.add('show');
+                setTimeout(function() {
+                    window.location.href = '/live-quiz/play/' + quizId;
+                }, 1500);
+            } else {
+                showToast('Error starting quiz: ' + (data.error || 'Unknown error'), 'error');
+                startBtn.disabled = false;
+                startBtn.innerHTML = '<i class="fas fa-play"></i> Start Quiz';
+            }
+        })
+        .catch(function() {
+            showToast('Error starting quiz', 'error');
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i class="fas fa-play"></i> Start Quiz';
+        });
+    }
+
+    // ============================================
+    // LEAVE & REJOIN
+    // ============================================
+    function leaveQuiz() {
+        if (!confirm('Are you sure you want to leave this quiz?')) return;
+        if (leaveBtn) {
+            leaveBtn.disabled = true;
+            leaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leaving...';
+        }
+
+        fetch('/live-quiz/leave/' + quizId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('You have left the quiz.', 'info');
+                window.location.href = data.redirect || '/live-quiz/lobby';
+            } else {
+                showToast('Error leaving quiz: ' + (data.error || 'Unknown'), 'error');
+                if (leaveBtn) {
+                    leaveBtn.disabled = false;
+                    leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
+                }
+            }
+        })
+        .catch(function() {
+            showToast('Error leaving quiz', 'error');
+            if (leaveBtn) {
+                leaveBtn.disabled = false;
+                leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
+            }
+        });
+    }
+
+    function rejoinQuiz() {
+        if (rejoinBtn) {
+            rejoinBtn.disabled = true;
+            rejoinBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rejoining...';
+        }
+
+        fetch('/live-quiz/rejoin/' + quizId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Rejoined successfully!', 'success');
+                window.location.href = data.redirect || '/live-quiz/waiting-room/' + quizId;
+            } else {
+                showToast('Error rejoining: ' + (data.error || 'Unknown'), 'error');
+                if (rejoinBtn) {
+                    rejoinBtn.disabled = false;
+                    rejoinBtn.innerHTML = '<i class="fas fa-undo"></i> Rejoin Quiz';
+                }
+            }
+        })
+        .catch(function() {
+            showToast('Error rejoining', 'error');
+            if (rejoinBtn) {
+                rejoinBtn.disabled = false;
+                rejoinBtn.innerHTML = '<i class="fas fa-undo"></i> Rejoin Quiz';
+            }
+        });
+    }
+
+    // ============================================
+    // DELETE QUIZ (Creator only)
+    // ============================================
+    let deleteQuizId = null;
+
+    function showDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+    }
+    window.closeDeleteModal = closeDeleteModal;
+
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', showDeleteModal);
+    }
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+
+        fetch('/live-quiz/delete/' + quizId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('✅ Quiz deleted', 'success');
+                closeDeleteModal();
+                window.location.href = '/live-quiz/lobby';
+            } else {
+                showToast('Error deleting quiz: ' + (data.error || 'Unknown'), 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+            }
+        })
+        .catch(function() {
+            showToast('Error deleting quiz', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+        });
+    });
+
+    // Close modal on outside click
+    document.getElementById('deleteModal').addEventListener('click', function(e) {
+        if (e.target === this) closeDeleteModal();
+    });
+
+    // ============================================
+    // SHARE HELPERS
+    // ============================================
+    window.copyCode = function(code) {
+        navigator.clipboard.writeText(code).then(function() {
+            showToast('Join code copied!', 'success');
+        }).catch(function() {
+            // Fallback
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('Join code copied!', 'success');
+        });
+    };
+
+    window.shareWhatsApp = function(code) {
+        const url = window.location.origin + '/live-quiz/join';
+        const text = `🎯 Join my live quiz!\n📌 Join Code: ${code}\n🔗 ${url}`;
+        window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+    };
+
+    window.shareTelegram = function(code) {
+        const url = window.location.origin + '/live-quiz/join';
+        const text = `🎯 Join my live quiz!\n📌 Join Code: ${code}\n🔗 ${url}`;
+        window.open('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text), '_blank');
+    };
+
+    // ============================================
+    // QUIZ STATE POLLING (for auto-start)
+    // ============================================
+    function pollQuizState() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
-                if (data.abort) {
-                    window.location.href = data.redirect || '/live-quiz/lobby';
-                    return;
-                }
-                if (data.error) {
-                    console.warn('State check error:', data.error);
+                if (data.redirect_url) {
+                    // Quiz started or finished
+                    if (data.status === 'active') {
+                        document.getElementById('quizStartedAlert').classList.add('show');
+                        showToast('🚀 Quiz has started!', 'success');
+                        setTimeout(function() {
+                            window.location.href = data.redirect_url;
+                        }, 1500);
+                    } else if (data.status === 'finished') {
+                        window.location.href = data.redirect_url;
+                    }
                     return;
                 }
 
-                const status = data.status;
-
-                // Scheduled countdown
-                if (status === 'scheduled' && data.starts_in_seconds !== undefined) {
-                    const remaining = data.starts_in_seconds;
-                    if (remaining > 0) {
-                        startCountdown(remaining);
-                    } else {
-                        // Auto-start triggered by backend
-                        isRedirecting = true;
-                        const alert = document.getElementById('quizStartedAlert');
-                        if (alert) alert.classList.add('show');
-                        setTimeout(function() { window.location.href = '/live-quiz/play/' + quizId; }, 1000);
-                        return;
+                if (data.status === 'scheduled' && data.starts_in_seconds !== undefined) {
+                    // Update countdown if not already started
+                    if (!countdownInterval) {
+                        startCountdown(data.starts_in_seconds);
                     }
                 }
 
-                if (status === 'active') {
-                    isRedirecting = true;
-                    const alert = document.getElementById('quizStartedAlert');
-                    if (alert) alert.classList.add('show');
-                    playNotificationSound();
-                    setTimeout(function() { window.location.href = '/live-quiz/play/' + quizId; }, 1000);
-                    return;
-                }
-
-                if (status === 'finished') {
-                    isRedirecting = true;
-                    window.location.href = '/live-quiz/results/' + quizId;
-                    return;
-                }
+                // Poll again
+                setTimeout(pollQuizState, 3000);
             })
-            .catch(function(err) { console.warn('State check error:', err); });
+            .catch(function(err) {
+                console.warn('State poll error:', err);
+                setTimeout(pollQuizState, 5000);
+            });
     }
 
     // ============================================
-    // COPY / SHARE
+    // TOAST HELPER
     // ============================================
-    window.copyCode = function(code) {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(code).then(function() {
-                showToast('Join code copied!', 'success');
-            }).catch(function() { fallbackCopy(code); });
-        } else { fallbackCopy(code); }
-    };
-    function fallbackCopy(code) {
-        const input = document.createElement('input');
-        input.value = code;
-        document.body.appendChild(input);
-        input.select();
-        try {
-            document.execCommand('copy');
-            showToast('Join code copied!', 'success');
-        } catch (e) {
-            showToast('Failed to copy. Code: ' + code, 'error');
+    function showToast(message, type) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(message, type || 'info');
+        } else {
+            alert(message);
         }
-        document.body.removeChild(input);
-    }
-    window.shareWhatsApp = function(code) {
-        const url = window.location.origin + '/live-quiz/join';
-        window.open('https://wa.me/?text=' + encodeURIComponent('🎯 Join my live quiz!\n📌 Join Code: ' + code + '\n🔗 ' + url), '_blank');
-    };
-    window.shareTelegram = function(code) {
-        const url = window.location.origin + '/live-quiz/join';
-        window.open('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent('🎯 Join my live quiz!\n📌 Join Code: ' + code), '_blank');
-    };
-
-    // ============================================
-    // START / LEAVE / REJOIN / DELETE
-    // ============================================
-    if (startBtn) {
-        startBtn.addEventListener('click', function() {
-            if (!confirm('Start the quiz now? No one can join after it starts.')) return;
-            startBtn.disabled = true;
-            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
-            fetch('/live-quiz/start/' + quizId, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) { window.location.href = '/live-quiz/play/' + quizId; }
-                    else { alert(data.error || 'Error starting quiz.'); startBtn.disabled = false; startBtn.innerHTML = '<i class="fas fa-play"></i> Start Quiz'; }
-                })
-                .catch(function() { alert('Error starting quiz.'); startBtn.disabled = false; startBtn.innerHTML = '<i class="fas fa-play"></i> Start Quiz'; });
-        });
-    }
-
-    if (leaveBtn) {
-        leaveBtn.addEventListener('click', function() {
-            if (!confirm('Are you sure you want to leave? You can rejoin if the quiz hasn\'t started.')) return;
-            leaveBtn.disabled = true; leaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leaving...';
-            fetch('/live-quiz/leave/' + quizId, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) { window.location.href = data.redirect; }
-                    else { alert(data.error || 'Failed to leave'); leaveBtn.disabled = false; leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz'; }
-                })
-                .catch(function() { alert('Error leaving quiz.'); leaveBtn.disabled = false; leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz'; });
-        });
-    }
-
-    if (rejoinBtn) {
-        rejoinBtn.addEventListener('click', function() {
-            rejoinBtn.disabled = true; rejoinBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rejoining...';
-            fetch('/live-quiz/rejoin/' + quizId, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) { window.location.href = data.redirect; }
-                    else { alert(data.error || 'Failed to rejoin'); rejoinBtn.disabled = false; rejoinBtn.innerHTML = '<i class="fas fa-undo"></i> Rejoin Quiz'; }
-                })
-                .catch(function() { alert('Error rejoining.'); rejoinBtn.disabled = false; rejoinBtn.innerHTML = '<i class="fas fa-undo"></i> Rejoin Quiz'; });
-        });
-    }
-
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', function() {
-            document.getElementById('deleteQuizTitle').textContent = quizTitle;
-            document.getElementById('deleteModal').style.display = 'flex';
-        });
-        document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
-            const btn = this;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
-            fetch('/live-quiz/delete/' + quizId, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('✅ Quiz deleted', 'success');
-                        document.getElementById('deleteModal').style.display = 'none';
-                        window.location.href = '/live-quiz/lobby';
-                    } else {
-                        alert(data.error || 'Failed to delete');
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
-                    }
-                })
-                .catch(function() {
-                    alert('Error deleting.');
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
-                });
-        });
-        document.getElementById('deleteModal').addEventListener('click', function(e) {
-            if (e.target === this) this.style.display = 'none';
-        });
     }
 
     // ============================================
     // INIT
     // ============================================
-    // Check notification permission
-    if ('Notification' in window && Notification.permission === 'granted') {
-        document.getElementById('notificationBanner').classList.remove('show');
-    } else if ('Notification' in window && Notification.permission === 'default') {
+
+    // Show notification banner if not granted
+    if ('Notification' in window && Notification.permission === 'default') {
         document.getElementById('notificationBanner').classList.add('show');
     }
 
-    // Start polling
-    pollParticipants();
-    setInterval(pollParticipants, 3000);
-    setInterval(checkQuizState, 2000);
-    setTimeout(checkQuizState, 100);
+    // Fetch participants immediately and then poll
+    fetchParticipants();
+    pollTimer = setInterval(fetchParticipants, pollInterval);
+
+    // Start state polling (for auto-start)
+    pollQuizState();
+
+    // Event listeners
+    if (startBtn) {
+        startBtn.addEventListener('click', startQuiz);
+    }
+
+    if (leaveBtn) {
+        leaveBtn.addEventListener('click', leaveQuiz);
+    }
+
+    if (rejoinBtn) {
+        rejoinBtn.addEventListener('click', rejoinQuiz);
+    }
+
+    // Add ready button to each participant if not creator
+    if (!isCreator) {
+        // We'll add a ready button in the participants list for the current user
+        // But we already have a ready toggle in the UI? The current design doesn't have a ready button for non-creators.
+        // Actually the UI shows "Waiting for host to start" and a leave button.
+        // We need to add a ready toggle button somewhere. Since the design didn't include it, we can add a small button.
+        // We'll add it dynamically after the participant list.
+        const actionsDiv = document.querySelector('.wr-actions');
+        if (actionsDiv && !document.querySelector('.ready-btn')) {
+            // Only add if not already present
+            const readyBtn = document.createElement('button');
+            readyBtn.className = 'ready-btn';
+            readyBtn.innerHTML = `
+                <span class="hand-icon">✋</span>
+                <span class="check-badge">✓</span>
+            `;
+            readyBtn.title = 'Toggle ready status';
+            readyBtn.addEventListener('click', toggleReady);
+            // Insert before the waiting message
+            const waitingMsg = actionsDiv.querySelector('.wr-waiting-message');
+            if (waitingMsg) {
+                actionsDiv.insertBefore(readyBtn, waitingMsg);
+            } else {
+                actionsDiv.prepend(readyBtn);
+            }
+        }
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        if (pollTimer) clearInterval(pollTimer);
+        if (countdownInterval) clearInterval(countdownInterval);
+    });
 });
 </script>
 {% endblock %}

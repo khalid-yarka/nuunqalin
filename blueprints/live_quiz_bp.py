@@ -236,9 +236,7 @@ def get_quiz_or_redirect(quiz_id, user_id, required_status=None, check_participa
         else:
             allowed = required_status
         current_status = quiz.get('status')
-        if current_status == 'scheduled':
-            flash('This quiz is scheduled and will start soon. Please wait.', 'info')
-            return None, None, redirect(url_for('live_quiz.waiting_room', quiz_id=quiz_id))
+        # REMOVED special case for 'scheduled' to allow joining
         if current_status not in allowed:
             if current_status == 'waiting':
                 flash('This quiz has not started yet. Go to the waiting room.', 'info')
@@ -377,6 +375,9 @@ def lobby_join(quiz_id):
     quiz, _, redirect_resp = get_quiz_or_redirect(quiz_id, user_id, required_status=['waiting', 'scheduled'], check_participant=False)
     if redirect_resp:
         location = redirect_resp.headers.get('Location', url_for('live_quiz.lobby'))
+        # If redirect is to waiting room, treat as success (scheduled or waiting)
+        if location and '/waiting-room/' in location:
+            return jsonify({'success': True, 'redirect': location, 'message': 'Quiz is scheduled or waiting'})
         return jsonify({'error': 'Quiz not available', 'redirect': location}), 400
     participant = get_participant_safe(quiz_id, user_id)
     if participant:
