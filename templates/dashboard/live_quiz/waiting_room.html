@@ -846,10 +846,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (remaining <= 0) {
                 clearInterval(countdownInterval);
-                // Auto-start will be handled by the state poller
-                // Show alert that quiz is starting
                 document.getElementById('quizStartedAlert').classList.add('show');
-                // We'll rely on the poller to redirect.
             }
         }, 1000);
     }
@@ -889,7 +886,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         let html = '';
-        const currentUserIsCreator = isCreator;
         participantList.forEach(function(p) {
             const isYou = p.student_id == userId;
             const isCreator = p.is_creator;
@@ -931,16 +927,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (participantCountEl) participantCountEl.textContent = count;
         if (participantCountLabel) participantCountLabel.textContent = count + ' joined';
         if (waitingCountEl) {
-            // Count active (non-left)
             const active = participantList.filter(p => p.status !== 'left').length;
             waitingCountEl.textContent = active;
         }
 
-        // Update start button & status message for creator
         if (isCreator) {
             const activeCount = participantList.filter(p => p.status !== 'left').length;
-            const readyCount = participantList.filter(p => p.is_ready && p.status !== 'left').length;
-
             if (statusMsg) {
                 if (activeCount >= 2) {
                     statusMsg.innerHTML = `✅ Ready to start! <span class="highlight">${activeCount}</span> participants ready.`;
@@ -958,30 +950,28 @@ document.addEventListener('DOMContentLoaded', function() {
     // READY TOGGLE
     // ============================================
     function toggleReady() {
-        if (!isCreator) {
-            // For participants: toggle ready status
-            const btn = document.querySelector('.ready-btn');
-            if (!btn) return;
-            const isActive = btn.classList.contains('active');
-            const newState = !isActive;
+        if (isCreator) return;
+        const btn = document.querySelector('.ready-btn');
+        if (!btn) return;
+        const isActive = btn.classList.contains('active');
+        const newState = !isActive;
 
-            fetch('/live-quiz/toggle-ready/' + quizId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_ready: newState })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    btn.classList.toggle('active', newState);
-                } else {
-                    showToast('Failed to update ready status', 'error');
-                }
-            })
-            .catch(function() {
-                showToast('Error updating ready status', 'error');
-            });
-        }
+        fetch('/live-quiz/toggle-ready/' + quizId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_ready: newState })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                btn.classList.toggle('active', newState);
+            } else {
+                showToast('Failed to update ready status', 'error');
+            }
+        })
+        .catch(function() {
+            showToast('Error updating ready status', 'error');
+        });
     }
 
     // ============================================
@@ -1001,6 +991,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                isRedirecting = true;
                 showToast('🎯 Quiz started! Redirecting...', 'success');
                 document.getElementById('quizStartedAlert').classList.add('show');
                 setTimeout(function() {
@@ -1090,8 +1081,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     // DELETE QUIZ (Creator only)
     // ============================================
-    let deleteQuizId = null;
-
     function showDeleteModal() {
         document.getElementById('deleteModal').style.display = 'flex';
     }
@@ -1133,7 +1122,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Close modal on outside click
     document.getElementById('deleteModal').addEventListener('click', function(e) {
         if (e.target === this) closeDeleteModal();
     });
@@ -1145,7 +1133,6 @@ document.addEventListener('DOMContentLoaded', function() {
         navigator.clipboard.writeText(code).then(function() {
             showToast('Join code copied!', 'success');
         }).catch(function() {
-            // Fallback
             const textarea = document.createElement('textarea');
             textarea.value = code;
             document.body.appendChild(textarea);
@@ -1175,8 +1162,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
-                if (data.redirect_url) {
-                    // Quiz started or finished
+                if (data.redirect_url && !isRedirecting) {
                     if (data.status === 'active') {
                         document.getElementById('quizStartedAlert').classList.add('show');
                         showToast('🚀 Quiz has started!', 'success');
@@ -1190,13 +1176,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 if (data.status === 'scheduled' && data.starts_in_seconds !== undefined) {
-                    // Update countdown if not already started
                     if (!countdownInterval) {
                         startCountdown(data.starts_in_seconds);
                     }
                 }
 
-                // Poll again
                 setTimeout(pollQuizState, 3000);
             })
             .catch(function(err) {
@@ -1220,19 +1204,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // INIT
     // ============================================
 
-    // Show notification banner if not granted
     if ('Notification' in window && Notification.permission === 'default') {
         document.getElementById('notificationBanner').classList.add('show');
     }
 
-    // Fetch participants immediately and then poll
     fetchParticipants();
     pollTimer = setInterval(fetchParticipants, pollInterval);
-
-    // Start state polling (for auto-start)
     pollQuizState();
 
-    // Event listeners
     if (startBtn) {
         startBtn.addEventListener('click', startQuiz);
     }
@@ -1245,16 +1224,9 @@ document.addEventListener('DOMContentLoaded', function() {
         rejoinBtn.addEventListener('click', rejoinQuiz);
     }
 
-    // Add ready button to each participant if not creator
     if (!isCreator) {
-        // We'll add a ready button in the participants list for the current user
-        // But we already have a ready toggle in the UI? The current design doesn't have a ready button for non-creators.
-        // Actually the UI shows "Waiting for host to start" and a leave button.
-        // We need to add a ready toggle button somewhere. Since the design didn't include it, we can add a small button.
-        // We'll add it dynamically after the participant list.
         const actionsDiv = document.querySelector('.wr-actions');
         if (actionsDiv && !document.querySelector('.ready-btn')) {
-            // Only add if not already present
             const readyBtn = document.createElement('button');
             readyBtn.className = 'ready-btn';
             readyBtn.innerHTML = `
@@ -1263,7 +1235,6 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             readyBtn.title = 'Toggle ready status';
             readyBtn.addEventListener('click', toggleReady);
-            // Insert before the waiting message
             const waitingMsg = actionsDiv.querySelector('.wr-waiting-message');
             if (waitingMsg) {
                 actionsDiv.insertBefore(readyBtn, waitingMsg);
@@ -1273,7 +1244,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Cleanup on page unload
     window.addEventListener('beforeunload', function() {
         if (pollTimer) clearInterval(pollTimer);
         if (countdownInterval) clearInterval(countdownInterval);

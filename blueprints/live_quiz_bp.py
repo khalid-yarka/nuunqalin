@@ -747,35 +747,52 @@ def quiz_state(quiz_id):
         return jsonify({'error': 'Quiz not available', 'abort': True, 'redirect': location, 'message': 'Quiz is not available in its current state'}), 404
 
     try:
-        # --- SCHEDULING LOGIC (Auto-start) ---
+        # --- SCHEDULING LOGIC: Auto-start OR switch to manual ---
         if quiz.get('status') == 'scheduled' and quiz.get('scheduled_start'):
             try:
                 start_dt = datetime.fromisoformat(quiz['scheduled_start'].replace('Z', '+00:00'))
                 now = datetime.now(timezone.utc)
                 diff = (start_dt - now).total_seconds()
                 starts_in_seconds = max(0, int(diff))
+                
                 if starts_in_seconds <= 0:
-                    # Check if at least 2 participants are active
                     all_participants = get_live_quiz_participants(quiz_id)
                     active_participants = [p for p in all_participants if p.get('status') != 'left']
                     if len(active_participants) < 2:
-                        # Not enough participants – keep scheduled, don't auto-start
-                        return jsonify({'status': 'scheduled', 'starts_in_seconds': 0, 'message': 'Waiting for more participants'})
-                    # Auto-start
-                    update_live_quiz(quiz_id, {'status': 'active', 'started_at': get_somali_time_db(), 'scheduled_start': None})
-                    cache = get_cache()
-                    quiz['status'] = 'active'
-                    quiz['started_at'] = get_somali_time_db()
-                    quiz['scheduled_start'] = None
-                    cache.set(get_quiz_cache_key(quiz_id), quiz, ttl=QUIZ_STATE_TTL)
-                    participants = get_live_quiz_participants(quiz_id)
-                    for p in participants:
-                        if p['status'] != 'left':
-                            updates = {'current_question_index': 0, 'score': 0, 'correct_count': 0, 'wrong_count': 0, 'skipped_count': 0, 'answers': {}, 'ratings': {}}
-                            update_live_quiz_participant(p['id'], updates)
-                            update_participant_async(quiz_id, p['student_id'], updates)
-                    notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
-                    return jsonify({'status': 'active', 'redirect_url': url_for('live_quiz.play', quiz_id=quiz_id)})
+                        # Switch to waiting (manual) and notify creator
+                        update_live_quiz(quiz_id, {'status': 'waiting', 'scheduled_start': None})
+                        cache = get_cache()
+                        cache.delete(get_quiz_cache_key(quiz_id))
+                        # Notify creator
+                        from db import create_notification
+                        create_notification(
+                            user_id=quiz['creator_id'],
+                            type='scheduled_skipped',
+                            title='⏰ Scheduled Quiz Skipped',
+                            body=f'Your quiz "{quiz.get("title", "Live Quiz")}" did not have enough participants to auto-start. It is now available for manual start.',
+                            link=f'/live-quiz/waiting-room/{quiz_id}',
+                            icon='⏰'
+                        )
+                        # Reload quiz after update
+                        quiz = get_live_quiz_with_subject(quiz_id)
+                        # Return updated state with a message
+                        return jsonify({'status': 'waiting', 'message': 'Scheduled start skipped due to insufficient participants'})
+                    else:
+                        # Enough participants → auto-start
+                        update_live_quiz(quiz_id, {'status': 'active', 'started_at': get_somali_time_db(), 'scheduled_start': None})
+                        cache = get_cache()
+                        quiz['status'] = 'active'
+                        quiz['started_at'] = get_somali_time_db()
+                        quiz['scheduled_start'] = None
+                        cache.set(get_quiz_cache_key(quiz_id), quiz, ttl=QUIZ_STATE_TTL)
+                        participants = get_live_quiz_participants(quiz_id)
+                        for p in participants:
+                            if p['status'] != 'left':
+                                updates = {'current_question_index': 0, 'score': 0, 'correct_count': 0, 'wrong_count': 0, 'skipped_count': 0, 'answers': {}, 'ratings': {}}
+                                update_live_quiz_participant(p['id'], updates)
+                                update_participant_async(quiz_id, p['student_id'], updates)
+                        notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
+                        return jsonify({'status': 'active', 'redirect_url': url_for('live_quiz.play', quiz_id=quiz_id)})
                 else:
                     return jsonify({'status': 'scheduled', 'starts_in_seconds': starts_in_seconds})
             except Exception as e:

@@ -240,7 +240,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (saved) {
                 const state = JSON.parse(saved);
                 if (state && state.currentQuestionIndex !== undefined) {
-                    console.log('Restoring state from sessionStorage:', state);
                     currentQuestionIndex = state.currentQuestionIndex;
                     isAnswered = state.isAnswered || false;
                     isRated = state.isRated || false;
@@ -344,7 +343,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatTime(seconds) { const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60); return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'); }
     
     // ============================================
-    // CREATOR PROGRESS - FIXED (no duplicates)
+    // CREATOR PROGRESS
     // ============================================
     function updateCreatorProgress(progressData) {
         if (!isCreator) return;
@@ -454,7 +453,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (data.remaining_time !== undefined) updateTotalTimer(data.remaining_time);
                 
-                // CRITICAL FIX: Only redirect if user is also completed
+                // ----- FIX: Update creator progress -----
+                if (data.participant_progress) {
+                    updateCreatorProgress(data.participant_progress);
+                }
+                
                 if (data.all_completed && data.status === 'active') {
                     if (data.is_completed) {
                         sendBrowserNotification('🏆 All Finished!', 'All participants have completed!', '/live-quiz/results/' + quizId);
@@ -718,6 +721,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const interval = setInterval(() => { remaining--; if (remaining <= 0) { timerDisplay.textContent = '00:00'; clearInterval(interval); } else { timerDisplay.textContent = formatTime(remaining); } }, 1000);
             }
         }
+        // Speed up polling to catch completion faster
+        pollInterval = 1000;
+        resetPollTimer();
         saveStateToStorage();
     }
     

@@ -12,13 +12,15 @@ def get_somali_time() -> datetime:
     return datetime.now(SOMALI_TIMEZONE)
 
 def format_somali_time(dt=None) -> str:
-    """Format datetime in Somali format: 2026/9/24 4:32 PM"""
+    """Format datetime in Somali format: 2026/9/24 4:32 PM
+       Converts any timezone-aware datetime to Somali time."""
     if dt is None:
         dt = get_somali_time()
-    elif dt.tzinfo is None:
-        dt = dt.replace(tzinfo=SOMALI_TIMEZONE)
-    
-    # Format: 2026/9/24 4:32 PM
+    else:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.astimezone(SOMALI_TIMEZONE)
+
     year = dt.year
     month = dt.month
     day = dt.day
@@ -32,7 +34,6 @@ def format_somali_time(dt=None) -> str:
 
 def parse_somali_time(time_str: str) -> datetime:
     """Parse Somali time format: 2026/9/24 4:32 PM"""
-    # Try multiple formats
     patterns = [
         r'(\d{4})/(\d{1,2})/(\d{1,2})\s+(\d{1,2}):(\d{2})\s+(AM|PM)',
         r'(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})\s+(AM|PM)',
@@ -54,8 +55,7 @@ def parse_somali_time(time_str: str) -> datetime:
     raise ValueError(f"Could not parse time string: {time_str}")
 
 def get_somali_time_db() -> str:
-    """Get current time formatted for SQLite database storage"""
-    # Store as ISO format but with Somali time
+    """Get current time formatted for SQLite database storage (ISO with Somali time)"""
     dt = get_somali_time()
     return dt.isoformat()
 
@@ -66,14 +66,12 @@ def get_somali_time_display() -> str:
 def format_time_ago(timestamp: str) -> str:
     """Convert timestamp to 'X ago' format in Somali time"""
     if not timestamp:
-        return 'Hadda'  # Just now
+        return 'Hadda'
     
     try:
-        # Parse the timestamp
         if 'T' in timestamp:
             dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
         else:
-            # Try to parse as Somali format
             dt = parse_somali_time(timestamp)
         
         now = get_somali_time()
@@ -91,6 +89,6 @@ def format_time_ago(timestamp: str) -> str:
             minutes = diff.seconds // 60
             return f'{minutes} daqiiqo ka hor' if minutes > 1 else 'daqiiqo ka hor'
         else:
-            return 'Hadda'  # Just now
+            return 'Hadda'
     except Exception:
         return 'Hadda'
