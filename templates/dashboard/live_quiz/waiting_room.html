@@ -193,8 +193,8 @@ document.addEventListener('DOMContentLoaded', function() {
             Notification.requestPermission().then(function(permission) {
                 if (permission === 'granted') {
                     notificationBanner.classList.remove('show');
-                    if (typeof showToast === 'function') {
-                        showToast('✅ Notifications enabled!', 'success');
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('✅ Notifications enabled!', 'success');
                     }
                 } else {
                     notificationBanner.classList.remove('show');
@@ -436,11 +436,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 btn.classList.toggle('active', newState);
             } else {
-                showToast('Failed to update ready status', 'error');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Failed to update ready status', 'error');
+                }
             }
         })
         .catch(function() {
-            showToast('Error updating ready status', 'error');
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error updating ready status', 'error');
+            }
         });
     }
 
@@ -462,16 +466,22 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 isRedirecting = true;
-                showToast('🎯 Quiz started! Redirecting...', 'success');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('🎯 Quiz started! Redirecting...', 'success');
+                }
                 window.location.href = '/live-quiz/play/' + quizId;
             } else {
-                showToast('Error starting quiz: ' + (data.error || 'Unknown error'), 'error');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Error starting quiz: ' + (data.error || 'Unknown error'), 'error');
+                }
                 startBtn.disabled = false;
                 startBtn.innerHTML = '<i class="fas fa-play"></i> Start Quiz';
             }
         })
         .catch(function() {
-            showToast('Error starting quiz', 'error');
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error starting quiz', 'error');
+            }
             startBtn.disabled = false;
             startBtn.innerHTML = '<i class="fas fa-play"></i> Start Quiz';
         });
@@ -494,10 +504,14 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showToast('You have left the quiz.', 'info');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('You have left the quiz.', 'info');
+                }
                 window.location.href = data.redirect || '/live-quiz/lobby';
             } else {
-                showToast('Error leaving quiz: ' + (data.error || 'Unknown'), 'error');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Error leaving quiz: ' + (data.error || 'Unknown'), 'error');
+                }
                 if (leaveBtn) {
                     leaveBtn.disabled = false;
                     leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
@@ -505,7 +519,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(function() {
-            showToast('Error leaving quiz', 'error');
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error leaving quiz', 'error');
+            }
             if (leaveBtn) {
                 leaveBtn.disabled = false;
                 leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave Quiz';
@@ -526,10 +542,14 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showToast('Rejoined successfully!', 'success');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Rejoined successfully!', 'success');
+                }
                 window.location.href = data.redirect || '/live-quiz/waiting-room/' + quizId;
             } else {
-                showToast('Error rejoining: ' + (data.error || 'Unknown'), 'error');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Error rejoining: ' + (data.error || 'Unknown'), 'error');
+                }
                 if (rejoinBtn) {
                     rejoinBtn.disabled = false;
                     rejoinBtn.innerHTML = '<i class="fas fa-undo"></i> Rejoin Quiz';
@@ -537,7 +557,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(function() {
-            showToast('Error rejoining', 'error');
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error rejoining', 'error');
+            }
             if (rejoinBtn) {
                 rejoinBtn.disabled = false;
                 rejoinBtn.innerHTML = '<i class="fas fa-undo"></i> Rejoin Quiz';
@@ -573,17 +595,23 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showToast('✅ Quiz deleted', 'success');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('✅ Quiz deleted', 'success');
+                }
                 closeDeleteModal();
                 window.location.href = '/live-quiz/lobby';
             } else {
-                showToast('Error deleting quiz: ' + (data.error || 'Unknown'), 'error');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Error deleting quiz: ' + (data.error || 'Unknown'), 'error');
+                }
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
             }
         })
         .catch(function() {
-            showToast('Error deleting quiz', 'error');
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error deleting quiz', 'error');
+            }
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
         });
@@ -598,7 +626,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     window.copyCode = function(code) {
         navigator.clipboard.writeText(code).then(function() {
-            showToast('Join code copied!', 'success');
+            if (typeof window.showToast === 'function') {
+                window.showToast('Join code copied!', 'success');
+            }
         }).catch(function() {
             const textarea = document.createElement('textarea');
             textarea.value = code;
@@ -606,7 +636,9 @@ document.addEventListener('DOMContentLoaded', function() {
             textarea.select();
             document.execCommand('copy');
             document.body.removeChild(textarea);
-            showToast('Join code copied!', 'success');
+            if (typeof window.showToast === 'function') {
+                window.showToast('Join code copied!', 'success');
+            }
         });
     };
 
@@ -633,7 +665,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     isRedirecting = true;
                     if (data.status === 'active') {
                         document.getElementById('quizStartedAlert').classList.add('show');
-                        showToast('🚀 Quiz has started!', 'success');
+                        if (typeof window.showToast === 'function') {
+                            window.showToast('🚀 Quiz has started!', 'success');
+                        }
                         window.location.href = data.redirect_url;
                     } else if (data.status === 'finished') {
                         window.location.href = data.redirect_url;
@@ -653,17 +687,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.warn('State poll error:', err);
                 setTimeout(pollQuizState, 5000);
             });
-    }
-
-    // ============================================
-    // TOAST HELPER
-    // ============================================
-    function showToast(message, type) {
-        if (typeof window.showToast === 'function') {
-            window.showToast(message, type || 'info');
-        } else {
-            alert(message);
-        }
     }
 
     // ============================================

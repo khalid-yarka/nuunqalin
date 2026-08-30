@@ -808,11 +808,10 @@ def quiz_state(quiz_id):
             finalize_live_quiz(quiz_id)
             return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
-        # Get shuffled IDs from participant's answers
+        # Get shuffled IDs from participant's answers (or fallback)
         answers = participant.get('answers', {})
         shuffled_ids = answers.get('__shuffled_ids')
         if not shuffled_ids:
-            # Fallback: use quiz's question_ids (should not happen)
             shuffled_ids = quiz.get('question_ids', [])
 
         current_index = participant.get('current_question_index', 0)
@@ -939,11 +938,10 @@ def get_question(quiz_id):
         location = redirect_resp.headers.get('Location', url_for('live_quiz.lobby'))
         return jsonify({'error': 'Quiz not available', 'abort': True, 'redirect': location, 'message': 'Quiz is not active or you are not a participant'}), 404
     try:
-        # Get shuffled IDs from participant's answers
+        # Get shuffled IDs from participant's answers (or fallback)
         answers = participant.get('answers', {})
         shuffled_ids = answers.get('__shuffled_ids')
         if not shuffled_ids:
-            # Fallback: use quiz's question_ids
             shuffled_ids = quiz.get('question_ids', [])
 
         current_index = participant.get('current_question_index', 0)
@@ -1075,10 +1073,14 @@ def submit_rating():
         ratings = participant.get('ratings', {})
         ratings[str(question_id)] = rating
         current_index = participant.get('current_question_index', 0)
-        # Get total questions from shuffled_ids length
+        # Get total questions – try shuffled_ids first, fallback to quiz question_count
         answers = participant.get('answers', {})
         shuffled_ids = answers.get('__shuffled_ids')
-        total_questions = len(shuffled_ids) if shuffled_ids else 0
+        if shuffled_ids:
+            total_questions = len(shuffled_ids)
+        else:
+            quiz = get_live_quiz_by_id(quiz_id)
+            total_questions = quiz.get('question_count', 0) if quiz else 0
         new_index = current_index + 1
         updates = {'ratings': ratings, 'current_question_index': new_index}
         update_participant_async(quiz_id, user_id, updates)

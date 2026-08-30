@@ -816,6 +816,7 @@
     margin-top: 2px;
 }
 
+.lobby-stat.scheduled .number { color: #8B5CF6; }
 .lobby-stat.open .number { color: #10B981; }
 .lobby-stat.active .number { color: #F59E0B; }
 .lobby-stat.finished .number { color: #3B82F6; }
@@ -946,6 +947,7 @@
     flex-shrink: 0;
 }
 
+.quiz-card .status-bar .dot.scheduled { background: #8B5CF6; }
 .quiz-card .status-bar .dot.waiting { background: #10B981; }
 .quiz-card .status-bar .dot.active { background: #F59E0B; animation: pulse-dot 1s ease-in-out infinite; }
 .quiz-card .status-bar .dot.finished { background: #3B82F6; }
@@ -955,6 +957,7 @@
     50% { opacity: 0.5; transform: scale(0.8); }
 }
 
+.quiz-card .status-bar .status-text.scheduled { color: #8B5CF6; }
 .quiz-card .status-bar .status-text.waiting { color: #10B981; }
 .quiz-card .status-bar .status-text.active { color: #F59E0B; }
 .quiz-card .status-bar .status-text.finished { color: #3B82F6; }
@@ -1158,7 +1161,7 @@
     box-shadow: 0 4px 14px rgba(255, 49, 56, 0.35);
 }
 
-/* Privacy Toggle */
+/* Privacy Toggle (Create Page) */
 .privacy-toggle {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1218,6 +1221,76 @@
 
 .privacy-option .privacy-badge.private {
     color: var(--text-muted);
+}
+
+/* Question Count Options (Create Page) */
+.question-count-options {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+}
+
+.question-count-options label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text);
+}
+
+.question-count-options label:hover {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.question-count-options label.selected {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.question-count-options input[type="radio"] {
+    display: none;
+}
+
+/* Schedule Options (Create Page) */
+.schedule-options {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.schedule-options label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+    padding: 6px 12px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.schedule-options label:hover {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.schedule-options label.selected {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.schedule-options input[type="radio"] {
+    display: none;
 }
 
 /* ============================================
@@ -1588,6 +1661,32 @@
     background: var(--primary-light) !important;
 }
 
+[data-theme="dark"] .question-count-options label.selected {
+    border-color: #FF6B70 !important;
+    background: rgba(255, 107, 112, 0.15) !important;
+    color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .question-count-options label:hover {
+    border-color: #FF6B70 !important;
+    background: rgba(255, 107, 112, 0.1) !important;
+    color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .schedule-options label {
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .schedule-options label:hover {
+    border-color: #FF6B70 !important;
+    background: rgba(255, 107, 112, 0.1) !important;
+}
+
+[data-theme="dark"] .schedule-options label.selected {
+    border-color: #FF6B70 !important;
+    background: rgba(255, 107, 112, 0.15) !important;
+}
+
 /* ============================================
    RESPONSIVE
    ============================================ */
@@ -1756,6 +1855,11 @@
     .quiz-card .body .info .title {
         font-size: 16px;
     }
+    .privacy-option .privacy-icon { font-size: 24px; }
+    .privacy-option .privacy-label { font-size: 14px; }
+    .privacy-option .privacy-desc { font-size: 11px; }
+    .question-count-options { grid-template-columns: repeat(3, 1fr); }
+    .schedule-options label { font-size: 12px; padding: 4px 10px; }
 }
 
 @media (max-width: 360px) {
@@ -1958,56 +2062,6 @@
 }
 
 /* ============================================
-   CREATE PAGE - RADIO BUTTON STYLING
-   ============================================ */
-
-.question-count-options {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 8px;
-}
-
-.question-count-options label {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px;
-    border: 2px solid var(--border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: var(--transition);
-    font-weight: 600;
-    font-size: 15px;
-    color: var(--text);
-}
-
-.question-count-options label:hover {
-    border-color: var(--primary);
-    background: var(--primary-light);
-}
-
-.question-count-options label.selected {
-    border-color: var(--primary);
-    background: var(--primary-light);
-}
-
-.question-count-options input[type="radio"] {
-    display: none;
-}
-
-[data-theme="dark"] .question-count-options label.selected {
-    border-color: #FF6B70 !important;
-    background: rgba(255, 107, 112, 0.15) !important;
-    color: #FFFFFF !important;
-}
-
-[data-theme="dark"] .question-count-options label:hover {
-    border-color: #FF6B70 !important;
-    background: rgba(255, 107, 112, 0.1) !important;
-    color: #FFFFFF !important;
-}
-
-/* ============================================
    LOADING STATES
    ============================================ */
 
@@ -2073,7 +2127,7 @@
 }
 
 /* ============================================
-   WAITING ROOM REDESIGN
+   WAITING ROOM REDESIGN (All WR styles)
    ============================================ */
 
 .waiting-room-container {
@@ -2517,7 +2571,160 @@
     border-top: 1px solid var(--border-light);
 }
 
-/* Dark mode overrides */
+/* ============================================
+   OTHER ELEMENTS (Modals, etc.)
+   ============================================ */
+
+.quiz-started-alert {
+    display: none;
+    background: #10B981;
+    color: white;
+    padding: 12px 20px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+    text-align: center;
+    font-weight: 600;
+    animation: slideDown 0.5s ease;
+}
+.quiz-started-alert.show {
+    display: block;
+}
+.quiz-started-alert .spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.notification-banner {
+    display: none;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+.notification-banner.show {
+    display: flex;
+}
+.notification-banner .btn-allow {
+    padding: 4px 14px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+.notification-banner .btn-allow:hover {
+    background: var(--primary-hover);
+}
+
+/* Redirect container (index page) */
+.redirect-container {
+    max-width: 600px;
+    margin: 40px auto;
+    text-align: center;
+    padding: 60px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+.redirect-container .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border);
+    border-top: 4px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+}
+.redirect-container h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 8px 0;
+}
+.redirect-container p {
+    color: var(--text-secondary);
+    font-size: 15px;
+    margin: 0 0 20px 0;
+}
+.redirect-container .btn {
+    display: inline-block;
+    padding: 10px 28px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 15px;
+    text-decoration: none;
+    transition: var(--transition);
+    box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25);
+}
+.redirect-container .btn:hover {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 49, 56, 0.35);
+}
+
+/* Results specific */
+.result-hero .medal {
+    font-size: 48px;
+    margin-bottom: 8px;
+}
+.result-hero .rank-detail {
+    font-size: 14px;
+    opacity: 0.9;
+}
+.result-hero .rank-detail strong {
+    color: white;
+}
+.celebrate {
+    animation: celeb 0.8s ease;
+}
+@keyframes celeb {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+.final-banner {
+    background: #10B981;
+    color: white;
+    padding: 12px 20px;
+    border-radius: var(--radius-sm);
+    text-align: center;
+    font-weight: 600;
+    margin-bottom: 16px;
+    animation: slideDown 0.5s ease;
+}
+.final-banner i {
+    margin-right: 8px;
+}
+.leaderboard-full .row .rank-badge.medal {
+    font-size: 18px;
+    line-height: 1;
+}
+.leaderboard-full .row .rank-badge.medal.gold { color: #F59E0B; }
+.leaderboard-full .row .rank-badge.medal.silver { color: #9CA3AF; }
+.leaderboard-full .row .rank-badge.medal.bronze { color: #D97706; }
+
+/* Dark mode overrides for new elements */
 [data-theme="dark"] .wr-meta .privacy-badge.private { background: #3A2E1A; color: #FBBF24; }
 [data-theme="dark"] .wr-meta .privacy-badge.public { background: #1A3A2E; color: #34D399; }
 [data-theme="dark"] .wr-code {
