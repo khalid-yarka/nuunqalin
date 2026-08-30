@@ -5,7 +5,7 @@ import string
 import logging
 import time
 import os
-from typing import Optional
+from typing import Optional, Dict, List, Tuple, Any
 from datetime import datetime, timezone, timedelta
 from flask import g, current_app
 from config import Config
@@ -22,47 +22,24 @@ MAX_DELAY = Config.DB_MAX_RETRY_DELAY
 BACKOFF_MULTIPLIER = Config.DB_RETRY_BACKOFF_MULTIPLIER
 BULK_INSERT_BATCH_SIZE = 100
 
-# Use standard logging for module-level operations
 logger = logging.getLogger(__name__)
-
 
 # ============================================
 # RETRY UTILITY - Enhanced Exponential Backoff
 # ============================================
 
 def calculate_backoff(attempt: int) -> float:
-    """
-    Calculate exponential backoff delay.
-    
-    Attempt 0: 100ms
-    Attempt 1: 200ms
-    Attempt 2: 400ms
-    Attempt 3: 800ms
-    Attempt 4: 1.6s
-    Attempt 5: 3.2s (capped at MAX_DELAY)
-    
-    Returns delay in seconds.
-    """
     delay = INITIAL_DELAY * (BACKOFF_MULTIPLIER ** attempt)
     return min(delay, MAX_DELAY)
 
-
 def is_retryable_error(error_msg: str) -> bool:
-    """
-    Determine if an error is retryable.
-    Only retry on temporary database lock/busy errors.
-    """
     error_msg = error_msg.lower()
-    
-    # Database lock errors - retryable
     if 'database is locked' in error_msg:
         return True
     if 'database is busy' in error_msg:
         return True
     if 'disk i/o error' in error_msg:
-        return True  # Sometimes transient
-    
-    # Not retryable - these are permanent errors
+        return True
     if 'no such table' in error_msg:
         return False
     if 'malformed' in error_msg:
@@ -77,68 +54,44 @@ def is_retryable_error(error_msg: str) -> bool:
         return False
     if 'foreign key' in error_msg:
         return False
-    
-    # Default: assume not retryable to avoid infinite loops
     return False
 
-
 # ============================================
-# CONNECTION MANAGEMENT (Request-Scoped)
+# CONNECTION MANAGEMENT
 # ============================================
 
 def get_db():
-    """Get a database connection for the current request context."""
     if 'db' not in g:
         try:
-            # Ensure database directory exists
             db_dir = os.path.dirname(DB_PATH)
             if db_dir and not os.path.exists(db_dir):
                 os.makedirs(db_dir, exist_ok=True)
-            
-            conn = sqlite3.connect(
-                DB_PATH,
-                timeout=Config.DB_TIMEOUT
-            )
-            
+            conn = sqlite3.connect(DB_PATH, timeout=Config.DB_TIMEOUT)
             conn.row_factory = sqlite3.Row
-            
-            # Enable WAL mode - CRITICAL for concurrent access
             conn.execute("PRAGMA journal_mode = WAL")
             conn.execute("PRAGMA foreign_keys = ON")
             conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
             conn.execute("PRAGMA synchronous = NORMAL")
             conn.execute("PRAGMA cache_size = -64000")
             conn.execute("PRAGMA wal_autocheckpoint = 1000")
-            
-            # Verify WAL mode is actually enabled
             cursor = conn.execute("PRAGMA journal_mode")
             result = cursor.fetchone()
             if result and result[0].upper() != 'WAL':
                 logger.warning(f"WAL mode not enabled! Got: {result[0]}")
-                # Try to enable it again
                 conn.execute("PRAGMA journal_mode = WAL")
-            
             g.db = conn
-            
         except sqlite3.Error as e:
             try:
                 current_app.logger.error(f"Database connection error: {e}")
             except RuntimeError:
                 logger.error(f"Database connection error: {e}")
             raise
-    
     return g.db
 
-
 def close_db(exception=None):
-    """Close the database connection when the request context ends."""
     db = g.pop('db', None)
     if db is not None:
         try:
-            # Check if there are any pending transactions
-            if db.total_changes > 0:
-                # Log but don't auto-commit - should be handled by application
-                pass
             db.close()
         except Exception as e:
             try:
@@ -146,59 +99,44 @@ def close_db(exception=None):
             except RuntimeError:
                 logger.warning(f"Error closing database: {e}")
 
-
 # ============================================
 # TRANSACTION HELPERS
 # ============================================
 
 class transaction:
-    """
-    Context manager for database transactions with automatic commit/rollback.
-    Enhanced with retry logic for lock conflicts.
-    """
-    
     def __init__(self, autocommit=True, max_retries=MAX_RETRIES):
         self.autocommit = autocommit
         self.max_retries = max_retries
         self.conn = None
         self.cursor = None
         self._attempts = 0
-    
+
     def __enter__(self):
         self.conn = get_db()
         self.cursor = self.conn.cursor()
         return self.cursor
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.autocommit:
             if exc_type is None:
-                # Success - commit
                 try:
                     self.conn.commit()
                 except sqlite3.OperationalError as e:
-                    # Commit failed - rollback and re-raise
                     try:
                         self.conn.rollback()
                     except:
                         pass
                     raise
             else:
-                # Error - rollback
                 try:
                     self.conn.rollback()
                 except:
                     pass
         self.cursor = None
 
-
 def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True, operation_name=None):
-    """
-    Execute a query with automatic retry on database lock errors.
-    Uses exponential backoff with jitter.
-    """
     if operation_name is None:
         operation_name = query[:50] + ('...' if len(query) > 50 else '')
-    
     for attempt in range(max_retries):
         try:
             conn = get_db()
@@ -207,17 +145,13 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True, o
             if commit:
                 conn.commit()
             return cursor
-            
         except sqlite3.OperationalError as e:
             error_msg = str(e)
-            
             if is_retryable_error(error_msg):
                 if attempt < max_retries - 1:
                     delay = calculate_backoff(attempt)
-                    # Add small jitter to prevent thundering herd
                     jitter = (time.time() % 0.1) * 0.05
                     wait_time = delay + jitter
-                    
                     try:
                         current_app.logger.warning(
                             f"DB retry {attempt+1}/{max_retries} for {operation_name}: {error_msg} "
@@ -228,54 +162,38 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True, o
                             f"DB retry {attempt+1}/{max_retries} for {operation_name}: {error_msg} "
                             f"(waiting {wait_time:.3f}s)"
                         )
-                    
                     time.sleep(wait_time)
                     continue
                 raise
-            
-            # Non-retryable error
             try:
                 conn = get_db()
                 conn.rollback()
             except:
                 pass
             raise
-        
         except (sqlite3.IntegrityError, sqlite3.ProgrammingError) as e:
-            # These are permanent errors - don't retry
             try:
                 conn = get_db()
                 conn.rollback()
             except:
                 pass
             raise
-        
         except Exception as e:
-            # Unexpected error - rollback and raise
             try:
                 conn = get_db()
                 conn.rollback()
             except:
                 pass
             raise
-    
-    # If we get here, all retries failed
     raise sqlite3.OperationalError(
         f"Database operation failed after {max_retries} retries: {operation_name}"
     )
 
-
 def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES, operation_name=None):
-    """
-    Execute a query with multiple parameter sets in a single transaction.
-    Enhanced with retry logic.
-    """
     if not params_list:
         return None
-    
     if operation_name is None:
         operation_name = query[:50] + ('...' if len(query) > 50 else '')
-    
     for attempt in range(max_retries):
         try:
             conn = get_db()
@@ -283,16 +201,13 @@ def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES, operati
             cursor.executemany(query, params_list)
             conn.commit()
             return cursor
-            
         except sqlite3.OperationalError as e:
             error_msg = str(e)
-            
             if is_retryable_error(error_msg):
                 if attempt < max_retries - 1:
                     delay = calculate_backoff(attempt)
                     jitter = (time.time() % 0.1) * 0.05
                     wait_time = delay + jitter
-                    
                     try:
                         current_app.logger.warning(
                             f"DB retry {attempt+1}/{max_retries} for {operation_name}: {error_msg} "
@@ -303,18 +218,15 @@ def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES, operati
                             f"DB retry {attempt+1}/{max_retries} for {operation_name}: {error_msg} "
                             f"(waiting {wait_time:.3f}s)"
                         )
-                    
                     time.sleep(wait_time)
                     continue
                 raise
-            
             try:
                 conn = get_db()
                 conn.rollback()
             except:
                 pass
             raise
-        
         except Exception as e:
             try:
                 conn = get_db()
@@ -322,11 +234,9 @@ def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES, operati
             except:
                 pass
             raise
-    
     raise sqlite3.OperationalError(
         f"Database operation failed after {max_retries} retries: {operation_name}"
     )
-
 
 # ============================================
 # JSON HELPERS
@@ -338,14 +248,12 @@ def to_json(data):
 def from_json(data):
     return json.loads(data) if data else None
 
-
 # ============================================
 # TIME HELPERS
 # ============================================
 
 def now():
     return get_somali_time_db()
-
 
 # ============================================
 # PUBLIC ID GENERATION
@@ -360,7 +268,6 @@ def get_student_by_public_id(public_id: str):
     cursor = execute_with_retry("SELECT * FROM students WHERE public_id = ?", (public_id,))
     result = cursor.fetchone()
     return dict(result) if result else None
-
 
 # ============================================
 # STUDENT FUNCTIONS
@@ -381,7 +288,6 @@ def create_student(data: dict):
         public_id = generate_public_id()
         while get_student_by_public_id(public_id):
             public_id = generate_public_id()
-        
         cursor = execute_with_retry("""
             INSERT INTO students (
                 public_id, phone_number, password, first_name,
@@ -403,7 +309,6 @@ def create_student(data: dict):
             0,
             now()
         ), commit=True)
-        
         return get_student_by_phone(data['phone_number'])
     except Exception as e:
         try:
@@ -445,7 +350,6 @@ def toggle_admin(user_id: int):
         result = cursor.fetchone()
         if not result:
             return None
-        
         new_status = 0 if result['is_admin'] else 1
         execute_with_retry(
             "UPDATE students SET is_admin = ? WHERE id = ?",
@@ -488,7 +392,6 @@ def get_schools_by_location(location: str):
         except RuntimeError:
             logger.error(f"Error fetching schools: {e}")
         return []
-
 
 # ============================================
 # SUBJECT FUNCTIONS
@@ -555,7 +458,6 @@ def delete_subject(subject_id: int):
             logger.error(f"Error deleting subject: {e}")
         return False
 
-
 # ============================================
 # QUESTION FUNCTIONS
 # ============================================
@@ -570,7 +472,6 @@ def get_questions_by_subject(subject_id: int, limit: int = 10):
             LIMIT ?
         """, (subject_id, limit))
         results = cursor.fetchall()
-        
         questions = []
         for row in results:
             q = dict(row)
@@ -593,7 +494,6 @@ def get_all_questions():
             ORDER BY q.created_at DESC
         """)
         results = cursor.fetchall()
-        
         questions = []
         for row in results:
             q = dict(row)
@@ -640,29 +540,16 @@ def create_question(data: dict):
             logger.error(f"Error creating question: {e}")
         return False
 
-
 def bulk_create_questions(questions_data: list, admin_id: int):
-    """
-    Bulk import questions with transaction safety and progress reporting.
-    Uses pre-validation and batch inserts with rollback on error.
-    """
     imported_count = 0
     errors = []
     total = len(questions_data)
-    
     if total == 0:
         return {'imported': 0, 'errors': [], 'total': 0}
-    
     try:
-        # ============================================
-        # PHASE 1: PRE-VALIDATE ALL QUESTIONS
-        # ============================================
-        
         valid_questions = []
         validation_errors = []
-        
         for idx, q in enumerate(questions_data, 1):
-            # Validate required fields
             if not q.get('question_text', '').strip():
                 validation_errors.append({
                     'index': idx,
@@ -670,7 +557,6 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                     'error': 'Question text is required'
                 })
                 continue
-            
             if not q.get('options') or len(q['options']) < 3:
                 validation_errors.append({
                     'index': idx,
@@ -678,7 +564,6 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                     'error': 'Minimum 3 options required'
                 })
                 continue
-            
             if len(q['options']) > 6:
                 validation_errors.append({
                     'index': idx,
@@ -686,7 +571,6 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                     'error': 'Maximum 6 options allowed'
                 })
                 continue
-            
             if not q.get('correct_answer'):
                 validation_errors.append({
                     'index': idx,
@@ -694,10 +578,7 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                     'error': 'Correct answer is required'
                 })
                 continue
-            
             valid_questions.append(q)
-        
-        # If there are validation errors, return them without importing
         if validation_errors:
             return {
                 'imported': 0,
@@ -705,25 +586,15 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                 'total': total,
                 'validation_failed': True
             }
-        
-        # ============================================
-        # PHASE 2: BATCH INSERT WITH TRANSACTIONS
-        # ============================================
-        
         batch_size = BULK_INSERT_BATCH_SIZE
         total_valid = len(valid_questions)
-        
         for i in range(0, total_valid, batch_size):
             batch = valid_questions[i:i + batch_size]
             batch_start = i + 1
             batch_end = min(i + batch_size, total_valid)
-            
             try:
-                # Start a transaction for this batch
                 conn = get_db()
                 cursor = conn.cursor()
-                
-                # Prepare batch data
                 batch_params = []
                 for q in batch:
                     batch_params.append((
@@ -742,8 +613,6 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                         now(),
                         now()
                     ))
-                
-                # Execute batch insert
                 cursor.executemany("""
                     INSERT INTO questions (
                         subject_id, question_text, options, correct_answer,
@@ -751,11 +620,8 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                         created_by, updated_by, status, version, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, batch_params)
-                
-                # Commit the batch
                 conn.commit()
                 imported_count += len(batch)
-                
                 try:
                     current_app.logger.info(
                         f"Bulk import: Batch {batch_start}-{batch_end} of {total_valid} "
@@ -766,14 +632,11 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                         f"Bulk import: Batch {batch_start}-{batch_end} of {total_valid} "
                         f"completed ({imported_count}/{total_valid} total)"
                     )
-                
             except Exception as e:
-                # Rollback the failed batch
                 try:
                     get_db().rollback()
                 except:
                     pass
-                
                 error_msg = str(e)
                 try:
                     current_app.logger.error(
@@ -783,39 +646,30 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                     logger.error(
                         f"Bulk import batch {batch_start}-{batch_end} failed: {error_msg}"
                     )
-                
-                # Add batch errors
                 for idx, q in enumerate(batch, start=batch_start):
                     errors.append({
                         'index': idx,
                         'question': q.get('question_text', 'Unknown')[:50],
                         'error': f'Batch insert failed: {error_msg}'
                     })
-                
-                # Continue with next batch? 
-                # We continue to import as many as possible
                 continue
-        
         return {
             'imported': imported_count,
             'errors': errors,
             'total': total,
             'validation_failed': False
         }
-        
     except Exception as e:
         try:
             current_app.logger.error(f"Bulk import failed: {e}", exc_info=True)
         except RuntimeError:
             logger.error(f"Bulk import failed: {e}", exc_info=True)
-        
         return {
             'imported': imported_count,
             'errors': [{'error': str(e), 'question': 'Fatal error'}],
             'total': total,
             'validation_failed': True
         }
-
 
 def update_question(question_id: int, data: dict):
     try:
@@ -899,7 +753,6 @@ def check_question_exists(question_text: str, subject_id: int):
             logger.error(f"Error checking question: {e}")
         return False
 
-
 # ============================================
 # QUIZ ATTEMPT FUNCTIONS
 # ============================================
@@ -939,7 +792,6 @@ def get_user_quiz_history(student_id: int, limit: int = 10):
             LIMIT ?
         """, (student_id, limit))
         results = cursor.fetchall()
-        
         attempts = []
         for row in results:
             a = dict(row)
@@ -972,7 +824,6 @@ def get_leaderboard(limit: int = 20):
             logger.error(f"Error fetching leaderboard: {e}")
         return []
 
-
 # ============================================
 # DELETED USERS FUNCTIONS
 # ============================================
@@ -982,10 +833,8 @@ def delete_user(student_id: int, admin_id: int, keep_ratings: bool = True, delet
         user = get_student_by_id(student_id)
         if not user:
             return None, 'User not found'
-        
         if student_id == admin_id:
             return None, 'You cannot delete your own account'
-        
         execute_with_retry("""
             INSERT INTO deleted_users (
                 original_id, public_id, first_name, last_name,
@@ -1008,17 +857,12 @@ def delete_user(student_id: int, admin_id: int, keep_ratings: bool = True, delet
             to_json(user),
             now()
         ), commit=True)
-        
         if delete_attempts:
             execute_with_retry("DELETE FROM quiz_attempts WHERE student_id = ?", (student_id,), commit=True)
-        
         if not keep_ratings:
             execute_with_retry("DELETE FROM quiz_ratings WHERE student_id = ?", (student_id,), commit=True)
-        
         execute_with_retry("DELETE FROM students WHERE id = ?", (student_id,), commit=True)
-        
         return True, 'User deleted successfully'
-        
     except Exception as e:
         try:
             current_app.logger.error(f"Error deleting user: {e}")
@@ -1036,7 +880,6 @@ def get_deleted_users(limit: int = 50):
             LIMIT ?
         """, (limit,))
         results = cursor.fetchall()
-        
         deleted = []
         for row in results:
             d = dict(row)
@@ -1059,16 +902,12 @@ def restore_deleted_user(deleted_id: int):
     try:
         cursor = execute_with_retry("SELECT * FROM deleted_users WHERE id = ?", (deleted_id,))
         backup_row = cursor.fetchone()
-        
         if not backup_row:
             return False, 'Deleted user not found'
-        
         backup = dict(backup_row)
         user_data = from_json(backup['data'])
-        
         user_data.pop('id', None)
         user_data.pop('created_at', None)
-        
         execute_with_retry("""
             INSERT INTO students (
                 public_id, phone_number, password, first_name,
@@ -1090,18 +929,14 @@ def restore_deleted_user(deleted_id: int):
             user_data.get('is_admin', 0),
             user_data.get('created_at', now())
         ), commit=True)
-        
         execute_with_retry("DELETE FROM deleted_users WHERE id = ?", (deleted_id,), commit=True)
-        
         return True, 'User restored successfully'
-        
     except Exception as e:
         try:
             current_app.logger.error(f"Error restoring user: {e}")
         except RuntimeError:
             logger.error(f"Error restoring user: {e}")
         return False, str(e)
-
 
 # ============================================
 # GROUP FUNCTIONS
@@ -1193,7 +1028,6 @@ def get_group_by_id(group_id: int):
         except RuntimeError:
             logger.error(f"Error fetching group: {e}")
         return None
-
 
 # ============================================
 # PDF FUNCTIONS
@@ -1303,22 +1137,17 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
     try:
         query = "SELECT * FROM pdfs WHERE 1=1"
         params = []
-        
         if search:
             query += " AND (title LIKE ? OR description LIKE ?)"
             search_pattern = f"%{search}%"
             params.extend([search_pattern, search_pattern])
-        
         if subject:
             query += " AND subject = ?"
             params.append(subject)
-        
         if grade:
             query += " AND grade = ?"
             params.append(grade)
-        
         query += " ORDER BY created_at DESC"
-        
         cursor = execute_with_retry(query, params)
         results = cursor.fetchall()
         return [dict(row) for row in results]
@@ -1329,19 +1158,11 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
             logger.error(f"Error searching PDFs: {e}")
         return []
 
-
 # ============================================
-# LIVE QUIZ FUNCTIONS
+# LIVE QUIZ FUNCTIONS (UPDATED WITH SCHEDULED SUPPORT)
 # ============================================
 
 def create_live_quiz(data: dict):
-    """
-    Create a new live quiz.
-    Expects keys: creator_id, subject_id, question_count, join_code,
-                  question_ids, status, max_participants, time_per_question,
-                  current_question_index, title (optional),
-                  scheduled_start (optional), is_public (optional)
-    """
     try:
         cursor = execute_with_retry("""
             INSERT INTO live_quizzes (
@@ -1362,11 +1183,10 @@ def create_live_quiz(data: dict):
             to_json(data.get('question_ids', [])),
             data.get('started_at'),
             data.get('ended_at'),
-            data.get('scheduled_start'),  # <-- new field
-            data.get('is_public', 1),     # <-- new field
+            data.get('scheduled_start'),
+            data.get('is_public', 1),
             now()
         ), commit=True)
-
         cursor = execute_with_retry(
             "SELECT * FROM live_quizzes WHERE join_code = ?", 
             (data['join_code'],)
@@ -1438,18 +1258,16 @@ def update_live_quiz(quiz_id: int, data: dict):
     try:
         fields = []
         params = []
-        
         for key, value in data.items():
             if key == 'question_ids':
                 fields.append(f"{key} = ?")
                 params.append(to_json(value))
-            elif key in ['started_at', 'ended_at']:
+            elif key in ['started_at', 'ended_at', 'scheduled_start']:
                 fields.append(f"{key} = ?")
                 params.append(value)
             else:
                 fields.append(f"{key} = ?")
                 params.append(value)
-        
         params.append(quiz_id)
         query = f"UPDATE live_quizzes SET {', '.join(fields)} WHERE id = ?"
         execute_with_retry(query, params, commit=True)
@@ -1471,7 +1289,6 @@ def get_live_quiz_participants(quiz_id: int):
             ORDER BY lqp.joined_at
         """, (quiz_id,))
         results = cursor.fetchall()
-        
         participants = []
         for row in results:
             p = dict(row)
@@ -1545,7 +1362,6 @@ def update_live_quiz_participant(participant_id: int, data: dict):
     try:
         fields = []
         params = []
-        
         for key, value in data.items():
             if key in ['answers', 'ratings']:
                 fields.append(f"{key} = ?")
@@ -1553,7 +1369,6 @@ def update_live_quiz_participant(participant_id: int, data: dict):
             else:
                 fields.append(f"{key} = ?")
                 params.append(value)
-        
         params.append(participant_id)
         query = f"UPDATE live_quiz_participants SET {', '.join(fields)} WHERE id = ?"
         execute_with_retry(query, params, commit=True)
@@ -1593,10 +1408,11 @@ def get_live_quiz_participants_with_names(quiz_id: int):
         return []
 
 def get_active_live_quiz(join_code: str):
+    """Get a quiz by join code if it is waiting or scheduled."""
     try:
         cursor = execute_with_retry("""
             SELECT * FROM live_quizzes
-            WHERE join_code = ? AND status = 'waiting'
+            WHERE join_code = ? AND status IN ('waiting', 'scheduled')
         """, (join_code,))
         result = cursor.fetchone()
         if result:
@@ -1669,7 +1485,6 @@ def get_questions_by_ids(question_ids: list):
             WHERE id IN ({placeholders})
         """, question_ids)
         results = cursor.fetchall()
-        
         questions = []
         for row in results:
             q = dict(row)
@@ -1691,14 +1506,12 @@ def update_participant_rankings(quiz_id: int):
             ORDER BY score DESC
         """, (quiz_id,))
         results = cursor.fetchall()
-        
         for i, row in enumerate(results, 1):
             execute_with_retry(
                 "UPDATE live_quiz_participants SET ranking = ? WHERE id = ?",
                 (i, row['id']),
                 commit=True
             )
-        
         return True
     except Exception as e:
         try:
@@ -1738,22 +1551,17 @@ def search_groups(search: str = '', platform: str = '', category: str = ''):
     try:
         query = "SELECT * FROM groups WHERE is_active = 1"
         params = []
-        
         if search:
             query += " AND (name LIKE ? OR description LIKE ?)"
             search_pattern = f"%{search}%"
             params.extend([search_pattern, search_pattern])
-        
         if platform:
             query += " AND platform = ?"
             params.append(platform)
-        
         if category:
             query += " AND category = ?"
             params.append(category)
-        
         query += " ORDER BY created_at DESC"
-        
         cursor = execute_with_retry(query, params)
         results = cursor.fetchall()
         return [dict(row) for row in results]
@@ -1763,7 +1571,6 @@ def search_groups(search: str = '', platform: str = '', category: str = ''):
         except RuntimeError:
             logger.error(f"Error searching groups: {e}")
         return []
-
 
 # ============================================
 # NOTIFICATION FUNCTIONS
@@ -1792,10 +1599,8 @@ def create_notification_for_all_users(type, title, body, link='', icon=''):
     try:
         cursor = execute_with_retry("SELECT id FROM students")
         users = cursor.fetchall()
-        
         for user in users:
             create_notification(user['id'], type, title, body, link, icon)
-        
         return True
     except Exception as e:
         try:
@@ -1811,13 +1616,10 @@ def get_user_notifications(user_id, limit=20, unread_only=False):
             WHERE user_id = ?
         """
         params = [user_id]
-        
         if unread_only:
             query += " AND is_read = 0"
-        
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
-        
         cursor = execute_with_retry(query, params)
         results = cursor.fetchall()
         return [dict(row) for row in results]
@@ -1873,7 +1675,6 @@ def mark_all_notifications_read(user_id):
             logger.error(f"Error marking all notifications read: {e}")
         return False
 
-
 # ============================================
 # NOTIFICATION TRIGGERS
 # ============================================
@@ -1925,25 +1726,20 @@ def notify_participant_joined(quiz_id, title, participant_name, creator_id):
         icon='👤'
     )
 
-
 # ============================================
 # DATABASE INITIALIZATION
 # ============================================
 
 def init_db():
-    """Initialize the database with schema from schema.sql."""
     try:
-        # Ensure directory exists
         db_dir = os.path.dirname(DB_PATH)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
-        
         conn = sqlite3.connect(DB_PATH)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA wal_autocheckpoint = 1000")
         conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
-        
         schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
         if os.path.exists(schema_path):
             with open(schema_path, 'r') as f:
@@ -1951,20 +1747,16 @@ def init_db():
             conn.executescript(schema)
             conn.commit()
             logger.info("Database initialized successfully")
-            
             _create_optimization_indexes(conn)
         else:
             logger.warning(f"Schema file not found: {schema_path}")
-        
         conn.close()
         return True
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
         return False
 
-
 def _create_optimization_indexes(conn):
-    """Create additional indexes for performance optimization."""
     indexes = [
         "CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC)",
         "CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read)",
@@ -1972,36 +1764,33 @@ def _create_optimization_indexes(conn):
         "CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_id, status)",
     ]
-    
     for idx in indexes:
         try:
             conn.execute(idx)
         except Exception as e:
             logger.warning(f"Error creating index {idx}: {e}")
-    
     conn.commit()
 
-
 def close_db_connections():
-    """Legacy function for compatibility."""
-    db = g.pop('db', None)
-    if db is not None:
-        try:
-            db.close()
-        except Exception:
-            pass
-
+    try:
+        from flask import has_app_context, g
+        if has_app_context() and hasattr(g, 'db'):
+            db = g.pop('db', None)
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
 def ensure_wal_mode():
-    """Ensure the database is in WAL mode."""
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA wal_autocheckpoint = 1000")
         conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
-        
         _create_optimization_indexes(conn)
-        
         conn.close()
         logger.info("WAL mode enabled successfully")
         return True
@@ -2009,12 +1798,7 @@ def ensure_wal_mode():
         logger.error(f"Error enabling WAL mode: {e}")
         return False
 
-
 def check_database_integrity():
-    """
-    Check database integrity.
-    Returns (is_healthy, error_message)
-    """
     try:
         conn = sqlite3.connect(DB_PATH, timeout=5)
         cursor = conn.cursor()
@@ -2027,9 +1811,8 @@ def check_database_integrity():
     except Exception as e:
         return False, str(e)
 
-
 # ============================================
-# LIVE QUIZ LOBBY FUNCTIONS
+# LIVE QUIZ LOBBY FUNCTIONS (UPDATED)
 # ============================================
 
 def get_live_quizzes_lobby(
@@ -2040,12 +1823,8 @@ def get_live_quizzes_lobby(
     page: int = 1,
     per_page: int = 20
 ) -> tuple:
-    """
-    Get all public live quizzes for the lobby.
-    Returns: (quizzes, total_count)
-    """
+    """Get all public live quizzes for the lobby, including scheduled."""
     try:
-        # Build the query
         query = """
             SELECT 
                 lq.id,
@@ -2061,6 +1840,7 @@ def get_live_quizzes_lobby(
                 lq.join_code,
                 lq.creator_id,
                 lq.is_public,
+                lq.scheduled_start,
                 s.name as subject_name,
                 s.icon as subject_icon,
                 COUNT(DISTINCT lqp.id) as participant_count,
@@ -2088,16 +1868,15 @@ def get_live_quizzes_lobby(
         params = [user_id or 0, user_id or 0, user_id or 0]
         count_params = []
 
-        # Apply filters
-        if status_filter and status_filter in ['waiting', 'active', 'finished']:
+        if status_filter and status_filter in ['scheduled', 'waiting', 'active', 'finished']:
             query += " AND lq.status = ?"
             count_query += " AND lq.status = ?"
             params.append(status_filter)
             count_params.append(status_filter)
         else:
-            # Show all statuses
-            query += " AND lq.status IN ('waiting', 'active', 'finished')"
-            count_query += " AND lq.status IN ('waiting', 'active', 'finished')"
+            # Show all statuses including scheduled
+            query += " AND lq.status IN ('scheduled', 'waiting', 'active', 'finished')"
+            count_query += " AND lq.status IN ('scheduled', 'waiting', 'active', 'finished')"
 
         if subject_filter:
             query += " AND lq.subject_id = ?"
@@ -2112,11 +1891,11 @@ def get_live_quizzes_lobby(
             params.extend([search_pattern, search_pattern, search_pattern])
             count_params.append(search_pattern)
 
-        # Group and order
         query += """
             GROUP BY lq.id
             ORDER BY 
                 CASE lq.status 
+                    WHEN 'scheduled' THEN 0 
                     WHEN 'waiting' THEN 1 
                     WHEN 'active' THEN 2 
                     WHEN 'finished' THEN 3 
@@ -2126,11 +1905,9 @@ def get_live_quizzes_lobby(
         """
         params.extend([per_page, (page - 1) * per_page])
 
-        # Execute main query
         cursor = execute_with_retry(query, params)
         results = cursor.fetchall()
 
-        # Get total count
         count_cursor = execute_with_retry(count_query, count_params)
         count_result = count_cursor.fetchone()
         total = count_result['total'] if count_result else 0
@@ -2138,11 +1915,18 @@ def get_live_quizzes_lobby(
         quizzes = []
         for row in results:
             quiz = dict(row)
-            # Calculate remaining time for active quizzes
-            if quiz['status'] == 'active' and quiz['started_at']:
+            # Calculate remaining time for scheduled/active quizzes
+            if quiz['status'] == 'scheduled' and quiz.get('scheduled_start'):
                 try:
-                    from datetime import datetime, timezone
-                    total_duration = quiz['question_count'] * (quiz['time_per_question'] + 10)  # +10 for rating
+                    start_dt = datetime.fromisoformat(quiz['scheduled_start'].replace('Z', '+00:00'))
+                    now = datetime.now(timezone.utc)
+                    diff = (start_dt - now).total_seconds()
+                    quiz['starts_in_seconds'] = max(0, int(diff))
+                except Exception:
+                    quiz['starts_in_seconds'] = 0
+            elif quiz['status'] == 'active' and quiz.get('started_at'):
+                try:
+                    total_duration = quiz['question_count'] * (quiz['time_per_question'] + 10)
                     if isinstance(quiz['started_at'], str):
                         started = datetime.fromisoformat(quiz['started_at'].replace('Z', '+00:00'))
                     else:
@@ -2166,48 +1950,8 @@ def get_live_quizzes_lobby(
             logger.error(f"Error fetching lobby quizzes: {e}")
         return [], 0
 
-
-def get_live_quiz_stats() -> dict:
-    """Get stats for the lobby."""
-    try:
-        cursor = execute_with_retry("""
-            SELECT 
-                COUNT(CASE WHEN status = 'waiting' AND is_public = 1 THEN 1 END) as waiting_count,
-                COUNT(CASE WHEN status = 'active' AND is_public = 1 THEN 1 END) as active_count,
-                COUNT(CASE WHEN status = 'finished' AND is_public = 1 THEN 1 END) as finished_count,
-                COUNT(CASE WHEN is_public = 1 THEN 1 END) as total_public,
-                (SELECT COUNT(DISTINCT student_id) FROM live_quiz_participants 
-                 WHERE quiz_id IN (SELECT id FROM live_quizzes WHERE is_public = 1)) as total_participants
-            FROM live_quizzes
-            WHERE is_public = 1
-        """)
-        result = cursor.fetchone()
-        return dict(result) if result else {
-            'waiting_count': 0,
-            'active_count': 0,
-            'finished_count': 0,
-            'total_public': 0,
-            'total_participants': 0
-        }
-    except Exception as e:
-        try:
-            current_app.logger.error(f"Error getting live quiz stats: {e}")
-        except RuntimeError:
-            logger.error(f"Error getting live quiz stats: {e}")
-        return {
-            'waiting_count': 0,
-            'active_count': 0,
-            'finished_count': 0,
-            'total_public': 0,
-            'total_participants': 0
-        }
-
-
 def can_join_live_quiz(quiz_id: int, user_id: int) -> tuple:
-    """
-    Check if a user can join a quiz.
-    Returns: (can_join, reason)
-    """
+    """Check if a user can join a quiz (including scheduled)."""
     try:
         quiz = get_live_quiz_by_id(quiz_id)
         if not quiz:
@@ -2216,7 +1960,7 @@ def can_join_live_quiz(quiz_id: int, user_id: int) -> tuple:
         if not quiz.get('is_public', 1):
             return False, "This quiz is private"
 
-        if quiz['status'] != 'waiting':
+        if quiz['status'] not in ('waiting', 'scheduled'):
             return False, "This quiz is not open for joining"
 
         participant = get_live_quiz_participant(quiz_id, user_id)
@@ -2230,76 +1974,101 @@ def can_join_live_quiz(quiz_id: int, user_id: int) -> tuple:
         return True, "OK"
 
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error checking join: {e}")
-        except RuntimeError:
-            logger.error(f"Error checking join: {e}")
+        logger.error(f"Error checking join: {e}")
         return False, str(e)
 
-
-def get_all_subjects():
-    """Get all subjects - already exists in db.py, but adding for completeness."""
+def get_live_quiz_stats() -> dict:
+    """Get stats for the lobby, including scheduled."""
     try:
-        cursor = execute_with_retry("SELECT * FROM subjects ORDER BY name")
-        results = cursor.fetchall()
-        return [dict(row) for row in results]
+        cursor = execute_with_retry("""
+            SELECT 
+                COUNT(CASE WHEN status = 'scheduled' AND is_public = 1 THEN 1 END) as scheduled_count,
+                COUNT(CASE WHEN status = 'waiting' AND is_public = 1 THEN 1 END) as waiting_count,
+                COUNT(CASE WHEN status = 'active' AND is_public = 1 THEN 1 END) as active_count,
+                COUNT(CASE WHEN status = 'finished' AND is_public = 1 THEN 1 END) as finished_count,
+                COUNT(CASE WHEN is_public = 1 THEN 1 END) as total_public,
+                (SELECT COUNT(DISTINCT student_id) FROM live_quiz_participants 
+                 WHERE quiz_id IN (SELECT id FROM live_quizzes WHERE is_public = 1)) as total_participants
+            FROM live_quizzes
+            WHERE is_public = 1
+        """)
+        result = cursor.fetchone()
+        return dict(result) if result else {
+            'scheduled_count': 0,
+            'waiting_count': 0,
+            'active_count': 0,
+            'finished_count': 0,
+            'total_public': 0,
+            'total_participants': 0
+        }
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching subjects: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching subjects: {e}")
-        return []
-
+        logger.error(f"Error getting live quiz stats: {e}")
+        return {
+            'scheduled_count': 0,
+            'waiting_count': 0,
+            'active_count': 0,
+            'finished_count': 0,
+            'total_public': 0,
+            'total_participants': 0
+        }
 
 # ============================================
-# LIVE QUIZ LEAVE/REJOIN FUNCTIONS
+# DELETE LIVE QUIZ
+# ============================================
+
+def delete_live_quiz(quiz_id: int) -> bool:
+    try:
+        execute_with_retry("DELETE FROM live_quiz_participants WHERE quiz_id = ?", (quiz_id,), commit=True)
+        execute_with_retry("DELETE FROM live_quizzes WHERE id = ?", (quiz_id,), commit=True)
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting live quiz {quiz_id}: {e}")
+        return False
+
+def get_user_active_quiz(user_id: int) -> Optional[int]:
+    try:
+        cursor = execute_with_retry("""
+            SELECT lqp.quiz_id
+            FROM live_quiz_participants lqp
+            JOIN live_quizzes lq ON lqp.quiz_id = lq.id
+            WHERE lqp.student_id = ?
+              AND lqp.status != 'left'
+              AND lq.status IN ('waiting', 'scheduled', 'active')
+            LIMIT 1
+        """, (user_id,))
+        result = cursor.fetchone()
+        return result['quiz_id'] if result else None
+    except Exception as e:
+        logger.error(f"Error getting user active quiz: {e}")
+        return None
+
+# ============================================
+# LEAVE/REJOIN
 # ============================================
 
 def leave_live_quiz(quiz_id: int, student_id: int) -> bool:
-    """
-    Mark a participant as 'left' in a live quiz.
-    Only allowed if quiz is waiting or active.
-    """
     try:
-        # Check if quiz is already finished
         quiz = get_live_quiz_by_id(quiz_id)
         if not quiz or quiz['status'] == 'finished':
             return False
-        
-        # Update status to 'left'
         execute_with_retry("""
             UPDATE live_quiz_participants 
             SET status = 'left' 
             WHERE quiz_id = ? AND student_id = ?
         """, (quiz_id, student_id), commit=True)
-        
-        # Update cache
-        from quiz_cache import get_quiz_cache
-        cache = get_quiz_cache()
-        cache.update_participant(quiz_id, student_id, {'status': 'left'})
-        
         return True
     except Exception as e:
         logger.error(f"Error leaving quiz: {e}")
         return False
 
-
 def rejoin_live_quiz(quiz_id: int, student_id: int) -> bool:
-    """
-    Reactivate a participant who previously left.
-    Only allowed if quiz is waiting.
-    """
     try:
         quiz = get_live_quiz_by_id(quiz_id)
-        if not quiz or quiz['status'] != 'waiting':
+        if not quiz or quiz['status'] not in ('waiting', 'scheduled'):
             return False
-        
-        # Check if participant exists with status 'left'
         participant = get_live_quiz_participant(quiz_id, student_id)
         if not participant or participant['status'] != 'left':
             return False
-        
-        # Reset progress and set status to 'active'
         execute_with_retry("""
             UPDATE live_quiz_participants 
             SET status = 'active',
@@ -2312,29 +2081,12 @@ def rejoin_live_quiz(quiz_id: int, student_id: int) -> bool:
                 ratings = '{}'
             WHERE quiz_id = ? AND student_id = ?
         """, (quiz_id, student_id), commit=True)
-        
-        # Update cache
-        from quiz_cache import get_quiz_cache
-        cache = get_quiz_cache()
-        cache.update_participant(quiz_id, student_id, {
-            'status': 'active',
-            'score': 0,
-            'current_question_index': 0,
-            'correct_count': 0,
-            'wrong_count': 0,
-            'skipped_count': 0,
-            'answers': {},
-            'ratings': {}
-        })
-        
         return True
     except Exception as e:
         logger.error(f"Error rejoining quiz: {e}")
         return False
 
-
 def get_active_participants(quiz_id: int) -> list:
-    """Get only active participants (status = 'active' or 'completed')."""
     try:
         cursor = execute_with_retry("""
             SELECT lqp.*, s.first_name, s.last_name, s.public_id
@@ -2349,155 +2101,6 @@ def get_active_participants(quiz_id: int) -> list:
         logger.error(f"Error getting active participants: {e}")
         return []
 
-# ============================================
-# DELETE LIVE QUIZ FUNCTION
-# ============================================
-
-def delete_live_quiz(quiz_id: int) -> bool:
-    """Delete a live quiz and all its participants."""
-    try:
-        # Delete participants first (cascade will handle, but explicit for safety)
-        execute_with_retry("DELETE FROM live_quiz_participants WHERE quiz_id = ?", (quiz_id,), commit=True)
-        execute_with_retry("DELETE FROM live_quizzes WHERE id = ?", (quiz_id,), commit=True)
-        return True
-    except Exception as e:
-        logger.error(f"Error deleting live quiz {quiz_id}: {e}")
-        return False
-
-def get_user_active_quiz(user_id: int) -> Optional[int]:
-    """
-    Get the ID of any waiting/active quiz the user is currently participating in.
-    Returns quiz_id or None if not in any quiz.
-    """
-    try:
-        cursor = execute_with_retry("""
-            SELECT lqp.quiz_id
-            FROM live_quiz_participants lqp
-            JOIN live_quizzes lq ON lqp.quiz_id = lq.id
-            WHERE lqp.student_id = ?
-              AND lqp.status != 'left'
-              AND lq.status IN ('waiting', 'active')
-            LIMIT 1
-        """, (user_id,))
-        result = cursor.fetchone()
-        return result['quiz_id'] if result else None
-    except Exception as e:
-        logger.error(f"Error getting user active quiz: {e}")
-        return None
-
-# ============================================
-# DASHBOARD ANALYTICS FUNCTIONS
-# ============================================
-
-def get_user_subject_performance(student_id: int):
-    """
-    Get average score per subject for a student.
-    Returns list of dicts with subject_name, avg_score (0-100), attempt_count.
-    """
-    try:
-        cursor = execute_with_retry("""
-            SELECT 
-                s.name as subject_name,
-                AVG((qa.score * 1.0 / qa.total_questions) * 100) as avg_score,
-                COUNT(qa.id) as attempt_count
-            FROM quiz_attempts qa
-            JOIN subjects s ON qa.subject_id = s.id
-            WHERE qa.student_id = ?
-            GROUP BY qa.subject_id
-            ORDER BY avg_score DESC
-        """, (student_id,))
-        results = cursor.fetchall()
-        return [dict(row) for row in results]
-    except Exception as e:
-        logger.error(f"Error fetching subject performance: {e}")
-        return []
-
-def get_user_recent_scores(student_id: int, limit: int = 10):
-    """
-    Get recent quiz scores for charting.
-    Returns list of dicts with score, total_questions, completed_at.
-    """
-    try:
-        cursor = execute_with_retry("""
-            SELECT score, total_questions, completed_at
-            FROM quiz_attempts
-            WHERE student_id = ?
-            ORDER BY completed_at DESC
-            LIMIT ?
-        """, (student_id, limit))
-        results = cursor.fetchall()
-        # Return in chronological order (oldest first for chart)
-        return [dict(row) for row in reversed(results)]
-    except Exception as e:
-        logger.error(f"Error fetching recent scores: {e}")
-        return []
-
-def get_total_correct_answers(student_id: int) -> int:
-    """
-    Get total correct answers across all quiz attempts.
-    """
-    try:
-        cursor = execute_with_retry("""
-            SELECT SUM(score) as total_correct
-            FROM quiz_attempts
-            WHERE student_id = ?
-        """, (student_id,))
-        result = cursor.fetchone()
-        return result['total_correct'] if result and result['total_correct'] else 0
-    except Exception as e:
-        logger.error(f"Error fetching total correct: {e}")
-        return 0
-
-def get_distinct_subjects_attempted(student_id: int) -> int:
-    """
-    Get number of unique subjects the user has attempted.
-    """
-    try:
-        cursor = execute_with_retry("""
-            SELECT COUNT(DISTINCT subject_id) as count
-            FROM quiz_attempts
-            WHERE student_id = ?
-        """, (student_id,))
-        result = cursor.fetchone()
-        return result['count'] if result else 0
-    except Exception as e:
-        logger.error(f"Error fetching distinct subjects: {e}")
-        return 0
-
-# ============================================
-# LIVE QUIZ SCHEDULING (NEW)
-# ============================================
-
-def get_scheduled_quizzes():
-    """Get all waiting/scheduled quizzes for the lobby."""
-    try:
-        cursor = execute_with_retry("""
-            SELECT * FROM live_quizzes 
-            WHERE status IN ('waiting', 'scheduled') 
-            ORDER BY scheduled_start ASC, created_at DESC
-        """)
-        results = cursor.fetchall()
-        return [dict(row) for row in results]
-    except Exception as e:
-        logger.error(f"Error fetching scheduled quizzes: {e}")
-        return []
-
-
-
-
-def transition_scheduled_quiz(quiz_id: int):
-    """Move a quiz from 'scheduled' to 'waiting' if start time has passed."""
-    try:
-        cursor = execute_with_retry("""
-            UPDATE live_quizzes 
-            SET status = 'waiting' 
-            WHERE id = ? AND status = 'scheduled' AND datetime(scheduled_start) <= datetime('now')
-        """, (quiz_id,), commit=True)
-        return True
-    except Exception as e:
-        logger.error(f"Error transitioning scheduled quiz: {e}")
-        return False
-        
 # ============================================
 # READY STATUS
 # ============================================
@@ -2524,4 +2127,4 @@ def get_participant_ready(quiz_id: int, student_id: int) -> bool:
         return bool(result['is_ready']) if result else False
     except Exception as e:
         logger.error(f"Error getting participant ready: {e}")
-        return False     
+        return False

@@ -12,6 +12,7 @@ import time
 import csv
 from io import StringIO
 import threading
+import logging
 
 from db import (
     get_all_subjects,
@@ -46,12 +47,11 @@ from db import (
     update_live_quiz,
     add_live_quiz_participant,
     update_live_quiz_participant,
-    # ADDED: import ready functions
     update_participant_ready,
 )
 
 from config import Config
-from utils import get_somali_time_db, get_somali_time_display
+from utils import get_somali_time_db, get_somali_time_display, format_somali_time
 
 from cache import get_cache_manager, InvalidationHelper, make_key
 from cache.worker import STREAM_KEY as CACHE_STREAM_KEY
@@ -160,7 +160,6 @@ def update_participant_async(quiz_id: int, user_id: int, updates: dict):
         try:
             redis_client.xadd(CACHE_STREAM_KEY, {'data': json.dumps({'quiz_id': quiz_id, 'user_id': user_id, 'updates': updates, 'timestamp': time.time()})})
         except Exception as e:
-            import logging
             logging.getLogger(__name__).error(f"Failed to push update to queue: {e}")
     else:
         try:
@@ -168,7 +167,6 @@ def update_participant_async(quiz_id: int, user_id: int, updates: dict):
             if participant:
                 update_live_quiz_participant(participant['id'], updates)
         except Exception as e:
-            import logging
             logging.getLogger(__name__).error(f"Direct DB update failed: {e}")
 
 def get_participant_safe(quiz_id: int, user_id: int):
@@ -288,7 +286,6 @@ def finalize_live_quiz(quiz_id: int) -> dict:
         notify_live_quiz_results(quiz_id, quiz.get('title', 'Live Quiz'), sorted_parts)
         return {'success': True, 'message': 'Quiz finalized', 'participants': sorted_parts}
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"Error finalizing quiz {quiz_id}: {e}")
         return {'success': False, 'message': str(e)}
 
@@ -299,7 +296,6 @@ def start_cache_cleanup():
                 cache = get_cache()
                 time.sleep(300)
             except Exception as e:
-                import logging
                 logging.getLogger(__name__).error(f"Cache cleanup error: {e}")
                 time.sleep(60)
     thread = threading.Thread(target=cleanup_loop, daemon=True)
@@ -307,6 +303,21 @@ def start_cache_cleanup():
     return thread
 
 _cleanup_thread = start_cache_cleanup()
+
+# ============================================
+# TEMPLATE FILTER FOR SOMALI TIME
+# ============================================
+
+@live_quiz_bp.app_template_filter('format_somali_time')
+def format_somali_time_filter(dt_str):
+    """Convert ISO datetime string to Somali time format."""
+    if not dt_str:
+        return ''
+    try:
+        dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        return format_somali_time(dt)
+    except Exception:
+        return dt_str
 
 # ============================================
 # ROUTES
@@ -427,7 +438,7 @@ def create():
         question_count = int(request.form.get('question_count', 10))
         title = request.form.get('title', '').strip()
         is_public = int(request.form.get('is_public', 1))
-        schedule_minutes = int(request.form.get('schedule_minutes', 0))  # NEW
+        schedule_minutes = int(request.form.get('schedule_minutes', 0))
 
         if not subject_id:
             flash('Please select a subject.', 'error')
@@ -626,12 +637,14 @@ def waiting_room(quiz_id):
 
     scheduled_start = quiz.get('scheduled_start')
     starts_in_seconds = None
+    scheduled_start_display = None
     if scheduled_start and quiz['status'] == 'scheduled':
         try:
             start_dt = datetime.fromisoformat(scheduled_start.replace('Z', '+00:00'))
             now = datetime.now(timezone.utc)
             diff = (start_dt - now).total_seconds()
             starts_in_seconds = max(0, int(diff))
+            scheduled_start_display = format_somali_time(start_dt)
         except Exception:
             pass
 
@@ -641,7 +654,8 @@ def waiting_room(quiz_id):
                          participant_count=active_participant_count,
                          active_participant_count=active_participant_count,
                          user_participant_status=user_participant_status,
-                         starts_in_seconds=starts_in_seconds)
+                         starts_in_seconds=starts_in_seconds,
+                         scheduled_start_display=scheduled_start_display)
 
 @live_quiz_bp.route('/waiting-room/participants/<quiz_id>')
 def waiting_room_participants(quiz_id):
@@ -661,13 +675,9 @@ def waiting_room_participants(quiz_id):
             'public_id': student.get('public_id', '----'),
             'status': p.get('status', 'active'),
             'is_creator': p['student_id'] == quiz['creator_id'],
-            'is_ready': bool(p.get('is_ready', 0))   # <-- ADDED
+            'is_ready': bool(p.get('is_ready', 0))
         })
     return jsonify({'participants': formatted, 'count': len(formatted)})
-
-# ============================================
-# TOGGLE READY STATUS – ADDED
-# ============================================
 
 @live_quiz_bp.route('/toggle-ready/<quiz_id>', methods=['POST'])
 def toggle_ready(quiz_id):
@@ -686,10 +696,6 @@ def toggle_ready(quiz_id):
         invalidate_quiz_cache(quiz_id)
         return jsonify({'success': True, 'is_ready': is_ready})
     return jsonify({'error': 'Failed to update ready status'}), 500
-
-# ============================================
-# START QUIZ
-# ============================================
 
 @live_quiz_bp.route('/start/<quiz_id>', methods=['POST'])
 def start_quiz(quiz_id):
@@ -747,7 +753,13 @@ def quiz_state(quiz_id):
                 diff = (start_dt - now).total_seconds()
                 starts_in_seconds = max(0, int(diff))
                 if starts_in_seconds <= 0:
-                    # Auto-start the quiz
+                    # Check if at least 2 participants are active
+                    all_participants = get_live_quiz_participants(quiz_id)
+                    active_participants = [p for p in all_participants if p.get('status') != 'left']
+                    if len(active_participants) < 2:
+                        # Not enough participants – keep scheduled, don't auto-start
+                        return jsonify({'status': 'scheduled', 'starts_in_seconds': 0, 'message': 'Waiting for more participants'})
+                    # Auto-start
                     update_live_quiz(quiz_id, {'status': 'active', 'started_at': get_somali_time_db(), 'scheduled_start': None})
                     cache = get_cache()
                     quiz['status'] = 'active'
@@ -765,7 +777,6 @@ def quiz_state(quiz_id):
                 else:
                     return jsonify({'status': 'scheduled', 'starts_in_seconds': starts_in_seconds})
             except Exception as e:
-                import logging
                 logging.getLogger(__name__).error(f"Schedule transition error: {e}")
 
         # --- NORMAL STATE LOGIC ---
@@ -881,7 +892,6 @@ def quiz_state(quiz_id):
         return jsonify(response)
 
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"Error in quiz_state: {e}", exc_info=True)
         return jsonify({'error': 'Server error loading quiz state', 'abort': True, 'redirect': url_for('live_quiz.lobby'), 'message': 'An error occurred loading the quiz'}), 500
 
@@ -933,7 +943,6 @@ def get_question(quiz_id):
             return jsonify({'skipped': True})
         return jsonify({'question': question, 'index': current_index, 'total': total_questions, 'already_answered': False})
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"Error in get_question: {e}", exc_info=True)
         return jsonify({'error': 'Server error loading question', 'abort': True, 'redirect': url_for('live_quiz.lobby'), 'message': 'An error occurred loading the question'}), 500
 
@@ -970,7 +979,6 @@ def submit_answer():
         update_participant_async(quiz_id, user_id, updates)
         return jsonify({'correct': is_correct, 'correct_answer': question['correct_answer'], 'explanation': question.get('explanation', '')})
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"Error in submit_answer: {e}", exc_info=True)
         return jsonify({'error': 'Failed to submit answer'}), 500
 
@@ -999,7 +1007,6 @@ def skip_question():
         update_participant_async(quiz_id, user_id, updates)
         return jsonify({'success': True})
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"Error in skip_question: {e}", exc_info=True)
         return jsonify({'error': 'Failed to skip question'}), 500
 
@@ -1033,7 +1040,6 @@ def submit_rating():
         else:
             return jsonify({'success': True, 'completed': False})
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"Error in submit_rating: {e}", exc_info=True)
         return jsonify({'error': 'Failed to submit rating'}), 500
 
@@ -1051,7 +1057,6 @@ def get_leaderboard(quiz_id):
                 break
         return jsonify({'leaderboard': leaderboard, 'user_rank': user_rank})
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"Error in leaderboard: {e}", exc_info=True)
         return jsonify({'error': 'Failed to load leaderboard'}), 500
 

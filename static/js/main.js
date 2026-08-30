@@ -112,24 +112,6 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // ============================================
-    // SIDEBAR TOGGLE (Mobile) - used in dashboard
-    // ============================================
-    const menuToggle = document.getElementById('menuToggle');
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('sidebarOverlay');
-
-    if (menuToggle && sidebar && overlay) {
-        function toggleSidebar() {
-            sidebar.classList.toggle('open');
-            overlay.classList.toggle('open');
-            document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
-        }
-
-        menuToggle.addEventListener('click', toggleSidebar);
-        overlay.addEventListener('click', toggleSidebar);
-    }
-
-    // ============================================
     // NOTIFICATION DROPDOWN TOGGLE
     // ============================================
     const notifToggle = document.getElementById('notificationToggle');

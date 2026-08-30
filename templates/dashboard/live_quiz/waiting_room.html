@@ -49,7 +49,7 @@
         {% if quiz.status == 'scheduled' and quiz.scheduled_start %}
         <div class="wr-scheduled-info">
             <div class="wr-scheduled-time">
-                ⏳ Starts at <strong id="startTimeDisplay">{{ quiz.scheduled_start|format_somali_time }}</strong> (Somali Time)
+                ⏳ Starts at <strong>{{ scheduled_start_display or quiz.scheduled_start }}</strong> (Somali Time)
             </div>
             <div class="wr-countdown-circle">
                 <svg viewBox="0 0 100 100" width="80" height="80">
@@ -349,15 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const btn = document.querySelector('.ready-btn');
         if (!btn) return;
 
-        // Remove any existing listener to avoid duplicates (use a clean approach)
-        // We'll just set a new one; we can store a flag to prevent multiple listeners,
-        // but we'll use a named function and remove it first.
-        // For simplicity, we remove all click listeners by cloning and replacing?
-        // Better: use a single listener with event delegation on the container.
-        // We'll just attach a new listener and keep a reference to remove later.
-        // We'll use a data attribute to check if listener is already attached.
-
-        if (btn._listenerAttached) return; // skip if already attached
+        if (btn._listenerAttached) return;
 
         btn.addEventListener('click', function(e) {
             e.stopPropagation();
