@@ -1572,10 +1572,9 @@ def get_live_quiz_participants_with_names(quiz_id: int):
             FROM live_quiz_participants lqp
             LEFT JOIN students s ON lqp.student_id = s.id
             WHERE lqp.quiz_id = ?
-            ORDER BY lqp.score DESC
+            ORDER BY lqp.score DESC, lqp.joined_at ASC
         """, (quiz_id,))
         results = cursor.fetchall()
-        
         participants = []
         for row in results:
             p = dict(row)
@@ -1586,13 +1585,11 @@ def get_live_quiz_participants_with_names(quiz_id: int):
                 'last_name': p.pop('last_name', ''),
                 'public_id': p.pop('public_id', '')
             }
+            p['is_ready'] = p.get('is_ready', 0)
             participants.append(p)
         return participants
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching participants: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching participants: {e}")
+        logger.error(f"Error fetching participants with names: {e}")
         return []
 
 def get_active_live_quiz(join_code: str):
@@ -2485,6 +2482,9 @@ def get_scheduled_quizzes():
         logger.error(f"Error fetching scheduled quizzes: {e}")
         return []
 
+
+
+
 def transition_scheduled_quiz(quiz_id: int):
     """Move a quiz from 'scheduled' to 'waiting' if start time has passed."""
     try:
@@ -2497,3 +2497,31 @@ def transition_scheduled_quiz(quiz_id: int):
     except Exception as e:
         logger.error(f"Error transitioning scheduled quiz: {e}")
         return False
+        
+# ============================================
+# READY STATUS
+# ============================================
+
+def update_participant_ready(quiz_id: int, student_id: int, is_ready: bool) -> bool:
+    try:
+        execute_with_retry(
+            "UPDATE live_quiz_participants SET is_ready = ? WHERE quiz_id = ? AND student_id = ?",
+            (1 if is_ready else 0, quiz_id, student_id),
+            commit=True
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error updating participant ready: {e}")
+        return False
+
+def get_participant_ready(quiz_id: int, student_id: int) -> bool:
+    try:
+        cursor = execute_with_retry(
+            "SELECT is_ready FROM live_quiz_participants WHERE quiz_id = ? AND student_id = ?",
+            (quiz_id, student_id)
+        )
+        result = cursor.fetchone()
+        return bool(result['is_ready']) if result else False
+    except Exception as e:
+        logger.error(f"Error getting participant ready: {e}")
+        return False     

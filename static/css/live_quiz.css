@@ -2071,3 +2071,486 @@
     visibility: visible;
     opacity: 1;
 }
+
+/* ============================================
+   WAITING ROOM REDESIGN
+   ============================================ */
+
+.waiting-room-container {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.waiting-room-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Header */
+.wr-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.wr-title-section {
+    flex: 1;
+}
+
+.wr-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+}
+
+.wr-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.wr-meta .privacy-badge {
+    font-weight: 600;
+    font-size: 12px;
+    padding: 2px 10px;
+    border-radius: 12px;
+}
+.wr-meta .privacy-badge.private { background: #FEF3C7; color: #92400E; }
+.wr-meta .privacy-badge.public { background: #D1FAE5; color: #065F46; }
+
+.wr-participant-count {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--background);
+    padding: 4px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+/* Scheduled Info */
+.wr-scheduled-info {
+    background: var(--background);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin-bottom: 16px;
+    text-align: center;
+    border: 1px dashed var(--border);
+}
+
+.wr-scheduled-time {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.wr-scheduled-time strong {
+    color: var(--text);
+}
+
+.wr-countdown-circle {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0;
+}
+
+.wr-countdown-circle svg {
+    max-width: 100%;
+    height: auto;
+}
+
+.wr-countdown-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
+/* Share Section */
+.wr-share-section {
+    background: var(--background);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+}
+
+.wr-join-code {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.wr-code-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.wr-code-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.wr-code {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: monospace;
+    letter-spacing: 2px;
+    color: var(--primary);
+    background: var(--surface);
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+}
+
+.wr-copy-btn {
+    padding: 4px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+}
+.wr-copy-btn:hover {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.wr-share-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.wr-share-buttons .share-btn {
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.wr-share-buttons .share-btn.whatsapp { background: #25D366; color: white; }
+.wr-share-buttons .share-btn.whatsapp:hover { background: #1DA851; transform: translateY(-2px); }
+.wr-share-buttons .share-btn.telegram { background: #0088CC; color: white; }
+.wr-share-buttons .share-btn.telegram:hover { background: #006699; transform: translateY(-2px); }
+
+.wr-public-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+.wr-public-note a { color: var(--primary); text-decoration: none; }
+
+/* Participants Section */
+.wr-participants-section {
+    margin-bottom: 16px;
+}
+
+.wr-participants-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.wr-participants-header h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+.wr-participants-count {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.wr-participants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.wr-participant-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: var(--background);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    transition: var(--transition);
+}
+.wr-participant-item:hover {
+    border-color: var(--border);
+}
+.wr-participant-item.left {
+    opacity: 0.6;
+    background: var(--surface-alt);
+}
+.wr-participant-item.ready {
+    border-left: 3px solid var(--primary);
+}
+
+.wr-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.wr-status-dot.active { background: #10B981; }
+.wr-status-dot.left { background: #EF4444; }
+
+.wr-participant-name {
+    font-weight: 500;
+    color: var(--text);
+    font-size: 14px;
+    flex: 1;
+}
+.wr-participant-name .wr-badge {
+    font-size: 10px;
+    padding: 1px 8px;
+    border-radius: 8px;
+    font-weight: 600;
+    margin-left: 4px;
+}
+.wr-badge.creator { background: var(--primary); color: white; }
+.wr-badge.you { background: #3B82F6; color: white; }
+.wr-badge.left { background: #FEF2F2; color: #EF4444; border: 1px solid #FCA5A5; }
+
+.wr-participant-id {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+/* READY HAND - visible to all when participant is ready */
+.wr-ready-hand {
+    font-size: 18px;
+    color: #FCD34D;
+    animation: hand-wave 1.2s ease-in-out infinite;
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+
+@keyframes hand-wave {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(10deg); }
+    75% { transform: rotate(-10deg); }
+}
+
+/* Empty state */
+.wr-empty-participants {
+    text-align: center;
+    padding: 20px 12px;
+    color: var(--text-secondary);
+}
+.wr-empty-icon {
+    font-size: 32px;
+    opacity: 0.4;
+    margin-bottom: 6px;
+}
+
+/* Actions */
+.wr-actions {
+    margin-top: 4px;
+}
+
+.wr-status-message {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+.wr-status-message .highlight {
+    color: var(--primary);
+    font-weight: 600;
+}
+.wr-status-message .sub-text {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.wr-btn-start {
+    width: 100%;
+    padding: 12px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.wr-btn-start:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 49, 56, 0.35);
+}
+.wr-btn-start:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.wr-btn-delete {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px;
+    background: transparent;
+    color: #EF4444;
+    border: 1px solid #EF4444;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.wr-btn-delete:hover {
+    background: #FEF2F2;
+    border-color: #DC2626;
+    color: #DC2626;
+}
+
+.wr-left-message,
+.wr-waiting-message {
+    text-align: center;
+    padding: 12px 0;
+}
+.wr-left-icon,
+.wr-waiting-icon {
+    font-size: 40px;
+    margin-bottom: 6px;
+}
+.wr-left-message h4,
+.wr-waiting-message h4 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+.wr-left-message p,
+.wr-waiting-message p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+.wr-waiting-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 8px;
+}
+
+.wr-btn-rejoin {
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    background: #10B981;
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.wr-btn-rejoin:hover {
+    background: #059669;
+    transform: translateY(-2px);
+}
+
+.wr-btn-leave {
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    background: transparent;
+    color: #EF4444;
+    border: 2px solid #EF4444;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.wr-btn-leave:hover {
+    background: #FEF2F2;
+    border-color: #DC2626;
+    color: #DC2626;
+}
+
+.wr-tip {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-light);
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] .wr-meta .privacy-badge.private { background: #3A2E1A; color: #FBBF24; }
+[data-theme="dark"] .wr-meta .privacy-badge.public { background: #1A3A2E; color: #34D399; }
+[data-theme="dark"] .wr-code {
+    background: var(--surface-alt);
+    border-color: var(--border);
+}
+[data-theme="dark"] .wr-copy-btn:hover {
+    background: var(--primary-light);
+}
+[data-theme="dark"] .wr-participant-item {
+    background: var(--surface-alt);
+}
+[data-theme="dark"] .wr-participant-item.ready {
+    border-left-color: #FF6B70;
+}
+[data-theme="dark"] .wr-ready-hand {
+    color: #FBBF24;
+}
+[data-theme="dark"] .wr-btn-delete {
+    color: #F87171;
+    border-color: #F87171;
+}
+[data-theme="dark"] .wr-btn-delete:hover {
+    background: #3A1A1A;
+    border-color: #F87171;
+    color: #FCA5A5;
+}
+[data-theme="dark"] .wr-btn-leave {
+    color: #F87171;
+    border-color: #F87171;
+}
+[data-theme="dark"] .wr-btn-leave:hover {
+    background: #3A1A1A;
+    border-color: #F87171;
+    color: #FCA5A5;
+}

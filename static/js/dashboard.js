@@ -6,11 +6,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     // SIDEBAR TOGGLE (Mobile)
     // ============================================
-    
+
     const menuToggle = document.getElementById('menuToggle');
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
-    
+
     function toggleSidebar() {
         sidebar.classList.toggle('open');
         if (overlay) {
@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
     }
-    
+
     function closeSidebar() {
         sidebar.classList.remove('open');
         if (overlay) {
@@ -26,43 +26,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         document.body.style.overflow = '';
     }
-    
+
     if (menuToggle) {
         menuToggle.addEventListener('click', toggleSidebar);
     }
-    
+
     if (overlay) {
         overlay.addEventListener('click', closeSidebar);
     }
-    
+
     // Close sidebar on escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && sidebar.classList.contains('open')) {
             closeSidebar();
         }
     });
-    
+
     // Close sidebar on window resize (if going from mobile to desktop)
     window.addEventListener('resize', function() {
         if (window.innerWidth > 768 && sidebar.classList.contains('open')) {
             closeSidebar();
         }
     });
-    
+
     // ============================================
     // ACTIVE NAV LINK
     // ============================================
-    
-    // Get current page path
+
     const currentPath = window.location.pathname;
-    
-    // Find all nav items
     const navItems = document.querySelectorAll('.nav-item');
-    
+
     navItems.forEach(function(item) {
         const href = item.getAttribute('href');
         if (href && href !== '#') {
-            // Check if current path matches or starts with href
             if (currentPath === href || (href !== '/' && currentPath.startsWith(href))) {
                 item.classList.add('active');
             }
@@ -70,34 +66,30 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ============================================
-    // THEME POPOVER
+    // THEME TOGGLE (cycling)
     // ============================================
-    
     (function() {
         const toggleBtn = document.getElementById('themeToggle');
-        const popover = document.getElementById('themePopover');
-        const options = popover?.querySelectorAll('.theme-option');
+        const icon = document.getElementById('themeIcon');
+        if (!toggleBtn || !icon) return;
 
-        if (!toggleBtn || !popover) return;
+        const themes = ['light', 'dark', 'system'];
+        const themeIcons = {
+            light: 'fa-sun',
+            dark: 'fa-moon',
+            system: 'fa-desktop'
+        };
 
-        // Load saved theme from localStorage
-        const savedTheme = localStorage.getItem('preferred-theme') || 'system';
-
-        // Highlight active option
-        function highlightActive(theme) {
-            options.forEach(opt => {
-                opt.classList.toggle('active', opt.dataset.theme === theme);
-            });
+        function getCurrentTheme() {
+            const saved = localStorage.getItem('preferred-theme') || 'system';
+            return saved;
         }
 
-        // Apply theme (reuse the global function from main.js)
         function applyTheme(theme) {
-            // This function is already defined in main.js
-            // We'll call it, but ensure it's available
             if (typeof window.applyTheme === 'function') {
                 window.applyTheme(theme);
             } else {
-                // Fallback: simple implementation
+                // Fallback
                 if (theme === 'system') {
                     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                     document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
@@ -106,33 +98,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 localStorage.setItem('preferred-theme', theme);
             }
-            highlightActive(theme);
+            // Update icon
+            icon.className = 'fas ' + themeIcons[theme];
         }
 
-        // Set initial active
-        highlightActive(savedTheme);
+        function cycleTheme() {
+            const current = getCurrentTheme();
+            let idx = themes.indexOf(current);
+            if (idx === -1) idx = 2; // default to system
+            const next = themes[(idx + 1) % themes.length];
+            applyTheme(next);
+        }
 
-        // Toggle popover
+        // Set initial icon
+        const initial = getCurrentTheme();
+        icon.className = 'fas ' + (themeIcons[initial] || 'fa-sun');
+
         toggleBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            popover.classList.toggle('open');
-        });
-
-        // Close popover on outside click
-        document.addEventListener('click', function(e) {
-            if (!popover.contains(e.target) && e.target !== toggleBtn) {
-                popover.classList.remove('open');
-            }
-        });
-
-        // Option click
-        options.forEach(opt => {
-            opt.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const theme = this.dataset.theme;
-                applyTheme(theme);
-                popover.classList.remove('open');
-            });
+            cycleTheme();
         });
 
         // Listen for system preference changes when in 'system' mode
@@ -140,6 +124,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const current = localStorage.getItem('preferred-theme') || 'system';
             if (current === 'system') {
                 document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+                // Update icon (if we want to show system state)
+                icon.className = 'fas fa-desktop';
             }
         });
     })();

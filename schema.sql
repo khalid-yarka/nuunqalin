@@ -134,7 +134,7 @@ CREATE INDEX IF NOT EXISTS idx_pdfs_category ON pdfs(category);
 CREATE INDEX IF NOT EXISTS idx_pdfs_view_count ON pdfs(view_count DESC);
 
 -- ============================================
--- LIVE QUIZZES TABLE (UPDATED with scheduling)
+-- LIVE QUIZZES TABLE (with scheduling)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS live_quizzes (
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS live_quizzes (
     question_ids TEXT,
     started_at TEXT,
     ended_at TEXT,
-    scheduled_start TEXT,  -- NEW: ISO timestamp for scheduled start
+    scheduled_start TEXT,          -- NEW: ISO timestamp for scheduled start
     is_public INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (creator_id) REFERENCES students(id) ON DELETE CASCADE,
@@ -166,7 +166,7 @@ CREATE INDEX IF NOT EXISTS idx_live_quizzes_created ON live_quizzes(created_at D
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_scheduled ON live_quizzes(scheduled_start);
 
 -- ============================================
--- LIVE QUIZ PARTICIPANTS TABLE
+-- LIVE QUIZ PARTICIPANTS TABLE (with is_ready)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS live_quiz_participants (
@@ -182,6 +182,7 @@ CREATE TABLE IF NOT EXISTS live_quiz_participants (
     ratings TEXT,
     ranking INTEGER,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'left')),
+    is_ready INTEGER DEFAULT 0,    -- NEW: participant ready status
     joined_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (quiz_id) REFERENCES live_quizzes(id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,

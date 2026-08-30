@@ -43,9 +43,11 @@ from db import (
     notify_live_quiz_results,
     notify_participant_joined,
     create_live_quiz,
-    update_live_quiz,  # Added
-    add_live_quiz_participant,  # Added
-    update_live_quiz_participant,  # Added
+    update_live_quiz,
+    add_live_quiz_participant,
+    update_live_quiz_participant,
+    # ADDED: import ready functions
+    update_participant_ready,
 )
 
 from config import Config
@@ -461,14 +463,13 @@ def create():
 
         if schedule_minutes > 0:
             data['status'] = 'scheduled'
-            # Store scheduled_start as ISO timestamp
             scheduled_time = datetime.now(timezone.utc) + timedelta(minutes=schedule_minutes)
             data['scheduled_start'] = scheduled_time.isoformat()
         else:
             data['status'] = 'waiting'
             data['scheduled_start'] = None
 
-        quiz = create_live_quiz(data)  # Need to update create_live_quiz in db.py to accept scheduled_start
+        quiz = create_live_quiz(data)
 
         if quiz:
             add_live_quiz_participant(quiz['id'], user_id)
@@ -601,7 +602,6 @@ def waiting_room(quiz_id):
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     user_id = session['user_id']
-    # Allow scheduled status as well
     quiz, participant, redirect_resp = get_quiz_or_redirect(
         quiz_id, user_id, required_status=['waiting', 'scheduled'], check_participant=True, allow_creator=True
     )
@@ -624,7 +624,6 @@ def waiting_room(quiz_id):
             'is_creator': p['student_id'] == quiz['creator_id']
         })
 
-    # Calculate scheduled start info
     scheduled_start = quiz.get('scheduled_start')
     starts_in_seconds = None
     if scheduled_start and quiz['status'] == 'scheduled':
@@ -656,13 +655,41 @@ def waiting_room_participants(quiz_id):
     for p in participants_data:
         student = p.get('student', {})
         formatted.append({
-            'id': p['id'], 'student_id': p['student_id'],
+            'id': p['id'],
+            'student_id': p['student_id'],
             'name': f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown',
             'public_id': student.get('public_id', '----'),
             'status': p.get('status', 'active'),
-            'is_creator': p['student_id'] == quiz['creator_id']
+            'is_creator': p['student_id'] == quiz['creator_id'],
+            'is_ready': bool(p.get('is_ready', 0))   # <-- ADDED
         })
     return jsonify({'participants': formatted, 'count': len(formatted)})
+
+# ============================================
+# TOGGLE READY STATUS – ADDED
+# ============================================
+
+@live_quiz_bp.route('/toggle-ready/<quiz_id>', methods=['POST'])
+def toggle_ready(quiz_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    user_id = session['user_id']
+    data = request.get_json()
+    is_ready = data.get('is_ready', False)
+
+    participant = get_live_quiz_participant(quiz_id, user_id)
+    if not participant:
+        return jsonify({'error': 'Not a participant'}), 404
+
+    success = update_participant_ready(quiz_id, user_id, is_ready)
+    if success:
+        invalidate_quiz_cache(quiz_id)
+        return jsonify({'success': True, 'is_ready': is_ready})
+    return jsonify({'error': 'Failed to update ready status'}), 500
+
+# ============================================
+# START QUIZ
+# ============================================
 
 @live_quiz_bp.route('/start/<quiz_id>', methods=['POST'])
 def start_quiz(quiz_id):
@@ -734,10 +761,8 @@ def quiz_state(quiz_id):
                             update_live_quiz_participant(p['id'], updates)
                             update_participant_async(quiz_id, p['student_id'], updates)
                     notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
-                    # Return active state
                     return jsonify({'status': 'active', 'redirect_url': url_for('live_quiz.play', quiz_id=quiz_id)})
                 else:
-                    # Return scheduled state with countdown
                     return jsonify({'status': 'scheduled', 'starts_in_seconds': starts_in_seconds})
             except Exception as e:
                 import logging
@@ -752,7 +777,6 @@ def quiz_state(quiz_id):
         current_index = participant.get('current_question_index', 0)
         total_questions = quiz.get('question_count', 0)
         if quiz.get('status') == 'active' and current_index >= total_questions and total_questions > 0:
-            # User is completed, but quiz might still be active
             pass
 
         all_participants = get_participants_from_cache(quiz_id)

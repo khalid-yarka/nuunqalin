@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     // THEME PERSISTENCE (Global)
     // ============================================
-    
+
     // Define global applyTheme function
     window.applyTheme = function(theme) {
         if (theme === 'system') {
@@ -18,14 +18,14 @@ document.addEventListener('DOMContentLoaded', function() {
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('preferred-theme', theme);
         }
-        // Update floating toggle icon if present
+        // Update floating toggle icon if present (login/register)
         const icon = document.getElementById('fabThemeIcon');
         if (icon) {
             if (theme === 'system') icon.className = 'fas fa-desktop';
             else if (theme === 'dark') icon.className = 'fas fa-moon';
             else icon.className = 'fas fa-sun';
         }
-        // Also update dashboard popover if present (will be handled by its own highlight function)
+        // Also update dashboard toggle if present (handled by its own logic)
     };
 
     // Apply saved theme on load
@@ -112,12 +112,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // ============================================
-    // DARK MODE TOGGLE (for floating toggle) - kept for compatibility
-    // ============================================
-    // (Floating toggle is handled in base.html with its own logic)
-
-    // ============================================
-    // SIDEBAR TOGGLE (Mobile)
+    // SIDEBAR TOGGLE (Mobile) - used in dashboard
     // ============================================
     const menuToggle = document.getElementById('menuToggle');
     const sidebar = document.getElementById('sidebar');
@@ -127,6 +122,7 @@ document.addEventListener('DOMContentLoaded', function() {
         function toggleSidebar() {
             sidebar.classList.toggle('open');
             overlay.classList.toggle('open');
+            document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
         }
 
         menuToggle.addEventListener('click', toggleSidebar);
