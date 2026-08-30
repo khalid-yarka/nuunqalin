@@ -632,7 +632,8 @@ def waiting_room(quiz_id):
             'name': f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown',
             'public_id': student.get('public_id', '----'),
             'status': p.get('status', 'active'),
-            'is_creator': p['student_id'] == quiz['creator_id']
+            'is_creator': p['student_id'] == quiz['creator_id'],
+            'is_ready': bool(p.get('is_ready', 0))
         })
 
     scheduled_start = quiz.get('scheduled_start')

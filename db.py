@@ -25,7 +25,7 @@ BULK_INSERT_BATCH_SIZE = 100
 logger = logging.getLogger(__name__)
 
 # ============================================
-# RETRY UTILITY - Enhanced Exponential Backoff
+# RETRY UTILITY
 # ============================================
 
 def calculate_backoff(attempt: int) -> float:
@@ -99,6 +99,19 @@ def close_db(exception=None):
             except RuntimeError:
                 logger.warning(f"Error closing database: {e}")
 
+def close_db_connections():
+    """Close the database connection if it exists in the request context."""
+    try:
+        from flask import has_app_context, g
+        if has_app_context() and hasattr(g, 'db'):
+            db = g.pop('db', None)
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+    except Exception:
+        pass
 # ============================================
 # TRANSACTION HELPERS
 # ============================================
@@ -1159,7 +1172,7 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
         return []
 
 # ============================================
-# LIVE QUIZ FUNCTIONS (UPDATED WITH SCHEDULED SUPPORT)
+# LIVE QUIZ FUNCTIONS (FULLY UPDATED)
 # ============================================
 
 def create_live_quiz(data: dict):
@@ -1727,89 +1740,95 @@ def notify_participant_joined(quiz_id, title, participant_name, creator_id):
     )
 
 # ============================================
-# DATABASE INITIALIZATION
+# DASHBOARD ANALYTICS FUNCTIONS (NEW)
 # ============================================
 
-def init_db():
+def get_user_subject_performance(student_id: int):
+    """
+    Get average score per subject for a student.
+    Returns list of dicts with subject_name, avg_score (0-100), attempt_count.
+    """
     try:
-        db_dir = os.path.dirname(DB_PATH)
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir, exist_ok=True)
-        conn = sqlite3.connect(DB_PATH)
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA journal_mode = WAL")
-        conn.execute("PRAGMA wal_autocheckpoint = 1000")
-        conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
-        schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
-        if os.path.exists(schema_path):
-            with open(schema_path, 'r') as f:
-                schema = f.read()
-            conn.executescript(schema)
-            conn.commit()
-            logger.info("Database initialized successfully")
-            _create_optimization_indexes(conn)
-        else:
-            logger.warning(f"Schema file not found: {schema_path}")
-        conn.close()
-        return True
+        cursor = execute_with_retry("""
+            SELECT 
+                s.name as subject_name,
+                AVG((qa.score * 1.0 / qa.total_questions) * 100) as avg_score,
+                COUNT(qa.id) as attempt_count
+            FROM quiz_attempts qa
+            JOIN subjects s ON qa.subject_id = s.id
+            WHERE qa.student_id = ?
+            GROUP BY qa.subject_id
+            ORDER BY avg_score DESC
+        """, (student_id,))
+        results = cursor.fetchall()
+        return [dict(row) for row in results]
     except Exception as e:
-        logger.error(f"Error initializing database: {e}")
-        return False
-
-def _create_optimization_indexes(conn):
-    indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read)",
-        "CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_id, status)",
-    ]
-    for idx in indexes:
         try:
-            conn.execute(idx)
-        except Exception as e:
-            logger.warning(f"Error creating index {idx}: {e}")
-    conn.commit()
+            current_app.logger.error(f"Error fetching subject performance: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching subject performance: {e}")
+        return []
 
-def close_db_connections():
+def get_user_recent_scores(student_id: int, limit: int = 10):
+    """
+    Get recent quiz scores for charting.
+    Returns list of dicts with score, total_questions, completed_at.
+    """
     try:
-        from flask import has_app_context, g
-        if has_app_context() and hasattr(g, 'db'):
-            db = g.pop('db', None)
-            if db is not None:
-                try:
-                    db.close()
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-def ensure_wal_mode():
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.execute("PRAGMA journal_mode = WAL")
-        conn.execute("PRAGMA wal_autocheckpoint = 1000")
-        conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
-        _create_optimization_indexes(conn)
-        conn.close()
-        logger.info("WAL mode enabled successfully")
-        return True
+        cursor = execute_with_retry("""
+            SELECT score, total_questions, completed_at
+            FROM quiz_attempts
+            WHERE student_id = ?
+            ORDER BY completed_at DESC
+            LIMIT ?
+        """, (student_id, limit))
+        results = cursor.fetchall()
+        # Return in chronological order (oldest first for chart)
+        return [dict(row) for row in reversed(results)]
     except Exception as e:
-        logger.error(f"Error enabling WAL mode: {e}")
-        return False
+        try:
+            current_app.logger.error(f"Error fetching recent scores: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching recent scores: {e}")
+        return []
 
-def check_database_integrity():
+def get_total_correct_answers(student_id: int) -> int:
+    """
+    Get total correct answers across all quiz attempts.
+    """
     try:
-        conn = sqlite3.connect(DB_PATH, timeout=5)
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA integrity_check")
+        cursor = execute_with_retry("""
+            SELECT SUM(score) as total_correct
+            FROM quiz_attempts
+            WHERE student_id = ?
+        """, (student_id,))
         result = cursor.fetchone()
-        conn.close()
-        if result and result[0] == 'ok':
-            return True, None
-        return False, result[0] if result else "unknown error"
+        return result['total_correct'] if result and result['total_correct'] else 0
     except Exception as e:
-        return False, str(e)
+        try:
+            current_app.logger.error(f"Error fetching total correct: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching total correct: {e}")
+        return 0
+
+def get_distinct_subjects_attempted(student_id: int) -> int:
+    """
+    Get number of unique subjects the user has attempted.
+    """
+    try:
+        cursor = execute_with_retry("""
+            SELECT COUNT(DISTINCT subject_id) as count
+            FROM quiz_attempts
+            WHERE student_id = ?
+        """, (student_id,))
+        result = cursor.fetchone()
+        return result['count'] if result else 0
+    except Exception as e:
+        try:
+            current_app.logger.error(f"Error fetching distinct subjects: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching distinct subjects: {e}")
+        return 0
 
 # ============================================
 # LIVE QUIZ LOBBY FUNCTIONS (UPDATED)
