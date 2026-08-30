@@ -36,6 +36,7 @@ from blueprints.admin_errors_bp import admin_errors_bp
 from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
 from blueprints.notifications_bp import notifications_bp
+from blueprints.user_settings_bp import user_settings_bp
 
 # NEW: Activity & Backup blueprints
 from blueprints.admin_activity_bp import admin_activity_bp
@@ -44,7 +45,7 @@ from blueprints.admin_backup_bp import admin_backup_bp
 # NEW: Activity logger
 from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event
 
-# ============================================
+# ============================================ii
 # BASE DIRECTORY & LOGGING
 # ============================================
 
@@ -279,6 +280,8 @@ app.register_blueprint(notifications_bp)
 # NEW: Activity & Backup
 app.register_blueprint(admin_activity_bp)
 app.register_blueprint(admin_backup_bp)
+
+app.register_blueprint(user_settings_bp)
 
 # ============================================
 # REGISTER ERROR HANDLERS

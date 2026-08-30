@@ -68,6 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_questions_difficulty ON questions(difficulty);
 CREATE INDEX IF NOT EXISTS idx_questions_created_by ON questions(created_by);
 CREATE INDEX IF NOT EXISTS idx_questions_created_at ON questions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_questions_updated_at ON questions(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_id, status);
 
 -- ============================================
 -- QUIZ ATTEMPTS TABLE
@@ -89,6 +90,7 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
 CREATE INDEX IF NOT EXISTS idx_attempts_student ON quiz_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_subject ON quiz_attempts(subject_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_completed ON quiz_attempts(completed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
 
 -- ============================================
 -- GROUPS TABLE
@@ -151,7 +153,7 @@ CREATE TABLE IF NOT EXISTS live_quizzes (
     question_ids TEXT,
     started_at TEXT,
     ended_at TEXT,
-    scheduled_start TEXT,          -- NEW: ISO timestamp for scheduled start
+    scheduled_start TEXT,
     is_public INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (creator_id) REFERENCES students(id) ON DELETE CASCADE,
@@ -164,9 +166,10 @@ CREATE INDEX IF NOT EXISTS idx_live_quizzes_creator ON live_quizzes(creator_id);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_subject ON live_quizzes(subject_id);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_created ON live_quizzes(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_scheduled ON live_quizzes(scheduled_start);
+CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
 
 -- ============================================
--- LIVE QUIZ PARTICIPANTS TABLE (with is_ready)
+-- LIVE QUIZ PARTICIPANTS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS live_quiz_participants (
@@ -182,7 +185,7 @@ CREATE TABLE IF NOT EXISTS live_quiz_participants (
     ratings TEXT,
     ranking INTEGER,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'left')),
-    is_ready INTEGER DEFAULT 0,    -- NEW: participant ready status
+    is_ready INTEGER DEFAULT 0,
     joined_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (quiz_id) REFERENCES live_quizzes(id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
@@ -193,6 +196,7 @@ CREATE INDEX IF NOT EXISTS idx_participants_quiz ON live_quiz_participants(quiz_
 CREATE INDEX IF NOT EXISTS idx_participants_student ON live_quiz_participants(student_id);
 CREATE INDEX IF NOT EXISTS idx_participants_score ON live_quiz_participants(score DESC);
 CREATE INDEX IF NOT EXISTS idx_participants_ranking ON live_quiz_participants(ranking);
+CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
 
 -- ============================================
 -- DELETED USERS TABLE
@@ -262,6 +266,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
 
 -- ============================================
 -- NOTIFICATION PREFERENCES TABLE
@@ -281,16 +286,10 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
 CREATE INDEX IF NOT EXISTS idx_pref_user ON notification_preferences(user_id);
 CREATE INDEX IF NOT EXISTS idx_pref_type ON notification_preferences(notification_type);
 
--- Additional performance indexes
-CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
-CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_id, status);
+-- ============================================
+-- ACTIVITY LOGS (Audit Trail) – NEW
+-- ============================================
 
--- ============================================
--- ACTIVITY LOGS (Audit Trail)
--- ============================================
 CREATE TABLE IF NOT EXISTS activity_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -298,7 +297,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     activity_type TEXT NOT NULL,
     severity TEXT DEFAULT 'info' CHECK (severity IN ('info', 'warning', 'critical')),
     message TEXT NOT NULL,
-    metadata TEXT,  -- JSON
+    metadata TEXT,
     ip_address TEXT,
     user_agent TEXT,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
@@ -310,8 +309,9 @@ CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_logs(activity_type);
 
 -- ============================================
--- BACKUP CONFIGURATION (Web UI Settings)
+-- BACKUP CONFIGURATION – NEW
 -- ============================================
+
 CREATE TABLE IF NOT EXISTS backup_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     daily_retention INTEGER DEFAULT 7,
@@ -326,11 +326,12 @@ CREATE TABLE IF NOT EXISTS backup_config (
 INSERT OR IGNORE INTO backup_config (id) VALUES (1);
 
 -- ============================================
--- BACKUP OPERATIONS LOG (optional, for dashboard)
+-- BACKUP OPERATIONS LOG – NEW
 -- ============================================
+
 CREATE TABLE IF NOT EXISTS backup_operations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    operation_type TEXT NOT NULL,  -- 'create', 'restore', 'delete', 'verify'
+    operation_type TEXT NOT NULL,
     backup_filename TEXT,
     triggered_by INTEGER,
     status TEXT CHECK (status IN ('started', 'success', 'failed')),
@@ -341,3 +342,23 @@ CREATE TABLE IF NOT EXISTS backup_operations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_backup_ops_started ON backup_operations(started_at DESC);
+
+-- ============================================
+-- USER SETTINGS (Per‑User Preferences)
+-- ============================================
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id INTEGER PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+    settings JSON NOT NULL DEFAULT '{}',
+    updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ============================================
+-- ADDITIONAL PERFORMANCE INDEXES
+-- ============================================
+
+CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_id, status);
+

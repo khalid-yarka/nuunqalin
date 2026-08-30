@@ -1,0 +1,328 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Settings - NuunPlatform{% endblock %}
+
+{% block page_title %}Settings{% endblock %}
+
+{% block extra_css %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}" />
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="settings-container">
+    <!-- Tab Navigation -->
+    <div class="settings-tabs">
+        <button class="tab-btn active" data-tab="profile"><i class="fas fa-user"></i> Profile</button>
+        <button class="tab-btn" data-tab="appearance"><i class="fas fa-palette"></i> Appearance</button>
+        <button class="tab-btn" data-tab="quiz"><i class="fas fa-pencil-alt"></i> Quiz Preferences</button>
+        <button class="tab-btn" data-tab="notifications"><i class="fas fa-bell"></i> Notifications</button>
+        <button class="tab-btn" data-tab="privacy"><i class="fas fa-lock"></i> Privacy & Security</button>
+    </div>
+
+    <!-- Unsaved Changes Indicator -->
+    <div id="unsaved-indicator" style="display: none; background: #FEF3C7; padding: 8px 16px; border-radius: 8px; margin-bottom: 16px; color: #92400E; font-weight: 500;">
+        <i class="fas fa-info-circle"></i> You have unsaved changes. Don't forget to save!
+    </div>
+
+    <!-- ================== PROFILE TAB ================== -->
+    <div class="tab-panel active" id="panel-profile">
+        <div class="settings-card">
+            <div class="settings-header">
+                <h3><i class="fas fa-user-circle"></i> Profile Information</h3>
+                <p>Update your personal and educational details.</p>
+            </div>
+            <form id="profile-form" class="settings-form">
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label>First Name <span class="required">*</span></label>
+                        <input type="text" id="first_name" name="first_name" value="{{ student.first_name }}" placeholder="First name" required>
+                        <div class="validation-hint"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name <span class="required">*</span></label>
+                        <input type="text" id="last_name" name="last_name" value="{{ student.last_name }}" placeholder="Last name" required>
+                        <div class="validation-hint"></div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Middle Name</label>
+                        <input type="text" id="middle_name" name="middle_name" value="{{ student.middle_name or '' }}" placeholder="Middle name (optional)">
+                    </div>
+                </div>
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label>School</label>
+                        <input type="text" id="school" name="school" value="{{ student.school or '' }}" placeholder="School name">
+                    </div>
+                    <div class="form-group">
+                        <label>Grade</label>
+                        <input type="text" id="grade" name="grade" value="{{ student.grade or '' }}" placeholder="Grade/Level">
+                    </div>
+                </div>
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label>City</label>
+                        <input type="text" id="city" name="city" value="{{ student.city or '' }}" placeholder="City">
+                    </div>
+                    <div class="form-group">
+                        <label>Location / Region</label>
+                        <input type="text" id="location" name="location" value="{{ student.location or '' }}" placeholder="Region">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Profile</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================== APPEARANCE TAB ================== -->
+    <div class="tab-panel" id="panel-appearance">
+        <div class="settings-card">
+            <div class="settings-header">
+                <h3><i class="fas fa-palette"></i> Theme</h3>
+                <p>Choose how the platform looks on your device.</p>
+            </div>
+            <div class="theme-selector" id="theme-selector">
+                <div class="theme-option" data-theme="light">
+                    <div class="theme-preview light">
+                        <div class="theme-header">☀️ Light</div>
+                        <div class="theme-body">Clean and bright.</div>
+                    </div>
+                    <div class="theme-check"></div>
+                </div>
+                <div class="theme-option" data-theme="dark">
+                    <div class="theme-preview dark">
+                        <div class="theme-header">🌙 Dark</div>
+                        <div class="theme-body">Easy on the eyes.</div>
+                    </div>
+                    <div class="theme-check"></div>
+                </div>
+                <div class="theme-option" data-theme="system">
+                    <div class="theme-preview system">
+                        <div class="theme-header">🖥️ System</div>
+                        <div class="theme-body">Follows your device.</div>
+                    </div>
+                    <div class="theme-check"></div>
+                </div>
+            </div>
+            <div class="form-row" style="margin-top: 16px;">
+                <button id="save-theme-btn" class="btn btn-primary"><i class="fas fa-save"></i> Save Theme</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================== QUIZ PREFERENCES TAB ================== -->
+    <div class="tab-panel" id="panel-quiz">
+        <div class="settings-card">
+            <div class="settings-header">
+                <h3><i class="fas fa-pencil-alt"></i> Quiz Preferences</h3>
+                <p>Customise your default quiz settings.</p>
+            </div>
+            <form id="quiz-prefs-form" class="settings-form">
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label>Default Question Count</label>
+                        <select id="default_question_count" name="default_question_count">
+                            <option value="5" {% if settings.default_question_count == 5 %}selected{% endif %}>5</option>
+                            <option value="10" {% if settings.default_question_count == 10 %}selected{% endif %}>10</option>
+                            <option value="15" {% if settings.default_question_count == 15 %}selected{% endif %}>15</option>
+                            <option value="20" {% if settings.default_question_count == 20 %}selected{% endif %}>20</option>
+                            <option value="25" {% if settings.default_question_count == 25 %}selected{% endif %}>25</option>
+                            <option value="30" {% if settings.default_question_count == 30 %}selected{% endif %}>30</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Default Difficulty</label>
+                        <select id="default_difficulty" name="default_difficulty">
+                            <option value="0" {% if settings.default_difficulty == 0 %}selected{% endif %}>All</option>
+                            <option value="1" {% if settings.default_difficulty == 1 %}selected{% endif %}>⭐ Easy</option>
+                            <option value="2" {% if settings.default_difficulty == 2 %}selected{% endif %}>⭐⭐ Easy-Medium</option>
+                            <option value="3" {% if settings.default_difficulty == 3 %}selected{% endif %}>⭐⭐⭐ Medium</option>
+                            <option value="4" {% if settings.default_difficulty == 4 %}selected{% endif %}>⭐⭐⭐⭐ Hard</option>
+                            <option value="5" {% if settings.default_difficulty == 5 %}selected{% endif %}>⭐⭐⭐⭐⭐ Expert</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row toggle-group">
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Show correct answer immediately</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="show_correct_immediately" {% if settings.show_correct_immediately %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">If off, you'll see the correct answer only at the end.</p>
+                    </div>
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Skip rating step (HAA/MAY)</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="skip_rating_after_quiz" {% if settings.skip_rating_after_quiz %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">If on, you won't be asked to rate each question.</p>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Preferences</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================== NOTIFICATIONS TAB ================== -->
+    <div class="tab-panel" id="panel-notifications">
+        <div class="settings-card">
+            <div class="settings-header">
+                <h3><i class="fas fa-bell"></i> Notification Preferences</h3>
+                <p>Choose which notifications you want to receive.</p>
+            </div>
+            <form id="notif-form" class="settings-form">
+                <div class="form-row toggle-group">
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Quiz Completed</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="notify_quiz_complete" {% if settings.notify_quiz_complete %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">When you finish a quiz.</p>
+                    </div>
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">New PDF Uploaded</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="notify_new_pdf" {% if settings.notify_new_pdf %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">When a new PDF is added.</p>
+                    </div>
+                </div>
+                <div class="form-row toggle-group">
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Live Quiz Starts</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="notify_live_quiz_start" {% if settings.notify_live_quiz_start %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">When a live quiz you're in begins.</p>
+                    </div>
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Live Quiz Results</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="notify_live_quiz_result" {% if settings.notify_live_quiz_result %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">When a live quiz ends.</p>
+                    </div>
+                </div>
+                <div class="form-row toggle-group">
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Participant Joined Your Quiz</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="notify_participant_joined" {% if settings.notify_participant_joined %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">When someone joins your hosted quiz.</p>
+                    </div>
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Admin Announcements</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="notify_admin_announcement" {% if settings.notify_admin_announcement %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">Important platform announcements.</p>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Notification Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================== PRIVACY & SECURITY TAB ================== -->
+    <div class="tab-panel" id="panel-privacy">
+        <div class="settings-card">
+            <div class="settings-header">
+                <h3><i class="fas fa-lock"></i> Privacy & Security</h3>
+                <p>Control your visibility and account security.</p>
+            </div>
+            <h4>Privacy</h4>
+            <form id="privacy-form" class="settings-form">
+                <div class="form-row toggle-group">
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Show on Leaderboard</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="show_on_leaderboard" {% if settings.show_on_leaderboard %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">If off, your name appears as "Anonymous".</p>
+                    </div>
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Show Public ID</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="show_public_id" {% if settings.show_public_id %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">If off, your public ID is hidden on your profile.</p>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Privacy Settings</button>
+                </div>
+            </form>
+
+            <hr class="settings-divider">
+
+            <h4>Change Password</h4>
+            <form id="password-form" class="settings-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Current Password <span class="required">*</span></label>
+                        <input type="password" id="current_password" placeholder="Enter current password" required>
+                    </div>
+                </div>
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label>New Password <span class="required">*</span></label>
+                        <input type="password" id="new_password" placeholder="Min 8 characters" required>
+                        <div class="password-strength" id="password-strength"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm New Password <span class="required">*</span></label>
+                        <input type="password" id="confirm_password" placeholder="Confirm new password" required>
+                        <div class="password-match" id="password-match"></div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button type="submit" class="btn btn-danger"><i class="fas fa-key"></i> Change Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}
