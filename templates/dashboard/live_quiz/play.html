@@ -7,117 +7,6 @@
 {% block extra_css %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
-<style>
-    .quiz-notification { background: var(--primary); color: white; padding: 12px 20px; border-radius: var(--radius-sm); margin-bottom: 16px; text-align: center; font-weight: 600; animation: slideDown 0.5s ease; display: none; box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25); }
-    .quiz-notification.show { display: block; }
-    @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
-    .reconnection-notice { background: #3B82F6; color: white; padding: 10px 16px; border-radius: var(--radius-sm); margin-bottom: 12px; text-align: center; font-weight: 500; display: none; animation: slideDown 0.5s ease; }
-    .reconnection-notice.show { display: block; }
-    .rating-reminder { margin-top: 8px; padding: 8px 14px; background: #FEF3C7; border-radius: var(--radius-sm); font-size: 13px; color: #92400E; text-align: center; border: 1px solid #FDE68A; }
-    [data-theme="dark"] .rating-reminder { background: #3A2E1A; color: #FCD34D; border-color: #92400E; }
-    .question-timer.stopped { color: var(--text-muted); }
-    .leaderboard-mini { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; }
-    .leaderboard-mini .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .leaderboard-mini .header .title { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
-    .leaderboard-mini .header .rank-badge { font-size: 12px; font-weight: 600; color: var(--primary); background: var(--primary-light); padding: 2px 10px; border-radius: 10px; }
-    .lb-item { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 13px; }
-    .lb-item .rank { font-weight: 600; color: var(--text-secondary); min-width: 24px; }
-    .lb-item .name { color: var(--text); flex: 1; margin-left: 8px; }
-    .lb-item .score { font-weight: 700; color: var(--primary); }
-    .lb-item.you { background: var(--primary-light); padding: 3px 8px; border-radius: 6px; font-weight: 600; }
-    .question-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); }
-    .question-text { font-size: 18px; font-weight: 600; color: var(--text); line-height: 1.5; margin-bottom: 20px; }
-    .options-container { display: flex; flex-direction: column; gap: 8px; }
-    .option-btn { display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.3s ease; font-size: 15px; color: var(--text); width: 100%; text-align: left; }
-    .option-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-light); }
-    .option-btn:disabled { cursor: not-allowed; opacity: 0.6; }
-    .option-btn .letter { font-weight: 700; color: var(--text-secondary); min-width: 28px; flex-shrink: 0; }
-    .option-btn.correct { border-color: #10B981; background: #ECFDF5; }
-    .option-btn.correct .letter { color: #10B981; }
-    .option-btn.wrong { border-color: #EF4444; background: #FEF2F2; }
-    .option-btn.wrong .letter { color: #EF4444; }
-    .skip-btn { padding: 8px 16px; background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition); margin-top: 12px; font-size: 13px; }
-    .skip-btn:hover:not(:disabled) { background: #FEE2E2; }
-    .skip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .feedback-area { margin-top: 16px; padding: 14px 18px; border-radius: var(--radius-sm); }
-    .feedback-area.success { background: #ECFDF5; border: 1px solid #A7F3D0; }
-    .feedback-area.error { background: #FEF2F2; border: 1px solid #FCA5A5; }
-    .feedback-area.skipped { background: #FFFBEB; border: 1px solid #FDE68A; }
-    .feedback-area .feedback-title { font-weight: 600; font-size: 15px; }
-    .rating-buttons { display: flex; gap: 10px; margin-top: 10px; }
-    .rating-buttons button { padding: 6px 18px; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 13px; cursor: pointer; transition: var(--transition); }
-    .rating-buttons .haa { background: #10B981; color: white; }
-    .rating-buttons .haa:hover:not(:disabled) { background: #059669; }
-    .rating-buttons .may { background: #EF4444; color: white; }
-    .rating-buttons .may:hover:not(:disabled) { background: #DC2626; }
-    .rating-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .completed-state { text-align: center; padding: 30px 20px; }
-    .completed-state .icon { font-size: 56px; margin-bottom: 12px; }
-    .completed-state h3 { font-size: 20px; font-weight: 700; color: var(--text); }
-    .completed-state p { color: var(--text-secondary); font-size: 14px; margin-top: 4px; }
-    .completed-state .waiting-info { margin-top: 16px; display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; }
-    .completed-state .waiting-info .stat { text-align: center; }
-    .completed-state .waiting-info .stat .number { font-size: 24px; font-weight: 700; color: var(--primary); }
-    .completed-state .waiting-info .stat .label { font-size: 12px; color: var(--text-secondary); }
-    .quiz-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
-    .quiz-header .title-section { flex: 1; min-width: 0; }
-    .quiz-header .title-section h3 { font-size: 16px; font-weight: 600; color: var(--text); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .quiz-header .title-section .meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 2px; font-size: 12px; color: var(--text-secondary); }
-    .quiz-header .timer-section { text-align: right; flex-shrink: 0; }
-    .quiz-header .timer-section .question-timer { font-size: 24px; font-weight: 700; font-family: monospace; transition: color 0.3s ease; }
-    .quiz-header .timer-section .question-timer.warning { color: #F59E0B; }
-    .quiz-header .timer-section .question-timer.danger { color: #EF4444; animation: pulse 0.5s ease-in-out infinite; }
-    .quiz-header .timer-section .label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-    .total-timer-progress { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .total-timer-progress .progress-bar-wrap { flex: 1; min-width: 100px; height: 6px; background: var(--border); border-radius: 10px; overflow: hidden; position: relative; }
-    .total-timer-progress .progress-bar-wrap .fill { height: 100%; background: var(--primary); border-radius: 10px; transition: width 0.5s ease; }
-    .total-timer-progress .time-display { font-size: 14px; font-weight: 600; color: var(--text); font-family: monospace; white-space: nowrap; min-width: 60px; text-align: right; }
-    .total-timer-progress .time-display.warning { color: #F59E0B; }
-    .total-timer-progress .time-display.danger { color: #EF4444; animation: pulse 0.5s ease-in-out infinite; }
-    .total-timer-progress .status-label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
-    .creator-progress { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; }
-    .creator-progress .cp-title { font-weight: 600; font-size: 14px; margin-bottom: 6px; color: var(--text); }
-    .creator-progress .progress-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
-    .creator-progress .progress-item .name { flex: 1; color: var(--text); min-width: 60px; }
-    .creator-progress .progress-item .bar-wrap { width: 100px; height: 6px; background: var(--border); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
-    .creator-progress .progress-item .bar-wrap .fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.3s ease; }
-    .creator-progress .progress-item .status { font-size: 11px; font-weight: 600; color: var(--text-secondary); min-width: 50px; text-align: right; }
-    .creator-progress .progress-item .status.done { color: #10B981; }
-    .creator-progress .progress-item .status.waiting { color: #F59E0B; }
-    .creator-progress .progress-item .status.left { color: #EF4444; }
-    .btn-leave { margin-top: 16px; width: 100%; padding: 10px 20px; background: transparent; color: #EF4444; border: 2px solid #EF4444; border-radius: var(--radius-sm); font-weight: 600; font-size: 14px; cursor: pointer; transition: var(--transition); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn-leave:hover { background: #FEF2F2; border-color: #DC2626; color: #DC2626; }
-    .btn-leave:disabled { opacity: 0.5; cursor: not-allowed; }
-    .error-state { text-align: center; padding: 40px 20px; }
-    .error-state .icon { font-size: 56px; margin-bottom: 12px; }
-    .error-state h3 { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-    .error-state p { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; }
-    .error-state .btn { display: inline-block; padding: 10px 28px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 15px; text-decoration: none; transition: var(--transition); cursor: pointer; }
-    .error-state .btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-    @media (max-width: 768px) { .question-text { font-size: 16px; } .quiz-header .timer-section .question-timer { font-size: 20px; } .total-timer-progress { padding: 8px 12px; gap: 8px; } .total-timer-progress .time-display { font-size: 12px; min-width: 50px; } .total-timer-progress .status-label { font-size: 10px; } .creator-progress .progress-item .bar-wrap { width: 60px; } }
-    @media (max-width: 480px) { .question-card { padding: 16px; } .question-text { font-size: 15px; } .option-btn { padding: 10px 12px; font-size: 14px; } .quiz-header .title-section h3 { font-size: 14px; } .quiz-header .timer-section .question-timer { font-size: 18px; } .completed-state .waiting-info { gap: 16px; } .completed-state .waiting-info .stat .number { font-size: 20px; } .rating-buttons button { padding: 4px 14px; font-size: 12px; } .skip-btn { font-size: 12px; padding: 6px 12px; } .creator-progress .progress-item .bar-wrap { width: 40px; } .creator-progress .progress-item .status { font-size: 10px; min-width: 40px; } .btn-leave { font-size: 13px; padding: 8px 16px; } .error-state .icon { font-size: 40px; } }
-    @media (max-width: 360px) { .question-text { font-size: 14px; } .option-btn { padding: 8px 10px; font-size: 13px; } .option-btn .letter { min-width: 22px; } .quiz-header { padding: 8px 12px; } .quiz-header .title-section h3 { font-size: 13px; } .quiz-header .timer-section .question-timer { font-size: 16px; } .total-timer-progress { padding: 6px 10px; } .total-timer-progress .time-display { font-size: 11px; min-width: 40px; } .total-timer-progress .status-label { font-size: 9px; } }
-    [data-theme="dark"] .quiz-notification { background: #8B1A1A; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
-    [data-theme="dark"] .reconnection-notice { background: #1A3A6A; }
-    [data-theme="dark"] .option-btn.correct { border-color: #10B981; background: #1A3A2E; }
-    [data-theme="dark"] .option-btn.wrong { border-color: #EF4444; background: #3A1A1A; }
-    [data-theme="dark"] .feedback-area.success { background: #1A3A2E; border-color: #10B981; color: #D1FAE5; }
-    [data-theme="dark"] .feedback-area.error { background: #3A1A1A; border-color: #EF4444; color: #FECACA; }
-    [data-theme="dark"] .feedback-area.skipped { background: #3A2E1A; border-color: #F59E0B; color: #FDE68A; }
-    [data-theme="dark"] .lb-item.you { background: var(--primary-light); }
-    [data-theme="dark"] .leaderboard-mini { background: var(--surface); border-color: var(--border); }
-    [data-theme="dark"] .quiz-header { background: var(--surface); border-color: var(--border); }
-    [data-theme="dark"] .total-timer-progress { background: var(--surface); border-color: var(--border); }
-    [data-theme="dark"] .question-card { background: var(--surface); border-color: var(--border); }
-    [data-theme="dark"] .option-btn { background: var(--surface); border-color: var(--border); color: var(--text); }
-    [data-theme="dark"] .option-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-light); }
-    [data-theme="dark"] .creator-progress { background: var(--surface); border-color: var(--border); }
-    [data-theme="dark"] .btn-leave { color: #F87171; border-color: #F87171; }
-    [data-theme="dark"] .btn-leave:hover { background: #3A1A1A; border-color: #F87171; color: #FCA5A5; }
-    [data-theme="dark"] .error-state .btn { background: #8B1A1A; }
-    [data-theme="dark"] .error-state .btn:hover { background: #6A1414; }
-</style>
 {% endblock %}
 
 {% block dashboard_content %}
@@ -230,6 +119,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let lastState = null;
     let activeAttempts = 0;
     const MAX_ACTIVE_ATTEMPTS = 25;
+    let isRedirecting = false;
     
     // ============================================
     // RESTORE STATE FROM sessionStorage
@@ -240,6 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (saved) {
                 const state = JSON.parse(saved);
                 if (state && state.currentQuestionIndex !== undefined) {
+                    console.log('Restoring state from sessionStorage:', state);
                     currentQuestionIndex = state.currentQuestionIndex;
                     isAnswered = state.isAnswered || false;
                     isRated = state.isRated || false;
@@ -275,7 +166,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
     }
     function sendBrowserNotification(title, body, url) {
-        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') {
+            Notification.requestPermission().then(function(perm) {
+                if (perm === 'granted') sendBrowserNotification(title, body, url);
+            });
+            return;
+        }
         try {
             const notification = new Notification(title, { body, icon: '/static/images/logo.png', tag: 'live-quiz-' + quizId, requireInteraction: true });
             notification.onclick = function() { window.focus(); if (url) window.location.href = url; notification.close(); };
@@ -411,7 +308,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     activeAttempts = 0; previousStatus = data.status; resetPollTimer(); return;
                 }
                 
-                if (data.redirect_url) { clearInterval(timerInterval); clearTimeout(pollTimer); window.location.href = data.redirect_url; return; }
+                if (data.redirect_url && !isRedirecting) {
+                    isRedirecting = true;
+                    clearInterval(timerInterval); clearTimeout(pollTimer);
+                    window.location.href = data.redirect_url;
+                    return;
+                }
                 
                 if (data.status === 'finished') {
                     if (!quizEnded) {
@@ -453,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (data.remaining_time !== undefined) updateTotalTimer(data.remaining_time);
                 
-                // ----- FIX: Update creator progress -----
+                // Update creator progress
                 if (data.participant_progress) {
                     updateCreatorProgress(data.participant_progress);
                 }
@@ -624,9 +526,18 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="rating-buttons"><button class="haa" onclick="submitRating('HAA')">✅ HAA</button><button class="may" onclick="submitRating('MAY')">❌ MAY</button></div>
                     </div>`;
             }
+            // Clear spinner for selected button
+            if (selectedBtn) selectedBtn.innerHTML = originalText;
             updateTimerDisplay(); saveStateToStorage();
         })
-        .catch(function(error) { console.error('Submit answer error:', error); buttons.forEach(b => b.disabled = false); if (skipBtn) skipBtn.disabled = false; isAnswered = false; hasAnsweredCurrent = false; if (selectedBtn) selectedBtn.innerHTML = originalText; showToast('Error submitting answer. Please try again.', 'error'); });
+        .catch(function(error) {
+            console.error('Submit answer error:', error);
+            // Restore state
+            buttons.forEach(b => { b.disabled = false; if (b === selectedBtn) b.innerHTML = originalText; });
+            if (skipBtn) skipBtn.disabled = false;
+            isAnswered = false; hasAnsweredCurrent = false;
+            showToast('Error submitting answer. Please try again.', 'error');
+        });
     };
     
     window.skipQuestion = function() {
@@ -656,7 +567,12 @@ document.addEventListener('DOMContentLoaded', function() {
             clearInterval(timerInterval); questionData = null; saveStateToStorage();
             setTimeout(() => loadQuestion(), 600);
         })
-        .catch(function(error) { console.error('Skip question error:', error); buttons.forEach(b => b.disabled = false); if (skipBtn) skipBtn.disabled = false; isAnswered = false; hasAnsweredCurrent = false; showToast('Error skipping question. Please try again.', 'error'); });
+        .catch(function(error) {
+            console.error('Skip question error:', error);
+            buttons.forEach(b => b.disabled = false); if (skipBtn) skipBtn.disabled = false;
+            isAnswered = false; hasAnsweredCurrent = false;
+            showToast('Error skipping question. Please try again.', 'error');
+        });
     };
     
     window.submitRating = function(rating) {
@@ -696,7 +612,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => loadQuestion(), 600);
             }
         })
-        .catch(function(error) { console.error('Submit rating error:', error); buttons.forEach(b => b.disabled = false); isRated = false; showToast('Error submitting rating. Please try again.', 'error'); });
+        .catch(function(error) {
+            console.error('Submit rating error:', error);
+            buttons.forEach(b => b.disabled = false);
+            isRated = false;
+            showToast('Error submitting rating. Please try again.', 'error');
+        });
     };
     
     function showCompletedState(data) {

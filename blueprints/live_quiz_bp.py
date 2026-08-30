@@ -13,6 +13,7 @@ import csv
 from io import StringIO
 import threading
 import logging
+import random
 
 from db import (
     get_all_subjects,
@@ -48,6 +49,7 @@ from db import (
     add_live_quiz_participant,
     update_live_quiz_participant,
     update_participant_ready,
+    create_notification,
 )
 
 from config import Config
@@ -236,7 +238,6 @@ def get_quiz_or_redirect(quiz_id, user_id, required_status=None, check_participa
         else:
             allowed = required_status
         current_status = quiz.get('status')
-        # REMOVED special case for 'scheduled' to allow joining
         if current_status not in allowed:
             if current_status == 'waiting':
                 flash('This quiz has not started yet. Go to the waiting room.', 'info')
@@ -375,7 +376,6 @@ def lobby_join(quiz_id):
     quiz, _, redirect_resp = get_quiz_or_redirect(quiz_id, user_id, required_status=['waiting', 'scheduled'], check_participant=False)
     if redirect_resp:
         location = redirect_resp.headers.get('Location', url_for('live_quiz.lobby'))
-        # If redirect is to waiting room, treat as success (scheduled or waiting)
         if location and '/waiting-room/' in location:
             return jsonify({'success': True, 'redirect': location, 'message': 'Quiz is scheduled or waiting'})
         return jsonify({'error': 'Quiz not available', 'redirect': location}), 400
@@ -440,6 +440,12 @@ def create():
         title = request.form.get('title', '').strip()
         is_public = int(request.form.get('is_public', 1))
         schedule_minutes = int(request.form.get('schedule_minutes', 0))
+
+        # --- Title validation ---
+        if not title:
+            flash('Please enter a title for your quiz.', 'error')
+            return render_template('dashboard/live_quiz/create.html', subjects=subjects,
+                                   subject_id=subject_id, title=title, is_public=is_public)
 
         if not subject_id:
             flash('Please select a subject.', 'error')
@@ -730,7 +736,8 @@ def start_quiz(quiz_id):
             update_live_quiz_participant(p['id'], updates)
             update_participant_async(quiz_id, p['student_id'], updates)
     notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
-    return jsonify({'success': True, 'quiz_id': quiz_id})
+    # Return redirect_url for the creator
+    return jsonify({'success': True, 'quiz_id': quiz_id, 'redirect_url': url_for('live_quiz.play', quiz_id=quiz_id)})
 
 @live_quiz_bp.route('/quiz-state/<quiz_id>')
 def quiz_state(quiz_id):
@@ -754,7 +761,6 @@ def quiz_state(quiz_id):
                 now = datetime.now(timezone.utc)
                 diff = (start_dt - now).total_seconds()
                 starts_in_seconds = max(0, int(diff))
-                
                 if starts_in_seconds <= 0:
                     all_participants = get_live_quiz_participants(quiz_id)
                     active_participants = [p for p in all_participants if p.get('status') != 'left']
@@ -764,7 +770,6 @@ def quiz_state(quiz_id):
                         cache = get_cache()
                         cache.delete(get_quiz_cache_key(quiz_id))
                         # Notify creator
-                        from db import create_notification
                         create_notification(
                             user_id=quiz['creator_id'],
                             type='scheduled_skipped',
@@ -775,7 +780,6 @@ def quiz_state(quiz_id):
                         )
                         # Reload quiz after update
                         quiz = get_live_quiz_with_subject(quiz_id)
-                        # Return updated state with a message
                         return jsonify({'status': 'waiting', 'message': 'Scheduled start skipped due to insufficient participants'})
                     else:
                         # Enough participants → auto-start
@@ -804,8 +808,16 @@ def quiz_state(quiz_id):
             finalize_live_quiz(quiz_id)
             return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
+        # Get shuffled IDs from participant's answers
+        answers = participant.get('answers', {})
+        shuffled_ids = answers.get('__shuffled_ids')
+        if not shuffled_ids:
+            # Fallback: use quiz's question_ids (should not happen)
+            shuffled_ids = quiz.get('question_ids', [])
+
         current_index = participant.get('current_question_index', 0)
-        total_questions = quiz.get('question_count', 0)
+        total_questions = len(shuffled_ids)
+
         if quiz.get('status') == 'active' and current_index >= total_questions and total_questions > 0:
             pass
 
@@ -861,7 +873,8 @@ def quiz_state(quiz_id):
         completed_count = sum(1 for p in active_participants if p.get('current_question_index', 0) >= total_questions)
         all_completed = completed_count == active_count and active_count > 0
 
-        if all_completed and quiz.get('status') == 'active' and active_count >= 2:
+        # FIX: Allow finalisation with at least 1 active participant
+        if all_completed and quiz.get('status') == 'active' and active_count >= 1:
             finalize_live_quiz(quiz_id)
             return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
@@ -884,8 +897,8 @@ def quiz_state(quiz_id):
             'active_participants': active_count
         }
 
-        if current_index < len(question_ids):
-            qid = question_ids[current_index]
+        if current_index < len(shuffled_ids):
+            qid = shuffled_ids[current_index]
             answers = participant.get('answers', {})
             if str(qid) in answers:
                 response['current_question_answered'] = True
@@ -926,15 +939,25 @@ def get_question(quiz_id):
         location = redirect_resp.headers.get('Location', url_for('live_quiz.lobby'))
         return jsonify({'error': 'Quiz not available', 'abort': True, 'redirect': location, 'message': 'Quiz is not active or you are not a participant'}), 404
     try:
+        # Get shuffled IDs from participant's answers
+        answers = participant.get('answers', {})
+        shuffled_ids = answers.get('__shuffled_ids')
+        if not shuffled_ids:
+            # Fallback: use quiz's question_ids
+            shuffled_ids = quiz.get('question_ids', [])
+
         current_index = participant.get('current_question_index', 0)
-        total_questions = quiz.get('question_count', 0)
+        total_questions = len(shuffled_ids)
+
         if current_index >= total_questions:
             return jsonify({'completed': True})
-        question_ids = quiz.get('question_ids', [])
-        if current_index >= len(question_ids):
+
+        if current_index >= len(shuffled_ids):
             return jsonify({'completed': True})
-        question_id = question_ids[current_index]
-        answers = participant.get('answers', {})
+
+        question_id = shuffled_ids[current_index]
+
+        # Check if already answered or rated
         if str(question_id) in answers:
             answer_data = answers[str(question_id)]
             is_correct = answer_data.get('correct', False)
@@ -950,16 +973,19 @@ def get_question(quiz_id):
                 new_index = current_index + 1
                 update_participant_async(quiz_id, user_id, {'current_question_index': new_index})
                 return jsonify({'skipped': True})
+
         ratings = participant.get('ratings', {})
         if str(question_id) in ratings:
             new_index = current_index + 1
             update_participant_async(quiz_id, user_id, {'current_question_index': new_index})
             return jsonify({'skipped': True})
+
         question = get_question_by_id(question_id)
         if not question:
             new_index = current_index + 1
             update_participant_async(quiz_id, user_id, {'current_question_index': new_index})
             return jsonify({'skipped': True})
+
         return jsonify({'question': question, 'index': current_index, 'total': total_questions, 'already_answered': False})
     except Exception as e:
         logging.getLogger(__name__).error(f"Error in get_question: {e}", exc_info=True)
@@ -1049,11 +1075,13 @@ def submit_rating():
         ratings = participant.get('ratings', {})
         ratings[str(question_id)] = rating
         current_index = participant.get('current_question_index', 0)
+        # Get total questions from shuffled_ids length
+        answers = participant.get('answers', {})
+        shuffled_ids = answers.get('__shuffled_ids')
+        total_questions = len(shuffled_ids) if shuffled_ids else 0
         new_index = current_index + 1
         updates = {'ratings': ratings, 'current_question_index': new_index}
         update_participant_async(quiz_id, user_id, updates)
-        quiz = get_quiz_from_cache(quiz_id)
-        total_questions = quiz.get('question_count', 0) if quiz else 0
         if new_index >= total_questions:
             return jsonify({'success': True, 'completed': True, 'status': 'completed'})
         else:

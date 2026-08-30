@@ -1343,6 +1343,17 @@ def get_live_quiz_participant(quiz_id: int, student_id: int):
 
 def add_live_quiz_participant(quiz_id: int, student_id: int):
     try:
+        # Get quiz's question_ids
+        quiz = get_live_quiz_by_id(quiz_id)
+        question_ids = quiz.get('question_ids', [])
+        # Shuffle them for this participant
+        import random
+        shuffled = question_ids[:]  # copy
+        random.shuffle(shuffled)
+
+        # Store shuffled list in the 'answers' JSON as a special key
+        answers = {'__shuffled_ids': shuffled}
+
         execute_with_retry("""
             INSERT INTO live_quiz_participants (
                 quiz_id, student_id, score, current_question_index,
@@ -1357,7 +1368,7 @@ def add_live_quiz_participant(quiz_id: int, student_id: int):
             0,
             0,
             0,
-            to_json({}),
+            to_json(answers),
             to_json({}),
             None,
             'active',
@@ -1365,10 +1376,7 @@ def add_live_quiz_participant(quiz_id: int, student_id: int):
         ), commit=True)
         return True
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error adding participant: {e}")
-        except RuntimeError:
-            logger.error(f"Error adding participant: {e}")
+        logger.error(f"Error adding participant: {e}")
         return False
 
 def update_live_quiz_participant(participant_id: int, data: dict):

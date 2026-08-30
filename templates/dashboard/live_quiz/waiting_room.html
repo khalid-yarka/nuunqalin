@@ -7,572 +7,6 @@
 {% block extra_css %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
-<style>
-    .waiting-room-container {
-        max-width: 600px;
-        margin: 0 auto;
-    }
-    .waiting-room-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 24px;
-        box-shadow: var(--shadow-sm);
-    }
-    .wr-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-bottom: 16px;
-    }
-    .wr-title-section {
-        flex: 1;
-    }
-    .wr-title {
-        font-size: 20px;
-        font-weight: 700;
-        color: var(--text);
-        margin: 0;
-    }
-    .wr-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px 12px;
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin-top: 4px;
-    }
-    .wr-meta .privacy-badge {
-        font-weight: 600;
-        font-size: 12px;
-        padding: 2px 10px;
-        border-radius: 12px;
-    }
-    .wr-meta .privacy-badge.private { background: #FEF3C7; color: #92400E; }
-    .wr-meta .privacy-badge.public { background: #D1FAE5; color: #065F46; }
-    .wr-participant-count {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text);
-        background: var(--background);
-        padding: 4px 14px;
-        border-radius: 20px;
-        border: 1px solid var(--border);
-        white-space: nowrap;
-    }
-    .wr-scheduled-info {
-        background: var(--background);
-        border-radius: var(--radius-sm);
-        padding: 16px;
-        margin-bottom: 16px;
-        text-align: center;
-        border: 1px dashed var(--border);
-    }
-    .wr-scheduled-time {
-        font-size: 14px;
-        color: var(--text-secondary);
-        margin-bottom: 10px;
-    }
-    .wr-scheduled-time strong {
-        color: var(--text);
-    }
-    .wr-countdown-circle {
-        display: flex;
-        justify-content: center;
-        margin: 8px 0;
-    }
-    .wr-countdown-label {
-        font-size: 12px;
-        color: var(--text-muted);
-        margin-top: 6px;
-    }
-    .wr-share-section {
-        background: var(--background);
-        border-radius: var(--radius-sm);
-        padding: 14px 16px;
-        margin-bottom: 16px;
-    }
-    .wr-join-code {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 8px;
-    }
-    .wr-code-label {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .wr-code-display {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex: 1;
-    }
-    .wr-code {
-        font-size: 20px;
-        font-weight: 700;
-        font-family: monospace;
-        letter-spacing: 2px;
-        color: var(--primary);
-        background: var(--surface);
-        padding: 4px 12px;
-        border-radius: 6px;
-        border: 1px solid var(--border);
-    }
-    .wr-copy-btn {
-        padding: 4px 12px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--text-secondary);
-        cursor: pointer;
-        transition: var(--transition);
-    }
-    .wr-copy-btn:hover {
-        background: var(--primary-light);
-        border-color: var(--primary);
-        color: var(--primary);
-    }
-    .wr-share-buttons {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-top: 4px;
-    }
-    .wr-share-buttons .share-btn {
-        padding: 4px 12px;
-        border-radius: 6px;
-        font-size: 13px;
-        font-weight: 600;
-        text-decoration: none;
-        transition: var(--transition);
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-    }
-    .wr-share-buttons .share-btn.whatsapp { background: #25D366; color: white; }
-    .wr-share-buttons .share-btn.whatsapp:hover { background: #1DA851; transform: translateY(-2px); }
-    .wr-share-buttons .share-btn.telegram { background: #0088CC; color: white; }
-    .wr-share-buttons .share-btn.telegram:hover { background: #006699; transform: translateY(-2px); }
-    .wr-public-note {
-        font-size: 12px;
-        color: var(--text-muted);
-        margin-top: 6px;
-    }
-    .wr-public-note a { color: var(--primary); text-decoration: none; }
-    .wr-participants-section {
-        margin-bottom: 16px;
-    }
-    .wr-participants-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-    .wr-participants-header h3 {
-        font-size: 15px;
-        font-weight: 600;
-        color: var(--text);
-        margin: 0;
-    }
-    .wr-participants-count {
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-    .wr-participants-list {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        max-height: 240px;
-        overflow-y: auto;
-        padding-right: 4px;
-    }
-    .wr-participant-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 10px;
-        background: var(--background);
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--border-light);
-        transition: var(--transition);
-    }
-    .wr-participant-item:hover {
-        border-color: var(--border);
-    }
-    .wr-participant-item.left {
-        opacity: 0.6;
-        background: var(--surface-alt);
-    }
-    .wr-participant-item.ready {
-        border-left: 3px solid var(--primary);
-    }
-    .wr-status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        flex-shrink: 0;
-    }
-    .wr-status-dot.active { background: #10B981; }
-    .wr-status-dot.left { background: #EF4444; }
-    .wr-participant-name {
-        font-weight: 500;
-        color: var(--text);
-        font-size: 14px;
-        flex: 1;
-    }
-    .wr-participant-name .wr-badge {
-        font-size: 10px;
-        padding: 1px 8px;
-        border-radius: 8px;
-        font-weight: 600;
-        margin-left: 4px;
-    }
-    .wr-badge.creator { background: var(--primary); color: white; }
-    .wr-badge.you { background: #3B82F6; color: white; }
-    .wr-badge.left { background: #FEF2F2; color: #EF4444; border: 1px solid #FCA5A5; }
-    .wr-participant-id {
-        font-size: 11px;
-        color: var(--text-muted);
-        font-family: monospace;
-    }
-    .wr-ready-hand {
-        font-size: 18px;
-        color: #FCD34D;
-        animation: hand-wave 1.2s ease-in-out infinite;
-        flex-shrink: 0;
-        margin-left: 4px;
-    }
-    @keyframes hand-wave {
-        0%, 100% { transform: rotate(0deg); }
-        25% { transform: rotate(10deg); }
-        75% { transform: rotate(-10deg); }
-    }
-    .wr-empty-participants {
-        text-align: center;
-        padding: 20px 12px;
-        color: var(--text-secondary);
-    }
-    .wr-empty-icon {
-        font-size: 32px;
-        opacity: 0.4;
-        margin-bottom: 6px;
-    }
-    .wr-actions {
-        margin-top: 4px;
-    }
-    .wr-status-message {
-        font-size: 14px;
-        color: var(--text-secondary);
-        margin-bottom: 12px;
-    }
-    .wr-status-message .highlight {
-        color: var(--primary);
-        font-weight: 600;
-    }
-    .wr-status-message .sub-text {
-        font-size: 13px;
-        color: var(--text-muted);
-    }
-    .wr-btn-start {
-        width: 100%;
-        padding: 12px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: var(--radius-sm);
-        font-weight: 700;
-        font-size: 16px;
-        cursor: pointer;
-        transition: var(--transition);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    }
-    .wr-btn-start:hover:not(:disabled) {
-        background: var(--primary-hover);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(255, 49, 56, 0.35);
-    }
-    .wr-btn-start:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        transform: none !important;
-    }
-    .wr-btn-delete {
-        width: 100%;
-        margin-top: 8px;
-        padding: 8px;
-        background: transparent;
-        color: #EF4444;
-        border: 1px solid #EF4444;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 13px;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-    .wr-btn-delete:hover {
-        background: #FEF2F2;
-        border-color: #DC2626;
-        color: #DC2626;
-    }
-    .wr-left-message,
-    .wr-waiting-message {
-        text-align: center;
-        padding: 12px 0;
-    }
-    .wr-left-icon,
-    .wr-waiting-icon {
-        font-size: 40px;
-        margin-bottom: 6px;
-    }
-    .wr-left-message h4,
-    .wr-waiting-message h4 {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--text);
-        margin: 0;
-    }
-    .wr-left-message p,
-    .wr-waiting-message p {
-        font-size: 14px;
-        color: var(--text-secondary);
-        margin-top: 4px;
-    }
-    .wr-waiting-sub {
-        font-size: 13px;
-        color: var(--text-muted);
-        margin-top: 8px;
-    }
-    .wr-btn-rejoin {
-        width: 100%;
-        margin-top: 12px;
-        padding: 10px;
-        background: #10B981;
-        color: white;
-        border: none;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 14px;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-    .wr-btn-rejoin:hover {
-        background: #059669;
-        transform: translateY(-2px);
-    }
-    .wr-btn-leave {
-        width: 100%;
-        margin-top: 12px;
-        padding: 10px;
-        background: transparent;
-        color: #EF4444;
-        border: 2px solid #EF4444;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 14px;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-    .wr-btn-leave:hover {
-        background: #FEF2F2;
-        border-color: #DC2626;
-        color: #DC2626;
-    }
-    .wr-tip {
-        text-align: center;
-        font-size: 12px;
-        color: var(--text-muted);
-        margin-top: 16px;
-        padding-top: 12px;
-        border-top: 1px solid var(--border-light);
-    }
-    .quiz-started-alert {
-        display: none;
-        background: #10B981;
-        color: white;
-        padding: 12px 20px;
-        border-radius: var(--radius-sm);
-        margin-bottom: 16px;
-        text-align: center;
-        font-weight: 600;
-        animation: slideDown 0.5s ease;
-    }
-    .quiz-started-alert.show {
-        display: block;
-    }
-    .quiz-started-alert .spinner {
-        display: inline-block;
-        width: 18px;
-        height: 18px;
-        border: 2px solid rgba(255,255,255,0.3);
-        border-top: 2px solid white;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-        vertical-align: middle;
-        margin-right: 8px;
-    }
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    .notification-banner {
-        display: none;
-        background: var(--background);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 10px 16px;
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-    .notification-banner.show {
-        display: flex;
-    }
-    .notification-banner .btn-allow {
-        padding: 4px 14px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        font-size: 12px;
-        cursor: pointer;
-        transition: var(--transition);
-        flex-shrink: 0;
-    }
-    .notification-banner .btn-allow:hover {
-        background: var(--primary-hover);
-    }
-    .ready-btn {
-        position: relative;
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        border: 2px solid var(--border);
-        background: var(--surface);
-        color: var(--text-muted);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s ease;
-        flex-shrink: 0;
-        margin-right: 4px;
-    }
-    .ready-btn .hand-icon {
-        width: 20px;
-        height: 20px;
-        transition: all 0.3s ease;
-    }
-    .ready-btn .check-badge {
-        position: absolute;
-        bottom: -2px;
-        right: -2px;
-        font-size: 10px;
-        font-weight: 700;
-        background: var(--surface);
-        border-radius: 50%;
-        width: 16px;
-        height: 16px;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        color: #F59E0B;
-        border: 1px solid #F59E0B;
-        background: #FFF8E7;
-        transition: all 0.3s ease;
-    }
-    .ready-btn.active {
-        border-color: var(--primary);
-        background: var(--primary);
-        box-shadow: 0 0 16px 4px rgba(255, 49, 56, 0.3);
-        animation: pulse-glow 1.5s ease-in-out infinite;
-    }
-    .ready-btn.active .hand-icon {
-        color: #FCD34D;
-        animation: hand-bob 1.2s ease-in-out infinite;
-    }
-    .ready-btn.active .check-badge {
-        display: flex;
-    }
-    .ready-btn:not(.active):hover {
-        border-color: var(--text-muted);
-        background: var(--background);
-    }
-    @keyframes pulse-glow {
-        0%, 100% { box-shadow: 0 0 16px 4px rgba(255, 49, 56, 0.3); }
-        50% { box-shadow: 0 0 24px 8px rgba(255, 49, 56, 0.15); }
-    }
-    @keyframes hand-bob {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-4px); }
-    }
-    [data-theme="dark"] .ready-btn.active {
-        box-shadow: 0 0 20px 6px rgba(255, 107, 112, 0.4);
-    }
-    [data-theme="dark"] .ready-btn .check-badge {
-        background: #3A2E1A;
-        border-color: #FBBF24;
-        color: #FBBF24;
-    }
-    [data-theme="dark"] .ready-btn.active .hand-icon {
-        color: #FBBF24;
-    }
-    [data-theme="dark"] .wr-meta .privacy-badge.private { background: #3A2E1A; color: #FBBF24; }
-    [data-theme="dark"] .wr-meta .privacy-badge.public { background: #1A3A2E; color: #34D399; }
-    [data-theme="dark"] .wr-code {
-        background: var(--surface-alt);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .wr-copy-btn:hover {
-        background: var(--primary-light);
-    }
-    [data-theme="dark"] .wr-participant-item {
-        background: var(--surface-alt);
-    }
-    [data-theme="dark"] .wr-participant-item.ready {
-        border-left-color: #FF6B70;
-    }
-    [data-theme="dark"] .wr-ready-hand {
-        color: #FBBF24;
-    }
-    [data-theme="dark"] .wr-btn-delete {
-        color: #F87171;
-        border-color: #F87171;
-    }
-    [data-theme="dark"] .wr-btn-delete:hover {
-        background: #3A1A1A;
-        border-color: #F87171;
-        color: #FCA5A5;
-    }
-    [data-theme="dark"] .wr-btn-leave {
-        color: #F87171;
-        border-color: #F87171;
-    }
-    [data-theme="dark"] .wr-btn-leave:hover {
-        background: #3A1A1A;
-        border-color: #F87171;
-        color: #FCA5A5;
-    }
-</style>
 {% endblock %}
 
 {% block dashboard_content %}
@@ -749,6 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const leaveBtn = document.getElementById('leaveBtn');
     const rejoinBtn = document.getElementById('rejoinBtn');
     const deleteBtn = document.getElementById('deleteBtn');
+    const notificationBanner = document.getElementById('notificationBanner');
 
     // ============================================
     // NOTIFICATIONS
@@ -757,20 +192,55 @@ document.addEventListener('DOMContentLoaded', function() {
         if ('Notification' in window) {
             Notification.requestPermission().then(function(permission) {
                 if (permission === 'granted') {
-                    document.getElementById('notificationBanner').classList.remove('show');
+                    notificationBanner.classList.remove('show');
+                    if (typeof showToast === 'function') {
+                        showToast('✅ Notifications enabled!', 'success');
+                    }
+                } else {
+                    notificationBanner.classList.remove('show');
                 }
             });
         }
     }
     window.requestNotificationPermission = requestNotificationPermission;
 
+    // On load, hide banner if permission is already granted or denied
+    if ('Notification' in window) {
+        if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+            notificationBanner.classList.remove('show');
+        } else {
+            notificationBanner.classList.add('show');
+        }
+    } else {
+        notificationBanner.classList.remove('show');
+    }
+
     function sendBrowserNotification(title, body, url) {
-        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') {
+            Notification.requestPermission().then(function(perm) {
+                if (perm === 'granted') {
+                    sendBrowserNotification(title, body, url);
+                }
+            });
+            return;
+        }
         try {
-            const notification = new Notification(title, { body, icon: '/static/images/logo.png', tag: 'live-quiz-' + quizId, requireInteraction: true });
-            notification.onclick = function() { window.focus(); if (url) window.location.href = url; notification.close(); };
+            const notification = new Notification(title, {
+                body: body,
+                icon: '/static/images/logo.png',
+                tag: 'live-quiz-' + quizId,
+                requireInteraction: true
+            });
+            notification.onclick = function() {
+                window.focus();
+                if (url) window.location.href = url;
+                notification.close();
+            };
             setTimeout(function() { notification.close(); }, 15000);
-        } catch (e) { console.warn('Notification error:', e); }
+        } catch (e) {
+            console.warn('Notification error:', e);
+        }
     }
 
     function playNotificationSound() {
@@ -834,13 +304,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Notification at 60 seconds
             if (remaining <= 60 && remaining > 55 && !notificationSent) {
                 notificationSent = true;
-                if (Notification.permission === 'granted') {
-                    sendBrowserNotification(
-                        '⏰ Quiz starting soon!',
-                        `"${quizTitle}" starts in ${remaining} seconds!`,
-                        '/live-quiz/waiting-room/' + quizId
-                    );
-                }
+                sendBrowserNotification(
+                    '⏰ Quiz starting soon!',
+                    `"${quizTitle}" starts in ${remaining} seconds!`,
+                    '/live-quiz/waiting-room/' + quizId
+                );
                 playNotificationSound();
             }
 
@@ -890,7 +358,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const isYou = p.student_id == userId;
             const isCreator = p.is_creator;
             const isLeft = p.status === 'left';
-            const isReady = p.is_ready;
+            // For creator, we always show hand if they are the creator (they are "ready" by default)
+            // For non-creator, show hand if is_ready true
+            const isReady = (isCreator && p.status !== 'left') ? true : p.is_ready;
 
             let badge = '';
             if (isCreator) badge += '<span class="wr-badge creator">Creator</span>';
@@ -947,10 +417,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // READY TOGGLE
+    // READY TOGGLE (for non-creators)
     // ============================================
     function toggleReady() {
-        if (isCreator) return;
+        if (isCreator) return; // creator doesn't need to toggle
         const btn = document.querySelector('.ready-btn');
         if (!btn) return;
         const isActive = btn.classList.contains('active');
@@ -975,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // START QUIZ
+    // START QUIZ (creator)
     // ============================================
     function startQuiz() {
         if (!isCreator) return;
@@ -993,10 +463,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 isRedirecting = true;
                 showToast('🎯 Quiz started! Redirecting...', 'success');
-                document.getElementById('quizStartedAlert').classList.add('show');
-                setTimeout(function() {
-                    window.location.href = '/live-quiz/play/' + quizId;
-                }, 1500);
+                window.location.href = '/live-quiz/play/' + quizId;
             } else {
                 showToast('Error starting quiz: ' + (data.error || 'Unknown error'), 'error');
                 startBtn.disabled = false;
@@ -1163,12 +630,11 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.redirect_url && !isRedirecting) {
+                    isRedirecting = true;
                     if (data.status === 'active') {
                         document.getElementById('quizStartedAlert').classList.add('show');
                         showToast('🚀 Quiz has started!', 'success');
-                        setTimeout(function() {
-                            window.location.href = data.redirect_url;
-                        }, 1500);
+                        window.location.href = data.redirect_url;
                     } else if (data.status === 'finished') {
                         window.location.href = data.redirect_url;
                     }
@@ -1204,9 +670,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // INIT
     // ============================================
 
-    if ('Notification' in window && Notification.permission === 'default') {
-        document.getElementById('notificationBanner').classList.add('show');
-    }
+    // Banner visibility already handled at top
 
     fetchParticipants();
     pollTimer = setInterval(fetchParticipants, pollInterval);
@@ -1224,6 +688,7 @@ document.addEventListener('DOMContentLoaded', function() {
         rejoinBtn.addEventListener('click', rejoinQuiz);
     }
 
+    // Add ready button for non-creators
     if (!isCreator) {
         const actionsDiv = document.querySelector('.wr-actions');
         if (actionsDiv && !document.querySelector('.ready-btn')) {
