@@ -95,9 +95,8 @@ def format_time_ago(timestamp: str) -> str:
         return 'Hadda'
 
 # ============================================
-# CSRF VALIDATION
+# CSRF VALIDATION (moved from app.py to avoid circular import)
 # ============================================
-
 
 def validate_csrf():
     """Validate CSRF token from form or header; returns True if valid."""

@@ -18,7 +18,7 @@ from db import (
     get_student_by_phone, get_student_by_id, create_student, is_admin,
     close_db_connections, close_db,
 )
-from utils import get_somali_time_display, validate_csrf, validate_csrf  # added validate_csrf
+from utils import get_somali_time_display, validate_csrf  # added validate_csrf
 from startup import verify_startup, get_startup_health
 from database import get_database_health
 from errors import register_error_handlers
