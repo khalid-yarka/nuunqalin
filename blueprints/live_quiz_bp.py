@@ -451,6 +451,10 @@ def lobby_join(quiz_id):
     notify_participant_joined(quiz_id, quiz.get('title', 'Live Quiz'), user_name, quiz['creator_id'])
     return jsonify({'success': True, 'redirect': url_for('live_quiz.waiting_room', quiz_id=quiz_id)})
 
+# ============================================
+# CREATE LIVE QUIZ - GET & POST
+# ============================================
+
 @live_quiz_bp.route('/create', methods=['GET', 'POST'])
 def create():
     if 'user_id' not in session:
@@ -459,6 +463,12 @@ def create():
     user_id = session['user_id']
 
     user_subjects = get_user_subject_list(user_id)
+
+    # --- Ensure CSRF token is set for the GET request ---
+    if request.method == 'GET':
+        if 'csrf_token' not in session:
+            session['csrf_token'] = secrets.token_hex(32)
+        # The token is now guaranteed to exist
 
     if request.method == 'POST':
         # CSRF validation
@@ -544,14 +554,22 @@ def create():
 
     return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
 
+# ============================================
+# CREATE WITH AVAILABLE - POST only
+# ============================================
+
 @live_quiz_bp.route('/create-with-available', methods=['POST'])
 def create_with_available():
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
-    validate_csrf()
-    user_id = session['user_id']
 
+    # CSRF validation
+    if not validate_csrf():
+        flash('Invalid CSRF token. Please try again.', 'error')
+        return redirect(url_for('live_quiz.create'))
+
+    user_id = session['user_id']
     subject_code = request.form.get('subject_code', '').strip()
     question_count = int(request.form.get('question_count', 10))
     title = request.form.get('title', '').strip()
