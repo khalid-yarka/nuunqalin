@@ -464,11 +464,9 @@ def create():
 
     user_subjects = get_user_subject_list(user_id)
 
-    # --- Ensure CSRF token is set for the GET request ---
+    # Ensure CSRF token exists for GET requests
     if request.method == 'GET':
-        if 'csrf_token' not in session:
-            session['csrf_token'] = secrets.token_hex(32)
-        # The token is now guaranteed to exist
+        ensure_csrf_token()  # This will generate if missing, and mark session modified
 
     if request.method == 'POST':
         # CSRF validation

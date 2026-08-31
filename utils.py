@@ -1,6 +1,10 @@
 from datetime import datetime, timezone, timedelta
 import re
-from flask import request, session  # added for CSRF
+from flask import request, session
+import secrets
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ============================================
 # SOMALI TIME ZONE (UTC+3)
@@ -95,13 +99,42 @@ def format_time_ago(timestamp: str) -> str:
         return 'Hadda'
 
 # ============================================
-# CSRF VALIDATION
+# CSRF VALIDATION (moved from app.py to avoid circular import)
 # ============================================
 
+def ensure_csrf_token():
+    """
+    Ensure a CSRF token exists in the session.
+    Call this on GET requests that render forms.
+    """
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+        session.modified = True
+        logger.debug("CSRF token generated and stored in session.")
+    else:
+        # Token already exists, but ensure session is marked modified to persist
+        session.modified = True
+    return session['csrf_token']
 
 def validate_csrf():
-    """Validate CSRF token from form or header; returns True if valid."""
+    """
+    Validate CSRF token from form or header.
+    Returns True if valid, False otherwise.
+    """
     token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
-    if not token or token != session.get('csrf_token'):
+    expected = session.get('csrf_token')
+
+    if not expected:
+        logger.warning("CSRF validation failed: no token in session (session may be missing or expired).")
         return False
-    return True
+
+    if not token:
+        logger.warning("CSRF validation failed: no token submitted in request.")
+        return False
+
+    # Use secrets.compare_digest for constant-time comparison
+    if secrets.compare_digest(token, expected):
+        return True
+    else:
+        logger.warning("CSRF validation failed: submitted token does not match session token.")
+        return False
