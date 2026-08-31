@@ -238,7 +238,7 @@
 </div>
 
 <!-- ============================================ -->
-<!-- QUICK ACTIONS (existing) -->
+<!-- QUICK ACTIONS (MANAGE SUBJECTS REMOVED) -->
 <!-- ============================================ -->
 <div style="margin-bottom: 28px;">
     <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 14px 0;">🚀 Quick Actions</h3>
@@ -251,11 +251,6 @@
         <a href="{{ url_for('admin.admin_questions') }}" class="quick-action-card">
             <span class="qa-icon blue"><i class="fas fa-question-circle"></i></span>
             <span class="qa-text"><span class="qa-title">Manage Questions</span><span class="qa-sub">Add or bulk import</span></span>
-            <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
-        </a>
-        <a href="{{ url_for('admin.admin_subjects') }}" class="quick-action-card">
-            <span class="qa-icon orange"><i class="fas fa-book"></i></span>
-            <span class="qa-text"><span class="qa-title">Manage Subjects</span><span class="qa-sub">Add or remove</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
         <a href="{{ url_for('admin.admin_pdfs') }}" class="quick-action-card">
@@ -312,7 +307,6 @@
 
 <script>
 function loadMoreActivity() {
-    // Simple fetch to load more activity (will be implemented in full activity page)
     window.location.href = "{{ url_for('admin_activity.index') }}";
 }
 

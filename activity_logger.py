@@ -4,7 +4,7 @@ import json
 import threading
 import queue
 import logging
-from flask import request, session
+from flask import request, session, current_app
 from typing import Optional, Dict, Any
 from db import execute_with_retry
 from utils import get_somali_time_db
@@ -15,6 +15,15 @@ _activity_queue = queue.Queue()
 _worker_running = False
 BATCH_SIZE = 50
 FLUSH_INTERVAL = 2
+
+# Reference to the Flask app (set when initializing)
+_app = None
+
+def init_activity_logger(app):
+    """Initialize the activity logger with the Flask app instance."""
+    global _app
+    _app = app
+    _ensure_worker()
 
 def log_activity(
     activity_type: str,
@@ -74,20 +83,27 @@ def _worker_loop():
 def _flush_batch(batch):
     if not batch:
         return
+    # Ensure we run within the application context
+    global _app
+    if _app is None:
+        logger.error("Activity logger not initialized with app context. Call init_activity_logger(app).")
+        return
+
     try:
-        from db import get_db
-        conn = get_db()
-        cursor = conn.cursor()
-        sql = """
-            INSERT INTO activity_logs (
-                user_id, session_id, activity_type, severity,
-                message, metadata, ip_address, user_agent, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = [(e['user_id'], e['session_id'], e['activity_type'], e['severity'],
-                   e['message'], e['metadata'], e['ip_address'], e['user_agent'], e['created_at']) for e in batch]
-        cursor.executemany(sql, params)
-        conn.commit()
+        with _app.app_context():
+            from db import get_db
+            conn = get_db()
+            cursor = conn.cursor()
+            sql = """
+                INSERT INTO activity_logs (
+                    user_id, session_id, activity_type, severity,
+                    message, metadata, ip_address, user_agent, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            params = [(e['user_id'], e['session_id'], e['activity_type'], e['severity'],
+                       e['message'], e['metadata'], e['ip_address'], e['user_agent'], e['created_at']) for e in batch]
+            cursor.executemany(sql, params)
+            conn.commit()
     except Exception as e:
         logger.error(f"Failed to flush activity batch: {e}")
 

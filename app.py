@@ -227,6 +227,9 @@ app.config['SESSION_COOKIE_SECURE'] = Config.SESSION_COOKIE_SECURE
 app.config['SESSION_COOKIE_HTTPONLY'] = Config.SESSION_COOKIE_HTTPONLY
 app.config['SESSION_COOKIE_SAMESITE'] = Config.SESSION_COOKIE_SAMESITE
 
+from activity_logger import init_activity_logger
+init_activity_logger(app)
+
 # ============================================
 # REQUEST CONTEXT
 # ============================================
