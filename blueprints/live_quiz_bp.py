@@ -56,7 +56,7 @@ from db import (
 )
 
 from config import Config
-from utils import get_somali_time_db, get_somali_time_display, format_somali_time
+from utils import get_somali_time_db, get_somali_time_display, format_somali_time, validate_csrf
 from subjects_config import get_subject, get_all_subjects
 
 from cache import get_cache_manager, InvalidationHelper, make_key

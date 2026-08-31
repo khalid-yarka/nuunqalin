@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 import re
+from flask import request, session  # added for CSRF
 
 # ============================================
 # SOMALI TIME ZONE (UTC+3)
@@ -92,3 +93,14 @@ def format_time_ago(timestamp: str) -> str:
             return 'Hadda'
     except Exception:
         return 'Hadda'
+
+# ============================================
+# CSRF VALIDATION (moved from app.py to avoid circular import)
+# ============================================
+
+def validate_csrf():
+    """Validate CSRF token from form or header; returns True if valid."""
+    token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+    if not token or token != session.get('csrf_token'):
+        return False
+    return True

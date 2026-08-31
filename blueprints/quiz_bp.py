@@ -4,7 +4,7 @@ from db import (
     get_user_quiz_history, update_student_points, get_student_by_id,
     get_leaderboard, get_user_subject_list
 )
-from app import validate_csrf  # Import the CSRF validation function
+from utils import validate_csrf  # changed from app import
 
 quiz_bp = Blueprint('quiz', __name__, url_prefix='/quiz')
 
@@ -15,7 +15,7 @@ def index():
         return redirect(url_for('login'))
     
     user_id = session['user_id']
-    subjects = get_user_subject_list(user_id)   # Filtered by user's location/curriculum
+    subjects = get_user_subject_list(user_id)
     return render_template('dashboard/quiz/select.html', subjects=subjects)
 
 @quiz_bp.route('/start/<subject_code>')
@@ -24,7 +24,6 @@ def start_quiz(subject_code):
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
-    # Verify user can access this subject
     user_subjects = get_user_subject_list(session['user_id'])
     if subject_code not in [s['code'] for s in user_subjects]:
         flash('Subject not available for your location/curriculum.', 'error')
@@ -73,7 +72,6 @@ def submit_answer():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     
-    # CSRF validation
     if not validate_csrf():
         return jsonify({'error': 'CSRF token missing or invalid'}), 403
     
@@ -113,7 +111,6 @@ def submit_rating():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     
-    # CSRF validation
     if not validate_csrf():
         return jsonify({'error': 'CSRF token missing or invalid'}), 403
     

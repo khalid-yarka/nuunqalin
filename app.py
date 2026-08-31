@@ -18,7 +18,7 @@ from db import (
     get_student_by_phone, get_student_by_id, create_student, is_admin,
     close_db_connections, close_db,
 )
-from utils import get_somali_time_display
+from utils import get_somali_time_display, validate_csrf  # added validate_csrf
 from startup import verify_startup, get_startup_health
 from database import get_database_health
 from errors import register_error_handlers
@@ -250,7 +250,7 @@ def log_request_end(response):
     return response
 
 # ============================================
-# CSRF PROTECTION
+# CSRF PROTECTION (now uses utils.validate_csrf)
 # ============================================
 
 @app.before_request
@@ -258,11 +258,7 @@ def generate_csrf():
     if 'user_id' in session and 'csrf_token' not in session:
         session['csrf_token'] = secrets.token_hex(32)
 
-def validate_csrf():
-    token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
-    if not token or token != session.get('csrf_token'):
-        return False
-    return True
+# Note: validate_csrf() is now imported from utils
 
 # ============================================
 # REGISTER BLUEPRINTS
@@ -419,13 +415,12 @@ def login():
                 session['user_name'] = student['first_name']
                 session['user_phone'] = student['phone_number']
                 session['is_admin'] = bool(student.get('is_admin', 0))
-                session['curriculum'] = student.get('curriculum')  # store for later use
+                session['curriculum'] = student.get('curriculum')
                 session.permanent = True
                 session['csrf_token'] = secrets.token_hex(32)
                 logger.info(f"User logged in: user_id={student['id']}")
                 flash('Welcome back!', 'success')
 
-                # Log activity
                 log_activity('user.login', f"User {student['id']} logged in", 'info', user_id=student['id'])
 
                 return redirect(url_for('dashboard.home'))
@@ -458,11 +453,8 @@ def register():
         school = request.form.get('school', '')
         school_manual = request.form.get('school_manual', '').strip()
         grade = request.form.get('grade', '')
-        curriculum = request.form.get('curriculum', '').strip()   # NEW
+        curriculum = request.form.get('curriculum', '').strip()
 
-        # ============================================
-        # SERVER-SIDE VALIDATION
-        # ============================================
         def validate_name(name):
             if not name or len(name) < 4:
                 return False
@@ -487,12 +479,10 @@ def register():
         if not phone.startswith('+252'):
             phone = '+252' + phone
 
-        # Location validation
         if location not in ['SO', 'PL', 'SL']:
             flash('Invalid location.', 'error')
             return render_template('register.html')
 
-        # NEW: Curriculum requirement for PL
         if location == 'PL':
             if curriculum not in ['general', 'science', 'arts']:
                 flash('Please select your curriculum.', 'error')
@@ -518,7 +508,7 @@ def register():
             'school': school_value,
             'grade': grade,
             'total_points': 0,
-            'curriculum': curriculum   # NEW
+            'curriculum': curriculum
         }
 
         new_student = create_student(student_data)
@@ -623,7 +613,6 @@ def utility_processor():
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
-    # Use logger instead of print
     logger.info(f"Server starting at: {get_somali_time_display()}")
     logger.info(f"Database path: {Config.DATABASE_PATH}")
     logger.info(f"Log directory: {Config.LOG_DIR}")
