@@ -419,6 +419,7 @@ def login():
                 session['user_name'] = student['first_name']
                 session['user_phone'] = student['phone_number']
                 session['is_admin'] = bool(student.get('is_admin', 0))
+                session['curriculum'] = student.get('curriculum')  # store for later use
                 session.permanent = True
                 session['csrf_token'] = secrets.token_hex(32)
                 logger.info(f"User logged in: user_id={student['id']}")
@@ -437,6 +438,10 @@ def login():
 
     return render_template('login.html')
 
+# ============================================
+# REGISTER – UPDATED WITH CURRICULUM
+# ============================================
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if 'user_id' in session:
@@ -453,9 +458,10 @@ def register():
         school = request.form.get('school', '')
         school_manual = request.form.get('school_manual', '').strip()
         grade = request.form.get('grade', '')
+        curriculum = request.form.get('curriculum', '').strip()   # NEW
 
         # ============================================
-        # SERVER-SIDE NAME VALIDATION (Strict)
+        # SERVER-SIDE VALIDATION
         # ============================================
         def validate_name(name):
             if not name or len(name) < 4:
@@ -481,6 +487,19 @@ def register():
         if not phone.startswith('+252'):
             phone = '+252' + phone
 
+        # Location validation
+        if location not in ['SO', 'PL', 'SL']:
+            flash('Invalid location.', 'error')
+            return render_template('register.html')
+
+        # NEW: Curriculum requirement for PL
+        if location == 'PL':
+            if curriculum not in ['general', 'science', 'arts']:
+                flash('Please select your curriculum.', 'error')
+                return render_template('register.html')
+        else:
+            curriculum = None
+
         existing = get_student_by_phone(phone)
         if existing:
             flash('This phone number is already registered.', 'error')
@@ -498,7 +517,8 @@ def register():
             'city': city,
             'school': school_value,
             'grade': grade,
-            'total_points': 0
+            'total_points': 0,
+            'curriculum': curriculum   # NEW
         }
 
         new_student = create_student(student_data)

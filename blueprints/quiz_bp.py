@@ -1,31 +1,35 @@
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify
 from db import (
-    get_all_subjects, get_questions_by_subject, save_quiz_attempt,
+    get_questions_by_subject, save_quiz_attempt,
     get_user_quiz_history, update_student_points, get_student_by_id,
-    get_leaderboard
+    get_leaderboard, get_user_subject_list
 )
 
 quiz_bp = Blueprint('quiz', __name__, url_prefix='/quiz')
 
 @quiz_bp.route('/')
 def index():
-    """Quiz home - select subject"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
-    subjects = get_all_subjects()
+    user_id = session['user_id']
+    subjects = get_user_subject_list(user_id)   # Filtered by user's location/curriculum
     return render_template('dashboard/quiz/select.html', subjects=subjects)
 
-@quiz_bp.route('/start/<subject_id>')
-def start_quiz(subject_id):
-    """Start a quiz for a subject"""
+@quiz_bp.route('/start/<subject_code>')
+def start_quiz(subject_code):
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
-    questions = get_questions_by_subject(subject_id, 10)
+    # Verify user can access this subject
+    user_subjects = get_user_subject_list(session['user_id'])
+    if subject_code not in [s['code'] for s in user_subjects]:
+        flash('Subject not available for your location/curriculum.', 'error')
+        return redirect(url_for('quiz.index'))
     
+    questions = get_questions_by_subject(subject_code, 10)
     if not questions:
         flash('No questions available for this subject yet.', 'error')
         return redirect(url_for('quiz.index'))
@@ -35,13 +39,12 @@ def start_quiz(subject_id):
     session['quiz_score'] = 0
     session['quiz_answers'] = []
     session['quiz_ratings'] = []
-    session['quiz_subject_id'] = subject_id
+    session['quiz_subject_code'] = subject_code
     
     return redirect(url_for('quiz.play'))
 
 @quiz_bp.route('/play')
 def play():
-    """Play the quiz"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
@@ -66,7 +69,6 @@ def play():
 
 @quiz_bp.route('/submit_answer', methods=['POST'])
 def submit_answer():
-    """Submit an answer and get feedback"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     
@@ -103,7 +105,6 @@ def submit_answer():
 
 @quiz_bp.route('/submit_rating', methods=['POST'])
 def submit_rating():
-    """Submit rating for current question"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     
@@ -131,7 +132,6 @@ def submit_rating():
 
 @quiz_bp.route('/results')
 def results():
-    """Show quiz results"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
@@ -140,16 +140,16 @@ def results():
     answers = session.get('quiz_answers', [])
     score = session.get('quiz_score', 0)
     total = len(questions)
-    subject_id = session.get('quiz_subject_id')
+    subject_code = session.get('quiz_subject_code')
     
     if not questions:
         flash('No quiz completed.', 'error')
         return redirect(url_for('quiz.index'))
     
-    if subject_id:
+    if subject_code:
         save_quiz_attempt(
             session['user_id'],
-            subject_id,
+            subject_code,
             score,
             total,
             answers,
@@ -167,7 +167,7 @@ def results():
     session.pop('quiz_score', None)
     session.pop('quiz_answers', None)
     session.pop('quiz_ratings', None)
-    session.pop('quiz_subject_id', None)
+    session.pop('quiz_subject_code', None)
     
     return render_template('dashboard/quiz/results.html', 
                          score=score, 
@@ -176,7 +176,6 @@ def results():
 
 @quiz_bp.route('/history')
 def history():
-    """View quiz history"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
@@ -186,7 +185,6 @@ def history():
 
 @quiz_bp.route('/leaderboard')
 def leaderboard():
-    """Global leaderboard"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))

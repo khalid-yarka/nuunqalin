@@ -1,3 +1,4 @@
+# db.py – complete file with subject changes
 import sqlite3
 import json
 import secrets
@@ -10,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 from flask import g, current_app
 from config import Config
 from utils import get_somali_time, get_somali_time_db, format_somali_time
+from subjects_config import get_subject, get_subjects_for_user
 
 # ============================================
 # DATABASE CONFIGURATION
@@ -40,20 +42,6 @@ def is_retryable_error(error_msg: str) -> bool:
         return True
     if 'disk i/o error' in error_msg:
         return True
-    if 'no such table' in error_msg:
-        return False
-    if 'malformed' in error_msg:
-        return False
-    if 'corrupt' in error_msg:
-        return False
-    if 'integrity' in error_msg:
-        return False
-    if 'not null' in error_msg:
-        return False
-    if 'unique constraint' in error_msg:
-        return False
-    if 'foreign key' in error_msg:
-        return False
     return False
 
 # ============================================
@@ -100,7 +88,6 @@ def close_db(exception=None):
                 logger.warning(f"Error closing database: {e}")
 
 def close_db_connections():
-    """Close the database connection if it exists in the request context."""
     try:
         from flask import has_app_context, g
         if has_app_context() and hasattr(g, 'db'):
@@ -112,6 +99,7 @@ def close_db_connections():
                     pass
     except Exception:
         pass
+
 # ============================================
 # TRANSACTION HELPERS
 # ============================================
@@ -283,7 +271,7 @@ def get_student_by_public_id(public_id: str):
     return dict(result) if result else None
 
 # ============================================
-# STUDENT FUNCTIONS
+# STUDENT FUNCTIONS (with curriculum)
 # ============================================
 
 def get_student_by_phone(phone: str):
@@ -305,8 +293,8 @@ def create_student(data: dict):
             INSERT INTO students (
                 public_id, phone_number, password, first_name,
                 middle_name, last_name, location, city, school, grade,
-                total_points, is_admin, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                total_points, is_admin, curriculum, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             public_id,
             data['phone_number'],
@@ -320,6 +308,7 @@ def create_student(data: dict):
             data.get('grade', ''),
             data.get('total_points', 0),
             0,
+            data.get('curriculum'),
             now()
         ), commit=True)
         return get_student_by_phone(data['phone_number'])
@@ -329,6 +318,18 @@ def create_student(data: dict):
         except RuntimeError:
             logger.error(f"Error creating student: {e}")
         return None
+
+def update_student_curriculum(student_id: int, curriculum: str):
+    try:
+        execute_with_retry(
+            "UPDATE students SET curriculum = ? WHERE id = ?",
+            (curriculum, student_id),
+            commit=True
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error updating curriculum: {e}")
+        return False
 
 def update_student_points(student_id: int, points: int):
     try:
@@ -381,7 +382,7 @@ def get_all_students():
     try:
         cursor = execute_with_retry("""
             SELECT id, public_id, first_name, last_name, phone_number, 
-                   location, school, grade, total_points, is_admin, created_at
+                   location, school, grade, total_points, is_admin, curriculum, created_at
             FROM students
             ORDER BY created_at DESC
         """)
@@ -394,96 +395,45 @@ def get_all_students():
             logger.error(f"Error fetching students: {e}")
         return []
 
-def get_schools_by_location(location: str):
-    try:
-        cursor = execute_with_retry("SELECT * FROM schools WHERE location = ?", (location,))
-        results = cursor.fetchall()
-        return [dict(row) for row in results]
-    except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching schools: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching schools: {e}")
+# ============================================
+# SUBJECT-RELATED FUNCTIONS (using config)
+# ============================================
+
+def get_user_subject_list(user_id: int):
+    """Return list of subject dicts for a user based on location/curriculum."""
+    student = get_student_by_id(user_id)
+    if not student:
         return []
-
-# ============================================
-# SUBJECT FUNCTIONS
-# ============================================
-
-def get_all_subjects():
-    try:
-        cursor = execute_with_retry("SELECT * FROM subjects ORDER BY name")
-        results = cursor.fetchall()
-        return [dict(row) for row in results]
-    except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching subjects: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching subjects: {e}")
+    location = student.get('location')
+    curriculum = student.get('curriculum')
+    if not location:
         return []
-
-def get_subject_by_id(subject_id: int):
-    try:
-        cursor = execute_with_retry("SELECT * FROM subjects WHERE id = ?", (subject_id,))
-        result = cursor.fetchone()
-        return dict(result) if result else None
-    except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching subject: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching subject: {e}")
-        return None
-
-def get_subject_by_name(name: str):
-    try:
-        cursor = execute_with_retry("SELECT * FROM subjects WHERE LOWER(name) = LOWER(?)", (name,))
-        result = cursor.fetchone()
-        return dict(result) if result else None
-    except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching subject: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching subject: {e}")
-        return None
-
-def create_subject(data: dict):
-    try:
-        execute_with_retry("""
-            INSERT INTO subjects (name, icon)
-            VALUES (?, ?)
-        """, (data['name'], data.get('icon', '📚')), commit=True)
-        return get_subject_by_name(data['name'])
-    except Exception as e:
-        try:
-            current_app.logger.error(f"Error creating subject: {e}")
-        except RuntimeError:
-            logger.error(f"Error creating subject: {e}")
-        return None
-
-def delete_subject(subject_id: int):
-    try:
-        execute_with_retry("DELETE FROM subjects WHERE id = ?", (subject_id,), commit=True)
-        return True
-    except Exception as e:
-        try:
-            current_app.logger.error(f"Error deleting subject: {e}")
-        except RuntimeError:
-            logger.error(f"Error deleting subject: {e}")
-        return False
+    codes = get_subjects_for_user(location, curriculum)
+    subjects = []
+    for code in codes:
+        subj = get_subject(code)
+        if subj:
+            subjects.append({
+                'code': code,
+                'name': subj['name'],
+                'name_so': subj.get('name_so', ''),
+                'icon': subj.get('icon', '📚')
+            })
+    return subjects
 
 # ============================================
-# QUESTION FUNCTIONS
+# QUESTION FUNCTIONS (using subject_code)
 # ============================================
 
-def get_questions_by_subject(subject_id: int, limit: int = 10):
+def get_questions_by_subject(subject_code: str, limit: int = 10):
     try:
         cursor = execute_with_retry("""
             SELECT id, question_text, options, correct_answer, explanation
             FROM questions
-            WHERE subject_id = ? AND status = 'active'
+            WHERE subject_code = ? AND status = 'active'
             ORDER BY RANDOM()
             LIMIT ?
-        """, (subject_id, limit))
+        """, (subject_code, limit))
         results = cursor.fetchall()
         questions = []
         for row in results:
@@ -501,9 +451,8 @@ def get_questions_by_subject(subject_id: int, limit: int = 10):
 def get_all_questions():
     try:
         cursor = execute_with_retry("""
-            SELECT q.*, s.name as subject_name
+            SELECT q.*
             FROM questions q
-            LEFT JOIN subjects s ON q.subject_id = s.id
             ORDER BY q.created_at DESC
         """)
         results = cursor.fetchall()
@@ -511,7 +460,8 @@ def get_all_questions():
         for row in results:
             q = dict(row)
             q['options'] = from_json(q['options'])
-            q['subject'] = {'name': q.pop('subject_name', '')} if q.get('subject_name') else None
+            subj = get_subject(q['subject_code'])
+            q['subject'] = {'name': subj['name'] if subj else q['subject_code']}
             questions.append(q)
         return questions
     except Exception as e:
@@ -525,12 +475,12 @@ def create_question(data: dict):
     try:
         execute_with_retry("""
             INSERT INTO questions (
-                subject_id, question_text, options, correct_answer,
+                subject_code, question_text, options, correct_answer,
                 difficulty, chapter, tags, explanation,
                 created_by, updated_by, status, version, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            data['subject_id'],
+            data['subject_code'],
             data['question_text'],
             to_json(data['options']),
             data['correct_answer'],
@@ -611,7 +561,7 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                 batch_params = []
                 for q in batch:
                     batch_params.append((
-                        q['subject_id'],
+                        q['subject_code'],
                         q['question_text'],
                         to_json(q['options']),
                         q['correct_answer'],
@@ -628,7 +578,7 @@ def bulk_create_questions(questions_data: list, admin_id: int):
                     ))
                 cursor.executemany("""
                     INSERT INTO questions (
-                        subject_id, question_text, options, correct_answer,
+                        subject_code, question_text, options, correct_answer,
                         difficulty, chapter, tags, explanation,
                         created_by, updated_by, status, version, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -688,7 +638,7 @@ def update_question(question_id: int, data: dict):
     try:
         execute_with_retry("""
             UPDATE questions SET
-                subject_id = ?,
+                subject_code = ?,
                 question_text = ?,
                 options = ?,
                 correct_answer = ?,
@@ -700,7 +650,7 @@ def update_question(question_id: int, data: dict):
                 updated_at = ?
             WHERE id = ?
         """, (
-            data['subject_id'],
+            data['subject_code'],
             data['question_text'],
             to_json(data['options']),
             data['correct_answer'],
@@ -751,11 +701,11 @@ def get_question_by_id(question_id: int):
             logger.error(f"Error fetching question: {e}")
         return None
 
-def check_question_exists(question_text: str, subject_id: int):
+def check_question_exists(question_text: str, subject_code: str):
     try:
         cursor = execute_with_retry(
-            "SELECT id FROM questions WHERE LOWER(question_text) = LOWER(?) AND subject_id = ? AND status = 'active'",
-            (question_text, subject_id)
+            "SELECT id FROM questions WHERE LOWER(question_text) = LOWER(?) AND subject_code = ? AND status = 'active'",
+            (question_text, subject_code)
         )
         result = cursor.fetchone()
         return result is not None
@@ -767,19 +717,19 @@ def check_question_exists(question_text: str, subject_id: int):
         return False
 
 # ============================================
-# QUIZ ATTEMPT FUNCTIONS
+# QUIZ ATTEMPT FUNCTIONS (using subject_code)
 # ============================================
 
-def save_quiz_attempt(student_id: int, subject_id: int, score: int, total: int, answers: list, ratings: list):
+def save_quiz_attempt(student_id: int, subject_code: str, score: int, total: int, answers: list, ratings: list):
     try:
         execute_with_retry("""
             INSERT INTO quiz_attempts (
-                student_id, subject_id, score, total_questions,
+                student_id, subject_code, score, total_questions,
                 answers, ratings, completed_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             student_id,
-            subject_id,
+            subject_code,
             score,
             total,
             to_json(answers),
@@ -797,9 +747,8 @@ def save_quiz_attempt(student_id: int, subject_id: int, score: int, total: int, 
 def get_user_quiz_history(student_id: int, limit: int = 10):
     try:
         cursor = execute_with_retry("""
-            SELECT qa.*, s.name as subject_name
+            SELECT qa.*
             FROM quiz_attempts qa
-            LEFT JOIN subjects s ON qa.subject_id = s.id
             WHERE qa.student_id = ?
             ORDER BY qa.completed_at DESC
             LIMIT ?
@@ -808,7 +757,8 @@ def get_user_quiz_history(student_id: int, limit: int = 10):
         attempts = []
         for row in results:
             a = dict(row)
-            a['subject'] = {'name': a.pop('subject_name', '')} if a.get('subject_name') else None
+            subj = get_subject(a['subject_code'])
+            a['subject'] = {'name': subj['name'] if subj else a['subject_code']}
             a['answers'] = from_json(a['answers'])
             a['ratings'] = from_json(a['ratings'])
             attempts.append(a)
@@ -925,8 +875,8 @@ def restore_deleted_user(deleted_id: int):
             INSERT INTO students (
                 public_id, phone_number, password, first_name,
                 middle_name, last_name, location, city, school, grade,
-                total_points, is_admin, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                total_points, is_admin, curriculum, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             user_data.get('public_id'),
             user_data['phone_number'],
@@ -940,6 +890,7 @@ def restore_deleted_user(deleted_id: int):
             user_data.get('grade', ''),
             user_data.get('total_points', 0),
             user_data.get('is_admin', 0),
+            user_data.get('curriculum'),
             user_data.get('created_at', now())
         ), commit=True)
         execute_with_retry("DELETE FROM deleted_users WHERE id = ?", (deleted_id,), commit=True)
@@ -952,7 +903,7 @@ def restore_deleted_user(deleted_id: int):
         return False, str(e)
 
 # ============================================
-# GROUP FUNCTIONS
+# GROUP FUNCTIONS (unchanged)
 # ============================================
 
 def get_all_groups():
@@ -1043,7 +994,7 @@ def get_group_by_id(group_id: int):
         return None
 
 # ============================================
-# PDF FUNCTIONS
+# PDF FUNCTIONS (unchanged)
 # ============================================
 
 def get_all_pdfs():
@@ -1172,21 +1123,21 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
         return []
 
 # ============================================
-# LIVE QUIZ FUNCTIONS (FULLY UPDATED)
+# LIVE QUIZ FUNCTIONS (using subject_code)
 # ============================================
 
 def create_live_quiz(data: dict):
     try:
         cursor = execute_with_retry("""
             INSERT INTO live_quizzes (
-                creator_id, title, subject_id, question_count, join_code,
+                creator_id, title, subject_code, question_count, join_code,
                 status, max_participants, time_per_question, current_question_index,
                 question_ids, started_at, ended_at, scheduled_start, is_public, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             data['creator_id'],
             data.get('title', ''),
-            data['subject_id'],
+            data['subject_code'],
             data['question_count'],
             data['join_code'],
             data.get('status', 'waiting'),
@@ -1247,17 +1198,13 @@ def get_live_quiz_by_code(join_code: str):
 
 def get_live_quiz_with_subject(quiz_id: int):
     try:
-        cursor = execute_with_retry("""
-            SELECT lq.*, s.name as subject_name
-            FROM live_quizzes lq
-            LEFT JOIN subjects s ON lq.subject_id = s.id
-            WHERE lq.id = ?
-        """, (quiz_id,))
+        cursor = execute_with_retry("SELECT * FROM live_quizzes WHERE id = ?", (quiz_id,))
         result = cursor.fetchone()
         if result:
             quiz = dict(result)
             quiz['question_ids'] = from_json(quiz['question_ids'])
-            quiz['subjects'] = {'name': quiz.pop('subject_name', '')} if quiz.get('subject_name') else None
+            subj = get_subject(quiz['subject_code'])
+            quiz['subjects'] = {'name': subj['name'] if subj else quiz['subject_code']}
             return quiz
         return None
     except Exception as e:
@@ -1343,15 +1290,12 @@ def get_live_quiz_participant(quiz_id: int, student_id: int):
 
 def add_live_quiz_participant(quiz_id: int, student_id: int):
     try:
-        # Get quiz's question_ids
         quiz = get_live_quiz_by_id(quiz_id)
         question_ids = quiz.get('question_ids', [])
-        # Shuffle them for this participant
         import random
-        shuffled = question_ids[:]  # copy
+        shuffled = question_ids[:]
         random.shuffle(shuffled)
 
-        # Store shuffled list in the 'answers' JSON as a special key
         answers = {'__shuffled_ids': shuffled}
 
         execute_with_retry("""
@@ -1429,7 +1373,6 @@ def get_live_quiz_participants_with_names(quiz_id: int):
         return []
 
 def get_active_live_quiz(join_code: str):
-    """Get a quiz by join code if it is waiting or scheduled."""
     try:
         cursor = execute_with_retry("""
             SELECT * FROM live_quizzes
@@ -1594,7 +1537,7 @@ def search_groups(search: str = '', platform: str = '', category: str = ''):
         return []
 
 # ============================================
-# NOTIFICATION FUNCTIONS
+# NOTIFICATION FUNCTIONS (unchanged)
 # ============================================
 
 def create_notification(user_id, type, title, body, link='', icon=''):
@@ -1697,79 +1640,31 @@ def mark_all_notifications_read(user_id):
         return False
 
 # ============================================
-# NOTIFICATION TRIGGERS
-# ============================================
-
-def notify_quiz_completed(user_id, subject_name, score, total):
-    percentage = round((score / total) * 100)
-    title = "📝 Quiz Completed!"
-    body = f"You scored {score}/{total} ({percentage}%) on {subject_name} Quiz!"
-    create_notification(
-        user_id=user_id,
-        type='quiz_completed',
-        title=title,
-        body=body,
-        link='/quiz/history',
-        icon='📝'
-    )
-
-def notify_live_quiz_start(quiz_id, title, participants):
-    for participant in participants:
-        create_notification(
-            user_id=participant['student_id'],
-            type='live_quiz_start',
-            title='⚡ Live Quiz Started!',
-            body=f"🚀 '{title}' has started! Join now!",
-            link=f'/live-quiz/play/{quiz_id}',
-            icon='⚡'
-        )
-
-def notify_live_quiz_results(quiz_id, title, participants):
-    for participant in participants:
-        rank = participant.get('ranking', '?')
-        score = participant.get('score', 0)
-        create_notification(
-            user_id=participant['student_id'],
-            type='live_quiz_result',
-            title='🏆 Live Quiz Results!',
-            body=f"You ranked #{rank} in '{title}' with {score} points!",
-            link=f'/live-quiz/results/{quiz_id}',
-            icon='🏆'
-        )
-
-def notify_participant_joined(quiz_id, title, participant_name, creator_id):
-    create_notification(
-        user_id=creator_id,
-        type='participant_joined',
-        title='👤 Participant Joined!',
-        body=f"{participant_name} joined your quiz '{title}'",
-        link=f'/live-quiz/waiting-room/{quiz_id}',
-        icon='👤'
-    )
-
-# ============================================
-# DASHBOARD ANALYTICS FUNCTIONS (NEW)
+# DASHBOARD ANALYTICS (unchanged)
 # ============================================
 
 def get_user_subject_performance(student_id: int):
-    """
-    Get average score per subject for a student.
-    Returns list of dicts with subject_name, avg_score (0-100), attempt_count.
-    """
     try:
         cursor = execute_with_retry("""
             SELECT 
-                s.name as subject_name,
+                qa.subject_code,
                 AVG((qa.score * 1.0 / qa.total_questions) * 100) as avg_score,
                 COUNT(qa.id) as attempt_count
             FROM quiz_attempts qa
-            JOIN subjects s ON qa.subject_id = s.id
             WHERE qa.student_id = ?
-            GROUP BY qa.subject_id
+            GROUP BY qa.subject_code
             ORDER BY avg_score DESC
         """, (student_id,))
         results = cursor.fetchall()
-        return [dict(row) for row in results]
+        subject_perf = []
+        for row in results:
+            subj = get_subject(row['subject_code'])
+            subject_perf.append({
+                'subject_name': subj['name'] if subj else row['subject_code'],
+                'avg_score': row['avg_score'],
+                'attempt_count': row['attempt_count']
+            })
+        return subject_perf
     except Exception as e:
         try:
             current_app.logger.error(f"Error fetching subject performance: {e}")
@@ -1778,10 +1673,6 @@ def get_user_subject_performance(student_id: int):
         return []
 
 def get_user_recent_scores(student_id: int, limit: int = 10):
-    """
-    Get recent quiz scores for charting.
-    Returns list of dicts with score, total_questions, completed_at.
-    """
     try:
         cursor = execute_with_retry("""
             SELECT score, total_questions, completed_at
@@ -1791,7 +1682,6 @@ def get_user_recent_scores(student_id: int, limit: int = 10):
             LIMIT ?
         """, (student_id, limit))
         results = cursor.fetchall()
-        # Return in chronological order (oldest first for chart)
         return [dict(row) for row in reversed(results)]
     except Exception as e:
         try:
@@ -1801,9 +1691,6 @@ def get_user_recent_scores(student_id: int, limit: int = 10):
         return []
 
 def get_total_correct_answers(student_id: int) -> int:
-    """
-    Get total correct answers across all quiz attempts.
-    """
     try:
         cursor = execute_with_retry("""
             SELECT SUM(score) as total_correct
@@ -1820,12 +1707,9 @@ def get_total_correct_answers(student_id: int) -> int:
         return 0
 
 def get_distinct_subjects_attempted(student_id: int) -> int:
-    """
-    Get number of unique subjects the user has attempted.
-    """
     try:
         cursor = execute_with_retry("""
-            SELECT COUNT(DISTINCT subject_id) as count
+            SELECT COUNT(DISTINCT subject_code) as count
             FROM quiz_attempts
             WHERE student_id = ?
         """, (student_id,))
@@ -1839,24 +1723,23 @@ def get_distinct_subjects_attempted(student_id: int) -> int:
         return 0
 
 # ============================================
-# LIVE QUIZ LOBBY FUNCTIONS (UPDATED)
+# LIVE QUIZ LOBBY FUNCTIONS (using subject_code)
 # ============================================
 
 def get_live_quizzes_lobby(
     user_id: int = None,
     status_filter: str = None,
-    subject_filter: int = None,
+    subject_filter: str = None,
     search: str = None,
     page: int = 1,
     per_page: int = 20
 ) -> tuple:
-    """Get all public live quizzes for the lobby, including scheduled."""
     try:
         query = """
             SELECT 
                 lq.id,
                 lq.title,
-                lq.subject_id,
+                lq.subject_code,
                 lq.question_count,
                 lq.status,
                 lq.max_participants,
@@ -1868,8 +1751,6 @@ def get_live_quizzes_lobby(
                 lq.creator_id,
                 lq.is_public,
                 lq.scheduled_start,
-                s.name as subject_name,
-                s.icon as subject_icon,
                 COUNT(DISTINCT lqp.id) as participant_count,
                 creator.first_name as creator_first_name,
                 creator.last_name as creator_last_name,
@@ -1882,7 +1763,6 @@ def get_live_quizzes_lobby(
                 (SELECT ranking FROM live_quiz_participants 
                  WHERE quiz_id = lq.id AND student_id = ?) as user_rank
             FROM live_quizzes lq
-            LEFT JOIN subjects s ON lq.subject_id = s.id
             LEFT JOIN students creator ON lq.creator_id = creator.id
             LEFT JOIN live_quiz_participants lqp ON lq.id = lqp.quiz_id
             WHERE lq.is_public = 1
@@ -1901,13 +1781,12 @@ def get_live_quizzes_lobby(
             params.append(status_filter)
             count_params.append(status_filter)
         else:
-            # Show all statuses including scheduled
             query += " AND lq.status IN ('scheduled', 'waiting', 'active', 'finished')"
             count_query += " AND lq.status IN ('scheduled', 'waiting', 'active', 'finished')"
 
         if subject_filter:
-            query += " AND lq.subject_id = ?"
-            count_query += " AND lq.subject_id = ?"
+            query += " AND lq.subject_code = ?"
+            count_query += " AND lq.subject_code = ?"
             params.append(subject_filter)
             count_params.append(subject_filter)
 
@@ -1942,7 +1821,10 @@ def get_live_quizzes_lobby(
         quizzes = []
         for row in results:
             quiz = dict(row)
-            # Calculate remaining time for scheduled/active quizzes
+            subj = get_subject(quiz['subject_code'])
+            quiz['subject_name'] = subj['name'] if subj else quiz['subject_code']
+            quiz['subject_icon'] = subj.get('icon', '📚') if subj else '📚'
+
             if quiz['status'] == 'scheduled' and quiz.get('scheduled_start'):
                 try:
                     start_dt = datetime.fromisoformat(quiz['scheduled_start'].replace('Z', '+00:00'))
@@ -1978,7 +1860,6 @@ def get_live_quizzes_lobby(
         return [], 0
 
 def can_join_live_quiz(quiz_id: int, user_id: int) -> tuple:
-    """Check if a user can join a quiz (including scheduled)."""
     try:
         quiz = get_live_quiz_by_id(quiz_id)
         if not quiz:
@@ -2005,7 +1886,6 @@ def can_join_live_quiz(quiz_id: int, user_id: int) -> tuple:
         return False, str(e)
 
 def get_live_quiz_stats() -> dict:
-    """Get stats for the lobby, including scheduled."""
     try:
         cursor = execute_with_retry("""
             SELECT 
@@ -2039,10 +1919,6 @@ def get_live_quiz_stats() -> dict:
             'total_participants': 0
         }
 
-# ============================================
-# DELETE LIVE QUIZ
-# ============================================
-
 def delete_live_quiz(quiz_id: int) -> bool:
     try:
         execute_with_retry("DELETE FROM live_quiz_participants WHERE quiz_id = ?", (quiz_id,), commit=True)
@@ -2068,10 +1944,6 @@ def get_user_active_quiz(user_id: int) -> Optional[int]:
     except Exception as e:
         logger.error(f"Error getting user active quiz: {e}")
         return None
-
-# ============================================
-# LEAVE/REJOIN
-# ============================================
 
 def leave_live_quiz(quiz_id: int, student_id: int) -> bool:
     try:
@@ -2127,10 +1999,6 @@ def get_active_participants(quiz_id: int) -> list:
     except Exception as e:
         logger.error(f"Error getting active participants: {e}")
         return []
-
-# ============================================
-# READY STATUS
-# ============================================
 
 def update_participant_ready(quiz_id: int, student_id: int, is_ready: bool) -> bool:
     try:

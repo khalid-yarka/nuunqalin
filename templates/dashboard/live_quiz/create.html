@@ -139,7 +139,7 @@
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
             <form method="POST" action="{{ url_for('live_quiz.create_with_available') }}" style="display: inline;">
-                <input type="hidden" name="subject_id" value="{{ subject_id }}">
+                <input type="hidden" name="subject_code" value="{{ subject_code }}">
                 <input type="hidden" name="question_count" value="{{ available }}">
                 <input type="hidden" name="title" value="{{ title }}">
                 <input type="hidden" name="is_public" value="{{ is_public or 1 }}">
@@ -165,22 +165,22 @@
         </div>
 
         <form method="POST" action="{{ url_for('live_quiz.create') }}" id="createForm">
-            <!-- Subject -->
+            <!-- Subject (UPDATED: uses subject_code) -->
             <div class="form-group" style="margin-bottom: 20px;">
                 <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
                     📚 Subject <span style="color: var(--primary);">*</span>
                 </label>
-                <select name="subject_id" required style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--surface); color: var(--text); transition: var(--transition);">
+                <select name="subject_code" required style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--surface); color: var(--text); transition: var(--transition);">
                     <option value="">Select Subject</option>
                     {% for subject in subjects %}
-                        <option value="{{ subject.id }}" {% if subject_id == subject.id %}selected{% endif %}>
+                        <option value="{{ subject.code }}" {% if subject_code == subject.code %}selected{% endif %}>
                             {{ subject.icon or '📚' }} {{ subject.name }}
                         </option>
                     {% endfor %}
                 </select>
             </div>
 
-            <!-- Question Count -->
+            <!-- Question Count (unchanged) -->
             <div class="form-group" style="margin-bottom: 20px;">
                 <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
                     📝 Number of Questions <span style="color: var(--primary);">*</span>
@@ -229,9 +229,7 @@
                 </div>
             </div>
 
-            <!-- ========================================== -->
-            <!-- SCHEDULING (UPDATED)                      -->
-            <!-- ========================================== -->
+            <!-- Scheduling -->
             <div class="form-group" style="margin-bottom: 20px;">
                 <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
                     ⏰ Schedule Start

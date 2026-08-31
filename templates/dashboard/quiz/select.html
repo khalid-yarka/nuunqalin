@@ -18,7 +18,7 @@
     {% if subjects %}
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px;">
             {% for subject in subjects %}
-                <a href="{{ url_for('quiz.start_quiz', subject_id=subject.id) }}" 
+                <a href="{{ url_for('quiz.start_quiz', subject_code=subject.code) }}" 
                    style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 16px; text-align: center; text-decoration: none; transition: var(--transition); box-shadow: var(--shadow-sm);">
                     <div style="font-size: 48px; margin-bottom: 8px;">{{ subject.icon or '📚' }}</div>
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--text);">{{ subject.name }}</h3>

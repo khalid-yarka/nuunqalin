@@ -1,7 +1,9 @@
 # blueprints/live_quiz_bp.py
 """
 Live Quiz Blueprint - Complete with Scheduling & Notifications
+Updated to use subject_code instead of subject_id, and validate against user's allowed subjects.
 """
+
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, Response
 from functools import wraps
 from datetime import datetime, timezone, timedelta
@@ -16,7 +18,7 @@ import logging
 import random
 
 from db import (
-    get_all_subjects,
+    get_all_subjects as db_get_all_subjects,  # deprecated, we use config now
     get_questions_by_subject,
     get_question_by_id,
     get_live_quiz_by_id,
@@ -50,10 +52,12 @@ from db import (
     update_live_quiz_participant,
     update_participant_ready,
     create_notification,
+    get_user_subject_list,   # NEW: for subject validation
 )
 
 from config import Config
 from utils import get_somali_time_db, get_somali_time_display, format_somali_time
+from subjects_config import get_subject, get_all_subjects  # NEW: for subject metadata and filter
 
 from cache import get_cache_manager, InvalidationHelper, make_key
 from cache.worker import STREAM_KEY as CACHE_STREAM_KEY
@@ -223,8 +227,8 @@ def generate_unique_join_code():
             return code
         code = generate_join_code()
 
-def get_questions_for_subject(subject_id, limit):
-    questions = get_questions_by_subject(subject_id, limit)
+def get_questions_for_subject(subject_code, limit):
+    questions = get_questions_by_subject(subject_code, limit)
     return questions, len(questions)
 
 def get_quiz_or_redirect(quiz_id, user_id, required_status=None, check_participant=False, allow_creator=False):
@@ -339,28 +343,44 @@ def lobby():
     search = request.args.get('search', '').strip()
     page = int(request.args.get('page', 1))
     per_page = 20
-    subject_id = None
+    subject_code = None
     if subject_filter and subject_filter.isdigit():
-        subject_id = int(subject_filter)
+        # For compatibility, we accept numeric filter but convert to subject_code? Actually we need to map.
+        # We'll use the subject code directly for filtering; we'll allow filter by code.
+        pass
+    # We'll just use the subject_filter as string (could be code)
+    if subject_filter:
+        # Check if it's a valid subject code
+        all_subjects = get_all_subjects()
+        if any(s['code'] == subject_filter for s in all_subjects):
+            subject_code = subject_filter
+        else:
+            # Could be old ID, ignore
+            subject_code = None
+
     cache = get_cache()
     subjects_key = make_key('subject', 'list', 'all')
     subjects = cache.get(subjects_key)
     if subjects is None:
-        subjects = get_all_subjects()
+        subjects = get_all_subjects()  # from config
         cache.set(subjects_key, subjects, ttl=3600)
+
+    # For lobby, we need all public quizzes with filters
     quizzes, total = get_live_quizzes_lobby(
         user_id=session['user_id'],
         status_filter=status_filter if status_filter else None,
-        subject_filter=subject_id,
+        subject_filter=subject_code,
         search=search if search else None,
         page=page,
         per_page=per_page
     )
+
     stats_key = make_key('quiz', 'stats', 'global')
     stats = cache.get(stats_key)
     if stats is None:
         stats = get_live_quiz_stats()
         cache.set(stats_key, stats, ttl=30)
+
     total_pages = (total + per_page - 1) // per_page if total > 0 else 1
     return render_template('dashboard/live_quiz/lobby.html',
                          quizzes=quizzes, stats=stats, subjects=subjects,
@@ -432,36 +452,43 @@ def create():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     user_id = session['user_id']
-    subjects = get_all_subjects()
+
+    # Get user's allowed subjects
+    user_subjects = get_user_subject_list(user_id)
 
     if request.method == 'POST':
-        subject_id = request.form.get('subject_id', '').strip()
+        subject_code = request.form.get('subject_code', '').strip()
+        # Validate subject_code is allowed
+        allowed_codes = [s['code'] for s in user_subjects]
+        if subject_code not in allowed_codes:
+            flash('Subject not available for your location/curriculum.', 'error')
+            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
+
         question_count = int(request.form.get('question_count', 10))
         title = request.form.get('title', '').strip()
         is_public = int(request.form.get('is_public', 1))
         schedule_minutes = int(request.form.get('schedule_minutes', 0))
 
-        # --- Title validation ---
         if not title:
             flash('Please enter a title for your quiz.', 'error')
-            return render_template('dashboard/live_quiz/create.html', subjects=subjects,
-                                   subject_id=subject_id, title=title, is_public=is_public)
+            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
+                                   subject_code=subject_code, title=title, is_public=is_public)
 
-        if not subject_id:
+        if not subject_code:
             flash('Please select a subject.', 'error')
-            return render_template('dashboard/live_quiz/create.html', subjects=subjects)
+            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
 
-        questions, available = get_questions_for_subject(subject_id, question_count)
+        questions, available = get_questions_for_subject(subject_code, question_count)
 
         if available == 0:
             flash('No questions available for this subject. Please select another subject.', 'error')
-            return render_template('dashboard/live_quiz/create.html', subjects=subjects)
+            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
 
         if available < question_count:
             return render_template('dashboard/live_quiz/create.html',
-                                   subjects=subjects, not_enough=True,
+                                   subjects=user_subjects, not_enough=True,
                                    available=available, requested=question_count,
-                                   subject_id=subject_id, title=title, is_public=is_public)
+                                   subject_code=subject_code, title=title, is_public=is_public)
 
         join_code = generate_unique_join_code()
         question_ids = [q['id'] for q in questions]
@@ -469,7 +496,7 @@ def create():
         data = {
             'creator_id': user_id,
             'title': title if title else '',
-            'subject_id': subject_id,
+            'subject_code': subject_code,
             'question_count': question_count,
             'join_code': join_code,
             'max_participants': MAX_PARTICIPANTS,
@@ -507,7 +534,7 @@ def create():
         else:
             flash('Failed to create quiz. Please try again.', 'error')
 
-    return render_template('dashboard/live_quiz/create.html', subjects=subjects)
+    return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
 
 @live_quiz_bp.route('/create-with-available', methods=['POST'])
 def create_with_available():
@@ -515,23 +542,39 @@ def create_with_available():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     user_id = session['user_id']
-    subject_id = request.form.get('subject_id', '').strip()
+
+    subject_code = request.form.get('subject_code', '').strip()
     question_count = int(request.form.get('question_count', 10))
     title = request.form.get('title', '').strip()
     is_public = int(request.form.get('is_public', 1))
-    questions, available = get_questions_for_subject(subject_id, question_count)
+
+    # Validate subject
+    user_subjects = get_user_subject_list(user_id)
+    allowed_codes = [s['code'] for s in user_subjects]
+    if subject_code not in allowed_codes:
+        flash('Subject not available.', 'error')
+        return redirect(url_for('live_quiz.create'))
+
+    questions, available = get_questions_for_subject(subject_code, question_count)
     if available == 0:
         flash('No questions available.', 'error')
         return redirect(url_for('live_quiz.create'))
+
     join_code = generate_unique_join_code()
     question_ids = [q['id'] for q in questions]
     data = {
-        'creator_id': user_id, 'title': title if title else '',
-        'subject_id': subject_id, 'question_count': available,
-        'join_code': join_code, 'status': 'waiting',
-        'max_participants': MAX_PARTICIPANTS, 'time_per_question': TIME_PER_QUESTION,
-        'current_question_index': 0, 'question_ids': question_ids,
-        'is_public': is_public, 'scheduled_start': None
+        'creator_id': user_id,
+        'title': title if title else '',
+        'subject_code': subject_code,
+        'question_count': available,
+        'join_code': join_code,
+        'status': 'waiting',
+        'max_participants': MAX_PARTICIPANTS,
+        'time_per_question': TIME_PER_QUESTION,
+        'current_question_index': 0,
+        'question_ids': question_ids,
+        'is_public': is_public,
+        'scheduled_start': None
     }
     quiz = create_live_quiz(data)
     if quiz:
@@ -570,7 +613,7 @@ def join():
             flash('Invalid join code or quiz has already started.', 'error')
             return render_template('dashboard/live_quiz/join.html')
         if not quiz.get('is_public', 1):
-            pass
+            pass  # still joinable via code
         active_quiz = get_user_active_quiz(user_id)
         if active_quiz and active_quiz != quiz['id']:
             flash('You are already in another quiz. Please leave that quiz first.', 'error')
@@ -736,7 +779,6 @@ def start_quiz(quiz_id):
             update_live_quiz_participant(p['id'], updates)
             update_participant_async(quiz_id, p['student_id'], updates)
     notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
-    # Return redirect_url for the creator
     return jsonify({'success': True, 'quiz_id': quiz_id, 'redirect_url': url_for('live_quiz.play', quiz_id=quiz_id)})
 
 @live_quiz_bp.route('/quiz-state/<quiz_id>')
@@ -872,7 +914,6 @@ def quiz_state(quiz_id):
         completed_count = sum(1 for p in active_participants if p.get('current_question_index', 0) >= total_questions)
         all_completed = completed_count == active_count and active_count > 0
 
-        # FIX: Allow finalisation with at least 1 active participant
         if all_completed and quiz.get('status') == 'active' and active_count >= 1:
             finalize_live_quiz(quiz_id)
             return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
@@ -1073,7 +1114,6 @@ def submit_rating():
         ratings = participant.get('ratings', {})
         ratings[str(question_id)] = rating
         current_index = participant.get('current_question_index', 0)
-        # Get total questions – try shuffled_ids first, fallback to quiz question_count
         answers = participant.get('answers', {})
         shuffled_ids = answers.get('__shuffled_ids')
         if shuffled_ids:

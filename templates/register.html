@@ -83,7 +83,7 @@
                     <label>📍 Location <span class="required">*</span></label>
                     <div class="input-wrapper" id="locationWrapper">
                         <span class="input-icon"><i class="fas fa-map-marker-alt"></i></span>
-                        <select name="location" id="location" required onchange="updateSchools()">
+                        <select name="location" id="location" required onchange="updateSchools(); toggleCurriculum();">
                             <option value="">Select Location</option>
                             <option value="SO">🇸🇴 Somalia (SO)</option>
                             <option value="PL">🇸🇴 Puntland (PL)</option>
@@ -91,6 +91,21 @@
                         </select>
                     </div>
                     <div class="error-message" id="locationError">Please select your location</div>
+                </div>
+
+                <!-- NEW: Curriculum (only for PL) -->
+                <div class="form-group" id="curriculumGroup" style="display: none;">
+                    <label>📚 Curriculum <span class="required">*</span></label>
+                    <div class="input-wrapper">
+                        <span class="input-icon"><i class="fas fa-book-open"></i></span>
+                        <select name="curriculum" id="curriculum">
+                            <option value="">Select Curriculum</option>
+                            <option value="general">General</option>
+                            <option value="science">Science</option>
+                            <option value="arts">Arts</option>
+                        </select>
+                    </div>
+                    <div class="error-message" id="curriculumError">Please select your curriculum.</div>
                 </div>
 
                 <!-- City -->
@@ -159,6 +174,7 @@
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/register.js') }}"></script>
 <script>
+    // Password toggle
     function togglePassword(fieldId) {
         const input = document.getElementById(fieldId);
         const icon = document.getElementById(fieldId + 'Icon');
@@ -171,6 +187,7 @@
         }
     }
 
+    // School data
     const schoolData = {
         'SO': ['Mogadishu Secondary School', 'Kismayo High School', 'Baidoa School', 'Jowhar Academy'],
         'PL': ['Garowe Secondary School', 'Bosaso High School', 'Galkayo School', 'Qardho Academy'],
@@ -219,7 +236,22 @@
         }
     }
 
-    // Show/hide error helpers
+    // Toggle curriculum field for PL
+    function toggleCurriculum() {
+        const location = document.getElementById('location').value;
+        const curriculumGroup = document.getElementById('curriculumGroup');
+        const curriculumSelect = document.getElementById('curriculum');
+        if (location === 'PL') {
+            curriculumGroup.style.display = 'block';
+            curriculumSelect.setAttribute('required', 'required');
+        } else {
+            curriculumGroup.style.display = 'none';
+            curriculumSelect.removeAttribute('required');
+            curriculumSelect.value = '';
+        }
+    }
+
+    // Show/hide error helpers (if needed)
     function showError(wrapperId, errorId) {
         const wrapper = document.getElementById(wrapperId);
         if (wrapper) wrapper.classList.add('error');
@@ -233,5 +265,10 @@
         const error = document.getElementById(errorId);
         if (error) error.classList.remove('visible');
     }
+
+    // Initial call
+    document.addEventListener('DOMContentLoaded', function() {
+        toggleCurriculum();
+    });
 </script>
 {% endblock %}
