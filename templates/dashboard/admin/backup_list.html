@@ -67,9 +67,9 @@
                         <td style="text-align: center;">
                             <div class="action-buttons">
                                 <a href="{{ url_for('admin_backup.download_backup', filename=backup.filename) }}" class="btn btn-sm btn-primary" title="Download"><i class="fas fa-download"></i></a>
-                                <button onclick="verifyBackup('{{ backup.filename }}')" class="btn btn-sm btn-secondary" title="Verify"><i class="fas fa-check"></i></button>
-                                <button onclick="restoreBackup('{{ backup.filename }}')" class="btn btn-sm btn-success" title="Restore"><i class="fas fa-undo"></i></button>
-                                <button onclick="deleteBackup('{{ backup.filename }}')" class="btn btn-sm btn-danger" title="Delete"><i class="fas fa-trash"></i></button>
+                                <button onclick="verifyBackup('{{ backup.filename }}', event)" class="btn btn-sm btn-secondary" title="Verify"><i class="fas fa-check"></i></button>
+                                <button onclick="restoreBackup('{{ backup.filename }}', event)" class="btn btn-sm btn-success" title="Restore"><i class="fas fa-undo"></i></button>
+                                <button onclick="deleteBackup('{{ backup.filename }}', event)" class="btn btn-sm btn-danger" title="Delete"><i class="fas fa-trash"></i></button>
                             </div>
                         </td>
                     </tr>
@@ -81,7 +81,7 @@
 </div>
 
 <script>
-function verifyBackup(filename) {
+function verifyBackup(filename, event) {
     if (!confirm('Verify integrity of ' + filename + '?')) return;
     const btn = event.target.closest('button');
     btn.disabled = true;
@@ -95,7 +95,7 @@ function verifyBackup(filename) {
         .finally(() => { btn.innerHTML = '<i class="fas fa-check"></i>'; btn.disabled = false; });
 }
 
-function restoreBackup(filename) {
+function restoreBackup(filename, event) {
     const password = prompt('Enter admin password to restore ' + filename + ':\n(This will replace the current database)');
     if (!password) return;
     if (!confirm('Are you sure you want to restore ' + filename + '? This will overwrite the current database.')) return;
@@ -118,7 +118,7 @@ function restoreBackup(filename) {
         .finally(() => { btn.innerHTML = '<i class="fas fa-undo"></i>'; btn.disabled = false; });
 }
 
-function deleteBackup(filename) {
+function deleteBackup(filename, event) {
     if (!confirm('Delete ' + filename + '?')) return;
     const btn = event.target.closest('button');
     btn.disabled = true;

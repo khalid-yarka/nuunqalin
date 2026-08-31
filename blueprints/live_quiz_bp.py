@@ -18,7 +18,6 @@ import logging
 import random
 
 from db import (
-    get_all_subjects as db_get_all_subjects,  # deprecated, we use config now
     get_questions_by_subject,
     get_question_by_id,
     get_live_quiz_by_id,
@@ -43,21 +42,22 @@ from db import (
     delete_live_quiz as db_delete_live_quiz,
     get_user_active_quiz,
     is_admin,
-    notify_live_quiz_start,
-    notify_live_quiz_results,
-    notify_participant_joined,
     create_live_quiz,
     update_live_quiz,
     add_live_quiz_participant,
     update_live_quiz_participant,
     update_participant_ready,
     create_notification,
-    get_user_subject_list,   # NEW: for subject validation
+    get_user_subject_list,
+    # Import the new notification functions
+    notify_live_quiz_start,
+    notify_live_quiz_results,
+    notify_participant_joined,
 )
 
 from config import Config
 from utils import get_somali_time_db, get_somali_time_display, format_somali_time
-from subjects_config import get_subject, get_all_subjects  # NEW: for subject metadata and filter
+from subjects_config import get_subject, get_all_subjects
 
 from cache import get_cache_manager, InvalidationHelper, make_key
 from cache.worker import STREAM_KEY as CACHE_STREAM_KEY
@@ -214,6 +214,17 @@ def add_participant_to_cache(quiz_id: int, user_id: int, participant_data: dict)
     cache.set(individual_key, participant_data, ttl=PARTICIPANTS_TTL)
     cache.delete(get_leaderboard_cache_key(quiz_id))
 
+# ============================================
+# CSRF HELPER
+# ============================================
+
+def validate_csrf():
+    """Validate CSRF token from form or header; aborts on failure."""
+    token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+    if not token or token != session.get('csrf_token'):
+        from flask import abort
+        abort(403, 'CSRF token validation failed')
+
 def generate_join_code():
     letters = ''.join(secrets.choice(string.ascii_uppercase + '123456789') for _ in range(4))
     numbers = ''.join(secrets.choice('123456789') for _ in range(4))
@@ -344,18 +355,12 @@ def lobby():
     page = int(request.args.get('page', 1))
     per_page = 20
     subject_code = None
-    if subject_filter and subject_filter.isdigit():
-        # For compatibility, we accept numeric filter but convert to subject_code? Actually we need to map.
-        # We'll use the subject code directly for filtering; we'll allow filter by code.
-        pass
-    # We'll just use the subject_filter as string (could be code)
     if subject_filter:
-        # Check if it's a valid subject code
+        # We'll just use the subject_filter as string (could be code)
         all_subjects = get_all_subjects()
         if any(s['code'] == subject_filter for s in all_subjects):
             subject_code = subject_filter
         else:
-            # Could be old ID, ignore
             subject_code = None
 
     cache = get_cache()
@@ -365,7 +370,6 @@ def lobby():
         subjects = get_all_subjects()  # from config
         cache.set(subjects_key, subjects, ttl=3600)
 
-    # For lobby, we need all public quizzes with filters
     quizzes, total = get_live_quizzes_lobby(
         user_id=session['user_id'],
         status_filter=status_filter if status_filter else None,
@@ -392,6 +396,7 @@ def lobby():
 def lobby_join(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Please login first'}), 401
+    validate_csrf()
     user_id = session['user_id']
     quiz, _, redirect_resp = get_quiz_or_redirect(quiz_id, user_id, required_status=['waiting', 'scheduled'], check_participant=False)
     if redirect_resp:
@@ -453,12 +458,11 @@ def create():
         return redirect(url_for('login'))
     user_id = session['user_id']
 
-    # Get user's allowed subjects
     user_subjects = get_user_subject_list(user_id)
 
     if request.method == 'POST':
+        validate_csrf()
         subject_code = request.form.get('subject_code', '').strip()
-        # Validate subject_code is allowed
         allowed_codes = [s['code'] for s in user_subjects]
         if subject_code not in allowed_codes:
             flash('Subject not available for your location/curriculum.', 'error')
@@ -541,6 +545,7 @@ def create_with_available():
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
+    validate_csrf()
     user_id = session['user_id']
 
     subject_code = request.form.get('subject_code', '').strip()
@@ -548,7 +553,6 @@ def create_with_available():
     title = request.form.get('title', '').strip()
     is_public = int(request.form.get('is_public', 1))
 
-    # Validate subject
     user_subjects = get_user_subject_list(user_id)
     allowed_codes = [s['code'] for s in user_subjects]
     if subject_code not in allowed_codes:
@@ -603,6 +607,7 @@ def join():
         return redirect(url_for('login'))
     user_id = session['user_id']
     if request.method == 'POST':
+        validate_csrf()
         join_code = request.form.get('join_code', '').strip().upper()
         if not join_code:
             flash('Please enter a join code.', 'error')
@@ -734,6 +739,7 @@ def waiting_room_participants(quiz_id):
 def toggle_ready(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
+    validate_csrf()
     user_id = session['user_id']
     data = request.get_json()
     is_ready = data.get('is_ready', False)
@@ -752,6 +758,7 @@ def toggle_ready(quiz_id):
 def start_quiz(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
+    validate_csrf()
     user_id = session['user_id']
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
@@ -796,7 +803,7 @@ def quiz_state(quiz_id):
         return jsonify({'error': 'Quiz not available', 'abort': True, 'redirect': location, 'message': 'Quiz is not available in its current state'}), 404
 
     try:
-        # --- SCHEDULING LOGIC: Auto-start OR switch to manual ---
+        # --- SCHEDULING LOGIC ---
         if quiz.get('status') == 'scheduled' and quiz.get('scheduled_start'):
             try:
                 start_dt = datetime.fromisoformat(quiz['scheduled_start'].replace('Z', '+00:00'))
@@ -807,11 +814,9 @@ def quiz_state(quiz_id):
                     all_participants = get_live_quiz_participants(quiz_id)
                     active_participants = [p for p in all_participants if p.get('status') != 'left']
                     if len(active_participants) < 2:
-                        # Switch to waiting (manual) and notify creator
                         update_live_quiz(quiz_id, {'status': 'waiting', 'scheduled_start': None})
                         cache = get_cache()
                         cache.delete(get_quiz_cache_key(quiz_id))
-                        # Notify creator
                         create_notification(
                             user_id=quiz['creator_id'],
                             type='scheduled_skipped',
@@ -820,11 +825,9 @@ def quiz_state(quiz_id):
                             link=f'/live-quiz/waiting-room/{quiz_id}',
                             icon='⏰'
                         )
-                        # Reload quiz after update
                         quiz = get_live_quiz_with_subject(quiz_id)
                         return jsonify({'status': 'waiting', 'message': 'Scheduled start skipped due to insufficient participants'})
                     else:
-                        # Enough participants → auto-start
                         update_live_quiz(quiz_id, {'status': 'active', 'started_at': get_somali_time_db(), 'scheduled_start': None})
                         cache = get_cache()
                         quiz['status'] = 'active'
@@ -850,7 +853,6 @@ def quiz_state(quiz_id):
             finalize_live_quiz(quiz_id)
             return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
-        # Get shuffled IDs from participant's answers (or fallback)
         answers = participant.get('answers', {})
         shuffled_ids = answers.get('__shuffled_ids')
         if not shuffled_ids:
@@ -979,7 +981,6 @@ def get_question(quiz_id):
         location = redirect_resp.headers.get('Location', url_for('live_quiz.lobby'))
         return jsonify({'error': 'Quiz not available', 'abort': True, 'redirect': location, 'message': 'Quiz is not active or you are not a participant'}), 404
     try:
-        # Get shuffled IDs from participant's answers (or fallback)
         answers = participant.get('answers', {})
         shuffled_ids = answers.get('__shuffled_ids')
         if not shuffled_ids:
@@ -996,7 +997,6 @@ def get_question(quiz_id):
 
         question_id = shuffled_ids[current_index]
 
-        # Check if already answered or rated
         if str(question_id) in answers:
             answer_data = answers[str(question_id)]
             is_correct = answer_data.get('correct', False)
@@ -1034,6 +1034,7 @@ def get_question(quiz_id):
 def submit_answer():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
+    validate_csrf()
     user_id = session['user_id']
     data = request.get_json()
     quiz_id = data.get('quiz_id')
@@ -1042,15 +1043,30 @@ def submit_answer():
     if not quiz_id or not question_id or not answer:
         return jsonify({'error': 'Missing required fields'}), 400
     try:
-        question = get_question_by_id(question_id)
-        if not question:
-            return jsonify({'error': 'Question not found'}), 404
-        is_correct = answer == question['correct_answer']
+        # Check quiz is active
+        quiz = get_live_quiz_by_id(quiz_id)
+        if not quiz or quiz.get('status') != 'active':
+            return jsonify({'error': 'Quiz is not active'}), 400
+
+        # Verify question belongs to this quiz
+        question_ids = quiz.get('question_ids', [])
+        if question_id not in question_ids:
+            return jsonify({'error': 'Question does not belong to this quiz'}), 400
+
         participant = get_participant_safe(quiz_id, user_id)
         if not participant:
             return jsonify({'error': 'Not a participant'}), 404
+
+        # Check if already answered this question
         answers = participant.get('answers', {})
-        answers[str(question_id)] = {'answer': answer, 'correct': is_correct}
+        if str(question_id) in answers:
+            return jsonify({'error': 'Already answered this question'}), 400
+
+        question = get_question_by_id(question_id)
+        if not question:
+            return jsonify({'error': 'Question not found'}), 404
+
+        is_correct = answer == question['correct_answer']
         score = participant.get('score', 0)
         correct_count = participant.get('correct_count', 0)
         wrong_count = participant.get('wrong_count', 0)
@@ -1059,8 +1075,11 @@ def submit_answer():
             correct_count += 1
         else:
             wrong_count += 1
+
+        answers[str(question_id)] = {'answer': answer, 'correct': is_correct}
         updates = {'answers': answers, 'score': score, 'correct_count': correct_count, 'wrong_count': wrong_count}
         update_participant_async(quiz_id, user_id, updates)
+
         return jsonify({'correct': is_correct, 'correct_answer': question['correct_answer'], 'explanation': question.get('explanation', '')})
     except Exception as e:
         logging.getLogger(__name__).error(f"Error in submit_answer: {e}", exc_info=True)
@@ -1070,6 +1089,7 @@ def submit_answer():
 def skip_question():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
+    validate_csrf()
     user_id = session['user_id']
     data = request.get_json()
     quiz_id = data.get('quiz_id')
@@ -1077,12 +1097,22 @@ def skip_question():
     if not quiz_id or not question_id:
         return jsonify({'error': 'Missing required fields'}), 400
     try:
+        quiz = get_live_quiz_by_id(quiz_id)
+        if not quiz or quiz.get('status') != 'active':
+            return jsonify({'error': 'Quiz is not active'}), 400
+
+        question_ids = quiz.get('question_ids', [])
+        if question_id not in question_ids:
+            return jsonify({'error': 'Question does not belong to this quiz'}), 400
+
         participant = get_participant_safe(quiz_id, user_id)
         if not participant:
             return jsonify({'error': 'Not a participant'}), 404
+
         answers = participant.get('answers', {})
         if str(question_id) in answers:
             return jsonify({'error': 'Already answered this question'}), 400
+
         answers[str(question_id)] = {'answer': None, 'correct': False, 'skipped': True}
         skipped_count = participant.get('skipped_count', 0) + 1
         current_index = participant.get('current_question_index', 0)
@@ -1098,6 +1128,7 @@ def skip_question():
 def submit_rating():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
+    validate_csrf()
     user_id = session['user_id']
     data = request.get_json()
     quiz_id = data.get('quiz_id')
@@ -1108,26 +1139,28 @@ def submit_rating():
     if rating not in ['HAA', 'MAY']:
         return jsonify({'error': 'Invalid rating'}), 400
     try:
+        quiz = get_live_quiz_by_id(quiz_id)
+        if not quiz or quiz.get('status') != 'active':
+            return jsonify({'error': 'Quiz is not active'}), 400
+
         participant = get_participant_safe(quiz_id, user_id)
         if not participant:
             return jsonify({'error': 'Not a participant'}), 404
+
+        answers = participant.get('answers', {})
+        if str(question_id) not in answers:
+            return jsonify({'error': 'You must answer the question before rating'}), 400
+
         ratings = participant.get('ratings', {})
+        if str(question_id) in ratings:
+            return jsonify({'error': 'Already rated this question'}), 400
+
         ratings[str(question_id)] = rating
         current_index = participant.get('current_question_index', 0)
-        answers = participant.get('answers', {})
-        shuffled_ids = answers.get('__shuffled_ids')
-        if shuffled_ids:
-            total_questions = len(shuffled_ids)
-        else:
-            quiz = get_live_quiz_by_id(quiz_id)
-            total_questions = quiz.get('question_count', 0) if quiz else 0
         new_index = current_index + 1
         updates = {'ratings': ratings, 'current_question_index': new_index}
         update_participant_async(quiz_id, user_id, updates)
-        if new_index >= total_questions:
-            return jsonify({'success': True, 'completed': True, 'status': 'completed'})
-        else:
-            return jsonify({'success': True, 'completed': False})
+        return jsonify({'success': True, 'completed': new_index >= len(answers)})
     except Exception as e:
         logging.getLogger(__name__).error(f"Error in submit_rating: {e}", exc_info=True)
         return jsonify({'error': 'Failed to submit rating'}), 500
@@ -1166,6 +1199,7 @@ def play(quiz_id):
 def leave_quiz(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
+    validate_csrf()
     user_id = session['user_id']
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
@@ -1190,6 +1224,7 @@ def leave_quiz(quiz_id):
 def rejoin_quiz(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
+    validate_csrf()
     user_id = session['user_id']
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
@@ -1210,6 +1245,7 @@ def rejoin_quiz(quiz_id):
 def delete_quiz(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
+    validate_csrf()
     user_id = session['user_id']
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
@@ -1313,6 +1349,7 @@ def export_results(quiz_id):
 def flush_cache_endpoint():
     if 'user_id' not in session or not is_admin(session['user_id']):
         return jsonify({'error': 'Unauthorized'}), 403
+    validate_csrf()
     try:
         cache = get_cache()
         cache.invalidate_pattern('quiz:*')

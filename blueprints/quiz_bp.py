@@ -4,6 +4,7 @@ from db import (
     get_user_quiz_history, update_student_points, get_student_by_id,
     get_leaderboard, get_user_subject_list
 )
+from app import validate_csrf  # Import the CSRF validation function
 
 quiz_bp = Blueprint('quiz', __name__, url_prefix='/quiz')
 
@@ -72,6 +73,10 @@ def submit_answer():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     
+    # CSRF validation
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
+    
     questions = session.get('quiz_questions', [])
     current = session.get('quiz_current', 0)
     
@@ -107,6 +112,10 @@ def submit_answer():
 def submit_rating():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
+    
+    # CSRF validation
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     
     questions = session.get('quiz_questions', [])
     current = session.get('quiz_current', 0)

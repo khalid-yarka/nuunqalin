@@ -45,7 +45,7 @@
                             <th>School</th>
                             <th style="text-align: center;">Points</th>
                             <th style="text-align: center;">Admin</th>
-                            <th style="text-align: center;">Delete</th>
+                            <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -65,8 +65,22 @@
                                 </td>
                                 <td style="text-align: center;">
                                     {% if user.id != session.user_id %}
-                                        <button onclick="showDeleteModal('{{ user.id }}', '{{ user.first_name }} {{ user.last_name or '' }}', '{{ user.public_id }}')" 
-                                                class="btn btn-sm btn-danger">Delete</button>
+                                        <div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
+                                            <!-- Toggle Admin Button -->
+                                            <form method="POST" action="{{ url_for('admin.toggle_user_admin', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('{% if user.is_admin %}Remove admin privileges from{% else %}Give admin privileges to{% endif %} {{ user.first_name }}?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <button type="submit" class="btn btn-sm {% if user.is_admin %}btn-warning{% else %}btn-success{% endif %}">
+                                                    {% if user.is_admin %}
+                                                        <i class="fas fa-user-minus"></i> Remove Admin
+                                                    {% else %}
+                                                        <i class="fas fa-user-plus"></i> Make Admin
+                                                    {% endif %}
+                                                </button>
+                                            </form>
+                                            <!-- Delete Button -->
+                                            <button onclick="showDeleteModal('{{ user.id }}', '{{ user.first_name }} {{ user.last_name or '' }}', '{{ user.public_id }}')" 
+                                                    class="btn btn-sm btn-danger">Delete</button>
+                                        </div>
                                     {% else %}
                                         <span style="font-size: 12px; color: var(--text-muted);">(You)</span>
                                     {% endif %}

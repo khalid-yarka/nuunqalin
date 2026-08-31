@@ -1537,7 +1537,7 @@ def search_groups(search: str = '', platform: str = '', category: str = ''):
         return []
 
 # ============================================
-# NOTIFICATION FUNCTIONS (unchanged)
+# NOTIFICATION FUNCTIONS
 # ============================================
 
 def create_notification(user_id, type, title, body, link='', icon=''):
@@ -1637,6 +1637,60 @@ def mark_all_notifications_read(user_id):
             current_app.logger.error(f"Error marking all notifications read: {e}")
         except RuntimeError:
             logger.error(f"Error marking all notifications read: {e}")
+        return False
+
+# NEW: Live quiz notification functions
+def notify_live_quiz_start(quiz_id, title, participants):
+    """Send notification to each participant when quiz starts."""
+    try:
+        participant_ids = [p['student_id'] for p in participants]
+        for uid in participant_ids:
+            create_notification(
+                user_id=uid,
+                type='live_quiz_start',
+                title='🚀 Quiz Started!',
+                body=f'"{title}" has started! Join now!',
+                link=f'/live-quiz/play/{quiz_id}',
+                icon='⚡'
+            )
+        return True
+    except Exception as e:
+        logger.error(f"Error notifying quiz start: {e}")
+        return False
+
+def notify_live_quiz_results(quiz_id, title, participants):
+    """Send notification to each participant when quiz ends."""
+    try:
+        for p in participants:
+            rank = p.get('ranking', 'N/A')
+            score = p.get('score', 0)
+            create_notification(
+                user_id=p['student_id'],
+                type='live_quiz_result',
+                title='🏆 Quiz Complete!',
+                body=f'"{title}" finished. Your rank: #{rank}, Score: {score}',
+                link=f'/live-quiz/results/{quiz_id}',
+                icon='🏅'
+            )
+        return True
+    except Exception as e:
+        logger.error(f"Error notifying quiz results: {e}")
+        return False
+
+def notify_participant_joined(quiz_id, title, participant_name, creator_id):
+    """Notify quiz creator when someone joins."""
+    try:
+        create_notification(
+            user_id=creator_id,
+            type='participant_joined',
+            title='👋 New Participant!',
+            body=f'{participant_name} joined your quiz "{title}"',
+            link=f'/live-quiz/waiting-room/{quiz_id}',
+            icon='👤'
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error notifying participant join: {e}")
         return False
 
 # ============================================

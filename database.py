@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 REQUIRED_TABLES = [
     'students',
-    'subjects',
     'questions',
     'quiz_attempts',
     'groups',
@@ -32,13 +31,13 @@ REQUIRED_TABLES = [
     'quiz_ratings',
     'notifications',
     'notification_preferences'
+    # 'subjects' removed – we use static config
 ]
 
 REQUIRED_COLUMNS = {
     'students': ['id', 'public_id', 'phone_number', 'password', 'first_name', 'last_name', 'is_admin', 'created_at'],
-    'subjects': ['id', 'name', 'icon', 'created_at'],
-    'questions': ['id', 'subject_id', 'question_text', 'options', 'correct_answer', 'difficulty', 'status', 'created_at'],
-    'quiz_attempts': ['id', 'student_id', 'subject_id', 'score', 'total_questions', 'answers', 'ratings', 'completed_at'],
+    'questions': ['id', 'subject_code', 'question_text', 'options', 'correct_answer', 'difficulty', 'status', 'created_at'],
+    'quiz_attempts': ['id', 'student_id', 'subject_code', 'score', 'total_questions', 'answers', 'ratings', 'completed_at'],
     'groups': ['id', 'name', 'platform', 'invite_link', 'is_active', 'created_at'],
     'pdfs': ['id', 'title', 'file_url', 'telegram_download_url', 'view_count', 'created_at'],
     'live_quizzes': ['id', 'creator_id', 'join_code', 'status', 'question_count', 'created_at'],
@@ -50,7 +49,6 @@ REQUIRED_COLUMNS = {
 }
 
 DB_INIT_LOCK_FILE = os.path.join(os.path.dirname(Config.DATABASE_PATH), '.db_init_lock')
-
 
 # ============================================
 # DATABASE LOCK FOR STARTUP

@@ -89,6 +89,9 @@
 </div>
 
 <script>
+// CSRF token from session (passed via template)
+const csrfToken = '{{ session.get('csrf_token', '') }}';
+
 document.addEventListener('DOMContentLoaded', function() {
     const quizId = '{{ quiz.id }}';
     const quizTitle = '{{ quiz.title or 'Live Quiz' }}';
@@ -152,6 +155,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // FETCH WITH TIMEOUT
     // ============================================
     function fetchWithTimeout(url, options, timeout = 10000) {
+        // Add CSRF header
+        options = options || {};
+        options.headers = options.headers || {};
+        options.headers['X-CSRF-Token'] = csrfToken;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         return fetch(url, { ...options, signal: controller.signal })
@@ -313,7 +320,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.redirect_url && !isRedirecting) {
                     isRedirecting = true;
                     clearInterval(timerInterval); clearTimeout(pollTimer);
-                    // Clear leaderboard timer too
                     if (leaderboardTimer) clearTimeout(leaderboardTimer);
                     window.location.href = data.redirect_url;
                     return;
@@ -359,7 +365,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (data.remaining_time !== undefined) updateTotalTimer(data.remaining_time);
                 
-                // Update creator progress
                 if (data.participant_progress) {
                     updateCreatorProgress(data.participant_progress);
                 }
@@ -530,13 +535,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="rating-buttons"><button class="haa" onclick="submitRating('HAA')">✅ HAA</button><button class="may" onclick="submitRating('MAY')">❌ MAY</button></div>
                     </div>`;
             }
-            // Clear spinner for selected button
             if (selectedBtn) selectedBtn.innerHTML = originalText;
             updateTimerDisplay(); saveStateToStorage();
         })
         .catch(function(error) {
             console.error('Submit answer error:', error);
-            // Restore state
             buttons.forEach(b => { b.disabled = false; if (b === selectedBtn) b.innerHTML = originalText; });
             if (skipBtn) skipBtn.disabled = false;
             isAnswered = false; hasAnsweredCurrent = false;
@@ -646,7 +649,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const interval = setInterval(() => { remaining--; if (remaining <= 0) { timerDisplay.textContent = '00:00'; clearInterval(interval); } else { timerDisplay.textContent = formatTime(remaining); } }, 1000);
             }
         }
-        // Speed up polling to catch completion faster
         pollInterval = 1000;
         resetPollTimer();
         saveStateToStorage();

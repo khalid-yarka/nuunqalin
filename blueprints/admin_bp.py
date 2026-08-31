@@ -2,18 +2,18 @@ from flask import Blueprint, render_template, request, session, flash, redirect,
 from db import (
     is_admin, get_all_students, get_all_questions,
     toggle_admin, delete_user as db_delete_user, get_deleted_users,
-    restore_deleted_user as db_restore_user, create_subject, delete_subject,
-    create_question, delete_question, create_group, delete_group,
-    create_pdf, delete_pdf, get_all_groups, get_all_pdfs,
-    get_subject_by_name, bulk_create_questions, check_question_exists,
+    restore_deleted_user as db_restore_user, create_question, delete_question,
+    create_group, delete_group, create_pdf, delete_pdf, get_all_groups, get_all_pdfs,
+    bulk_create_questions, check_question_exists,
     create_notification_for_all_users,
     execute_with_retry,
-    get_user_subject_list  # for subject validation if needed
+    get_user_subject_list
 )
 from error_models import get_error_stats
 from functools import wraps
 import json
 import secrets
+from subjects_config import get_all_subjects  # NEW: import from config
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -78,7 +78,7 @@ def dashboard():
                          users_count=len(users),
                          groups_count=len(groups),
                          pdfs_count=len(pdfs),
-                         subjects_count=0,  # removed
+                         subjects_count=len(get_all_subjects()),  # from config
                          questions_count=len(questions),
                          quiz_attempts=0,
                          error_stats=error_stats,
@@ -94,7 +94,6 @@ def dashboard():
 @admin_required
 def bulk_import():
     """Bulk import questions via JSON."""
-    # Get all subject codes from config for validation
     from subjects_config import get_all_subject_codes, get_subject
     all_subject_codes = get_all_subject_codes()
 
@@ -457,7 +456,7 @@ def delete_pdf(pdf_id):
 
 
 # ============================================
-# QUESTIONS ADMIN (Single Entry)
+# QUESTIONS ADMIN (Single Entry) – UPDATED
 # ============================================
 
 @admin_bp.route('/questions')
@@ -466,14 +465,14 @@ def admin_questions():
     questions = get_all_questions()
     # For subject list, we need all subject codes from config for the dropdown
     from subjects_config import get_all_subjects
-    subjects = get_all_subjects()
+    subjects = get_all_subjects()  # returns list of dicts with 'code', 'name', 'icon'
     return render_template('dashboard/admin/questions.html', questions=questions, subjects=subjects)
 
 
 @admin_bp.route('/questions/add', methods=['POST'])
 @admin_required
 def add_question():
-    validate_csrf()
+    validate_csrf()  # Added CSRF validation
     subject_code = request.form.get('subject_code', '').strip()
     question_text = request.form.get('question_text', '').strip()
     option_a = request.form.get('option_a', '').strip()

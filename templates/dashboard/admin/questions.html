@@ -34,13 +34,14 @@
     <div class="card" style="margin-bottom: 24px;">
         <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 16px;">➕ Add New Question</h3>
         <form method="POST" action="{{ url_for('admin.add_question') }}" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div style="grid-column: 1 / -1;">
                 <div class="form-group">
                     <label class="form-label">Subject <span class="required">*</span></label>
-                    <select name="subject_id" class="form-control" required>
+                    <select name="subject_code" class="form-control" required>
                         <option value="">Select Subject</option>
                         {% for subject in subjects %}
-                            <option value="{{ subject.id }}">{{ subject.icon or '📚' }} {{ subject.name }}</option>
+                            <option value="{{ subject.code }}">{{ subject.icon or '📚' }} {{ subject.name }}</option>
                         {% endfor %}
                     </select>
                 </div>

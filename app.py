@@ -623,10 +623,11 @@ def utility_processor():
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
-    print(f"Server starting at: {get_somali_time_display()}")
-    print(f"Database path: {Config.DATABASE_PATH}")
-    print(f"Log directory: {Config.LOG_DIR}")
-    print(f"Backup directory: {Config.BACKUP_DIR}")
-    print(f"Redis URL: {Config.REDIS_URL or 'Not configured'}")
-    print(f"Debug mode: {debug_mode}")
+    # Use logger instead of print
+    logger.info(f"Server starting at: {get_somali_time_display()}")
+    logger.info(f"Database path: {Config.DATABASE_PATH}")
+    logger.info(f"Log directory: {Config.LOG_DIR}")
+    logger.info(f"Backup directory: {Config.BACKUP_DIR}")
+    logger.info(f"Redis URL: {Config.REDIS_URL or 'Not configured'}")
+    logger.info(f"Debug mode: {debug_mode}")
     app.run(debug=debug_mode, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
