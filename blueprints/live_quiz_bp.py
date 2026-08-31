@@ -49,14 +49,13 @@ from db import (
     update_participant_ready,
     create_notification,
     get_user_subject_list,
-    # Import the new notification functions
     notify_live_quiz_start,
     notify_live_quiz_results,
     notify_participant_joined,
 )
 
 from config import Config
-from utils import get_somali_time_db, get_somali_time_display, format_somali_time, validate_csrf
+from utils import get_somali_time_db, get_somali_time_display, format_somali_time, validate_csrf, ensure_csrf_token
 from subjects_config import get_subject, get_all_subjects
 
 from cache import get_cache_manager, InvalidationHelper, make_key
@@ -215,15 +214,8 @@ def add_participant_to_cache(quiz_id: int, user_id: int, participant_data: dict)
     cache.delete(get_leaderboard_cache_key(quiz_id))
 
 # ============================================
-# CSRF HELPER
+# HELPER FUNCTIONS
 # ============================================
-
-def validate_csrf():
-    """Validate CSRF token from form or header; aborts on failure."""
-    token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
-    if not token or token != session.get('csrf_token'):
-        from flask import abort
-        abort(403, 'CSRF token validation failed')
 
 def generate_join_code():
     letters = ''.join(secrets.choice(string.ascii_uppercase + '123456789') for _ in range(4))
@@ -356,7 +348,6 @@ def lobby():
     per_page = 20
     subject_code = None
     if subject_filter:
-        # We'll just use the subject_filter as string (could be code)
         all_subjects = get_all_subjects()
         if any(s['code'] == subject_filter for s in all_subjects):
             subject_code = subject_filter
@@ -367,7 +358,7 @@ def lobby():
     subjects_key = make_key('subject', 'list', 'all')
     subjects = cache.get(subjects_key)
     if subjects is None:
-        subjects = get_all_subjects()  # from config
+        subjects = get_all_subjects()
         cache.set(subjects_key, subjects, ttl=3600)
 
     quizzes, total = get_live_quizzes_lobby(
@@ -396,7 +387,8 @@ def lobby():
 def lobby_join(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Please login first'}), 401
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
     quiz, _, redirect_resp = get_quiz_or_redirect(quiz_id, user_id, required_status=['waiting', 'scheduled'], check_participant=False)
     if redirect_resp:
@@ -466,7 +458,7 @@ def create():
 
     # Ensure CSRF token exists for GET requests
     if request.method == 'GET':
-        ensure_csrf_token()  # This will generate if missing, and mark session modified
+        ensure_csrf_token()
 
     if request.method == 'POST':
         # CSRF validation
@@ -627,7 +619,9 @@ def join():
         return redirect(url_for('login'))
     user_id = session['user_id']
     if request.method == 'POST':
-        validate_csrf()
+        if not validate_csrf():
+            flash('Invalid CSRF token. Please try again.', 'error')
+            return render_template('dashboard/live_quiz/join.html')
         join_code = request.form.get('join_code', '').strip().upper()
         if not join_code:
             flash('Please enter a join code.', 'error')
@@ -759,7 +753,8 @@ def waiting_room_participants(quiz_id):
 def toggle_ready(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
     data = request.get_json()
     is_ready = data.get('is_ready', False)
@@ -778,7 +773,8 @@ def toggle_ready(quiz_id):
 def start_quiz(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
@@ -1054,7 +1050,8 @@ def get_question(quiz_id):
 def submit_answer():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
     data = request.get_json()
     quiz_id = data.get('quiz_id')
@@ -1109,7 +1106,8 @@ def submit_answer():
 def skip_question():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
     data = request.get_json()
     quiz_id = data.get('quiz_id')
@@ -1148,7 +1146,8 @@ def skip_question():
 def submit_rating():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
     data = request.get_json()
     quiz_id = data.get('quiz_id')
@@ -1219,7 +1218,8 @@ def play(quiz_id):
 def leave_quiz(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
@@ -1244,7 +1244,8 @@ def leave_quiz(quiz_id):
 def rejoin_quiz(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
@@ -1265,7 +1266,8 @@ def rejoin_quiz(quiz_id):
 def delete_quiz(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
@@ -1369,7 +1371,8 @@ def export_results(quiz_id):
 def flush_cache_endpoint():
     if 'user_id' not in session or not is_admin(session['user_id']):
         return jsonify({'error': 'Unauthorized'}), 403
-    validate_csrf()
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
     try:
         cache = get_cache()
         cache.invalidate_pattern('quiz:*')
