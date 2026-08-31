@@ -461,7 +461,11 @@ def create():
     user_subjects = get_user_subject_list(user_id)
 
     if request.method == 'POST':
-        validate_csrf()
+        # CSRF validation
+        if not validate_csrf():
+            flash('Invalid CSRF token. Please try again.', 'error')
+            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
+
         subject_code = request.form.get('subject_code', '').strip()
         allowed_codes = [s['code'] for s in user_subjects]
         if subject_code not in allowed_codes:

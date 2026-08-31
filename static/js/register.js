@@ -78,12 +78,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const words = manual.split(/\s+/).filter(w => w.length > 0);
             valid = words.length >= 2 && words.every(w => w.length >= 4 && /^[A-Za-z]+$/.test(w));
             showErrorState(schoolManualInput, schoolManualError, valid, 'Min 2 words, each 4+ letters, no numbers');
-            // Hide dropdown error if manual is valid
             if (valid) hideError(schoolSelect, schoolError);
         } else {
             valid = selected !== '';
             showErrorState(schoolSelect, schoolError, valid, 'Please select or enter your school');
-            // Hide manual error if dropdown is valid
             if (valid) hideError(schoolManualInput, schoolManualError);
         }
         fieldStates.school = valid;
@@ -158,21 +156,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // EVENT BINDINGS
+    // EVENT BINDINGS – only on blur/change/submit
     // ============================================
 
-    firstName.addEventListener('blur', validateFirstName);
-    firstName.addEventListener('input', validateFirstName);
-    lastName.addEventListener('blur', validateLastName);
-    lastName.addEventListener('input', validateLastName);
-    city.addEventListener('blur', validateCity);
-    city.addEventListener('input', validateCity);
-    phone.addEventListener('blur', validatePhone);
-    phone.addEventListener('input', validatePhone);
-    password.addEventListener('blur', validatePassword);
-    password.addEventListener('input', validatePassword);
-    confirmPassword.addEventListener('blur', validateConfirm);
-    confirmPassword.addEventListener('input', validateConfirm);
+    firstName.addEventListener('blur', function() {
+        validateFirstName();
+        updateSubmitButton();
+    });
+    lastName.addEventListener('blur', function() {
+        validateLastName();
+        updateSubmitButton();
+    });
+    city.addEventListener('blur', function() {
+        validateCity();
+        updateSubmitButton();
+    });
+    phone.addEventListener('blur', function() {
+        validatePhone();
+        updateSubmitButton();
+    });
+    password.addEventListener('blur', function() {
+        validatePassword();
+        updateSubmitButton();
+    });
+    confirmPassword.addEventListener('blur', function() {
+        validateConfirm();
+        updateSubmitButton();
+    });
 
     locationSelect.addEventListener('change', function() {
         validateLocation();
@@ -186,20 +196,13 @@ document.addEventListener('DOMContentLoaded', function() {
         validateSchool();
         updateSubmitButton();
     });
-    schoolManualInput.addEventListener('blur', validateSchool);
-    schoolManualInput.addEventListener('input', validateSchool);
-
-    // Also validate on blur for all
-    document.querySelectorAll('.input-wrapper input, .input-wrapper select').forEach(el => {
-        el.addEventListener('blur', function() {
-            // Trigger validation for this field via its specific function
-            // We'll just call validateAll and update button
-            validateAll();
-        });
+    schoolManualInput.addEventListener('blur', function() {
+        validateSchool();
+        updateSubmitButton();
     });
 
     // ============================================
-    // VALIDATE ALL
+    // VALIDATE ALL ON SUBMIT
     // ============================================
 
     function validateAll() {
@@ -215,18 +218,10 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSubmitButton();
     }
 
-    // Initial validation on load
-    setTimeout(validateAll, 100);
-
-    // ============================================
-    // FORM SUBMISSION
-    // ============================================
-
     form.addEventListener('submit', function(e) {
         validateAll();
         if (submitBtn.disabled) {
             e.preventDefault();
-            // Find first invalid field and focus it
             const firstInvalid = document.querySelector('.input-wrapper.error input, .input-wrapper.error select');
             if (firstInvalid) {
                 firstInvalid.focus();
@@ -238,4 +233,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+
+    // Initial state: button disabled, but NO errors shown
+    updateSubmitButton();
+    // No initial validation call – errors only appear on interaction
 });

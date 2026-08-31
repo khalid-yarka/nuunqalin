@@ -139,6 +139,7 @@
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
             <form method="POST" action="{{ url_for('live_quiz.create_with_available') }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="subject_code" value="{{ subject_code }}">
                 <input type="hidden" name="question_count" value="{{ available }}">
                 <input type="hidden" name="title" value="{{ title }}">
@@ -165,7 +166,9 @@
         </div>
 
         <form method="POST" action="{{ url_for('live_quiz.create') }}" id="createForm">
-            <!-- Subject (UPDATED: uses subject_code) -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            
+            <!-- Subject -->
             <div class="form-group" style="margin-bottom: 20px;">
                 <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
                     📚 Subject <span style="color: var(--primary);">*</span>
@@ -180,7 +183,7 @@
                 </select>
             </div>
 
-            <!-- Question Count (unchanged) -->
+            <!-- Question Count -->
             <div class="form-group" style="margin-bottom: 20px;">
                 <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
                     📝 Number of Questions <span style="color: var(--primary);">*</span>
@@ -195,7 +198,7 @@
                 </div>
             </div>
 
-            <!-- Title (Optional) -->
+            <!-- Title -->
             <div class="form-group" style="margin-bottom: 20px;">
                 <label style="font-size: 14px; font-weight: 600; color: var(--text); display: block; margin-bottom: 6px;">
                     🏷️ Quiz Title
