@@ -1177,6 +1177,109 @@ def create_live_quiz(data: dict):
         logger.error(f"Error creating live quiz: {e}", exc_info=True)
         return None
 
+# NEW: Atomic creation of quiz + participant
+def create_live_quiz_with_participant(data, user_id):
+    """
+    Create a live quiz and add the creator as a participant in a single transaction.
+    Returns (quiz_dict, error_message) where quiz_dict is the quiz data or None.
+    """
+    import random
+    conn = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Generate a unique join code (with retry on integrity error)
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            join_code = generate_unique_join_code()  # uses separate connection, but we'll catch IntegrityError
+            try:
+                # Insert quiz
+                cursor.execute("""
+                    INSERT INTO live_quizzes (
+                        creator_id, title, subject_code, question_count, join_code,
+                        status, max_participants, time_per_question, current_question_index,
+                        question_ids, started_at, ended_at, scheduled_start, is_public, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    data['creator_id'],
+                    data.get('title', ''),
+                    data['subject_code'],
+                    data['question_count'],
+                    join_code,
+                    data.get('status', 'waiting'),
+                    data.get('max_participants', 50),
+                    data.get('time_per_question', 30),
+                    data.get('current_question_index', 0),
+                    to_json(data.get('question_ids', [])),
+                    data.get('started_at'),
+                    data.get('ended_at'),
+                    data.get('scheduled_start'),
+                    data.get('is_public', 1),
+                    now()
+                ))
+                break  # success
+            except sqlite3.IntegrityError as e:
+                if 'join_code' in str(e) and attempt < max_attempts - 1:
+                    continue
+                raise  # re-raise if it's not join_code conflict or max attempts reached
+        else:
+            # If we exhausted attempts without success
+            return None, "Failed to generate a unique join code after multiple attempts."
+
+        quiz_id = cursor.lastrowid
+
+        # Shuffle question IDs for this participant
+        question_ids = data.get('question_ids', [])
+        shuffled = question_ids[:]
+        random.shuffle(shuffled)
+        answers = {'__shuffled_ids': shuffled}
+
+        # Insert participant
+        cursor.execute("""
+            INSERT INTO live_quiz_participants (
+                quiz_id, student_id, score, current_question_index,
+                correct_count, wrong_count, skipped_count, answers, ratings,
+                ranking, status, joined_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            quiz_id,
+            user_id,
+            0,
+            0,
+            0,
+            0,
+            0,
+            to_json(answers),
+            to_json({}),
+            None,
+            'active',
+            now()
+        ))
+
+        conn.commit()
+
+        # Retrieve the quiz
+        cursor.execute("SELECT * FROM live_quizzes WHERE id = ?", (quiz_id,))
+        row = cursor.fetchone()
+        if row:
+            quiz = dict(row)
+            quiz['question_ids'] = from_json(quiz['question_ids'])
+            return quiz, None
+        else:
+            return None, "Quiz created but not found in database"
+
+    except sqlite3.IntegrityError as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Integrity error in create_live_quiz_with_participant: {e}", exc_info=True)
+        return None, f"Database integrity error: {str(e)}"
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Error in create_live_quiz_with_participant: {e}", exc_info=True)
+        return None, str(e)
+
 def get_live_quiz_by_id(quiz_id: int):
     try:
         cursor = execute_with_retry("SELECT * FROM live_quizzes WHERE id = ?", (quiz_id,))

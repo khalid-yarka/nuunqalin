@@ -203,11 +203,13 @@ try:
     logger.info("Cache manager initialized successfully.")
 
     if Config.REDIS_URL and Config.REDIS_URL.strip():
-        if os.getenv('CACHE_WORKER_ENABLED', 'true').lower() == 'true':
+        # Only start the background worker if explicitly enabled.
+        # On PythonAnywhere, threads may not be ideal, so default is disabled.
+        if os.getenv('CACHE_WORKER_ENABLED', 'false').lower() == 'true':
             start_worker()
             logger.info("Cache worker started.")
         else:
-            logger.info("Cache worker disabled via environment variable.")
+            logger.info("Cache worker disabled (set CACHE_WORKER_ENABLED=true to enable).")
     else:
         logger.info("Redis not configured; cache worker not started.")
 except Exception as e:

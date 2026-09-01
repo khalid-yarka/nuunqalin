@@ -99,21 +99,20 @@ def format_time_ago(timestamp: str) -> str:
         return 'Hadda'
 
 # ============================================
-# CSRF VALIDATION (moved from app.py to avoid circular import)
+# CSRF VALIDATION
 # ============================================
 
 def ensure_csrf_token():
     """
     Ensure a CSRF token exists in the session.
     Call this on GET requests that render forms.
+    Does NOT mark session as modified if token already exists.
     """
     if 'csrf_token' not in session:
         session['csrf_token'] = secrets.token_hex(32)
         session.modified = True
         logger.debug("CSRF token generated and stored in session.")
-    else:
-        # Token already exists, but ensure session is marked modified to persist
-        session.modified = True
+    # Token already exists – leave session.modified unchanged
     return session['csrf_token']
 
 def validate_csrf():

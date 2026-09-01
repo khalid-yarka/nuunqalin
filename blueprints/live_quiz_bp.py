@@ -52,6 +52,7 @@ from db import (
     notify_live_quiz_start,
     notify_live_quiz_results,
     notify_participant_joined,
+    create_live_quiz_with_participant,  # NEW import
 )
 
 from config import Config
@@ -473,29 +474,49 @@ def create():
             flash('Invalid CSRF token. Please try again.', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
         
+        # --- INPUT VALIDATION ---
+        # Subject
         subject_code = request.form.get('subject_code', '').strip()
         allowed_codes = [s['code'] for s in user_subjects]
         if subject_code not in allowed_codes:
             flash('Subject not available for your location/curriculum.', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
         
+        # Question count
         try:
             question_count = int(request.form.get('question_count', 10))
         except ValueError:
             question_count = 10
-        
-        title = request.form.get('title', '').strip()
-        is_public = int(request.form.get('is_public', 1))
-        schedule_minutes = int(request.form.get('schedule_minutes', 0))
-        
-        if not title:
-            flash('Please enter a title for your quiz.', 'error')
+        if question_count < 5 or question_count > 30:
+            flash('Number of questions must be between 5 and 30.', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
-                                   subject_code=subject_code, title=title, is_public=is_public)
+                                   subject_code=subject_code, title=request.form.get('title', '').strip(),
+                                   is_public=request.form.get('is_public', 1))
         
-        if not subject_code:
-            flash('Please select a subject.', 'error')
-            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
+        # Title
+        title = request.form.get('title', '').strip()
+        if len(title) > 100:
+            flash('Title is too long (max 100 characters).', 'error')
+            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
+                                   subject_code=subject_code, title=title, is_public=request.form.get('is_public', 1))
+        
+        # Privacy
+        try:
+            is_public = int(request.form.get('is_public', 1))
+        except ValueError:
+            is_public = 1
+        if is_public not in (0, 1):
+            is_public = 1
+        
+        # Schedule
+        try:
+            schedule_minutes = int(request.form.get('schedule_minutes', 0))
+        except ValueError:
+            schedule_minutes = 0
+        if schedule_minutes < 0:
+            schedule_minutes = 0
+        
+        # --- END VALIDATION ---
         
         # Fetch questions
         try:
@@ -517,49 +538,41 @@ def create():
                                    available=available, requested=question_count,
                                    subject_code=subject_code, title=title, is_public=is_public)
         
-        # Generate join code
-        try:
-            join_code = generate_unique_join_code()
-        except Exception as e:
-            logger.error(f"Error generating join code: {e}", exc_info=True)
-            flash('Error generating join code. Please try again.', 'error')
-            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
-                                   subject_code=subject_code, title=title, is_public=is_public)
-        
+        # Generate question IDs
         question_ids = [q['id'] for q in questions]
         
-        data = {
+        # Build data for the atomic transaction
+        quiz_data = {
             'creator_id': user_id,
-            'title': title if title else '',
+            'title': title,
             'subject_code': subject_code,
             'question_count': question_count,
-            'join_code': join_code,
             'max_participants': MAX_PARTICIPANTS,
             'time_per_question': TIME_PER_QUESTION,
             'current_question_index': 0,
             'question_ids': question_ids,
-            'is_public': is_public
+            'is_public': is_public,
         }
         
         if schedule_minutes > 0:
-            data['status'] = 'scheduled'
+            quiz_data['status'] = 'scheduled'
             scheduled_time = datetime.now(timezone.utc) + timedelta(minutes=schedule_minutes)
-            data['scheduled_start'] = scheduled_time.isoformat()
+            quiz_data['scheduled_start'] = scheduled_time.isoformat()
         else:
-            data['status'] = 'waiting'
-            data['scheduled_start'] = None
+            quiz_data['status'] = 'waiting'
+            quiz_data['scheduled_start'] = None
         
-        # Create the quiz (with exception handling)
-        try:
-            quiz = create_live_quiz(data)
-        except Exception as e:
-            logger.error(f"Exception in create_live_quiz: {e}", exc_info=True)
-            flash('An error occurred while creating the quiz. Please try again.', 'error')
+        # ATOMIC CREATION: quiz + participant
+        quiz, error = create_live_quiz_with_participant(quiz_data, user_id)
+        
+        if error:
+            logger.error(f"Failed to create quiz: {error}")
+            flash(f'Failed to create quiz: {error}', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
                                    subject_code=subject_code, title=title, is_public=is_public)
         
         if not quiz:
-            logger.error("create_live_quiz returned None – check database for errors (constraints, etc.)")
+            logger.error("create_live_quiz_with_participant returned None without error")
             flash('Failed to create quiz. Please try again.', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
                                    subject_code=subject_code, title=title, is_public=is_public)
@@ -570,18 +583,6 @@ def create():
             flash('Quiz created but missing ID. Please contact support.', 'error')
             return redirect(url_for('live_quiz.lobby'))
         
-        # Add creator as participant
-        try:
-            participant_added = add_live_quiz_participant(quiz['id'], user_id)
-            if not participant_added:
-                logger.warning(f"Failed to add participant for quiz {quiz['id']}")
-                flash('Quiz created but failed to add you as participant. Please try rejoining.', 'warning')
-                # Continue to waiting room
-        except Exception as e:
-            logger.error(f"Error adding participant: {e}", exc_info=True)
-            flash('Quiz created but failed to add you as participant. Please try rejoining.', 'warning')
-            # Continue to waiting room
-        
         # Cache the quiz
         try:
             cache = get_cache()
@@ -590,7 +591,7 @@ def create():
             logger.error(f"Error caching quiz: {e}", exc_info=True)
             # Non-critical, continue
         
-        # Cache participant
+        # Cache participant (already added in transaction, but we can re-add to cache)
         try:
             user = get_student_by_id(user_id)
             user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
@@ -635,9 +636,25 @@ def create_with_available():
 
     user_id = session['user_id']
     subject_code = request.form.get('subject_code', '').strip()
-    question_count = int(request.form.get('question_count', 10))
+    try:
+        question_count = int(request.form.get('question_count', 10))
+    except ValueError:
+        question_count = 10
+    if question_count < 5 or question_count > 30:
+        flash('Number of questions must be between 5 and 30.', 'error')
+        return redirect(url_for('live_quiz.create'))
+
     title = request.form.get('title', '').strip()
-    is_public = int(request.form.get('is_public', 1))
+    if len(title) > 100:
+        flash('Title is too long (max 100 characters).', 'error')
+        return redirect(url_for('live_quiz.create'))
+
+    try:
+        is_public = int(request.form.get('is_public', 1))
+    except ValueError:
+        is_public = 1
+    if is_public not in (0, 1):
+        is_public = 1
 
     user_subjects = get_user_subject_list(user_id)
     allowed_codes = [s['code'] for s in user_subjects]
@@ -650,41 +667,40 @@ def create_with_available():
         flash('No questions available.', 'error')
         return redirect(url_for('live_quiz.create'))
 
-    join_code = generate_unique_join_code()
     question_ids = [q['id'] for q in questions]
-    data = {
+    quiz_data = {
         'creator_id': user_id,
-        'title': title if title else '',
+        'title': title,
         'subject_code': subject_code,
         'question_count': available,
-        'join_code': join_code,
-        'status': 'waiting',
         'max_participants': MAX_PARTICIPANTS,
         'time_per_question': TIME_PER_QUESTION,
         'current_question_index': 0,
         'question_ids': question_ids,
         'is_public': is_public,
+        'status': 'waiting',
         'scheduled_start': None
     }
-    quiz = create_live_quiz(data)
-    if quiz:
-        add_live_quiz_participant(quiz['id'], user_id)
-        cache = get_cache()
-        cache.set(get_quiz_cache_key(quiz['id']), quiz, ttl=QUIZ_STATE_TTL)
-        user = get_student_by_id(user_id)
-        user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
-        participant_data = {
-            'student_id': user_id, 'user_id': user_id, 'name': user_name,
-            'score': 0, 'current_question_index': 0, 'correct_count': 0,
-            'wrong_count': 0, 'skipped_count': 0, 'answers': {}, 'ratings': {},
-            'status': 'active', 'joined_at': get_somali_time_db()
-        }
-        add_participant_to_cache(quiz['id'], user_id, participant_data)
-        flash(f'Quiz created with {available} questions!', 'success')
-        return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
-    else:
-        flash('Failed to create quiz.', 'error')
-    return redirect(url_for('live_quiz.create'))
+
+    quiz, error = create_live_quiz_with_participant(quiz_data, user_id)
+    if error or not quiz:
+        flash(f'Failed to create quiz: {error or "Unknown error"}', 'error')
+        return redirect(url_for('live_quiz.create'))
+
+    # Cache and continue
+    cache = get_cache()
+    cache.set(get_quiz_cache_key(quiz['id']), quiz, ttl=QUIZ_STATE_TTL)
+    user = get_student_by_id(user_id)
+    user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
+    participant_data = {
+        'student_id': user_id, 'user_id': user_id, 'name': user_name,
+        'score': 0, 'current_question_index': 0, 'correct_count': 0,
+        'wrong_count': 0, 'skipped_count': 0, 'answers': {}, 'ratings': {},
+        'status': 'active', 'joined_at': get_somali_time_db()
+    }
+    add_participant_to_cache(quiz['id'], user_id, participant_data)
+    flash(f'Quiz created with {available} questions!', 'success')
+    return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
 
 @live_quiz_bp.route('/join', methods=['GET', 'POST'])
 def join():

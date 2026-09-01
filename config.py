@@ -39,7 +39,8 @@ class Config:
     
     SESSION_TYPE = 'filesystem'
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
-    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'true').lower() == 'true'
+    # Default to False unless explicitly set to true (e.g., when HTTPS is guaranteed)
+    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     ADMIN_SESSION_TIMEOUT = int(os.getenv('ADMIN_SESSION_TIMEOUT', '1800'))
@@ -123,7 +124,7 @@ class Config:
     ERROR_LOG_SAMPLE_RATE = float(os.getenv('ERROR_LOG_SAMPLE_RATE', '1.0'))
     
     # ============================================
-    # CACHE (NEW)
+    # CACHE
     # ============================================
     
     REDIS_URL = os.getenv('REDIS_URL', '')  # Empty string means disabled
