@@ -271,6 +271,25 @@ def get_student_by_public_id(public_id: str):
     return dict(result) if result else None
 
 # ============================================
+# JOIN CODE GENERATION (MOVED HERE FROM live_quiz_bp)
+# ============================================
+
+def generate_join_code():
+    """Generate a random join code in format A3B9-X7K2."""
+    letters = ''.join(secrets.choice(string.ascii_uppercase + '123456789') for _ in range(4))
+    numbers = ''.join(secrets.choice('123456789') for _ in range(4))
+    return f"{letters}-{numbers}"
+
+def generate_unique_join_code():
+    """Generate a unique join code not already used in the database."""
+    code = generate_join_code()
+    while True:
+        quiz = get_live_quiz_by_code(code)
+        if not quiz:
+            return code
+        code = generate_join_code()
+
+# ============================================
 # STUDENT FUNCTIONS (with curriculum)
 # ============================================
 
@@ -1192,7 +1211,7 @@ def create_live_quiz_with_participant(data, user_id):
         # Generate a unique join code (with retry on integrity error)
         max_attempts = 3
         for attempt in range(max_attempts):
-            join_code = generate_unique_join_code()  # uses separate connection, but we'll catch IntegrityError
+            join_code = generate_unique_join_code()
             try:
                 # Insert quiz
                 cursor.execute("""

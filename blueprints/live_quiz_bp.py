@@ -52,7 +52,8 @@ from db import (
     notify_live_quiz_start,
     notify_live_quiz_results,
     notify_participant_joined,
-    create_live_quiz_with_participant,  # NEW import
+    create_live_quiz_with_participant,
+    generate_unique_join_code,  # <-- imported from db
 )
 
 from config import Config
@@ -217,21 +218,8 @@ def add_participant_to_cache(quiz_id: int, user_id: int, participant_data: dict)
     cache.delete(get_leaderboard_cache_key(quiz_id))
 
 # ============================================
-# HELPER FUNCTIONS
+# HELPER FUNCTIONS (generate_unique_join_code now imported from db)
 # ============================================
-
-def generate_join_code():
-    letters = ''.join(secrets.choice(string.ascii_uppercase + '123456789') for _ in range(4))
-    numbers = ''.join(secrets.choice('123456789') for _ in range(4))
-    return f"{letters}-{numbers}"
-
-def generate_unique_join_code():
-    code = generate_join_code()
-    while True:
-        quiz = get_live_quiz_by_code(code)
-        if not quiz:
-            return code
-        code = generate_join_code()
 
 def get_questions_for_subject(subject_code, limit):
     questions = get_questions_by_subject(subject_code, limit)
@@ -329,7 +317,7 @@ def format_somali_time_filter(dt_str):
         return dt_str
 
 # ============================================
-# ROUTES
+# ROUTES (unchanged except removal of duplicate functions)
 # ============================================
 
 @live_quiz_bp.route('/')
