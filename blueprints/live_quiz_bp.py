@@ -1,7 +1,8 @@
 # blueprints/live_quiz_bp.py
 """
-Live Quiz Blueprint - Complete with Scheduling & Notifications
-Updated to use subject_code instead of subject_id, and validate against user's allowed subjects.
+Live Quiz Blueprint – Redis‑first state management.
+All active quiz state is stored in Redis (authoritative).
+SQLite is used for base data, checkpoints, and final results.
 """
 
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, Response
@@ -53,7 +54,8 @@ from db import (
     notify_live_quiz_results,
     notify_participant_joined,
     create_live_quiz_with_participant,
-    generate_unique_join_code,  # <-- imported from db
+    generate_unique_join_code,
+    execute_with_retry,
 )
 
 from config import Config
@@ -62,6 +64,7 @@ from subjects_config import get_subject, get_all_subjects
 
 from cache import get_cache_manager, InvalidationHelper, make_key
 from cache.worker import STREAM_KEY as CACHE_STREAM_KEY
+from redis_state import LiveQuizState  # NEW: Redis state manager
 
 try:
     import redis
@@ -94,231 +97,25 @@ logger = logging.getLogger(__name__)
 def get_cache():
     return get_cache_manager()
 
-def get_quiz_cache_key(quiz_id: int, suffix: str = 'state') -> str:
-    return make_key('quiz', suffix, str(quiz_id))
+# Redis state manager instance
+_state_manager = None
+def get_state_manager():
+    global _state_manager
+    if _state_manager is None:
+        _state_manager = LiveQuizState(get_redis_client())
+    return _state_manager
 
-def get_participants_cache_key(quiz_id: int) -> str:
-    return get_quiz_cache_key(quiz_id, 'participants')
-
-def get_leaderboard_cache_key(quiz_id: int) -> str:
-    return get_quiz_cache_key(quiz_id, 'leaderboard')
-
-def get_quiz_from_cache(quiz_id: int):
-    cache = get_cache()
-    key = get_quiz_cache_key(quiz_id)
-    def load_from_db():
-        return get_live_quiz_with_subject(quiz_id)
-    return cache.get_or_compute(key=key, compute_func=load_from_db, ttl=QUIZ_STATE_TTL)
-
-def get_participants_from_cache(quiz_id: int):
-    cache = get_cache()
-    key = get_participants_cache_key(quiz_id)
-    def load_from_db():
-        return get_live_quiz_participants_with_names(quiz_id)
-    return cache.get_or_compute(key=key, compute_func=load_from_db, ttl=PARTICIPANTS_TTL)
-
-def get_leaderboard_from_cache(quiz_id: int, limit: int = 10):
-    cache = get_cache()
-    key = get_leaderboard_cache_key(quiz_id)
-    def load_from_db():
-        participants = get_live_quiz_participants_with_names(quiz_id)
-        active = [p for p in participants if p.get('status') != 'left']
-        sorted_p = sorted(active, key=lambda x: x.get('score', 0), reverse=True)
-        result = []
-        for i, p in enumerate(sorted_p[:limit], 1):
-            student = p.get('student', {})
-            result.append({
-                'user_id': p.get('student_id'),
-                'student_id': p.get('student_id'),
-                'name': f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Participant',
-                'score': p.get('score', 0),
-                'rank': i,
-                'correct': p.get('correct_count', 0),
-                'wrong': p.get('wrong_count', 0),
-                'current_question_index': p.get('current_question_index', 0)
-            })
-        return result
-    return cache.get_or_compute(key=key, compute_func=load_from_db, ttl=LEADERBOARD_TTL)
-
+# --------------------------------------------
+#  Helper: invalidate old cache (still used for other caches)
+# --------------------------------------------
 def invalidate_quiz_cache(quiz_id: int):
     InvalidationHelper.invalidate_quiz(quiz_id)
     cache = get_cache()
     cache.invalidate_pattern(f"quiz:*:{quiz_id}:*")
 
-def update_participant_async(quiz_id: int, user_id: int, updates: dict):
-    cache = get_cache()
-    cache_key = get_participants_cache_key(quiz_id)
-    participants = cache.get(cache_key)
-    if participants:
-        updated = False
-        for p in participants:
-            if p.get('student_id') == user_id or p.get('user_id') == user_id:
-                p.update(updates)
-                updated = True
-                break
-        if updated:
-            cache.set(cache_key, participants, ttl=PARTICIPANTS_TTL)
-    individual_key = make_key('quiz', 'participant', f"{quiz_id}:{user_id}")
-    individual = cache.get(individual_key)
-    if individual:
-        individual.update(updates)
-        cache.set(individual_key, individual, ttl=PARTICIPANTS_TTL)
-    cache.delete(get_leaderboard_cache_key(quiz_id))
-    redis_client = get_redis_client()
-    if redis_client:
-        try:
-            redis_client.xadd(CACHE_STREAM_KEY, {'data': json.dumps({'quiz_id': quiz_id, 'user_id': user_id, 'updates': updates, 'timestamp': time.time()})})
-        except Exception as e:
-            logging.getLogger(__name__).error(f"Failed to push update to queue: {e}")
-    else:
-        try:
-            participant = get_live_quiz_participant(quiz_id, user_id)
-            if participant:
-                update_live_quiz_participant(participant['id'], updates)
-        except Exception as e:
-            logging.getLogger(__name__).error(f"Direct DB update failed: {e}")
-
-def get_participant_safe(quiz_id: int, user_id: int):
-    cache = get_cache()
-    individual_key = make_key('quiz', 'participant', f"{quiz_id}:{user_id}")
-    participant = cache.get(individual_key)
-    if participant:
-        return participant
-    participant = get_live_quiz_participant(quiz_id, user_id)
-    if participant:
-        student = get_student_by_id(user_id)
-        name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Participant' if student else 'Participant'
-        participant['name'] = name
-        cache.set(individual_key, participant, ttl=PARTICIPANTS_TTL)
-        participants_key = get_participants_cache_key(quiz_id)
-        participants = cache.get(participants_key)
-        if participants:
-            found = False
-            for p in participants:
-                if p.get('student_id') == user_id:
-                    p.update(participant)
-                    found = True
-                    break
-            if not found:
-                participants.append(participant)
-            cache.set(participants_key, participants, ttl=PARTICIPANTS_TTL)
-    return participant
-
-def add_participant_to_cache(quiz_id: int, user_id: int, participant_data: dict):
-    cache = get_cache()
-    participants_key = get_participants_cache_key(quiz_id)
-    participants = cache.get(participants_key) or []
-    for p in participants:
-        if p.get('student_id') == user_id:
-            return
-    participants.append(participant_data)
-    cache.set(participants_key, participants, ttl=PARTICIPANTS_TTL)
-    individual_key = make_key('quiz', 'participant', f"{quiz_id}:{user_id}")
-    cache.set(individual_key, participant_data, ttl=PARTICIPANTS_TTL)
-    cache.delete(get_leaderboard_cache_key(quiz_id))
-
-# ============================================
-# HELPER FUNCTIONS (generate_unique_join_code now imported from db)
-# ============================================
-
-def get_questions_for_subject(subject_code, limit):
-    questions = get_questions_by_subject(subject_code, limit)
-    return questions, len(questions)
-
-def get_quiz_or_redirect(quiz_id, user_id, required_status=None, check_participant=False, allow_creator=False):
-    quiz = get_quiz_from_cache(quiz_id)
-    if not quiz:
-        flash('Quiz not found or has been deleted.', 'error')
-        return None, None, redirect(url_for('live_quiz.lobby'))
-    if required_status:
-        if isinstance(required_status, str):
-            allowed = [required_status]
-        else:
-            allowed = required_status
-        current_status = quiz.get('status')
-        if current_status not in allowed:
-            if current_status == 'waiting':
-                flash('This quiz has not started yet. Go to the waiting room.', 'info')
-                return None, None, redirect(url_for('live_quiz.waiting_room', quiz_id=quiz_id))
-            elif current_status == 'finished':
-                flash('This quiz has already finished. Viewing results.', 'info')
-                return None, None, redirect(url_for('live_quiz.results', quiz_id=quiz_id))
-            else:
-                flash('Quiz is not available in its current state.', 'error')
-                return None, None, redirect(url_for('live_quiz.lobby'))
-    participant = None
-    if check_participant:
-        participant = get_participant_safe(quiz_id, user_id)
-        if not participant:
-            if allow_creator and quiz.get('creator_id') == user_id:
-                pass
-            else:
-                flash('You are not a participant in this quiz.', 'error')
-                return None, None, redirect(url_for('live_quiz.lobby'))
-        elif participant.get('status') == 'left':
-            if current_status in ['waiting', 'scheduled']:
-                flash('You left this quiz. You can rejoin from the waiting room.', 'info')
-                return None, None, redirect(url_for('live_quiz.waiting_room', quiz_id=quiz_id))
-            else:
-                flash('You left this quiz and cannot rejoin.', 'error')
-                return None, None, redirect(url_for('live_quiz.lobby'))
-    return quiz, participant, None
-
-def finalize_live_quiz(quiz_id: int) -> dict:
-    try:
-        quiz = get_live_quiz_by_id(quiz_id)
-        if not quiz:
-            return {'success': False, 'message': 'Quiz not found'}
-        if quiz.get('status') == 'finished':
-            return {'success': True, 'message': 'Already finished'}
-        update_live_quiz(quiz_id, {'status': 'finished', 'ended_at': get_somali_time_db()})
-        participants = get_live_quiz_participants_with_names(quiz_id)
-        if not participants:
-            invalidate_quiz_cache(quiz_id)
-            return {'success': True, 'message': 'Quiz finished (no participants)'}
-        sorted_parts = sorted(participants, key=lambda x: x.get('score', 0), reverse=True)
-        for i, p in enumerate(sorted_parts, 1):
-            update_live_quiz_participant(p['id'], {'ranking': i})
-        invalidate_quiz_cache(quiz_id)
-        notify_live_quiz_results(quiz_id, quiz.get('title', 'Live Quiz'), sorted_parts)
-        return {'success': True, 'message': 'Quiz finalized', 'participants': sorted_parts}
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Error finalizing quiz {quiz_id}: {e}")
-        return {'success': False, 'message': str(e)}
-
-def start_cache_cleanup():
-    def cleanup_loop():
-        while True:
-            try:
-                cache = get_cache()
-                time.sleep(300)
-            except Exception as e:
-                logging.getLogger(__name__).error(f"Cache cleanup error: {e}")
-                time.sleep(60)
-    thread = threading.Thread(target=cleanup_loop, daemon=True)
-    thread.start()
-    return thread
-
-_cleanup_thread = start_cache_cleanup()
-
-# ============================================
-# TEMPLATE FILTER FOR SOMALI TIME
-# ============================================
-
-@live_quiz_bp.app_template_filter('format_somali_time')
-def format_somali_time_filter(dt_str):
-    """Convert ISO datetime string to Somali time format."""
-    if not dt_str:
-        return ''
-    try:
-        dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
-        return format_somali_time(dt)
-    except Exception:
-        return dt_str
-
-# ============================================
-# ROUTES (unchanged except removal of duplicate functions)
-# ============================================
+# --------------------------------------------
+#  Routes
+# --------------------------------------------
 
 @live_quiz_bp.route('/')
 def index():
@@ -381,62 +178,39 @@ def lobby_join(quiz_id):
     if not validate_csrf():
         return jsonify({'error': 'CSRF token missing or invalid'}), 403
     user_id = session['user_id']
-    quiz, _, redirect_resp = get_quiz_or_redirect(quiz_id, user_id, required_status=['waiting', 'scheduled'], check_participant=False)
-    if redirect_resp:
-        location = redirect_resp.headers.get('Location', url_for('live_quiz.lobby'))
-        if location and '/waiting-room/' in location:
-            return jsonify({'success': True, 'redirect': location, 'message': 'Quiz is scheduled or waiting'})
-        return jsonify({'error': 'Quiz not available', 'redirect': location}), 400
-    participant = get_participant_safe(quiz_id, user_id)
-    if participant:
-        if participant.get('status') == 'left':
-            if quiz['status'] in ['waiting', 'scheduled']:
-                success = db_rejoin_live_quiz(quiz_id, user_id)
-                if success:
-                    participant['status'] = 'active'
-                    participant['score'] = 0
-                    participant['current_question_index'] = 0
-                    add_participant_to_cache(quiz_id, user_id, participant)
-                    return jsonify({'success': True, 'redirect': url_for('live_quiz.waiting_room', quiz_id=quiz_id), 'rejoined': True})
-                else:
-                    return jsonify({'error': 'Failed to rejoin'}), 500
-            else:
-                return jsonify({'error': 'Cannot rejoin an active quiz'}), 400
-        else:
-            return jsonify({'success': True, 'redirect': url_for('live_quiz.waiting_room', quiz_id=quiz_id), 'already_joined': True})
+
+    # Get quiz from DB (base metadata)
+    quiz = get_live_quiz_by_id(quiz_id)
+    if not quiz:
+        return jsonify({'error': 'Quiz not found'}), 404
+
+    # Check if user can join
     can_join, reason = can_join_live_quiz(quiz_id, user_id)
     if not can_join:
         return jsonify({'error': reason}), 400
-    participant_count = get_live_quiz_count(quiz_id)
-    if participant_count >= quiz.get('max_participants', 50):
-        return jsonify({'error': 'Quiz is full'}), 400
-    active_quiz = get_user_active_quiz(user_id)
-    if active_quiz and active_quiz != int(quiz_id):
-        return jsonify({'error': 'You are already in another quiz. Please leave that quiz first.'}), 400
-    add_live_quiz_participant(quiz_id, user_id)
+
+    # Add participant to DB (this is durable; Redis will sync later)
+    success = add_live_quiz_participant(quiz_id, user_id)
+    if not success:
+        return jsonify({'error': 'Failed to join quiz'}), 500
+
+    # Initialize participant in Redis state
+    state = get_state_manager()
+    state.init_participant(
+        quiz_id=quiz_id,
+        user_id=user_id,
+        question_ids=quiz.get('question_ids', [])
+    )
+
+    # Notify creator
     user = get_student_by_id(user_id)
     user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
-    participant_data = {
-        'student_id': user_id,
-        'user_id': user_id,
-        'name': user_name,
-        'score': 0,
-        'current_question_index': 0,
-        'correct_count': 0,
-        'wrong_count': 0,
-        'skipped_count': 0,
-        'answers': {},
-        'ratings': {},
-        'status': 'active',
-        'joined_at': get_somali_time_db()
-    }
-    add_participant_to_cache(quiz_id, user_id, participant_data)
     notify_participant_joined(quiz_id, quiz.get('title', 'Live Quiz'), user_name, quiz['creator_id'])
-    return jsonify({'success': True, 'redirect': url_for('live_quiz.waiting_room', quiz_id=quiz_id)})
 
-# ============================================
-# CREATE LIVE QUIZ - GET & POST (FIXED)
-# ============================================
+    return jsonify({
+        'success': True,
+        'redirect': url_for('live_quiz.waiting_room', quiz_id=quiz_id)
+    })
 
 @live_quiz_bp.route('/create', methods=['GET', 'POST'])
 def create():
@@ -447,30 +221,24 @@ def create():
     user_id = session['user_id']
     user_subjects = get_user_subject_list(user_id)
     
-    # If user has no subjects, they need to set location/curriculum first
     if not user_subjects:
         flash('You need to set your location and curriculum in your profile before creating a quiz.', 'error')
         return redirect(url_for('dashboard.profile'))
     
-    # Ensure CSRF token for GET
     if request.method == 'GET':
         ensure_csrf_token()
     
     if request.method == 'POST':
-        # CSRF validation
         if not validate_csrf():
             flash('Invalid CSRF token. Please try again.', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
         
-        # --- INPUT VALIDATION ---
-        # Subject
         subject_code = request.form.get('subject_code', '').strip()
         allowed_codes = [s['code'] for s in user_subjects]
         if subject_code not in allowed_codes:
             flash('Subject not available for your location/curriculum.', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
         
-        # Question count
         try:
             question_count = int(request.form.get('question_count', 10))
         except ValueError:
@@ -481,14 +249,12 @@ def create():
                                    subject_code=subject_code, title=request.form.get('title', '').strip(),
                                    is_public=request.form.get('is_public', 1))
         
-        # Title
         title = request.form.get('title', '').strip()
         if len(title) > 100:
             flash('Title is too long (max 100 characters).', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
                                    subject_code=subject_code, title=title, is_public=request.form.get('is_public', 1))
         
-        # Privacy
         try:
             is_public = int(request.form.get('is_public', 1))
         except ValueError:
@@ -496,7 +262,6 @@ def create():
         if is_public not in (0, 1):
             is_public = 1
         
-        # Schedule
         try:
             schedule_minutes = int(request.form.get('schedule_minutes', 0))
         except ValueError:
@@ -504,9 +269,6 @@ def create():
         if schedule_minutes < 0:
             schedule_minutes = 0
         
-        # --- END VALIDATION ---
-        
-        # Fetch questions
         try:
             questions, available = get_questions_for_subject(subject_code, question_count)
         except Exception as e:
@@ -520,16 +282,13 @@ def create():
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
         
         if available < question_count:
-            # Show the "not enough questions" page
             return render_template('dashboard/live_quiz/create.html',
                                    subjects=user_subjects, not_enough=True,
                                    available=available, requested=question_count,
                                    subject_code=subject_code, title=title, is_public=is_public)
         
-        # Generate question IDs
         question_ids = [q['id'] for q in questions]
         
-        # Build data for the atomic transaction
         quiz_data = {
             'creator_id': user_id,
             'title': title,
@@ -550,66 +309,41 @@ def create():
             quiz_data['status'] = 'waiting'
             quiz_data['scheduled_start'] = None
         
-        # ATOMIC CREATION: quiz + participant
         quiz, error = create_live_quiz_with_participant(quiz_data, user_id)
         
-        if error:
-            logger.error(f"Failed to create quiz: {error}")
-            flash(f'Failed to create quiz: {error}', 'error')
+        if error or not quiz:
+            flash(f'Failed to create quiz: {error or "Unknown error"}', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
                                    subject_code=subject_code, title=title, is_public=is_public)
         
-        if not quiz:
-            logger.error("create_live_quiz_with_participant returned None without error")
-            flash('Failed to create quiz. Please try again.', 'error')
-            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
-                                   subject_code=subject_code, title=title, is_public=is_public)
-        
-        # Safety: ensure quiz has an id
         if not quiz.get('id'):
             logger.error(f"Quiz created but missing 'id': {quiz}")
             flash('Quiz created but missing ID. Please contact support.', 'error')
             return redirect(url_for('live_quiz.lobby'))
         
-        # Cache the quiz
+        # Initialise Redis state for the creator
+        state = get_state_manager()
+        state.init_participant(quiz['id'], user_id, quiz.get('question_ids', []))
+        
+        # Also set name and public_id
+        user = get_student_by_id(user_id)
+        if user:
+            state.update_participant(quiz['id'], user_id, {
+                'name': f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant',
+                'public_id': user.get('public_id', '----')
+            })
+        
+        # Cache quiz metadata in old cache (for lobby)
         try:
             cache = get_cache()
-            cache.set(get_quiz_cache_key(quiz['id']), quiz, ttl=QUIZ_STATE_TTL)
+            cache.set(make_key('quiz', 'state', str(quiz['id'])), quiz, ttl=QUIZ_STATE_TTL)
         except Exception as e:
             logger.error(f"Error caching quiz: {e}", exc_info=True)
-            # Non-critical, continue
-        
-        # Cache participant (already added in transaction, but we can re-add to cache)
-        try:
-            user = get_student_by_id(user_id)
-            user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
-            participant_data = {
-                'student_id': user_id, 'user_id': user_id, 'name': user_name,
-                'score': 0, 'current_question_index': 0, 'correct_count': 0,
-                'wrong_count': 0, 'skipped_count': 0, 'answers': {}, 'ratings': {},
-                'status': 'active', 'joined_at': get_somali_time_db()
-            }
-            add_participant_to_cache(quiz['id'], user_id, participant_data)
-        except Exception as e:
-            logger.error(f"Error caching participant: {e}", exc_info=True)
-            # Non-critical, continue
         
         flash('Quiz created successfully! Share the join code.', 'success')
-        
-        # Build redirect URL safely
-        try:
-            return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
-        except Exception as e:
-            logger.error(f"Error building redirect URL: {e}", exc_info=True)
-            flash('Quiz created but could not redirect. Please go to the lobby and join manually.', 'warning')
-            return redirect(url_for('live_quiz.lobby'))
+        return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
     
-    # GET request
     return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
-
-# ============================================
-# CREATE WITH AVAILABLE - POST only
-# ============================================
 
 @live_quiz_bp.route('/create-with-available', methods=['POST'])
 def create_with_available():
@@ -617,7 +351,6 @@ def create_with_available():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
 
-    # CSRF validation
     if not validate_csrf():
         flash('Invalid CSRF token. Please try again.', 'error')
         return redirect(url_for('live_quiz.create'))
@@ -675,18 +408,19 @@ def create_with_available():
         flash(f'Failed to create quiz: {error or "Unknown error"}', 'error')
         return redirect(url_for('live_quiz.create'))
 
-    # Cache and continue
-    cache = get_cache()
-    cache.set(get_quiz_cache_key(quiz['id']), quiz, ttl=QUIZ_STATE_TTL)
+    # Initialise Redis state for the creator
+    state = get_state_manager()
+    state.init_participant(quiz['id'], user_id, quiz.get('question_ids', []))
     user = get_student_by_id(user_id)
-    user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
-    participant_data = {
-        'student_id': user_id, 'user_id': user_id, 'name': user_name,
-        'score': 0, 'current_question_index': 0, 'correct_count': 0,
-        'wrong_count': 0, 'skipped_count': 0, 'answers': {}, 'ratings': {},
-        'status': 'active', 'joined_at': get_somali_time_db()
-    }
-    add_participant_to_cache(quiz['id'], user_id, participant_data)
+    if user:
+        state.update_participant(quiz['id'], user_id, {
+            'name': f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant',
+            'public_id': user.get('public_id', '----')
+        })
+
+    cache = get_cache()
+    cache.set(make_key('quiz', 'state', str(quiz['id'])), quiz, ttl=QUIZ_STATE_TTL)
+
     flash(f'Quiz created with {available} questions!', 'success')
     return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
 
@@ -709,22 +443,19 @@ def join():
         if not quiz:
             flash('Invalid join code or quiz has already started.', 'error')
             return render_template('dashboard/live_quiz/join.html')
-        if not quiz.get('is_public', 1):
-            pass  # still joinable via code
         active_quiz = get_user_active_quiz(user_id)
         if active_quiz and active_quiz != quiz['id']:
             flash('You are already in another quiz. Please leave that quiz first.', 'error')
             return render_template('dashboard/live_quiz/join.html')
-        participant = get_participant_safe(quiz['id'], user_id)
+        participant = get_live_quiz_participant(quiz['id'], user_id)  # fallback DB check
         if participant:
             if participant.get('status') == 'left':
                 if quiz['status'] in ['waiting', 'scheduled']:
                     success = db_rejoin_live_quiz(quiz['id'], user_id)
                     if success:
-                        participant['status'] = 'active'
-                        participant['score'] = 0
-                        participant['current_question_index'] = 0
-                        add_participant_to_cache(quiz['id'], user_id, participant)
+                        # update Redis
+                        state = get_state_manager()
+                        state.update_participant(quiz['id'], user_id, {'status': 'active'})
                         flash('You have rejoined the quiz!', 'success')
                         return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
                     else:
@@ -740,16 +471,14 @@ def join():
             flash('This quiz is full.', 'error')
             return render_template('dashboard/live_quiz/join.html')
         add_live_quiz_participant(quiz['id'], user_id)
+        state = get_state_manager()
+        state.init_participant(quiz['id'], user_id, quiz.get('question_ids', []))
         user = get_student_by_id(user_id)
-        user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
-        participant_data = {
-            'student_id': user_id, 'user_id': user_id, 'name': user_name,
-            'score': 0, 'current_question_index': 0, 'correct_count': 0,
-            'wrong_count': 0, 'skipped_count': 0, 'answers': {}, 'ratings': {},
-            'status': 'active', 'joined_at': get_somali_time_db()
-        }
-        add_participant_to_cache(quiz['id'], user_id, participant_data)
-        notify_participant_joined(quiz['id'], quiz.get('title', 'Live Quiz'), user_name, quiz['creator_id'])
+        if user:
+            state.update_participant(quiz['id'], user_id, {
+                'name': f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant',
+                'public_id': user.get('public_id', '----')
+            })
         flash('You have joined the quiz!', 'success')
         return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
     return render_template('dashboard/live_quiz/join.html')
@@ -760,28 +489,19 @@ def waiting_room(quiz_id):
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     user_id = session['user_id']
-    quiz, participant, redirect_resp = get_quiz_or_redirect(
-        quiz_id, user_id, required_status=['waiting', 'scheduled'], check_participant=True, allow_creator=True
-    )
-    if redirect_resp:
-        return redirect_resp
+    quiz = get_live_quiz_by_id(quiz_id)
+    if not quiz:
+        flash('Quiz not found.', 'error')
+        return redirect(url_for('live_quiz.lobby'))
+    # Check if user is a participant (DB fallback)
+    participant = get_live_quiz_participant(quiz_id, user_id)
+    if not participant and quiz['creator_id'] != user_id:
+        flash('You are not a participant in this quiz.', 'error')
+        return redirect(url_for('live_quiz.lobby'))
 
     is_creator = quiz['creator_id'] == user_id
     user_participant_status = participant.get('status') if participant else None
-    active_participants = get_active_participants(quiz_id)
-    active_participant_count = len(active_participants)
-    participants_data = get_live_quiz_participants(quiz_id)
-    formatted_participants = []
-    for p in participants_data:
-        student = p.get('student', {})
-        formatted_participants.append({
-            'id': p['id'], 'student_id': p['student_id'],
-            'name': f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown',
-            'public_id': student.get('public_id', '----'),
-            'status': p.get('status', 'active'),
-            'is_creator': p['student_id'] == quiz['creator_id'],
-            'is_ready': bool(p.get('is_ready', 0))
-        })
+    active_participants = get_active_participants(quiz_id)  # DB fallback, but we'll use Redis for real-time in JS
 
     scheduled_start = quiz.get('scheduled_start')
     starts_in_seconds = None
@@ -798,9 +518,9 @@ def waiting_room(quiz_id):
 
     return render_template('dashboard/live_quiz/waiting_room.html',
                          quiz=quiz, is_creator=is_creator,
-                         participants=formatted_participants,
-                         participant_count=active_participant_count,
-                         active_participant_count=active_participant_count,
+                         participants=active_participants,
+                         participant_count=len(active_participants),
+                         active_participant_count=len(active_participants),
                          user_participant_status=user_participant_status,
                          starts_in_seconds=starts_in_seconds,
                          scheduled_start_display=scheduled_start_display)
@@ -809,21 +529,18 @@ def waiting_room(quiz_id):
 def waiting_room_participants(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    quiz = get_live_quiz_by_id(quiz_id)
-    if not quiz:
-        return jsonify({'error': 'Quiz not found'}), 404
-    participants_data = get_live_quiz_participants(quiz_id)
+    state = get_state_manager()
+    participants = state.get_all_participants(quiz_id)
     formatted = []
-    for p in participants_data:
-        student = p.get('student', {})
+    for p in participants:
         formatted.append({
-            'id': p['id'],
-            'student_id': p['student_id'],
-            'name': f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown',
-            'public_id': student.get('public_id', '----'),
+            'id': p.get('user_id'),
+            'student_id': p.get('user_id'),
+            'name': p.get('name', 'Unknown'),
+            'public_id': p.get('public_id', '----'),
             'status': p.get('status', 'active'),
-            'is_creator': p['student_id'] == quiz['creator_id'],
-            'is_ready': bool(p.get('is_ready', 0))
+            'is_creator': p.get('is_creator', False),
+            'is_ready': p.get('is_ready', False)
         })
     return jsonify({'participants': formatted, 'count': len(formatted)})
 
@@ -837,13 +554,11 @@ def toggle_ready(quiz_id):
     data = request.get_json()
     is_ready = data.get('is_ready', False)
 
-    participant = get_live_quiz_participant(quiz_id, user_id)
-    if not participant:
-        return jsonify({'error': 'Not a participant'}), 404
-
-    success = update_participant_ready(quiz_id, user_id, is_ready)
+    state = get_state_manager()
+    success = state.set_participant_ready(quiz_id, user_id, is_ready)
     if success:
-        invalidate_quiz_cache(quiz_id)
+        # Also update DB for durability (optional, but we can update the ready flag in DB as well)
+        update_participant_ready(quiz_id, user_id, is_ready)
         return jsonify({'success': True, 'is_ready': is_ready})
     return jsonify({'error': 'Failed to update ready status'}), 500
 
@@ -861,25 +576,18 @@ def start_quiz(quiz_id):
         return jsonify({'error': 'Only the creator can start the quiz'}), 403
     if quiz['status'] not in ['waiting', 'scheduled']:
         return jsonify({'error': 'Quiz already started or finished'}), 400
-    active_participants = get_active_participants(quiz_id)
-    active_count = len(active_participants)
-    if active_count < 2:
+
+    state = get_state_manager()
+    active = state.get_active_participant_count(quiz_id)
+    if active < 2:
         return jsonify({'error': 'Need at least 2 active participants to start'}), 400
+
     update_live_quiz(quiz_id, {'status': 'active', 'started_at': get_somali_time_db(), 'scheduled_start': None})
-    cache = get_cache()
-    quiz['status'] = 'active'
-    quiz['started_at'] = get_somali_time_db()
-    quiz['scheduled_start'] = None
-    cache.set(get_quiz_cache_key(quiz_id), quiz, ttl=QUIZ_STATE_TTL)
-    participants = get_live_quiz_participants(quiz_id)
-    for p in participants:
-        if p['status'] != 'left':
-            student = get_student_by_id(p['student_id'])
-            name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Participant' if student else 'Participant'
-            updates = {'current_question_index': 0, 'score': 0, 'correct_count': 0, 'wrong_count': 0, 'skipped_count': 0, 'answers': {}, 'ratings': {}}
-            update_live_quiz_participant(p['id'], updates)
-            update_participant_async(quiz_id, p['student_id'], updates)
+    state.start_quiz(quiz_id)
+
+    participants = state.get_all_participants(quiz_id)
     notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
+
     return jsonify({'success': True, 'quiz_id': quiz_id, 'redirect_url': url_for('live_quiz.play', quiz_id=quiz_id)})
 
 @live_quiz_bp.route('/quiz-state/<quiz_id>')
@@ -888,241 +596,150 @@ def quiz_state(quiz_id):
         return jsonify({'error': 'Not logged in'}), 401
     user_id = session['user_id']
 
-    quiz, participant, redirect_resp = get_quiz_or_redirect(
-        quiz_id, user_id, required_status=['waiting', 'scheduled', 'active', 'finished'],
-        check_participant=True, allow_creator=True
-    )
-    if redirect_resp:
-        location = redirect_resp.headers.get('Location', url_for('live_quiz.lobby'))
-        return jsonify({'error': 'Quiz not available', 'abort': True, 'redirect': location, 'message': 'Quiz is not available in its current state'}), 404
+    quiz = get_live_quiz_with_subject(quiz_id)
+    if not quiz:
+        return jsonify({'error': 'Quiz not found'}), 404
 
-    try:
-        # --- SCHEDULING LOGIC ---
-        if quiz.get('status') == 'scheduled' and quiz.get('scheduled_start'):
-            try:
-                start_dt = datetime.fromisoformat(quiz['scheduled_start'].replace('Z', '+00:00'))
-                now = datetime.now(timezone.utc)
-                diff = (start_dt - now).total_seconds()
-                starts_in_seconds = max(0, int(diff))
-                if starts_in_seconds <= 0:
-                    all_participants = get_live_quiz_participants(quiz_id)
-                    active_participants = [p for p in all_participants if p.get('status') != 'left']
-                    if len(active_participants) < 2:
-                        update_live_quiz(quiz_id, {'status': 'waiting', 'scheduled_start': None})
-                        cache = get_cache()
-                        cache.delete(get_quiz_cache_key(quiz_id))
-                        create_notification(
-                            user_id=quiz['creator_id'],
-                            type='scheduled_skipped',
-                            title='⏰ Scheduled Quiz Skipped',
-                            body=f'Your quiz "{quiz.get("title", "Live Quiz")}" did not have enough participants to auto-start. It is now available for manual start.',
-                            link=f'/live-quiz/waiting-room/{quiz_id}',
-                            icon='⏰'
-                        )
-                        quiz = get_live_quiz_with_subject(quiz_id)
-                        return jsonify({'status': 'waiting', 'message': 'Scheduled start skipped due to insufficient participants'})
-                    else:
-                        update_live_quiz(quiz_id, {'status': 'active', 'started_at': get_somali_time_db(), 'scheduled_start': None})
-                        cache = get_cache()
-                        quiz['status'] = 'active'
-                        quiz['started_at'] = get_somali_time_db()
-                        quiz['scheduled_start'] = None
-                        cache.set(get_quiz_cache_key(quiz_id), quiz, ttl=QUIZ_STATE_TTL)
-                        participants = get_live_quiz_participants(quiz_id)
-                        for p in participants:
-                            if p['status'] != 'left':
-                                updates = {'current_question_index': 0, 'score': 0, 'correct_count': 0, 'wrong_count': 0, 'skipped_count': 0, 'answers': {}, 'ratings': {}}
-                                update_live_quiz_participant(p['id'], updates)
-                                update_participant_async(quiz_id, p['student_id'], updates)
-                        notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
-                        return jsonify({'status': 'active', 'redirect_url': url_for('live_quiz.play', quiz_id=quiz_id)})
-                else:
-                    return jsonify({'status': 'scheduled', 'starts_in_seconds': starts_in_seconds})
-            except Exception as e:
-                logging.getLogger(__name__).error(f"Schedule transition error: {e}")
+    state = get_state_manager()
+    participant = state.get_participant(quiz_id, user_id)
+    if not participant and quiz['status'] != 'finished':
+        # Attempt to restore from DB checkpoint
+        db_participant = get_live_quiz_participant(quiz_id, user_id)
+        if db_participant:
+            state.init_participant(quiz_id, user_id, quiz.get('question_ids', []), db_participant)
+            participant = state.get_participant(quiz_id, user_id)
+        else:
+            return jsonify({'error': 'Not a participant'}), 404
 
-        # --- NORMAL STATE LOGIC ---
-        question_ids = quiz.get('question_ids', [])
-        if quiz.get('status') == 'active' and len(question_ids) == 0:
-            finalize_live_quiz(quiz_id)
-            return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
+    question_ids = quiz.get('question_ids', [])
+    total_questions = len(question_ids)
+    current_index = participant.get('current_question_index', 0) if participant else 0
+    score = participant.get('score', 0) if participant else 0
+    answers = participant.get('answers', {}) if participant else {}
 
-        answers = participant.get('answers', {})
-        shuffled_ids = answers.get('__shuffled_ids')
-        if not shuffled_ids:
-            shuffled_ids = quiz.get('question_ids', [])
+    if quiz['status'] == 'finished':
+        return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
-        current_index = participant.get('current_question_index', 0)
-        total_questions = len(shuffled_ids)
+    all_participants = state.get_all_participants(quiz_id)
+    completed_count = sum(1 for p in all_participants if p.get('current_question_index', 0) >= total_questions)
+    active_count = len([p for p in all_participants if p.get('status') != 'left'])
+    all_completed = completed_count == active_count and active_count > 0
 
-        if quiz.get('status') == 'active' and current_index >= total_questions and total_questions > 0:
-            pass
+    if all_completed and quiz['status'] == 'active':
+        finalize_live_quiz(quiz_id)
+        return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
-        all_participants = get_participants_from_cache(quiz_id)
-        if all_participants is None:
-            all_participants = []
-            db_participants = get_live_quiz_participants_with_names(quiz_id)
-            for p in db_participants:
-                student = p.get('student', {})
-                all_participants.append({
-                    'student_id': p.get('student_id'),
-                    'name': f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Unknown',
-                    'score': p.get('score', 0),
-                    'current_question_index': p.get('current_question_index', 0),
-                    'correct_count': p.get('correct_count', 0),
-                    'wrong_count': p.get('wrong_count', 0),
-                    'skipped_count': p.get('skipped_count', 0),
-                    'status': p.get('status', 'active')
-                })
+    # Compute remaining time (if active)
+    remaining_time = 0
+    total_duration = total_questions * (TIME_PER_QUESTION + RATING_TIME)
+    if quiz['status'] == 'active' and quiz.get('started_at'):
+        try:
+            started = datetime.fromisoformat(quiz['started_at'].replace('Z', '+00:00'))
+            elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+            remaining_time = max(0, total_duration - elapsed)
+        except Exception:
+            remaining_time = total_duration
 
-        active_participants = [p for p in all_participants if p.get('status') != 'left']
-        active_count = len(active_participants)
+    response = {
+        'status': quiz['status'],
+        'remaining_time': remaining_time,
+        'total_duration': total_duration,
+        'completed_count': completed_count,
+        'total_participants': active_count,
+        'is_completed': current_index >= total_questions,
+        'current_question_index': current_index,
+        'total_questions': total_questions,
+        'all_completed': all_completed,
+        'score': score,
+        'current_question_answered': False,
+        'current_question_answer': None,
+        'current_question_correct': False,
+        'active_participants': active_count
+    }
 
-        time_per_question = quiz.get('time_per_question', TIME_PER_QUESTION)
-        rating_time = RATING_TIME
-        total_duration = total_questions * (time_per_question + rating_time)
+    if current_index < total_questions:
+        qid = question_ids[current_index]
+        if str(qid) in answers:
+            response['current_question_answered'] = True
+            response['current_question_answer'] = answers[str(qid)].get('answer')
+            response['current_question_correct'] = answers[str(qid)].get('correct', False)
 
-        started_at = quiz.get('started_at')
-        remaining = total_duration
-        if started_at and quiz.get('status') == 'active':
-            try:
-                if isinstance(started_at, str):
-                    started = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
-                else:
-                    started = started_at
-                elapsed = (datetime.now(timezone.utc) - started).total_seconds()
-                remaining = max(0, total_duration - elapsed)
-            except Exception:
-                remaining = total_duration
+    if quiz['creator_id'] == user_id:
+        progress = []
+        for p in all_participants:
+            progress.append({
+                'user_id': p.get('user_id'),
+                'name': p.get('name', 'Unknown'),
+                'current_question_index': p.get('current_question_index', 0),
+                'total_questions': total_questions,
+                'status': p.get('status', 'active'),
+                'score': p.get('score', 0)
+            })
+        response['participant_progress'] = progress
 
-        if quiz.get('status') == 'active':
-            if active_count == 0:
-                finalize_live_quiz(quiz_id)
-                return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
-            if quiz.get('started_at') is None:
-                finalize_live_quiz(quiz_id)
-                return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
+    if quiz['status'] == 'finished':
+        response['redirect_url'] = url_for('live_quiz.results', quiz_id=quiz_id)
 
-        if remaining <= 0 and quiz.get('status') == 'active':
-            finalize_live_quiz(quiz_id)
-            return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
-
-        completed_count = sum(1 for p in active_participants if p.get('current_question_index', 0) >= total_questions)
-        all_completed = completed_count == active_count and active_count > 0
-
-        if all_completed and quiz.get('status') == 'active' and active_count >= 1:
-            finalize_live_quiz(quiz_id)
-            return jsonify({'status': 'finished', 'remaining_time': 0, 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
-
-        is_completed = current_index >= total_questions
-
-        response = {
-            'status': quiz.get('status'),
-            'total_duration': total_duration,
-            'remaining_time': int(remaining),
-            'completed_count': completed_count,
-            'total_participants': active_count,
-            'is_completed': is_completed,
-            'current_question_index': current_index,
-            'total_questions': total_questions,
-            'all_completed': all_completed,
-            'score': participant.get('score', 0),
-            'current_question_answered': False,
-            'current_question_answer': None,
-            'current_question_correct': False,
-            'active_participants': active_count
-        }
-
-        if current_index < len(shuffled_ids):
-            qid = shuffled_ids[current_index]
-            answers = participant.get('answers', {})
-            if str(qid) in answers:
-                response['current_question_answered'] = True
-                response['current_question_answer'] = answers[str(qid)].get('answer')
-                response['current_question_correct'] = answers[str(qid)].get('correct', False)
-
-        if quiz.get('creator_id') == user_id:
-            progress = []
-            for p in all_participants:
-                progress.append({
-                    'user_id': p.get('student_id'),
-                    'name': p.get('name', 'Unknown'),
-                    'current_question_index': p.get('current_question_index', 0),
-                    'total_questions': total_questions,
-                    'status': p.get('status', 'active'),
-                    'score': p.get('score', 0)
-                })
-            response['participant_progress'] = progress
-
-        if quiz.get('status') == 'finished':
-            response['redirect_url'] = url_for('live_quiz.results', quiz_id=quiz_id)
-
-        return jsonify(response)
-
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Error in quiz_state: {e}", exc_info=True)
-        return jsonify({'error': 'Server error loading quiz state', 'abort': True, 'redirect': url_for('live_quiz.lobby'), 'message': 'An error occurred loading the quiz'}), 500
+    return jsonify(response)
 
 @live_quiz_bp.route('/get-question/<quiz_id>')
 def get_question(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     user_id = session['user_id']
-    quiz, participant, redirect_resp = get_quiz_or_redirect(
-        quiz_id, user_id, required_status='active', check_participant=True
-    )
-    if redirect_resp:
-        location = redirect_resp.headers.get('Location', url_for('live_quiz.lobby'))
-        return jsonify({'error': 'Quiz not available', 'abort': True, 'redirect': location, 'message': 'Quiz is not active or you are not a participant'}), 404
-    try:
-        answers = participant.get('answers', {})
-        shuffled_ids = answers.get('__shuffled_ids')
-        if not shuffled_ids:
-            shuffled_ids = quiz.get('question_ids', [])
 
-        current_index = participant.get('current_question_index', 0)
-        total_questions = len(shuffled_ids)
+    state = get_state_manager()
+    participant = state.get_participant(quiz_id, user_id)
+    if not participant:
+        return jsonify({'error': 'Not a participant'}), 404
 
-        if current_index >= total_questions:
-            return jsonify({'completed': True})
+    quiz = get_live_quiz_by_id(quiz_id)
+    if not quiz or quiz['status'] != 'active':
+        return jsonify({'error': 'Quiz not active'}), 400
 
-        if current_index >= len(shuffled_ids):
-            return jsonify({'completed': True})
+    question_ids = quiz.get('question_ids', [])
+    current_index = participant.get('current_question_index', 0)
+    if current_index >= len(question_ids):
+        return jsonify({'completed': True})
 
-        question_id = shuffled_ids[current_index]
-
-        if str(question_id) in answers:
-            answer_data = answers[str(question_id)]
-            is_correct = answer_data.get('correct', False)
-            question = get_question_by_id(question_id)
-            if question:
-                return jsonify({
-                    'question': question, 'index': current_index, 'total': total_questions,
-                    'already_answered': True, 'answer': answer_data.get('answer'),
-                    'correct': is_correct, 'correct_answer': question.get('correct_answer'),
-                    'explanation': question.get('explanation', '')
-                })
-            else:
-                new_index = current_index + 1
-                update_participant_async(quiz_id, user_id, {'current_question_index': new_index})
-                return jsonify({'skipped': True})
-
-        ratings = participant.get('ratings', {})
-        if str(question_id) in ratings:
+    qid = question_ids[current_index]
+    answers = participant.get('answers', {})
+    if str(qid) in answers:
+        question = get_question_by_id(qid)
+        if question:
+            return jsonify({
+                'question': question,
+                'index': current_index,
+                'total': len(question_ids),
+                'already_answered': True,
+                'answer': answers[str(qid)].get('answer'),
+                'correct': answers[str(qid)].get('correct', False),
+                'correct_answer': question.get('correct_answer'),
+                'explanation': question.get('explanation', '')
+            })
+        else:
             new_index = current_index + 1
-            update_participant_async(quiz_id, user_id, {'current_question_index': new_index})
+            state.update_participant(quiz_id, user_id, {'current_question_index': new_index})
             return jsonify({'skipped': True})
 
-        question = get_question_by_id(question_id)
-        if not question:
-            new_index = current_index + 1
-            update_participant_async(quiz_id, user_id, {'current_question_index': new_index})
-            return jsonify({'skipped': True})
+    ratings = participant.get('ratings', {})
+    if str(qid) in ratings:
+        new_index = current_index + 1
+        state.update_participant(quiz_id, user_id, {'current_question_index': new_index})
+        return jsonify({'skipped': True})
 
-        return jsonify({'question': question, 'index': current_index, 'total': total_questions, 'already_answered': False})
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Error in get_question: {e}", exc_info=True)
-        return jsonify({'error': 'Server error loading question', 'abort': True, 'redirect': url_for('live_quiz.lobby'), 'message': 'An error occurred loading the question'}), 500
+    question = get_question_by_id(qid)
+    if not question:
+        new_index = current_index + 1
+        state.update_participant(quiz_id, user_id, {'current_question_index': new_index})
+        return jsonify({'skipped': True})
+
+    return jsonify({
+        'question': question,
+        'index': current_index,
+        'total': len(question_ids),
+        'already_answered': False
+    })
 
 @live_quiz_bp.route('/submit-answer', methods=['POST'])
 def submit_answer():
@@ -1137,48 +754,26 @@ def submit_answer():
     answer = data.get('answer')
     if not quiz_id or not question_id or not answer:
         return jsonify({'error': 'Missing required fields'}), 400
-    try:
-        # Check quiz is active
-        quiz = get_live_quiz_by_id(quiz_id)
-        if not quiz or quiz.get('status') != 'active':
-            return jsonify({'error': 'Quiz is not active'}), 400
 
-        # Verify question belongs to this quiz
-        question_ids = quiz.get('question_ids', [])
-        if question_id not in question_ids:
-            return jsonify({'error': 'Question does not belong to this quiz'}), 400
+    quiz = get_live_quiz_by_id(quiz_id)
+    if not quiz or quiz['status'] != 'active':
+        return jsonify({'error': 'Quiz is not active'}), 400
 
-        participant = get_participant_safe(quiz_id, user_id)
-        if not participant:
-            return jsonify({'error': 'Not a participant'}), 404
+    state = get_state_manager()
+    participant = state.get_participant(quiz_id, user_id)
+    if not participant:
+        return jsonify({'error': 'Not a participant'}), 404
 
-        # Check if already answered this question
-        answers = participant.get('answers', {})
-        if str(question_id) in answers:
-            return jsonify({'error': 'Already answered this question'}), 400
+    # Use atomic Lua script
+    success, result = state.submit_answer(quiz_id, user_id, question_id, answer, quiz.get('correct_answer'))
+    if not success:
+        return jsonify({'error': result}), 400
 
-        question = get_question_by_id(question_id)
-        if not question:
-            return jsonify({'error': 'Question not found'}), 404
-
-        is_correct = answer == question['correct_answer']
-        score = participant.get('score', 0)
-        correct_count = participant.get('correct_count', 0)
-        wrong_count = participant.get('wrong_count', 0)
-        if is_correct:
-            score += 2
-            correct_count += 1
-        else:
-            wrong_count += 1
-
-        answers[str(question_id)] = {'answer': answer, 'correct': is_correct}
-        updates = {'answers': answers, 'score': score, 'correct_count': correct_count, 'wrong_count': wrong_count}
-        update_participant_async(quiz_id, user_id, updates)
-
-        return jsonify({'correct': is_correct, 'correct_answer': question['correct_answer'], 'explanation': question.get('explanation', '')})
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Error in submit_answer: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to submit answer'}), 500
+    return jsonify({
+        'correct': result['correct'],
+        'correct_answer': result['correct_answer'],
+        'explanation': result['explanation']
+    })
 
 @live_quiz_bp.route('/skip-question', methods=['POST'])
 def skip_question():
@@ -1192,33 +787,12 @@ def skip_question():
     question_id = data.get('question_id')
     if not quiz_id or not question_id:
         return jsonify({'error': 'Missing required fields'}), 400
-    try:
-        quiz = get_live_quiz_by_id(quiz_id)
-        if not quiz or quiz.get('status') != 'active':
-            return jsonify({'error': 'Quiz is not active'}), 400
 
-        question_ids = quiz.get('question_ids', [])
-        if question_id not in question_ids:
-            return jsonify({'error': 'Question does not belong to this quiz'}), 400
-
-        participant = get_participant_safe(quiz_id, user_id)
-        if not participant:
-            return jsonify({'error': 'Not a participant'}), 404
-
-        answers = participant.get('answers', {})
-        if str(question_id) in answers:
-            return jsonify({'error': 'Already answered this question'}), 400
-
-        answers[str(question_id)] = {'answer': None, 'correct': False, 'skipped': True}
-        skipped_count = participant.get('skipped_count', 0) + 1
-        current_index = participant.get('current_question_index', 0)
-        new_index = current_index + 1
-        updates = {'answers': answers, 'skipped_count': skipped_count, 'current_question_index': new_index}
-        update_participant_async(quiz_id, user_id, updates)
-        return jsonify({'success': True})
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Error in skip_question: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to skip question'}), 500
+    state = get_state_manager()
+    success, msg = state.skip_question(quiz_id, user_id, question_id)
+    if not success:
+        return jsonify({'error': msg}), 400
+    return jsonify({'success': True})
 
 @live_quiz_bp.route('/submit-rating', methods=['POST'])
 def submit_rating():
@@ -1235,49 +809,28 @@ def submit_rating():
         return jsonify({'error': 'Missing required fields'}), 400
     if rating not in ['HAA', 'MAY']:
         return jsonify({'error': 'Invalid rating'}), 400
-    try:
-        quiz = get_live_quiz_by_id(quiz_id)
-        if not quiz or quiz.get('status') != 'active':
-            return jsonify({'error': 'Quiz is not active'}), 400
 
-        participant = get_participant_safe(quiz_id, user_id)
-        if not participant:
-            return jsonify({'error': 'Not a participant'}), 404
+    state = get_state_manager()
+    success, msg = state.submit_rating(quiz_id, user_id, question_id, rating)
+    if not success:
+        return jsonify({'error': msg}), 400
 
-        answers = participant.get('answers', {})
-        if str(question_id) not in answers:
-            return jsonify({'error': 'You must answer the question before rating'}), 400
+    participant = state.get_participant(quiz_id, user_id)
+    total_questions = len(get_question_ids_for_quiz(quiz_id))
+    if participant.get('current_question_index', 0) >= total_questions:
+        state.update_participant(quiz_id, user_id, {'status': 'completed'})
 
-        ratings = participant.get('ratings', {})
-        if str(question_id) in ratings:
-            return jsonify({'error': 'Already rated this question'}), 400
-
-        ratings[str(question_id)] = rating
-        current_index = participant.get('current_question_index', 0)
-        new_index = current_index + 1
-        updates = {'ratings': ratings, 'current_question_index': new_index}
-        update_participant_async(quiz_id, user_id, updates)
-        return jsonify({'success': True, 'completed': new_index >= len(answers)})
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Error in submit_rating: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to submit rating'}), 500
+    return jsonify({'success': True, 'completed': participant.get('current_question_index', 0) >= total_questions})
 
 @live_quiz_bp.route('/leaderboard/<quiz_id>')
 def get_leaderboard(quiz_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
     user_id = session['user_id']
-    try:
-        leaderboard = get_leaderboard_from_cache(quiz_id, 10)
-        user_rank = None
-        for i, item in enumerate(leaderboard, 1):
-            if item.get('user_id') == user_id or item.get('student_id') == user_id:
-                user_rank = i
-                break
-        return jsonify({'leaderboard': leaderboard, 'user_rank': user_rank})
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Error in leaderboard: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to load leaderboard'}), 500
+    state = get_state_manager()
+    leaderboard = state.get_leaderboard(quiz_id, limit=10)
+    user_rank = state.get_user_rank(quiz_id, user_id)
+    return jsonify({'leaderboard': leaderboard, 'user_rank': user_rank})
 
 @live_quiz_bp.route('/play/<quiz_id>')
 def play(quiz_id):
@@ -1285,11 +838,17 @@ def play(quiz_id):
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     user_id = session['user_id']
-    quiz, participant, redirect_resp = get_quiz_or_redirect(
-        quiz_id, user_id, required_status='active', check_participant=True
-    )
-    if redirect_resp:
-        return redirect_resp
+    quiz = get_live_quiz_by_id(quiz_id)
+    if not quiz:
+        flash('Quiz not found.', 'error')
+        return redirect(url_for('live_quiz.lobby'))
+    participant = get_live_quiz_participant(quiz_id, user_id)
+    if not participant and quiz['creator_id'] != user_id:
+        flash('You are not a participant in this quiz.', 'error')
+        return redirect(url_for('live_quiz.lobby'))
+    if quiz['status'] != 'active':
+        flash('Quiz is not active.', 'error')
+        return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz_id))
     return render_template('dashboard/live_quiz/play.html', quiz=quiz)
 
 @live_quiz_bp.route('/leave/<quiz_id>', methods=['POST'])
@@ -1304,7 +863,7 @@ def leave_quiz(quiz_id):
         return jsonify({'error': 'Quiz not found'}), 404
     if quiz['status'] == 'finished':
         return jsonify({'error': 'Quiz already finished'}), 400
-    participant = get_participant_safe(quiz_id, user_id)
+    participant = get_live_quiz_participant(quiz_id, user_id)
     if not participant:
         return jsonify({'error': 'Not a participant'}), 404
     if participant.get('status') == 'left':
@@ -1313,7 +872,8 @@ def leave_quiz(quiz_id):
         return jsonify({'error': 'Creator cannot leave the quiz'}), 400
     success = db_leave_live_quiz(quiz_id, user_id)
     if success:
-        update_participant_async(quiz_id, user_id, {'status': 'left'})
+        state = get_state_manager()
+        state.update_participant(quiz_id, user_id, {'status': 'left'})
         invalidate_quiz_cache(quiz_id)
         return jsonify({'success': True, 'message': 'You have left the quiz', 'redirect': url_for('live_quiz.lobby')})
     return jsonify({'error': 'Failed to leave quiz'}), 500
@@ -1330,12 +890,13 @@ def rejoin_quiz(quiz_id):
         return jsonify({'error': 'Quiz not found'}), 404
     if quiz['status'] not in ['waiting', 'scheduled']:
         return jsonify({'error': 'Quiz is not open for rejoining'}), 400
-    participant = get_participant_safe(quiz_id, user_id)
+    participant = get_live_quiz_participant(quiz_id, user_id)
     if not participant or participant.get('status') != 'left':
         return jsonify({'error': 'You are not eligible to rejoin'}), 400
     success = db_rejoin_live_quiz(quiz_id, user_id)
     if success:
-        update_participant_async(quiz_id, user_id, {'status': 'active'})
+        state = get_state_manager()
+        state.update_participant(quiz_id, user_id, {'status': 'active'})
         invalidate_quiz_cache(quiz_id)
         return jsonify({'success': True, 'message': 'You have rejoined the quiz', 'redirect': url_for('live_quiz.waiting_room', quiz_id=quiz_id)})
     return jsonify({'error': 'Failed to rejoin quiz'}), 500
@@ -1352,6 +913,8 @@ def delete_quiz(quiz_id):
         return jsonify({'error': 'Quiz not found'}), 404
     if quiz['creator_id'] != user_id and not is_admin(user_id):
         return jsonify({'error': 'Permission denied'}), 403
+    state = get_state_manager()
+    state.delete_quiz(quiz_id)
     invalidate_quiz_cache(quiz_id)
     success = db_delete_live_quiz(quiz_id)
     if success:
@@ -1364,12 +927,12 @@ def results(quiz_id):
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     user_id = session['user_id']
-    quiz, participant, redirect_resp = get_quiz_or_redirect(
-        quiz_id, user_id, required_status='finished', check_participant=True, allow_creator=True
-    )
-    if redirect_resp:
-        return redirect_resp
-    if quiz.get('status') != 'finished':
+    quiz = get_live_quiz_by_id(quiz_id)
+    if not quiz:
+        flash('Quiz not found.', 'error')
+        return redirect(url_for('live_quiz.lobby'))
+    if quiz['status'] != 'finished':
+        # If not finished, finalize it now (in case it wasn't auto-finalized)
         finalize_live_quiz(quiz_id)
         quiz = get_live_quiz_with_subject(quiz_id)
     is_creator = quiz['creator_id'] == user_id
@@ -1468,3 +1031,49 @@ def cache_stats():
         return jsonify(stats)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# --------------------------------------------
+#  Helper: get questions for subject
+# --------------------------------------------
+def get_questions_for_subject(subject_code, limit):
+    questions = get_questions_by_subject(subject_code, limit)
+    return questions, len(questions)
+
+# --------------------------------------------
+#  Helper: finalize quiz (write final results to DB)
+# --------------------------------------------
+def finalize_live_quiz(quiz_id: int) -> dict:
+    state = get_state_manager()
+    participants = state.get_all_participants(quiz_id)
+    if not participants:
+        participants = get_live_quiz_participants_with_names(quiz_id)
+
+    sorted_parts = sorted(participants, key=lambda x: x.get('score', 0), reverse=True)
+    for i, p in enumerate(sorted_parts, 1):
+        p['ranking'] = i
+
+    # Update quiz status
+    update_live_quiz(quiz_id, {'status': 'finished', 'ended_at': get_somali_time_db()})
+    # Update each participant
+    for p in sorted_parts:
+        # p may be dict from Redis; if from DB, it has 'id' key
+        if 'id' not in p:
+            # Try to get DB participant id
+            db_p = get_live_quiz_participant(quiz_id, p.get('user_id'))
+            if db_p:
+                p['id'] = db_p['id']
+        if 'id' in p:
+            update_live_quiz_participant(p['id'], {
+                'score': p.get('score', 0),
+                'ranking': p['ranking'],
+                'answers': p.get('answers', {}),
+                'ratings': p.get('ratings', {}),
+                'status': 'completed'
+            })
+
+    notify_live_quiz_results(quiz_id, 'Quiz finished', sorted_parts)
+
+    state.delete_quiz(quiz_id)
+    invalidate_quiz_cache(quiz_id)
+
+    return {'success': True, 'participants': sorted_parts}
