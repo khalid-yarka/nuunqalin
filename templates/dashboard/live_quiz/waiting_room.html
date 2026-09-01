@@ -152,6 +152,11 @@
 
 <script>
 // ============================================
+// CSRF TOKEN
+// ============================================
+const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+// ============================================
 // WAITING ROOM JAVASCRIPT – COMPLETE
 // ============================================
 
@@ -428,7 +433,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         fetch('/live-quiz/toggle-ready/' + quizId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
             body: JSON.stringify({ is_ready: newState })
         })
         .then(response => response.json())
@@ -460,7 +468,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         fetch('/live-quiz/start/' + quizId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({})
         })
         .then(response => response.json())
         .then(data => {
@@ -499,7 +511,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         fetch('/live-quiz/leave/' + quizId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({})
         })
         .then(response => response.json())
         .then(data => {
@@ -537,7 +553,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         fetch('/live-quiz/rejoin/' + quizId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({})
         })
         .then(response => response.json())
         .then(data => {
@@ -590,7 +610,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         fetch('/live-quiz/delete/' + quizId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({})
         })
         .then(response => response.json())
         .then(data => {

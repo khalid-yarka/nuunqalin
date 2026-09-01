@@ -257,6 +257,11 @@
 </div>
 
 <script>
+// ============================================
+// CSRF TOKEN (global)
+// ============================================
+const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
 document.addEventListener('DOMContentLoaded', function() {
     // Auto-submit filters on change
     const searchInput = document.getElementById('searchInput');
@@ -297,7 +302,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         fetch('/live-quiz/lobby/join/' + quizId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({})
         })
         .then(response => response.json())
         .then(data => {
@@ -357,7 +367,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         fetch('/live-quiz/delete/' + deleteQuizId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({})
         })
         .then(response => response.json())
         .then(data => {

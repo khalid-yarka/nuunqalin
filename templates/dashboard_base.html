@@ -2,6 +2,11 @@
 
 {% block title %}Dashboard - Student Platform{% endblock %}
 
+{% block extra_head %}
+{{ super() }}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+
 {% block extra_css %}
 <!-- Dashboard Layout CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
