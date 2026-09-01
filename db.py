@@ -1127,8 +1127,12 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
 # ============================================
 
 def create_live_quiz(data: dict):
+    """
+    Create a new live quiz.
+    Returns the quiz dict with 'id' on success, None on failure.
+    """
     try:
-        cursor = execute_with_retry("""
+        execute_with_retry("""
             INSERT INTO live_quizzes (
                 creator_id, title, subject_code, question_count, join_code,
                 status, max_participants, time_per_question, current_question_index,
@@ -1151,17 +1155,26 @@ def create_live_quiz(data: dict):
             data.get('is_public', 1),
             now()
         ), commit=True)
+
+        # Fetch the newly created quiz by join_code
         cursor = execute_with_retry(
-            "SELECT * FROM live_quizzes WHERE join_code = ?", 
+            "SELECT * FROM live_quizzes WHERE join_code = ?",
             (data['join_code'],)
         )
         result = cursor.fetchone()
-        return dict(result) if result else None
+        if not result:
+            logger.error(f"Quiz created but NOT found by join_code: {data['join_code']}")
+            return None
+
+        quiz = dict(result)
+        if not quiz.get('id'):
+            logger.error(f"Quiz found but missing 'id' field: {quiz}")
+            return None
+
+        return quiz
+
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error creating live quiz: {e}")
-        except RuntimeError:
-            logger.error(f"Error creating live quiz: {e}")
+        logger.error(f"Error creating live quiz: {e}", exc_info=True)
         return None
 
 def get_live_quiz_by_id(quiz_id: int):
