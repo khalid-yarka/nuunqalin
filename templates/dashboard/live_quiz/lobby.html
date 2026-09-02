@@ -14,11 +14,10 @@
     .lobby-header .title-section p { color: var(--text-secondary); font-size: 14px; margin: 2px 0 0 0; }
     .lobby-header .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
-    /* Filter bar – single line, no wrap */
     .lobby-filters {
         display: flex;
-        flex-wrap: nowrap;
-        gap: 12px;
+        flex-wrap: wrap;
+        gap: 10px;
         align-items: center;
         background: var(--surface);
         border: 1px solid var(--border);
@@ -26,55 +25,38 @@
         padding: 10px 16px;
         margin-bottom: 24px;
         box-shadow: var(--shadow-sm);
-        overflow-x: auto;
-        /* Prevent wrapping on large screens */
     }
     .lobby-filters .search-wrapper {
-        flex: 1 1 200px;
+        flex: 1;
         min-width: 180px;
         position: relative;
-        display: flex;
-        align-items: center;
+    }
+    .lobby-filters .search-wrapper i {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        font-size: 14px;
+        z-index: 2;
+        pointer-events: none;
     }
     .lobby-filters .search-wrapper input {
         width: 100%;
-        padding: 8px 14px 8px 36px;
+        padding: 8px 14px 8px 36px !important;
         border: 1px solid var(--border);
-        border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+        border-radius: var(--radius-sm);
         font-size: 14px;
         background: var(--surface);
         color: var(--text);
         transition: var(--transition);
-        outline: none;
+        height: 40px;
     }
     .lobby-filters .search-wrapper input:focus {
         border-color: var(--primary);
+        outline: none;
         box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
     }
-    .lobby-filters .search-wrapper .search-icon-btn {
-        padding: 8px 14px;
-        background: var(--primary);
-        color: white;
-        border: 1px solid var(--primary);
-        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-        cursor: pointer;
-        transition: var(--transition);
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 44px;
-        height: 100%;
-        flex-shrink: 0;
-    }
-    .lobby-filters .search-wrapper .search-icon-btn:hover {
-        background: var(--primary-hover);
-        border-color: var(--primary-hover);
-    }
-    .lobby-filters .search-wrapper .search-icon-btn i {
-        pointer-events: none;
-    }
-
     .lobby-filters select {
         padding: 8px 12px;
         border: 1px solid var(--border);
@@ -85,47 +67,12 @@
         min-width: 130px;
         cursor: pointer;
         transition: var(--transition);
-        outline: none;
-        appearance: auto;
-        -webkit-appearance: auto;
-        flex-shrink: 0;
+        height: 40px;
     }
     .lobby-filters select:focus {
         border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
+        outline: none;
     }
-
-    /* Group the status and subject selects with a subtle background */
-    .filter-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: var(--background);
-        padding: 2px 8px 2px 4px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--border-light);
-        flex-shrink: 0;
-    }
-    .filter-group .filter-label {
-        font-size: 11px;
-        font-weight: 600;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        padding-right: 4px;
-        white-space: nowrap;
-    }
-    .filter-group select {
-        border: none;
-        background: transparent;
-        padding: 6px 8px 6px 4px;
-        min-width: 100px;
-    }
-    .filter-group select:focus {
-        box-shadow: none;
-    }
-    /* Remove the vertical divider; we use the group background instead */
-
     .lobby-filters .btn-clear {
         padding: 8px 14px;
         background: var(--surface);
@@ -139,16 +86,12 @@
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        white-space: nowrap;
-        flex-shrink: 0;
+        height: 40px;
     }
     .lobby-filters .btn-clear:hover {
         background: var(--primary-light);
         border-color: var(--primary);
         color: var(--primary);
-    }
-    .lobby-filters .btn-clear.hidden {
-        display: none !important;
     }
 
     .auto-sync-status {
@@ -158,8 +101,6 @@
         align-items: center;
         gap: 6px;
         margin-left: auto;
-        white-space: nowrap;
-        flex-shrink: 0;
     }
     .auto-sync-status .sync-dot {
         width: 8px;
@@ -174,7 +115,6 @@
         50% { opacity: 0.3; }
     }
 
-    /* Quiz cards (unchanged) */
     .quiz-card {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -263,6 +203,7 @@
         display: inline-flex;
         align-items: center;
         gap: 4px;
+        height: 34px;
     }
     .btn-sm.primary { background: var(--primary); color: white; }
     .btn-sm.primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255, 49, 56, 0.3); }
@@ -292,34 +233,28 @@
     .badge-you { background: #3B82F6; color: white; font-size: 10px; padding: 1px 8px; border-radius: 10px; }
     .badge-creator { background: var(--primary); color: white; font-size: 10px; padding: 1px 8px; border-radius: 10px; }
 
-    /* Responsive: on smaller screens, allow wrap and stack */
-    @media (max-width: 860px) {
-        .lobby-filters {
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .lobby-filters .search-wrapper {
-            flex: 1 1 100%;
-            min-width: 100%;
-        }
-        .filter-group {
-            flex: 1 1 auto;
-        }
-        .lobby-filters .auto-sync-status {
-            margin-left: 0;
-        }
+    .lobby-empty .actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 16px;
     }
 
+    @media (max-width: 768px) {
+        .lobby-filters { flex-direction: column; align-items: stretch; }
+        .lobby-filters .search-wrapper { min-width: unset; }
+        .quiz-card { flex-direction: column; align-items: stretch; }
+        .quiz-card .card-actions { justify-content: flex-start; }
+        .auto-sync-status { margin-left: 0; }
+    }
     @media (max-width: 480px) {
         .lobby-header { flex-direction: column; align-items: stretch; }
         .lobby-header .actions { justify-content: stretch; }
         .lobby-header .actions a { flex: 1; text-align: center; }
-        .filter-group {
-            flex: 1 1 100%;
-        }
-        .filter-group select {
-            min-width: 100%;
-        }
+        .quiz-card .card-body .title { font-size: 16px; }
+        .quiz-card .card-body .meta { font-size: 12px; gap: 4px 12px; }
+        .lobby-filters select { min-width: unset; }
     }
 </style>
 {% endblock %}
@@ -371,47 +306,34 @@
         </div>
     </div>
 
-    <!-- Filter Bar – Single Row -->
+    <!-- Filter Bar -->
     <div class="lobby-filters" id="filterBar">
-        <!-- Search -->
         <div class="search-wrapper">
-            <i class="fas fa-search" style="position:absolute; left:12px; color:var(--text-muted); pointer-events:none;"></i>
+            <i class="fas fa-search"></i>
             <input type="text" id="searchInput" class="form-control" placeholder="Search by title or creator…" value="{{ search }}" />
-            <button class="search-icon-btn" id="searchBtn" aria-label="Search">
-                <i class="fas fa-arrow-right"></i>
-            </button>
         </div>
 
-        <!-- Status + Subject Group -->
-        <div class="filter-group">
-            <span class="filter-label">Status</span>
-            <select id="statusFilter" class="form-control">
-                <option value="">All</option>
-                <option value="scheduled" {% if status_filter == 'scheduled' %}selected{% endif %}>⏳ Scheduled</option>
-                <option value="waiting" {% if status_filter == 'waiting' %}selected{% endif %}>🟢 Open</option>
-                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>🟡 Active</option>
-                <option value="finished" {% if status_filter == 'finished' %}selected{% endif %}>🔵 Finished</option>
-            </select>
-        </div>
+        <select id="statusFilter" class="form-control">
+            <option value="">All Status</option>
+            <option value="scheduled" {% if status_filter == 'scheduled' %}selected{% endif %}>⏳ Scheduled</option>
+            <option value="waiting" {% if status_filter == 'waiting' %}selected{% endif %}>🟢 Open</option>
+            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>🟡 Active</option>
+            <option value="finished" {% if status_filter == 'finished' %}selected{% endif %}>🔵 Finished</option>
+        </select>
 
-        <div class="filter-group">
-            <span class="filter-label">Subject</span>
-            <select id="subjectFilter" class="form-control">
-                <option value="">All</option>
-                {% for subject in subjects %}
-                    <option value="{{ subject.code }}" {% if subject_filter == subject.code %}selected{% endif %}>
-                        {{ subject.icon or '📚' }} {{ subject.name }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
+        <select id="subjectFilter" class="form-control">
+            <option value="">All Subjects</option>
+            {% for subject in subjects %}
+                <option value="{{ subject.code }}" {% if subject_filter == subject.code %}selected{% endif %}>
+                    {{ subject.icon or '📚' }} {{ subject.name }}
+                </option>
+            {% endfor %}
+        </select>
 
-        <!-- Clear button (hidden if no filter active) -->
-        <button class="btn-clear hidden" id="clearBtn">
+        <a href="{{ url_for('live_quiz.lobby') }}" class="btn-clear">
             <i class="fas fa-times"></i> Clear
-        </button>
+        </a>
 
-        <!-- Auto‑sync indicator -->
         <span class="auto-sync-status">
             <span class="sync-dot"></span> Auto‑sync
         </span>
@@ -424,7 +346,7 @@
 
 </div>
 
-<!-- Delete Confirmation Modal (unchanged) -->
+<!-- Delete Confirmation Modal -->
 <div id="deleteModal" class="modal-overlay">
     <div class="modal-content">
         <div class="text-center" style="margin-bottom: 16px;">
@@ -454,37 +376,27 @@ const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
-    const searchBtn = document.getElementById('searchBtn');
     const statusFilter = document.getElementById('statusFilter');
     const subjectFilter = document.getElementById('subjectFilter');
-    const clearBtn = document.getElementById('clearBtn');
+    const quizListContainer = document.getElementById('quizListContainer');
 
+    let debounceTimer;
     let autoRefreshInterval = null;
 
     // ============================================
-    // CHECK IF ANY FILTER IS ACTIVE
-    // ============================================
-    function hasActiveFilters() {
-        return searchInput.value.trim() !== '' ||
-               statusFilter.value !== '' ||
-               subjectFilter.value !== '';
-    }
-
-    function updateClearButton() {
-        if (hasActiveFilters()) {
-            clearBtn.classList.remove('hidden');
-        } else {
-            clearBtn.classList.add('hidden');
-        }
-    }
-
-    // Initial state
-    updateClearButton();
-
-    // ============================================
-    // APPLY FILTERS (on Enter or click search)
+    // APPLY FILTERS (with debounce)
     // ============================================
     function applyFilters() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() {
+            refreshLobby();
+        }, 500);
+    }
+
+    // ============================================
+    // REFRESH LOBBY (AJAX)
+    // ============================================
+    function refreshLobby() {
         const params = new URLSearchParams();
         const search = searchInput.value.trim();
         const status = statusFilter.value;
@@ -495,105 +407,45 @@ document.addEventListener('DOMContentLoaded', function() {
         if (subject) params.set('subject', subject);
         params.set('page', '1');
 
-        refreshLobby(params);
-        updateClearButton();
-    }
-
-    // ============================================
-    // REFRESH LOBBY (AJAX)
-    // ============================================
-    function refreshLobby(params) {
-        if (!params) {
-            params = new URLSearchParams();
-            const search = searchInput.value.trim();
-            const status = statusFilter.value;
-            const subject = subjectFilter.value;
-            if (search) params.set('search', search);
-            if (status) params.set('status', status);
-            if (subject) params.set('subject', subject);
-            params.set('page', '1');
-        }
-
         fetch(window.location.pathname + '?' + params.toString(), {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(response => response.text())
         .then(html => {
-            const container = document.getElementById('quizListContainer');
-            if (container) {
-                container.innerHTML = html;
+            if (quizListContainer) {
+                // Extract only the quiz list part from the response
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                const newContent = tempDiv.querySelector('#quizListContainer');
+                if (newContent) {
+                    quizListContainer.innerHTML = newContent.innerHTML;
+                } else {
+                    // Fallback: if the response doesn't have the container, use the whole body
+                    quizListContainer.innerHTML = tempDiv.innerHTML;
+                }
             }
-            // Also update stats
-            fetch(window.location.pathname + '/stats?t=' + Date.now())
-                .then(r => r.json())
-                .then(stats => {
-                    updateStats(stats);
-                })
-                .catch(() => {});
         })
         .catch(err => console.warn('Lobby refresh error:', err));
-    }
-
-    function updateStats(stats) {
-        const statElements = document.querySelectorAll('.lobby-stat .number');
-        if (statElements.length >= 6) {
-            statElements[0].textContent = stats.scheduled_count || 0;
-            statElements[1].textContent = stats.waiting_count || 0;
-            statElements[2].textContent = stats.active_count || 0;
-            statElements[3].textContent = stats.finished_count || 0;
-            statElements[4].textContent = stats.total_public || 0;
-            statElements[5].textContent = stats.total_participants || 0;
-        }
     }
 
     // ============================================
     // EVENT LISTENERS
     // ============================================
-    // Search on Enter key
-    searchInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            applyFilters();
-        }
-    });
-
-    // Search button click
-    searchBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        applyFilters();
-    });
-
-    // Status and subject changes – apply immediately
+    searchInput.addEventListener('input', applyFilters);
     statusFilter.addEventListener('change', applyFilters);
     subjectFilter.addEventListener('change', applyFilters);
-
-    // Clear button – resets all filters and refreshes
-    clearBtn.addEventListener('click', function() {
-        searchInput.value = '';
-        statusFilter.value = '';
-        subjectFilter.value = '';
-        applyFilters();
-        updateClearButton();
-    });
-
-    // Update clear button visibility on any change (but not trigger search)
-    searchInput.addEventListener('input', updateClearButton);
-    statusFilter.addEventListener('change', updateClearButton);
-    subjectFilter.addEventListener('change', updateClearButton);
 
     // ============================================
     // AUTO-SYNC (every 30 seconds)
     // ============================================
     function startAutoSync() {
         if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-        autoRefreshInterval = setInterval(function() {
-            refreshLobby();
-        }, 30000);
+        autoRefreshInterval = setInterval(refreshLobby, 30000);
     }
     startAutoSync();
 
     // ============================================
-    // JOIN / DELETE FUNCTIONS
+    // JOIN QUIZ
     // ============================================
     window.joinQuiz = function(quizId) {
         const btn = event.target.closest('.btn-sm');
@@ -632,7 +484,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
+    // ============================================
+    // DELETE QUIZ
+    // ============================================
     let deleteQuizId = null;
+
     window.deleteQuiz = function(quizId, title) {
         deleteQuizId = quizId;
         document.getElementById('deleteQuizTitle').textContent = title || 'this quiz';
