@@ -46,7 +46,7 @@
         </div>
 
         <!-- Scheduled Countdown (only if scheduled) -->
-        {% if quiz.status == 'scheduled' and quiz.scheduled_start %}
+        {% if quiz.status == 'scheduled' and starts_in_seconds is not none and starts_in_seconds > 0 %}
         <div class="wr-scheduled-info">
             <div class="wr-scheduled-time">
                 ⏳ Starts at <strong>{{ scheduled_start_display or quiz.scheduled_start }}</strong> (Somali Time)
@@ -58,7 +58,7 @@
                             stroke-dasharray="283" stroke-dashoffset="0"
                             stroke-linecap="round" transform="rotate(-90 50 50)" id="countdownCircle" />
                     <text x="50" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="var(--text)">
-                        <tspan id="countdownCenter">--:--</tspan>
+                        <tspan id="countdownCenter">{{ starts_in_seconds|int // 60 }}:{{ '%02d' % (starts_in_seconds|int % 60) }}</tspan>
                     </text>
                 </svg>
             </div>
@@ -191,6 +191,60 @@ document.addEventListener('DOMContentLoaded', function() {
     const notificationBanner = document.getElementById('notificationBanner');
 
     // ============================================
+    // COUNTDOWN
+    // ============================================
+    let initialStartsIn = {{ starts_in_seconds|default(0) }};
+
+    function startCountdown(seconds) {
+        if (countdownInterval) clearInterval(countdownInterval);
+        const container = document.querySelector('.wr-scheduled-info');
+        if (!container || seconds <= 0) return;
+        const circle = document.getElementById('countdownCircle');
+        const center = document.getElementById('countdownCenter');
+        if (!circle || !center) return;
+        const circumference = 283;
+        let remaining = seconds;
+        const total = seconds;
+        center.textContent = formatTime(remaining);
+        circle.style.strokeDashoffset = circumference * (1 - remaining / total);
+
+        countdownInterval = setInterval(function() {
+            remaining--;
+            center.textContent = formatTime(remaining);
+            const progress = remaining / total;
+            circle.style.strokeDashoffset = circumference * (1 - progress);
+
+            // Notification at 60 seconds
+            if (remaining <= 60 && remaining > 55 && !notificationSent) {
+                notificationSent = true;
+                sendBrowserNotification(
+                    '⏰ Quiz starting soon!',
+                    `"${quizTitle}" starts in ${remaining} seconds!`,
+                    '/live-quiz/waiting-room/' + quizId
+                );
+                playNotificationSound();
+            }
+
+            if (remaining <= 0) {
+                clearInterval(countdownInterval);
+                document.getElementById('quizStartedAlert').classList.add('show');
+            }
+        }, 1000);
+    }
+
+    function formatTime(seconds) {
+        if (seconds < 0) return '00:00';
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
+    // Start countdown if initialStartsIn > 0
+    if (initialStartsIn > 0) {
+        startCountdown(initialStartsIn);
+    }
+
+    // ============================================
     // NOTIFICATIONS
     // ============================================
     function requestNotificationPermission() {
@@ -273,58 +327,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // FORMAT TIME
-    // ============================================
-    function formatTime(seconds) {
-        if (seconds < 0) return '00:00';
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-    }
-
-    // ============================================
-    // COUNTDOWN CIRCLE
-    // ============================================
-    function startCountdown(seconds) {
-        const container = document.querySelector('.wr-scheduled-info');
-        if (!container) return;
-        const circle = document.getElementById('countdownCircle');
-        const center = document.getElementById('countdownCenter');
-        if (!circle || !center) return;
-        const circumference = 283;
-
-        if (countdownInterval) clearInterval(countdownInterval);
-
-        let remaining = seconds;
-        const total = seconds;
-        center.textContent = formatTime(remaining);
-        circle.style.strokeDashoffset = circumference * (1 - remaining / total);
-
-        countdownInterval = setInterval(function() {
-            remaining--;
-            center.textContent = formatTime(remaining);
-            const progress = remaining / total;
-            circle.style.strokeDashoffset = circumference * (1 - progress);
-
-            // Notification at 60 seconds
-            if (remaining <= 60 && remaining > 55 && !notificationSent) {
-                notificationSent = true;
-                sendBrowserNotification(
-                    '⏰ Quiz starting soon!',
-                    `"${quizTitle}" starts in ${remaining} seconds!`,
-                    '/live-quiz/waiting-room/' + quizId
-                );
-                playNotificationSound();
-            }
-
-            if (remaining <= 0) {
-                clearInterval(countdownInterval);
-                document.getElementById('quizStartedAlert').classList.add('show');
-            }
-        }, 1000);
-    }
-
-    // ============================================
     // PARTICIPANTS POLLING
     // ============================================
     function fetchParticipants() {
@@ -363,8 +365,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const isYou = p.student_id == userId;
             const isCreator = p.is_creator;
             const isLeft = p.status === 'left';
-            // For creator, we always show hand if they are the creator (they are "ready" by default)
-            // For non-creator, show hand if is_ready true
             const isReady = (isCreator && p.status !== 'left') ? true : p.is_ready;
 
             let badge = '';
@@ -425,7 +425,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // READY TOGGLE (for non-creators)
     // ============================================
     function toggleReady() {
-        if (isCreator) return; // creator doesn't need to toggle
+        if (isCreator) return;
         const btn = document.querySelector('.ready-btn');
         if (!btn) return;
         const isActive = btn.classList.contains('active');
@@ -679,32 +679,35 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // ============================================
-    // QUIZ STATE POLLING (for auto-start)
+    // QUIZ STATE POLLING (for auto-start and redirect)
     // ============================================
     function pollQuizState() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
+                // Redirect if finished
                 if (data.redirect_url && !isRedirecting) {
                     isRedirecting = true;
-                    if (data.status === 'active') {
-                        document.getElementById('quizStartedAlert').classList.add('show');
-                        if (typeof window.showToast === 'function') {
-                            window.showToast('🚀 Quiz has started!', 'success');
-                        }
-                        window.location.href = data.redirect_url;
-                    } else if (data.status === 'finished') {
-                        window.location.href = data.redirect_url;
-                    }
+                    window.location.href = data.redirect_url;
                     return;
                 }
-
+                // Redirect if active
+                if (data.status === 'active' && !isRedirecting) {
+                    isRedirecting = true;
+                    document.getElementById('quizStartedAlert').classList.add('show');
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('🚀 Quiz has started!', 'success');
+                    }
+                    window.location.href = '/live-quiz/play/' + quizId;
+                    return;
+                }
+                // Update countdown if scheduled
                 if (data.status === 'scheduled' && data.starts_in_seconds !== undefined) {
-                    if (!countdownInterval) {
-                        startCountdown(data.starts_in_seconds);
+                    if (data.starts_in_seconds > 0 && data.starts_in_seconds !== initialStartsIn) {
+                        initialStartsIn = data.starts_in_seconds;
+                        startCountdown(initialStartsIn);
                     }
                 }
-
                 setTimeout(pollQuizState, 3000);
             })
             .catch(function(err) {
@@ -716,8 +719,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     // INIT
     // ============================================
-
-    // Banner visibility already handled at top
 
     fetchParticipants();
     pollTimer = setInterval(fetchParticipants, pollInterval);

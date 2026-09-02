@@ -94,9 +94,6 @@
 // ============================================
 const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
-// CSRF token from session (passed via template) – used as fallback, but we now use meta tag.
-// Still keep for compatibility.
-
 document.addEventListener('DOMContentLoaded', function() {
     const quizId = '{{ quiz.id }}';
     const quizTitle = '{{ quiz.title or 'Live Quiz' }}';
@@ -120,6 +117,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let answerData = null;
     let isReconnecting = false;
     let hasAnsweredCurrent = false;
+    let remainingTime = 0;
     
     let pollInterval = 1500;
     let pollTimer = null;
@@ -160,7 +158,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // FETCH WITH TIMEOUT
     // ============================================
     function fetchWithTimeout(url, options, timeout = 10000) {
-        // Add CSRF header
         options = options || {};
         options.headers = options.headers || {};
         options.headers['X-CSRF-Token'] = csrfToken;
@@ -194,13 +191,12 @@ document.addEventListener('DOMContentLoaded', function() {
     requestNotificationPermission();
     
     // ============================================
-    // TOAST HELPER – use global window.showToast
+    // TOAST HELPER
     // ============================================
     function showToast(message, type, duration) {
         if (typeof window.showToast === 'function') {
             window.showToast(message, type || 'info', duration || 4000);
         } else {
-            // fallback
             const toast = document.createElement('div');
             toast.style.cssText = `position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: ${type === 'error' ? '#DC2626' : type === 'success' ? '#10B981' : '#1A1A2E'}; color: white; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 9999; box-shadow: 0 4px 16px rgba(0,0,0,0.25); max-width: 90%; text-align: center;`;
             toast.textContent = message;
@@ -353,7 +349,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (data.current_question_index !== undefined && data.current_question_index !== currentQuestionIndex) {
                             if (!isAnswered) loadQuestion();
                         }
-                        if (data.remaining_time !== undefined) updateTotalTimer(data.remaining_time);
+                        if (data.remaining_time !== undefined) {
+                            remainingTime = data.remaining_time;
+                            updateTotalTimer(remainingTime);
+                            if (remainingTime <= 0 && !isRedirecting) {
+                                isRedirecting = true;
+                                window.location.href = '/live-quiz/results/' + quizId;
+                                return;
+                            }
+                        }
                         resetPollTimer();
                         return;
                     }
@@ -372,7 +376,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (stateHash === lastState) { consecutiveNoChanges++; if (consecutiveNoChanges > 5) pollInterval = Math.min(pollInterval + 200, 3000); }
                 else { consecutiveNoChanges = 0; pollInterval = Math.max(pollInterval - 100, 1000); lastState = stateHash; }
                 
-                if (data.remaining_time !== undefined) updateTotalTimer(data.remaining_time);
+                if (data.remaining_time !== undefined) {
+                    remainingTime = data.remaining_time;
+                    updateTotalTimer(remainingTime);
+                    if (remainingTime <= 0 && !isRedirecting) {
+                        isRedirecting = true;
+                        window.location.href = '/live-quiz/results/' + quizId;
+                        return;
+                    }
+                }
                 
                 if (data.participant_progress) {
                     updateCreatorProgress(data.participant_progress);

@@ -728,14 +728,34 @@ def quiz_state(quiz_id):
     score = p.score if p else 0
     answers = p.answers if p else {}
 
+    # Check if quiz is finished
     if quiz_state.is_finished():
         return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
+    # Check if all participants completed
     all_completed = quiz_state.is_completed()
     if all_completed and quiz_state.status == 'active':
         finalize_live_quiz(quiz_id)
         return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
+    # Calculate remaining time for active quizzes
+    remaining_time = None
+    if quiz_state.status == 'active' and quiz_state.started_at:
+        try:
+            total_duration = quiz_state.metadata.get('question_count', 10) * (quiz_state.metadata.get('time_per_question', 30) + RATING_TIME)
+            started = datetime.fromisoformat(quiz_state.started_at.replace('Z', '+00:00'))
+            elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+            remaining = max(0, total_duration - elapsed)
+            remaining_time = int(remaining)
+            if remaining_time == 0:
+                # Auto‑finalize if timer expired
+                finalize_live_quiz(quiz_id)
+                return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
+        except Exception as e:
+            logger.error(f"Error calculating remaining time: {e}")
+            remaining_time = 0
+
+    # Build response
     response = {
         'status': quiz_state.status,
         'current_question_index': current_index,
@@ -744,9 +764,11 @@ def quiz_state(quiz_id):
         'is_completed': current_index >= total_questions,
         'all_completed': all_completed,
         'completed_count': sum(1 for pp in quiz_state.participants.values() if pp.current_question_index >= total_questions),
-        'total_participants': len([pp for pp in quiz_state.participants.values() if pp.status != 'left'])
+        'total_participants': len([pp for pp in quiz_state.participants.values() if pp.status != 'left']),
+        'remaining_time': remaining_time
     }
 
+    # If there's a current question and it's already answered, include that info
     if current_index < total_questions:
         qid = quiz_state.question_ids[current_index]
         if str(qid) in answers:
@@ -754,6 +776,7 @@ def quiz_state(quiz_id):
             response['current_question_answer'] = answers[str(qid)].get('answer')
             response['current_question_correct'] = answers[str(qid)].get('correct', False)
 
+    # Creator gets participant progress
     if quiz['creator_id'] == user_id:
         progress = []
         with quiz_state.lock:
