@@ -8,7 +8,7 @@
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    /* ===== Completed State – Enhanced ===== */
+    /* ===== Completed State – New Design ===== */
     .completed-state {
         text-align: center;
         padding: 20px 16px;
@@ -41,127 +41,161 @@
         font-weight: 600;
     }
 
-    /* Progress summary */
-    .completed-state .progress-summary {
+    .waiting-dashboard {
         display: flex;
-        justify-content: center;
-        align-items: center;
+        flex-direction: column;
         gap: 16px;
-        margin-bottom: 16px;
+        max-width: 720px;
+        margin: 0 auto;
+    }
+    .overall-stats {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
         flex-wrap: wrap;
         background: var(--surface-alt);
         border-radius: var(--radius-sm);
-        padding: 12px 16px;
+        padding: 16px 20px;
         border: 1px solid var(--border);
     }
-    .completed-state .progress-summary .stat {
-        text-align: center;
-        flex: 1;
-        min-width: 60px;
+    .progress-circle {
+        position: relative;
+        width: 100px;
+        height: 100px;
+        flex-shrink: 0;
     }
-    .completed-state .progress-summary .stat .number {
-        font-size: 28px;
+    .progress-circle svg {
+        transform: rotate(-90deg);
+        width: 100px;
+        height: 100px;
+    }
+    .progress-circle circle {
+        fill: none;
+        stroke-width: 10;
+    }
+    .progress-circle .bg {
+        stroke: var(--border);
+    }
+    .progress-circle .fg {
+        stroke: var(--primary);
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.8s ease;
+    }
+    .progress-circle .center-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 22px;
         font-weight: 700;
-        color: var(--primary);
-        line-height: 1.2;
+        color: var(--text);
+        line-height: 1;
     }
-    .completed-state .progress-summary .stat .label {
-        font-size: 11px;
+    .timer-display {
+        text-align: center;
+    }
+    .timer-display .timer-label {
+        font-size: 12px;
         color: var(--text-secondary);
         text-transform: uppercase;
-        letter-spacing: 0.3px;
+        letter-spacing: 0.5px;
+        display: block;
     }
-    .completed-state .progress-bar-wrap {
-        width: 100%;
-        height: 8px;
-        background: var(--border);
-        border-radius: 10px;
-        overflow: hidden;
-        margin: 6px 0 12px 0;
+    .timer-display .timer-value {
+        font-size: 36px;
+        font-weight: 700;
+        font-family: monospace;
+        color: var(--text);
+        background: var(--surface);
+        padding: 4px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        min-width: 120px;
+        display: inline-block;
     }
-    .completed-state .progress-bar-wrap .fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--primary), #FCD34D);
-        border-radius: 10px;
-        transition: width 0.8s ease;
-        width: 0%;
+    .timer-display .timer-value.warning {
+        color: #F59E0B;
+        border-color: #F59E0B;
+    }
+    .timer-display .timer-value.danger {
+        color: #EF4444;
+        border-color: #EF4444;
+        animation: pulse 0.5s ease-in-out infinite;
     }
 
-    /* Participant list */
-    .completed-state .participant-progress-list {
-        max-height: 220px;
-        overflow-y: auto;
+    .participant-progress-list {
         background: var(--surface);
         border-radius: var(--radius-sm);
         border: 1px solid var(--border);
-        padding: 6px 12px;
-        margin: 12px 0;
+        padding: 8px 12px;
+        max-height: 260px;
+        overflow-y: auto;
         text-align: left;
     }
-    .completed-state .participant-progress-list .pp-item {
+    .participant-progress-list .pp-item {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 5px 4px;
+        gap: 10px;
+        padding: 4px 0;
         border-bottom: 1px solid var(--border-light);
         font-size: 14px;
     }
-    .completed-state .participant-progress-list .pp-item:last-child {
+    .participant-progress-list .pp-item:last-child {
         border-bottom: none;
     }
-    .completed-state .participant-progress-list .pp-item .name {
+    .participant-progress-list .pp-item .name {
+        flex: 0 0 120px;
         font-weight: 500;
         color: var(--text);
         display: flex;
         align-items: center;
         gap: 6px;
     }
-    .completed-state .participant-progress-list .pp-item .name .you-badge {
+    .participant-progress-list .pp-item .name .you-badge {
         font-size: 10px;
         background: var(--primary);
         color: white;
         padding: 1px 8px;
         border-radius: 8px;
     }
-    .completed-state .participant-progress-list .pp-item .status {
+    .participant-progress-list .pp-item .bar-wrap {
+        flex: 1;
+        height: 6px;
+        background: var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        min-width: 60px;
+    }
+    .participant-progress-list .pp-item .bar-wrap .fill {
+        height: 100%;
+        background: var(--primary);
+        border-radius: 10px;
+        transition: width 0.5s ease;
+    }
+    .participant-progress-list .pp-item .status {
         font-weight: 600;
-        font-size: 12px;
+        font-size: 11px;
         padding: 2px 10px;
         border-radius: 10px;
         white-space: nowrap;
+        flex-shrink: 0;
     }
     .status-done { background: #ECFDF5; color: #10B981; }
     .status-playing { background: #EFF6FF; color: #3B82F6; }
     .status-left { background: #FEF2F2; color: #EF4444; }
 
-    /* Timer */
-    .completed-state .timer-remaining {
-        margin-top: 8px;
-        font-size: 15px;
-        color: var(--text-secondary);
-    }
-    .completed-state .timer-remaining strong {
-        color: var(--text);
-        font-size: 20px;
-        font-family: monospace;
-        background: var(--surface-alt);
-        padding: 2px 12px;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-    }
-
-    /* Motivational message */
-    .completed-state .motivation {
+    .motivation {
         font-size: 14px;
         color: var(--text-secondary);
-        margin: 8px 0 0 0;
         font-style: italic;
+        padding: 8px 0;
     }
-    .completed-state .motivation .emoji {
+    .motivation .emoji {
         font-style: normal;
     }
 
-    /* Confetti (simple CSS) */
+    /* Confetti */
     .confetti-container {
         position: fixed;
         top: 0;
@@ -185,7 +219,6 @@
         100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
     }
 
-    /* Reconnection notice */
     .reconnection-notice {
         display: none;
         background: #10B981;
@@ -209,7 +242,6 @@
         font-size: 13px;
     }
 
-    /* Leave button */
     .btn-leave {
         display: inline-flex;
         align-items: center;
@@ -238,7 +270,7 @@
         transform: none !important;
     }
 
-    /* Creator progress (unchanged) */
+    /* Creator progress (for creator only) */
     .creator-progress {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -302,9 +334,11 @@
     @media (max-width: 480px) {
         .completed-state .icon { font-size: 54px; }
         .completed-state h3 { font-size: 20px; }
-        .completed-state .progress-summary .stat .number { font-size: 22px; }
-        .completed-state .participant-progress-list .pp-item { font-size: 13px; }
-        .completed-state .timer-remaining strong { font-size: 17px; }
+        .overall-stats { flex-direction: column; gap: 12px; }
+        .progress-circle { width: 80px; height: 80px; }
+        .progress-circle svg { width: 80px; height: 80px; }
+        .timer-display .timer-value { font-size: 28px; min-width: 100px; }
+        .participant-progress-list .pp-item .name { flex-basis: 80px; font-size: 13px; }
     }
 </style>
 {% endblock %}
@@ -720,7 +754,11 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.abort) { showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby'); return; }
                 if (data.error) { 
-                    if (data.completed) { isCompleted = true; pollQuizState(); } 
+                    if (data.completed) { 
+                        // User already completed, fetch full state
+                        isCompleted = true;
+                        fetchAndShowCompletedState();
+                    } 
                     else if (data.waiting) { setTimeout(loadQuestion, 1000); }
                     return; 
                 }
@@ -824,7 +862,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // ============================================
-    // SELECT / SKIP / RATING
+    // SELECT / SKIP / RATING (with skip completion fix)
     // ============================================
     window.selectOption = function(value) {
         if (isAnswered) return;
@@ -872,6 +910,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     
+    // FIXED: skipQuestion marks completion if last question
     window.skipQuestion = function() {
         if (isAnswered && !hasAnsweredCurrent) {
             const container = document.getElementById('feedbackContainer');
@@ -896,8 +935,18 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             const container = document.getElementById('feedbackContainer');
             if (container) container.innerHTML = `<div class="feedback-area skipped"><div class="feedback-title">⏭️ Skipped! 0 points</div><div style="margin-top: 6px; font-size: 13px; color: var(--text-secondary);">Moving to next question...</div></div>`;
-            clearInterval(timerInterval); questionData = null; saveStateToStorage();
-            setTimeout(() => loadQuestion(), 600);
+            clearInterval(timerInterval);
+            // Increment index (already done in backend, but we also do it locally for consistency)
+            currentQuestionIndex += 1;
+            if (currentQuestionIndex >= totalQuestions) {
+                // User completed via skip
+                isCompleted = true;
+                saveStateToStorage();
+                fetchAndShowCompletedState();
+            } else {
+                questionData = null; hasAnsweredCurrent = false; saveStateToStorage();
+                setTimeout(() => loadQuestion(), 600);
+            }
         })
         .catch(function(error) {
             console.error('Skip question error:', error);
@@ -907,6 +956,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     
+    // ============================================
+    // SUBMIT RATING
+    // ============================================
     window.submitRating = function(rating) {
         if (isRated) return;
         isRated = true;
@@ -936,7 +988,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.completed) {
                 isCompleted = true;
                 saveStateToStorage();
-                pollQuizState();
+                fetchAndShowCompletedState();
             } else {
                 questionData = null; hasAnsweredCurrent = false; saveStateToStorage();
                 setTimeout(() => loadQuestion(), 600);
@@ -949,7 +1001,44 @@ document.addEventListener('DOMContentLoaded', function() {
             showToast('Error submitting rating. Please try again.', 'error');
         });
     };
-    
+
+    // ============================================
+    // FETCH AND SHOW COMPLETED STATE
+    // ============================================
+    function fetchAndShowCompletedState() {
+        fetchWithTimeout('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now(), {}, 8000)
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_completed) {
+                    showCompletedState(data);
+                } else {
+                    // Fallback: show a basic completed state and retry
+                    showBasicCompletedState();
+                    setTimeout(fetchAndShowCompletedState, 1000);
+                }
+            })
+            .catch(() => {
+                showBasicCompletedState();
+                setTimeout(fetchAndShowCompletedState, 2000);
+            });
+    }
+
+    function showBasicCompletedState() {
+        const container = document.getElementById('questionContainer');
+        if (!container) return;
+        if (container.querySelector('.completed-state')) return;
+        container.innerHTML = `
+            <div class="completed-state">
+                <span class="icon">🎉</span>
+                <h3>You've completed all questions!</h3>
+                <p class="sub">Loading participant progress...</p>
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; color: var(--primary);"></i>
+                </div>
+            </div>
+        `;
+    }
+
     // ============================================
     // ENHANCED COMPLETED STATE
     // ============================================
@@ -961,61 +1050,59 @@ document.addEventListener('DOMContentLoaded', function() {
         totalParticipantsCount = data.total_participants || 0;
         const remaining = data.remaining_time || 0;
 
+        const pct = totalParticipantsCount > 0 ? (completedParticipantsCount / totalParticipantsCount * 100) : 0;
+        const circumference = 339.292;
+        const offset = circumference * (1 - pct / 100);
+
         let html = `
             <div class="completed-state">
                 <span class="icon">🎉</span>
                 <h3>You finished all questions!</h3>
                 <p class="sub">Waiting for <span class="highlight" id="waitingCount">${totalParticipantsCount - completedParticipantsCount}</span> more participant${totalParticipantsCount - completedParticipantsCount !== 1 ? 's' : ''} to finish...</p>
 
-                <div class="progress-summary">
-                    <div class="stat">
-                        <div class="number" id="completedCount">${completedParticipantsCount}</div>
-                        <div class="label">Completed</div>
+                <div class="waiting-dashboard">
+                    <div class="overall-stats">
+                        <div class="progress-circle">
+                            <svg viewBox="0 0 120 120">
+                                <circle class="bg" cx="60" cy="60" r="54" stroke="var(--border)" />
+                                <circle class="fg" cx="60" cy="60" r="54" stroke="var(--primary)"
+                                    stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" id="progressCircle" />
+                            </svg>
+                            <div class="center-text" id="overallPercentage">${Math.round(pct)}%</div>
+                        </div>
+                        <div class="timer-display">
+                            <span class="timer-label">Time Remaining</span>
+                            <span class="timer-value" id="waitingTimerLarge">${formatTime(remaining)}</span>
+                        </div>
                     </div>
-                    <div class="stat">
-                        <div class="number">${totalParticipantsCount}</div>
-                        <div class="label">Total</div>
+
+                    <div class="participant-progress-list" id="participantProgressList">
+                        <div style="text-align: center; color: var(--text-muted); padding: 8px 0;">Loading participant status...</div>
                     </div>
-                    <div class="stat">
-                        <div class="number" id="waitingTimer">${formatTime(remaining)}</div>
-                        <div class="label">Time Left</div>
+
+                    <div class="motivation" id="motivationMessage">
+                        <span class="emoji">💪</span> You're ahead of the pack!
                     </div>
-                </div>
-
-                <div class="progress-bar-wrap">
-                    <div class="fill" id="completionProgress" style="width: ${totalParticipantsCount > 0 ? (completedParticipantsCount / totalParticipantsCount * 100) : 0}%;"></div>
-                </div>
-
-                <div class="participant-progress-list" id="participantProgressList">
-                    <div style="text-align: center; color: var(--text-muted); padding: 8px 0;">Loading participant status...</div>
-                </div>
-
-                <div class="timer-remaining">
-                    ⏱️ Quiz ends in <strong id="waitingTimerLarge">${formatTime(remaining)}</strong>
-                </div>
-
-                <div class="motivation" id="motivationMessage">
-                    <span class="emoji">💪</span> You're ahead of the pack!
                 </div>
             </div>
         `;
         container.innerHTML = html;
 
-        // Start/update the countdown timer
+        // Countdown timer
         if (remaining > 0) {
             let remain = remaining;
-            const timerDisplay = document.getElementById('waitingTimer');
-            const timerLarge = document.getElementById('waitingTimerLarge');
+            const timerDisplay = document.getElementById('waitingTimerLarge');
             if (timerDisplay) {
                 const interval = setInterval(() => {
                     remain--;
                     const formatted = formatTime(Math.max(0, remain));
-                    if (timerDisplay) timerDisplay.textContent = formatted;
-                    if (timerLarge) timerLarge.textContent = formatted;
+                    timerDisplay.textContent = formatted;
+                    timerDisplay.className = 'timer-value';
+                    if (remain < 60) timerDisplay.classList.add('danger');
+                    else if (remain < 300) timerDisplay.classList.add('warning');
                     if (remain <= 0) {
                         clearInterval(interval);
-                        if (timerDisplay) timerDisplay.textContent = '00:00';
-                        if (timerLarge) timerLarge.textContent = '00:00';
+                        timerDisplay.textContent = '00:00';
                     }
                 }, 1000);
                 if (window._completedTimerInterval) clearInterval(window._completedTimerInterval);
@@ -1023,33 +1110,45 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Update participant list if we have progress data
         if (data.participant_progress) {
             updateCompletedProgress(data.participant_progress, data.completed_count, data.total_participants, data.remaining_time);
+        } else {
+            fetchLatestProgress();
         }
 
-        // Launch simple confetti
         launchConfetti();
+    }
+
+    function fetchLatestProgress() {
+        fetchWithTimeout('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now(), {}, 3000)
+            .then(response => response.json())
+            .then(data => {
+                if (data.participant_progress) {
+                    updateCompletedProgress(data.participant_progress, data.completed_count, data.total_participants, data.remaining_time);
+                }
+            })
+            .catch(() => {});
     }
 
     function updateCompletedProgress(progressData, completedCount, totalCount, remaining) {
         const list = document.getElementById('participantProgressList');
-        const progressFill = document.getElementById('completionProgress');
+        const circle = document.getElementById('progressCircle');
+        const percentageText = document.getElementById('overallPercentage');
         const waitingCount = document.getElementById('waitingCount');
-        const countEl = document.getElementById('completedCount');
 
         if (!list || !progressData) return;
         completedParticipantsCount = completedCount || 0;
         totalParticipantsCount = totalCount || 0;
 
-        if (countEl) countEl.textContent = completedParticipantsCount;
-        if (waitingCount) waitingCount.textContent = totalParticipantsCount - completedParticipantsCount;
-        if (progressFill) {
-            const pct = totalParticipantsCount > 0 ? (completedParticipantsCount / totalParticipantsCount * 100) : 0;
-            progressFill.style.width = Math.min(pct, 100) + '%';
+        const pct = totalParticipantsCount > 0 ? (completedParticipantsCount / totalParticipantsCount * 100) : 0;
+        if (percentageText) percentageText.textContent = Math.round(pct) + '%';
+        if (circle) {
+            const circumference = 339.292;
+            const offset = circumference * (1 - pct / 100);
+            circle.style.strokeDashoffset = offset;
         }
+        if (waitingCount) waitingCount.textContent = totalParticipantsCount - completedParticipantsCount;
 
-        // Update motivation message
         const mot = document.getElementById('motivationMessage');
         if (mot) {
             const left = totalParticipantsCount - completedParticipantsCount;
@@ -1066,10 +1165,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let html = '';
         progressData.forEach(p => {
-            const isDone = p.current_question_index >= totalQuestions;
+            const pctDone = totalQuestions > 0 ? Math.round((p.current_question_index / totalQuestions) * 100) : 0;
             let statusClass = 'status-playing', statusText = '⏳ Playing';
             if (p.status === 'left') { statusClass = 'status-left'; statusText = '🔴 Left'; }
-            else if (isDone) { statusClass = 'status-done'; statusText = '✅ Done'; }
+            else if (p.current_question_index >= totalQuestions) { statusClass = 'status-done'; statusText = '✅ Done'; }
             const isYou = p.user_id == '{{ session.user_id }}';
             html += `
                 <div class="pp-item">
@@ -1077,6 +1176,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${p.name}
                         ${isYou ? '<span class="you-badge">You</span>' : ''}
                     </span>
+                    <div class="bar-wrap">
+                        <div class="fill" style="width: ${pctDone}%;"></div>
+                    </div>
                     <span class="status ${statusClass}">${statusText}</span>
                 </div>
             `;
@@ -1143,6 +1245,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // INIT
     // ============================================
     restoreStateFromStorage();
+
+    // If user already completed, immediately fetch and show completed state
+    if (isCompleted) {
+        fetchAndShowCompletedState();
+    }
+
+    // Start normal polling
     resetPollTimer();
     setTimeout(pollQuizState, 100);
     leaderboardTimer = setTimeout(updateLeaderboard, 3000);

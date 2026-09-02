@@ -776,20 +776,21 @@ def quiz_state(quiz_id):
             response['current_question_answer'] = answers[str(qid)].get('answer')
             response['current_question_correct'] = answers[str(qid)].get('correct', False)
 
-    # Creator gets participant progress
-    if quiz['creator_id'] == user_id:
-        progress = []
-        with quiz_state.lock:
-            for uid, pp in quiz_state.participants.items():
-                progress.append({
-                    'user_id': uid,
-                    'name': pp.name,
-                    'current_question_index': pp.current_question_index,
-                    'total_questions': total_questions,
-                    'status': pp.status,
-                    'score': pp.score
-                })
-        response['participant_progress'] = progress
+    # ============================================================
+    # FIX: Always include participant progress for all participants
+    # ============================================================
+    progress = []
+    with quiz_state.lock:
+        for uid, pp in quiz_state.participants.items():
+            progress.append({
+                'user_id': uid,
+                'name': pp.name,
+                'current_question_index': pp.current_question_index,
+                'total_questions': total_questions,
+                'status': pp.status,
+                'score': pp.score
+            })
+    response['participant_progress'] = progress
 
     return jsonify(response)
 
