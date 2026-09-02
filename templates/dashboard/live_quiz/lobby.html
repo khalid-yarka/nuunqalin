@@ -7,6 +7,238 @@
 {% block extra_css %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
+<style>
+    /* Additional fine‑tuning for the new lobby layout */
+    .lobby-container { max-width: 100%; }
+    .lobby-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+    .lobby-header .title-section h2 { font-size: 24px; font-weight: 700; color: var(--text); margin: 0; display: flex; align-items: center; gap: 10px; }
+    .lobby-header .title-section p { color: var(--text-secondary); font-size: 14px; margin: 2px 0 0 0; }
+    .lobby-header .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    /* Compact filter bar */
+    .lobby-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 16px;
+        margin-bottom: 24px;
+        box-shadow: var(--shadow-sm);
+    }
+    .lobby-filters .search-wrapper {
+        flex: 1;
+        min-width: 180px;
+        position: relative;
+    }
+    .lobby-filters .search-wrapper i {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+    }
+    .lobby-filters .search-wrapper input {
+        width: 100%;
+        padding: 8px 14px 8px 36px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        background: var(--surface);
+        color: var(--text);
+        transition: var(--transition);
+    }
+    .lobby-filters .search-wrapper input:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
+    }
+    .lobby-filters select {
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        background: var(--surface);
+        color: var(--text);
+        min-width: 130px;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .lobby-filters select:focus {
+        border-color: var(--primary);
+        outline: none;
+    }
+    .lobby-filters .btn-clear {
+        padding: 8px 14px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: var(--transition);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .lobby-filters .btn-clear:hover {
+        background: var(--primary-light);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    /* Improved quiz cards */
+    .quiz-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        margin-bottom: 14px;
+        box-shadow: var(--shadow-sm);
+        transition: var(--transition);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        position: relative;
+    }
+    .quiz-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+    }
+    .quiz-card .status-indicator {
+        width: 4px;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        border-radius: var(--radius) 0 0 var(--radius);
+    }
+    .quiz-card .status-indicator.scheduled { background: #8B5CF6; }
+    .quiz-card .status-indicator.waiting { background: #10B981; }
+    .quiz-card .status-indicator.active { background: #F59E0B; }
+    .quiz-card .status-indicator.finished { background: #3B82F6; }
+
+    .quiz-card .card-body {
+        flex: 1;
+        min-width: 200px;
+        padding-left: 12px;
+    }
+    .quiz-card .card-body .title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0 0 2px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .quiz-card .card-body .title .subject-icon {
+        font-size: 20px;
+    }
+    .quiz-card .card-body .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin: 2px 0;
+    }
+    .quiz-card .card-body .meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .quiz-card .card-body .creator {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 2px;
+    }
+    .quiz-card .card-body .creator strong {
+        color: var(--text);
+    }
+
+    .quiz-card .card-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    .quiz-card .card-actions .participant-count {
+        font-size: 13px;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-right: 4px;
+    }
+    .quiz-card .card-actions .participant-count strong {
+        color: var(--text);
+    }
+
+    .btn-sm {
+        padding: 6px 14px;
+        font-size: 13px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: var(--transition);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .btn-sm.primary { background: var(--primary); color: white; }
+    .btn-sm.primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255, 49, 56, 0.3); }
+    .btn-sm.success { background: #10B981; color: white; }
+    .btn-sm.success:hover { background: #059669; transform: translateY(-1px); }
+    .btn-sm.warning { background: #F59E0B; color: white; }
+    .btn-sm.warning:hover { background: #D97706; transform: translateY(-1px); }
+    .btn-sm.secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-sm.secondary:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .btn-sm.danger { background: #EF4444; color: white; }
+    .btn-sm.danger:hover { background: #DC2626; }
+
+    .time-ago {
+        font-size: 12px;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+    .status-tag {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 10px;
+        border-radius: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        display: inline-block;
+    }
+    .status-tag.scheduled { background: #EDE9FE; color: #6D28D9; }
+    .status-tag.waiting { background: #D1FAE5; color: #065F46; }
+    .status-tag.active { background: #FEF3C7; color: #92400E; }
+    .status-tag.finished { background: #DBEAFE; color: #1E40AF; }
+    .badge-you { background: #3B82F6; color: white; font-size: 10px; padding: 1px 8px; border-radius: 10px; }
+    .badge-creator { background: var(--primary); color: white; font-size: 10px; padding: 1px 8px; border-radius: 10px; }
+
+    @media (max-width: 768px) {
+        .lobby-filters { flex-direction: column; align-items: stretch; }
+        .lobby-filters .search-wrapper { min-width: unset; }
+        .quiz-card { flex-direction: column; align-items: stretch; }
+        .quiz-card .card-actions { justify-content: flex-start; }
+    }
+    @media (max-width: 480px) {
+        .lobby-header { flex-direction: column; align-items: stretch; }
+        .lobby-header .actions { justify-content: stretch; }
+        .lobby-header .actions a { flex: 1; text-align: center; }
+        .quiz-card .card-body .title { font-size: 16px; }
+        .quiz-card .card-body .meta { font-size: 12px; gap: 4px 12px; }
+    }
+</style>
 {% endblock %}
 
 {% block dashboard_content %}
@@ -15,8 +247,8 @@
     <!-- Header -->
     <div class="lobby-header">
         <div class="title-section">
-            <h2><span>🎯</span> Live Quiz Lobby</h2>
-            <p>Find open quizzes to join, see what's happening now, or browse past results.</p>
+            <h2>🎯 Live Quiz Lobby</h2>
+            <p>Find open quizzes, join games, or view results</p>
         </div>
         <div class="actions">
             <a href="{{ url_for('live_quiz.create') }}" class="btn btn-primary">
@@ -56,8 +288,8 @@
         </div>
     </div>
 
-    <!-- Filters -->
-    <div class="lobby-filters">
+    <!-- Filter Bar -->
+    <div class="lobby-filters" id="filterBar">
         <div class="search-wrapper">
             <i class="fas fa-search"></i>
             <input type="text" id="searchInput" class="form-control" placeholder="Search by title or creator…" value="{{ search }}" />
@@ -74,13 +306,13 @@
         <select id="subjectFilter" class="form-control">
             <option value="">All Subjects</option>
             {% for subject in subjects %}
-                <option value="{{ subject.id }}" {% if subject_filter|int == subject.id %}selected{% endif %}>
+                <option value="{{ subject.code }}" {% if subject_filter == subject.code %}selected{% endif %}>
                     {{ subject.icon or '📚' }} {{ subject.name }}
                 </option>
             {% endfor %}
         </select>
 
-        <a href="{{ url_for('live_quiz.lobby') }}" class="btn btn-secondary">
+        <a href="{{ url_for('live_quiz.lobby') }}" class="btn-clear">
             <i class="fas fa-times"></i> Clear
         </a>
     </div>
@@ -89,106 +321,77 @@
     {% if quizzes %}
         {% for quiz in quizzes %}
             <div class="quiz-card" data-id="{{ quiz.id }}">
-                <!-- Status Bar -->
-                <div class="status-bar">
-                    <span class="dot {{ quiz.status }}"></span>
-                    <span class="status-text {{ quiz.status }}">
-                        {% if quiz.status == 'scheduled' %}
-                            ⏳ SCHEDULED
-                        {% elif quiz.status == 'waiting' %}
-                            🟢 OPEN · JOIN NOW
-                        {% elif quiz.status == 'active' %}
-                            🟡 ACTIVE · IN PROGRESS
-                        {% else %}
-                            🔵 FINISHED · VIEW RESULTS
+                <div class="status-indicator {{ quiz.status }}"></div>
+
+                <div class="card-body">
+                    <div class="title">
+                        <span class="subject-icon">{{ quiz.subject_icon or '📚' }}</span>
+                        {{ quiz.title or 'Untitled Quiz' }}
+                        <span class="status-tag {{ quiz.status }}">{{ quiz.status|upper }}</span>
+                        {% if quiz.is_creator %}
+                            <span class="badge-creator">You (Creator)</span>
+                        {% elif quiz.is_participant %}
+                            <span class="badge-you">You</span>
                         {% endif %}
-                    </span>
-                    {% if quiz.status == 'scheduled' and quiz.starts_in_seconds %}
-                        <span class="time-remaining">
-                            <span class="clock">⏰</span>
-                            Starts in {{ (quiz.starts_in_seconds // 60)|int }}:{{ '%02d' % (quiz.starts_in_seconds % 60) }}
+                    </div>
+                    <div class="meta">
+                        <span><i class="fas fa-book"></i> {{ quiz.subject_name or 'Unknown Subject' }}</span>
+                        <span><i class="fas fa-question-circle"></i> {{ quiz.question_count }} questions</span>
+                        <span><i class="fas fa-clock"></i> {{ quiz.time_per_question }}s each</span>
+                        {% if quiz.status == 'finished' %}
+                            <span><i class="fas fa-flag-checkered"></i> Finished</span>
+                        {% endif %}
+                        <span class="time-ago">
+                            <i class="fas fa-calendar-alt"></i>
+                            {% if quiz.status == 'finished' and quiz.ended_at %}
+                                {{ quiz.ended_at|time_ago }}
+                            {% elif quiz.created_at %}
+                                {{ quiz.created_at|time_ago }}
+                            {% endif %}
                         </span>
-                    {% elif quiz.status == 'active' and quiz.remaining_seconds %}
-                        <span class="time-remaining">
-                            <span class="clock">⏱️</span>
-                            {{ (quiz.remaining_seconds // 60)|int }}:{{ '%02d' % (quiz.remaining_seconds % 60) }} remaining
-                        </span>
-                    {% endif %}
+                    </div>
+                    <div class="creator">
+                        👤 By <strong>{{ quiz.creator_first_name or 'Unknown' }} {{ quiz.creator_last_name or '' }}</strong>
+                    </div>
                 </div>
 
-                <!-- Body -->
-                <div class="body">
-                    <div class="info">
-                        <div class="title">
-                            <span class="subject-icon">{{ quiz.subject_icon or '📚' }}</span>
-                            {{ quiz.title or 'Untitled Quiz' }}
-                        </div>
-                        <div class="meta">
-                            <span>📚 {{ quiz.subject_name or 'Unknown Subject' }}</span>
-                            <span>❓ {{ quiz.question_count }} questions</span>
-                            <span>⏱️ {{ quiz.time_per_question }}s each</span>
-                            {% if quiz.status == 'finished' %}
-                                <span>📅 {{ quiz.ended_at|replace('T', ' ')|truncate(16, True, '') if quiz.ended_at else '' }}</span>
-                            {% else %}
-                                <span>📅 {{ quiz.created_at|replace('T', ' ')|truncate(16, True, '') }}</span>
-                            {% endif %}
-                        </div>
-                        <div class="creator">
-                            👤 By <strong>{{ quiz.creator_first_name or 'Unknown' }} {{ quiz.creator_last_name or '' }}</strong>
-                            {% if quiz.is_creator %}
-                                <span class="badge badge-primary" style="font-size: 10px; padding: 2px 10px;">You</span>
-                            {% endif %}
-                        </div>
-                    </div>
+                <div class="card-actions">
+                    <span class="participant-count">
+                        <i class="fas fa-users"></i> <strong>{{ quiz.participant_count or 0 }}</strong> / {{ quiz.max_participants or 50 }}
+                    </span>
 
-                    <div class="right">
-                        <div class="participants">
-                            👥 <strong>{{ quiz.participant_count or 0 }}</strong> / {{ quiz.max_participants or 50 }}
-                        </div>
-
-                        {% if quiz.is_participant and quiz.status != 'finished' %}
-                            <span class="badge badge-success">✅ You're in</span>
-                        {% endif %}
-
-                        {% if quiz.user_rank and quiz.status == 'finished' %}
-                            <span class="badge badge-primary">🏅 Rank #{{ quiz.user_rank }}</span>
-                        {% endif %}
-
-                        {% if quiz.status == 'scheduled' or quiz.status == 'waiting' %}
-                            {% if quiz.is_participant %}
-                                <a href="{{ url_for('live_quiz.waiting_room', quiz_id=quiz.id) }}" class="btn btn-success">
-                                    <i class="fas fa-door-open"></i> Go to Waiting Room
-                                </a>
-                            {% else %}
-                                <button class="btn btn-success" onclick="joinQuiz('{{ quiz.id }}')">
-                                    <i class="fas fa-arrow-right"></i> Join Quiz →
-                                </button>
-                            {% endif %}
-                        {% elif quiz.status == 'active' %}
-                            {% if quiz.is_participant %}
-                                <a href="{{ url_for('live_quiz.play', quiz_id=quiz.id) }}" class="btn btn-primary">
-                                    <i class="fas fa-play"></i> Continue →
-                                </a>
-                            {% else %}
-                                <span class="btn btn-secondary" style="opacity:0.7; cursor:default;">
-                                    <i class="fas fa-clock"></i> In Progress
-                                </span>
-                            {% endif %}
-                        {% else %}
-                            <a href="{{ url_for('live_quiz.results', quiz_id=quiz.id) }}" class="btn btn-primary">
-                                <i class="fas fa-chart-bar"></i> View Results →
+                    {% if quiz.status == 'scheduled' or quiz.status == 'waiting' %}
+                        {% if quiz.is_participant %}
+                            <a href="{{ url_for('live_quiz.waiting_room', quiz_id=quiz.id) }}" class="btn-sm success">
+                                <i class="fas fa-door-open"></i> Waiting Room
                             </a>
+                        {% else %}
+                            <button class="btn-sm success" onclick="joinQuiz('{{ quiz.id }}')">
+                                <i class="fas fa-arrow-right"></i> Join
+                            </button>
                         {% endif %}
+                    {% elif quiz.status == 'active' %}
+                        {% if quiz.is_participant %}
+                            <a href="{{ url_for('live_quiz.play', quiz_id=quiz.id) }}" class="btn-sm primary">
+                                <i class="fas fa-play"></i> Continue
+                            </a>
+                        {% else %}
+                            <span class="btn-sm secondary" style="opacity:0.7; cursor:default;">
+                                <i class="fas fa-clock"></i> In Progress
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <a href="{{ url_for('live_quiz.results', quiz_id=quiz.id) }}" class="btn-sm primary">
+                            <i class="fas fa-chart-bar"></i> Results
+                        </a>
+                    {% endif %}
 
-                        <!-- Delete Button – Only for Creator or Admin -->
-                        {% if quiz.is_creator or session.is_admin %}
-                            {% if quiz.status != 'active' or quiz.is_creator %}
-                                <button class="btn btn-danger btn-sm" onclick="deleteQuiz('{{ quiz.id }}', '{{ quiz.title or 'Untitled Quiz' }}')">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                            {% endif %}
-                        {% endif %}
-                    </div>
+                    <!-- Delete (only for creator or admin) -->
+                    {% if (quiz.is_creator or session.is_admin) and quiz.status != 'active' %}
+                        <button class="btn-sm danger" onclick="deleteQuiz('{{ quiz.id }}', '{{ quiz.title or 'Untitled Quiz' }}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    {% endif %}
                 </div>
             </div>
         {% endfor %}
@@ -219,8 +422,7 @@
                 {% if search or status_filter or subject_filter %}
                     Try adjusting your filters or search terms.
                 {% else %}
-                    There are no public quizzes available right now.
-                    Be the first to create one!
+                    There are no public quizzes available right now. Be the first to create one!
                 {% endif %}
             </p>
             <div class="actions">
@@ -234,7 +436,7 @@
 
 </div>
 
-<!-- Delete Confirmation Modal -->
+<!-- Delete Confirmation Modal (unchanged) -->
 <div id="deleteModal" class="modal-overlay">
     <div class="modal-content">
         <div class="text-center" style="margin-bottom: 16px;">
@@ -263,7 +465,7 @@
 const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-submit filters on change
+    // Auto‑submit filters on change
     const searchInput = document.getElementById('searchInput');
     const statusFilter = document.getElementById('statusFilter');
     const subjectFilter = document.getElementById('subjectFilter');
@@ -293,12 +495,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Join Quiz Function
     window.joinQuiz = function(quizId) {
-        const btn = event.target.closest('.btn');
+        const btn = event.target.closest('.btn-sm');
         if (!btn) return;
 
         const originalText = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Joining...';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Joining…';
 
         fetch('/live-quiz/lobby/join/' + quizId, {
             method: 'POST',
@@ -320,7 +522,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (data.already_joined) {
                 showToast('You are already in this quiz!', 'info');
-                btn.innerHTML = '<i class="fas fa-door-open"></i> Go to Waiting Room';
+                btn.innerHTML = '<i class="fas fa-door-open"></i> Waiting Room';
                 btn.onclick = function() { window.location.href = data.redirect; };
                 return;
             }
@@ -338,10 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
-    // ============================================
-    // DELETE QUIZ FUNCTION
-    // ============================================
-
+    // Delete Quiz
     let deleteQuizId = null;
     let deleteQuizTitle = '';
 
@@ -394,7 +593,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Close modal on click outside
+    // Close modal on outside click
     document.getElementById('deleteModal').addEventListener('click', function(e) {
         if (e.target === this) closeDeleteModal();
     });
@@ -416,288 +615,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-
-<style>
-    /* Minimal page-specific overrides – most styles come from live_quiz.css and dashboard.css */
-    .lobby-container {
-        max-width: 100%;
-    }
-    .lobby-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 16px;
-        margin-bottom: 20px;
-    }
-    .lobby-header .title-section h2 {
-        font-size: 24px;
-        font-weight: 700;
-        color: var(--text);
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .lobby-header .title-section p {
-        color: var(--text-secondary);
-        font-size: 14px;
-        margin: 2px 0 0 0;
-    }
-    .lobby-stats {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 12px;
-        margin-bottom: 20px;
-    }
-    .lobby-stat {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 14px 16px;
-        text-align: center;
-        box-shadow: var(--shadow-sm);
-    }
-    .lobby-stat .number {
-        font-size: 24px;
-        font-weight: 700;
-        line-height: 1.2;
-    }
-    .lobby-stat .label {
-        font-size: 11px;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-top: 2px;
-    }
-    .lobby-stat.scheduled .number { color: #8B5CF6; }
-    .lobby-stat.open .number { color: #10B981; }
-    .lobby-stat.active .number { color: #F59E0B; }
-    .lobby-stat.finished .number { color: #3B82F6; }
-    .lobby-stat.total .number { color: var(--text); }
-
-    .lobby-filters {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-bottom: 20px;
-        align-items: center;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 12px 16px;
-        box-shadow: var(--shadow-sm);
-    }
-    .lobby-filters .search-wrapper {
-        flex: 1;
-        min-width: 180px;
-        position: relative;
-    }
-    .lobby-filters .search-wrapper i {
-        position: absolute;
-        left: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-muted);
-    }
-    .lobby-filters .search-wrapper input {
-        padding-left: 34px;
-    }
-    .lobby-filters select {
-        min-width: 130px;
-    }
-
-    .quiz-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 20px 24px;
-        margin-bottom: 16px;
-        box-shadow: var(--shadow-sm);
-        transition: var(--transition);
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-    .quiz-card:hover {
-        box-shadow: var(--shadow-md);
-    }
-    .quiz-card .status-bar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 12px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid var(--border-light);
-    }
-    .quiz-card .status-bar .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        flex-shrink: 0;
-    }
-    .quiz-card .status-bar .dot.scheduled { background: #8B5CF6; }
-    .quiz-card .status-bar .dot.waiting { background: #10B981; }
-    .quiz-card .status-bar .dot.active { background: #F59E0B; animation: pulse-dot 1s ease-in-out infinite; }
-    .quiz-card .status-bar .dot.finished { background: #3B82F6; }
-    @keyframes pulse-dot {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.5; transform: scale(0.8); }
-    }
-    .quiz-card .status-bar .status-text.scheduled { color: #8B5CF6; }
-    .quiz-card .status-bar .status-text.waiting { color: #10B981; }
-    .quiz-card .status-bar .status-text.active { color: #F59E0B; }
-    .quiz-card .status-bar .status-text.finished { color: #3B82F6; }
-    .quiz-card .body {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 16px;
-        align-items: flex-start;
-    }
-    .quiz-card .body .info {
-        flex: 1;
-        min-width: 200px;
-    }
-    .quiz-card .body .info .title {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--text);
-        margin: 0 0 4px 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .quiz-card .body .info .meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin: 4px 0;
-    }
-    .quiz-card .body .info .meta span {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-    .quiz-card .body .info .creator {
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin-top: 4px;
-    }
-    .quiz-card .body .right {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 8px;
-        min-width: 140px;
-        flex-shrink: 0;
-    }
-    .quiz-card .body .right .participants {
-        font-size: 13px;
-        color: var(--text-secondary);
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-    .quiz-card .body .right .participants strong {
-        color: var(--text);
-        font-weight: 600;
-    }
-    .time-remaining {
-        font-size: 12px;
-        color: #F59E0B;
-        font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-    }
-    .time-remaining .clock {
-        animation: pulse-clock 1s ease-in-out infinite;
-    }
-    @keyframes pulse-clock {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.3; }
-    }
-
-    .lobby-empty {
-        text-align: center;
-        padding: 60px 20px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-    }
-    .lobby-empty .icon {
-        font-size: 64px;
-        opacity: 0.3;
-        margin-bottom: 16px;
-    }
-    .lobby-empty h3 {
-        font-size: 20px;
-        font-weight: 600;
-        color: var(--text);
-        margin: 0 0 4px 0;
-    }
-    .lobby-empty p {
-        color: var(--text-secondary);
-        font-size: 14px;
-        margin: 0;
-    }
-    .lobby-empty .actions {
-        margin-top: 16px;
-        display: flex;
-        gap: 12px;
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-
-    @media (max-width: 768px) {
-        .lobby-header { flex-direction: column; align-items: flex-start; }
-        .lobby-header .actions { width: 100%; }
-        .lobby-header .actions a { flex: 1; text-align: center; }
-        .lobby-stats { grid-template-columns: repeat(3, 1fr); }
-        .lobby-filters { flex-direction: column; align-items: stretch; }
-        .lobby-filters .search-wrapper { min-width: unset; }
-        .quiz-card .body { flex-direction: column; }
-        .quiz-card .body .right {
-            width: 100%;
-            flex-direction: row;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: flex-start;
-        }
-        .quiz-card .body .right .btn {
-            flex: 1;
-            justify-content: center;
-        }
-    }
-    @media (max-width: 480px) {
-        .lobby-stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .lobby-stat { padding: 10px 8px; }
-        .lobby-stat .number { font-size: 18px; }
-        .lobby-stat .label { font-size: 9px; }
-        .quiz-card { padding: 14px 16px; }
-        .quiz-card .body .info .title { font-size: 16px; }
-    }
-
-    [data-theme="dark"] .quiz-card {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .lobby-filters {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .lobby-stat {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .lobby-empty {
-        background: var(--surface);
-        border-color: var(--border);
-    }
-</style>
 {% endblock %}

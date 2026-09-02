@@ -137,3 +137,40 @@ def validate_csrf():
     else:
         logger.warning("CSRF validation failed: submitted token does not match session token.")
         return False
+        
+# utils.py – append this function at the end of the file
+
+def time_ago(dt_str: str) -> str:
+    """
+    Convert an ISO timestamp to a human‑readable 'X ago' string.
+    """
+    if not dt_str:
+        return "Just now"
+    try:
+        # Handle both 'Z' and '+00:00' timezone formats
+        dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        now = get_somali_time()
+        diff = now - dt
+
+        seconds = diff.total_seconds()
+        if seconds < 60:
+            return "Just now"
+        minutes = int(seconds // 60)
+        if minutes < 60:
+            return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+        hours = int(minutes // 60)
+        if hours < 24:
+            return f"{hours} hour{'s' if hours > 1 else ''} ago"
+        days = int(hours // 24)
+        if days < 7:
+            return f"{days} day{'s' if days > 1 else ''} ago"
+        weeks = int(days // 7)
+        if weeks < 4:
+            return f"{weeks} week{'s' if weeks > 1 else ''} ago"
+        months = int(days // 30)
+        if months < 12:
+            return f"{months} month{'s' if months > 1 else ''} ago"
+        years = int(days // 365)
+        return f"{years} year{'s' if years > 1 else ''} ago"
+    except Exception:
+        return dt_str        

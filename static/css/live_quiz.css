@@ -2761,3 +2761,70 @@
     border-color: #F87171;
     color: #FCA5A5;
 }
+
+/* ============================================
+   IMPROVED LOBBY STYLES (appended)
+   ============================================ */
+
+.lobby-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.lobby-stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+}
+.lobby-stat .number {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.lobby-stat .label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+.lobby-stat.scheduled .number { color: #8B5CF6; }
+.lobby-stat.open .number { color: #10B981; }
+.lobby-stat.active .number { color: #F59E0B; }
+.lobby-stat.finished .number { color: #3B82F6; }
+.lobby-stat.total .number { color: var(--text); }
+
+.lobby-empty .actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+/* Responsive fine‑tuning */
+@media (max-width: 768px) {
+    .lobby-stats {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    .lobby-stat {
+        padding: 10px 8px;
+    }
+    .lobby-stat .number {
+        font-size: 18px;
+    }
+    .lobby-stat .label {
+        font-size: 9px;
+    }
+}
+
+@media (max-width: 480px) {
+    .lobby-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

@@ -19,7 +19,7 @@ from db import (
     close_db_connections, close_db,
 )
 # Import from utils (single import)
-from utils import get_somali_time_display, validate_csrf, ensure_csrf_token
+from utils import get_somali_time_display, validate_csrf, ensure_csrf_token, time_ago
 from startup import verify_startup, get_startup_health
 from database import get_database_health
 from errors import register_error_handlers
@@ -256,6 +256,8 @@ app.config['SESSION_COOKIE_SECURE'] = Config.SESSION_COOKIE_SECURE
 app.config['SESSION_COOKIE_HTTPONLY'] = Config.SESSION_COOKIE_HTTPONLY
 app.config['SESSION_COOKIE_SAMESITE'] = Config.SESSION_COOKIE_SAMESITE
 
+# After app = Flask(__name__)
+app.jinja_env.filters['time_ago'] = time_ago
 # ============================================
 # REQUEST CONTEXT
 # ============================================
