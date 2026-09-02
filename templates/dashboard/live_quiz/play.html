@@ -7,6 +7,141 @@
 {% block extra_css %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
+<style>
+    /* Additional styles for play page */
+    .reconnection-notice {
+        display: none;
+        background: #10B981;
+        color: white;
+        padding: 10px 16px;
+        border-radius: var(--radius-sm);
+        margin-bottom: 16px;
+        text-align: center;
+        font-weight: 500;
+        animation: fadeSlide 0.5s ease;
+    }
+    .reconnection-notice.show {
+        display: block;
+    }
+    .reconnection-notice .dismiss {
+        margin-left: 12px;
+        background: rgba(255,255,255,0.2);
+        border: none;
+        border-radius: 4px;
+        color: white;
+        padding: 2px 10px;
+        cursor: pointer;
+        font-size: 13px;
+    }
+
+    .btn-leave {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: #EF4444;
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: var(--transition);
+        margin-top: 16px;
+        width: 100%;
+        justify-content: center;
+    }
+    .btn-leave:hover {
+        background: #DC2626;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+    }
+    .btn-leave:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none !important;
+    }
+
+    .creator-progress {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--shadow-sm);
+    }
+    .creator-progress .cp-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .progress-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 0;
+        font-size: 13px;
+        border-bottom: 1px solid var(--border-light);
+    }
+    .progress-item:last-child {
+        border-bottom: none;
+    }
+    .progress-item .name {
+        flex: 1;
+        color: var(--text);
+        font-weight: 500;
+        min-width: 100px;
+    }
+    .progress-item .bar-wrap {
+        flex: 1;
+        height: 6px;
+        background: var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        min-width: 60px;
+    }
+    .progress-item .bar-wrap .fill {
+        height: 100%;
+        background: var(--primary);
+        border-radius: 10px;
+        transition: width 0.5s ease;
+    }
+    .progress-item .status {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 10px;
+        white-space: nowrap;
+    }
+    .progress-item .status.waiting { background: #EFF6FF; color: #3B82F6; }
+    .progress-item .status.done { background: #ECFDF5; color: #10B981; }
+    .progress-item .status.left { background: #FEF2F2; color: #EF4444; }
+
+    /* Waiting for others state */
+    .completed-state .waiting-info {
+        display: flex;
+        justify-content: center;
+        gap: 32px;
+        margin-top: 16px;
+        flex-wrap: wrap;
+    }
+    .completed-state .waiting-info .stat {
+        text-align: center;
+    }
+    .completed-state .waiting-info .stat .number {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--primary);
+    }
+    .completed-state .waiting-info .stat .label {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+</style>
 {% endblock %}
 
 {% block dashboard_content %}
@@ -14,6 +149,7 @@
 
     <div class="reconnection-notice" id="reconnectionNotice">
         🔄 Reconnected! Resuming your quiz...
+        <button class="dismiss" onclick="document.getElementById('reconnectionNotice').classList.remove('show')">✕</button>
     </div>
 
     <div class="quiz-notification" id="notificationBanner">
@@ -117,7 +253,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let answerData = null;
     let isReconnecting = false;
     let hasAnsweredCurrent = false;
-    let remainingTime = 0;
     
     let pollInterval = 1500;
     let pollTimer = null;
@@ -143,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     isCompleted = state.isCompleted || false;
                     quizStarted = state.quizStarted || false;
                     hasAnsweredCurrent = state.hasAnsweredCurrent || false;
+                    // If there is a question data, we could restore it, but we'll refetch.
                 }
             }
         } catch (e) { console.warn('Failed to restore state:', e); }
@@ -266,7 +402,13 @@ document.addEventListener('DOMContentLoaded', function() {
             let statusClass = 'waiting', statusText = '⏳ Playing';
             if (p.status === 'left') { statusClass = 'left'; statusText = '🔴 Left'; }
             else if (p.current_question_index >= totalQuestions) { statusClass = 'done'; statusText = '✅ Done'; }
-            html += `<div class="progress-item"><span class="name">${p.name}</span><div class="bar-wrap"><div class="fill" style="width: ${pct}%;"></div></div><span class="status ${statusClass}">${statusText}</span></div>`;
+            html += `<div class="progress-item">
+                        <span class="name">${p.name}</span>
+                        <div class="bar-wrap">
+                            <div class="fill" style="width: ${pct}%;"></div>
+                        </div>
+                        <span class="status ${statusClass}">${statusText}</span>
+                    </div>`;
         });
         container.innerHTML = html;
     }
@@ -318,10 +460,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 if (data.error) { console.warn('Polling error:', data.error); pollInterval = Math.min(pollInterval + 500, 5000); resetPollTimer(); return; }
                 
-                if (data.status === 'waiting' || data.status === 'scheduled') {
-                    activeAttempts = 0; previousStatus = data.status; resetPollTimer(); return;
+                // Update total timer
+                if (data.remaining_time !== undefined) {
+                    updateTotalTimer(data.remaining_time);
+                    if (data.remaining_time <= 0 && !isRedirecting && data.status === 'active') {
+                        isRedirecting = true;
+                        window.location.href = '/live-quiz/results/' + quizId;
+                        return;
+                    }
                 }
                 
+                // Update creator progress
+                if (data.participant_progress) {
+                    updateCreatorProgress(data.participant_progress);
+                }
+                
+                // Handle finished
                 if (data.redirect_url && !isRedirecting) {
                     isRedirecting = true;
                     clearInterval(timerInterval); clearTimeout(pollTimer);
@@ -330,38 +484,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                if (data.status === 'finished') {
-                    if (!quizEnded) {
-                        quizEnded = true;
-                        sendBrowserNotification('🏆 Quiz Complete!', quizTitle + ' has finished. Check your results!', '/live-quiz/results/' + quizId);
-                        window.location.href = data.redirect_url || '/live-quiz/results/' + quizId;
-                    }
+                if (data.status === 'finished' && !quizEnded) {
+                    quizEnded = true;
+                    sendBrowserNotification('🏆 Quiz Complete!', quizTitle + ' has finished. Check your results!', '/live-quiz/results/' + quizId);
+                    window.location.href = data.redirect_url || '/live-quiz/results/' + quizId;
                     return;
                 }
                 
+                // Handle active state
                 if (data.status === 'active') {
-                    if (!questionData && !isCompleted) {
-                        activeAttempts++;
-                        if (activeAttempts > MAX_ACTIVE_ATTEMPTS) { showErrorState('Quiz is taking too long to load. Please try again.', '/live-quiz/lobby'); return; }
-                    } else { activeAttempts = 0; }
-                    
-                    if (questionData) {
-                        if (data.current_question_index !== undefined && data.current_question_index !== currentQuestionIndex) {
-                            if (!isAnswered) loadQuestion();
-                        }
-                        if (data.remaining_time !== undefined) {
-                            remainingTime = data.remaining_time;
-                            updateTotalTimer(remainingTime);
-                            if (remainingTime <= 0 && !isRedirecting) {
-                                isRedirecting = true;
-                                window.location.href = '/live-quiz/results/' + quizId;
-                                return;
-                            }
-                        }
-                        resetPollTimer();
-                        return;
-                    }
-                    
                     if (!quizStarted) {
                         quizStarted = true;
                         if (!notificationShown) { notificationShown = true; showNotification('🚀 Quiz has started! Get ready!'); playNotificationSound(); sendBrowserNotification('🚀 Quiz Started!', quizTitle + ' has begun!', '/live-quiz/play/' + quizId); }
@@ -369,38 +500,37 @@ document.addEventListener('DOMContentLoaded', function() {
                         resetPollTimer();
                         return;
                     }
-                    if (!questionData && !isCompleted) { resetPollTimer(); return; }
-                }
-                
-                const stateHash = JSON.stringify(data);
-                if (stateHash === lastState) { consecutiveNoChanges++; if (consecutiveNoChanges > 5) pollInterval = Math.min(pollInterval + 200, 3000); }
-                else { consecutiveNoChanges = 0; pollInterval = Math.max(pollInterval - 100, 1000); lastState = stateHash; }
-                
-                if (data.remaining_time !== undefined) {
-                    remainingTime = data.remaining_time;
-                    updateTotalTimer(remainingTime);
-                    if (remainingTime <= 0 && !isRedirecting) {
-                        isRedirecting = true;
-                        window.location.href = '/live-quiz/results/' + quizId;
+                    
+                    // If we have question data and current index changed, reload
+                    if (questionData) {
+                        if (data.current_question_index !== undefined && data.current_question_index !== currentQuestionIndex) {
+                            if (!isAnswered) loadQuestion();
+                        }
+                        resetPollTimer();
                         return;
                     }
-                }
-                
-                if (data.participant_progress) {
-                    updateCreatorProgress(data.participant_progress);
-                }
-                
-                if (data.all_completed && data.status === 'active') {
-                    if (data.is_completed) {
-                        sendBrowserNotification('🏆 All Finished!', 'All participants have completed!', '/live-quiz/results/' + quizId);
-                        window.location.href = '/live-quiz/results/' + quizId;
-                    } else {
-                        showWaitingForOthers(data);
+                    
+                    // If no question data yet, try loading
+                    if (!questionData && !isCompleted) {
+                        loadQuestion();
+                        resetPollTimer();
+                        return;
                     }
-                    return;
+                    
+                    // Check completion for all participants
+                    if (data.all_completed && data.status === 'active') {
+                        if (data.is_completed) {
+                            sendBrowserNotification('🏆 All Finished!', 'All participants have completed!', '/live-quiz/results/' + quizId);
+                            window.location.href = '/live-quiz/results/' + quizId;
+                            return;
+                        } else {
+                            showWaitingForOthers(data);
+                        }
+                        return;
+                    }
+                    
+                    if (data.is_completed && !isCompleted) { showCompletedState(data); return; }
                 }
-                
-                if (data.is_completed && !isCompleted) { showCompletedState(data); return; }
                 
                 previousStatus = data.status;
                 resetPollTimer();
@@ -427,19 +557,32 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.abort) { showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby'); return; }
-                if (data.error) { if (data.completed) { isCompleted = true; pollQuizState(); } else if (data.waiting) { setTimeout(loadQuestion, 1000); } return; }
+                if (data.error) { 
+                    if (data.completed) { isCompleted = true; pollQuizState(); } 
+                    else if (data.waiting) { setTimeout(loadQuestion, 1000); }
+                    return; 
+                }
                 if (data.question) {
                     if (data.already_answered) {
-                        isReconnecting = true; hasAnsweredCurrent = true; isAnswered = true;
-                        showReconnectionNotice();
+                        // Only show reconnection notice if we had a previous state and this is not the first load
+                        if (isReconnecting) {
+                            showReconnectionNotice();
+                        }
+                        isAnswered = true;
+                        hasAnsweredCurrent = true;
                         renderAnsweredQuestion(data, { already_answered: true, answer: data.answer, correct: data.correct, explanation: data.explanation });
                         clearInterval(timerInterval);
                         const display = document.getElementById('timerDisplay'); if (display) { display.textContent = '--'; display.className = 'question-timer stopped'; }
                         saveStateToStorage();
                         return;
                     }
-                    questionData = data; currentQuestionIndex = data.index; isAnswered = false; isRated = false; hasAnsweredCurrent = false;
-                    renderQuestion(data); startTimer();
+                    questionData = data; 
+                    currentQuestionIndex = data.index; 
+                    isAnswered = false; 
+                    isRated = false; 
+                    hasAnsweredCurrent = false;
+                    renderQuestion(data); 
+                    startTimer();
                     const progressBar = document.getElementById('progressBar'); if (progressBar) progressBar.style.width = ((data.index / data.total) * 100) + '%';
                     saveStateToStorage();
                 }
@@ -629,12 +772,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             clearInterval(timerInterval);
-            if (data.completed && data.status === 'completed') {
+            if (data.completed) {
                 isCompleted = true; saveStateToStorage();
-                showCompletedState({ completed_count: 0, total_participants: 0, remaining_time: 0 });
-            } else if (data.completed) {
-                isCompleted = true; saveStateToStorage();
-                showCompletedState({ completed_count: 0, total_participants: 0, remaining_time: 0 });
+                // The quiz-state poll will handle the completion state
+                pollQuizState();
             } else {
                 questionData = null; hasAnsweredCurrent = false; saveStateToStorage();
                 setTimeout(() => loadQuestion(), 600);
@@ -721,6 +862,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (timerInterval) clearInterval(timerInterval);
     });
     
+    // Expose functions to global scope for inline onclick handlers
     window.selectOption = selectOption;
     window.skipQuestion = skipQuestion;
     window.submitRating = submitRating;

@@ -170,6 +170,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const ratingTime = 10;
     const totalDuration = totalQuestions * (timePerQuestion + ratingTime);
 
+    // Check if quizId is valid
+    if (!quizId || quizId === 'None') {
+        console.error('Invalid quizId. Redirect to lobby.');
+        window.location.href = '/live-quiz/lobby';
+        return;
+    }
+
     let participantList = [];
     let isPolling = false;
     let pollInterval = 2000;
@@ -263,7 +270,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     window.requestNotificationPermission = requestNotificationPermission;
 
-    // On load, hide banner if permission is already granted or denied
     if ('Notification' in window) {
         if (Notification.permission === 'granted' || Notification.permission === 'denied') {
             notificationBanner.classList.remove('show');
@@ -481,7 +487,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (typeof window.showToast === 'function') {
                     window.showToast('🎯 Quiz started! Redirecting...', 'success');
                 }
-                window.location.href = '/live-quiz/play/' + quizId;
+                // Use replace to ensure we don't keep the waiting room in history
+                window.location.replace('/live-quiz/play/' + quizId);
             } else {
                 if (typeof window.showToast === 'function') {
                     window.showToast('Error starting quiz: ' + (data.error || 'Unknown error'), 'error');
@@ -685,12 +692,15 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
+                console.log('Poll state:', data); // Debug log
+
                 // Redirect if finished
                 if (data.redirect_url && !isRedirecting) {
                     isRedirecting = true;
-                    window.location.href = data.redirect_url;
+                    window.location.replace(data.redirect_url);
                     return;
                 }
+
                 // Redirect if active
                 if (data.status === 'active' && !isRedirecting) {
                     isRedirecting = true;
@@ -698,9 +708,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (typeof window.showToast === 'function') {
                         window.showToast('🚀 Quiz has started!', 'success');
                     }
-                    window.location.href = '/live-quiz/play/' + quizId;
+                    console.log('Redirecting to /live-quiz/play/' + quizId);
+                    // Use replace to avoid history issues
+                    window.location.replace('/live-quiz/play/' + quizId);
                     return;
                 }
+
                 // Update countdown if scheduled
                 if (data.status === 'scheduled' && data.starts_in_seconds !== undefined) {
                     if (data.starts_in_seconds > 0 && data.starts_in_seconds !== initialStartsIn) {
@@ -708,6 +721,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         startCountdown(initialStartsIn);
                     }
                 }
+
+                // If we are still scheduled but the countdown is not running, start it.
+                if (data.status === 'scheduled' && initialStartsIn > 0 && !countdownInterval) {
+                    startCountdown(initialStartsIn);
+                }
+
                 setTimeout(pollQuizState, 3000);
             })
             .catch(function(err) {
@@ -715,6 +734,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(pollQuizState, 5000);
             });
     }
+
+    // Fallback: if the redirect doesn't happen within 2 seconds, force it.
+    // This is a safety net.
+    let redirectTimeout = null;
+    function forceRedirectIfNeeded() {
+        if (isRedirecting) return;
+        // Check if the quiz started alert is visible but we are still here
+        const alert = document.getElementById('quizStartedAlert');
+        if (alert && alert.classList.contains('show') && !isRedirecting) {
+            console.warn('Quiz started alert shown but no redirect; forcing redirect.');
+            window.location.replace('/live-quiz/play/' + quizId);
+        }
+    }
+    setInterval(forceRedirectIfNeeded, 2000);
 
     // ============================================
     // INIT
