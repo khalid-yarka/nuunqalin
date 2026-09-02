@@ -8,18 +8,17 @@
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    /* Additional fine‑tuning for the new lobby layout */
     .lobby-container { max-width: 100%; }
     .lobby-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
     .lobby-header .title-section h2 { font-size: 24px; font-weight: 700; color: var(--text); margin: 0; display: flex; align-items: center; gap: 10px; }
     .lobby-header .title-section p { color: var(--text-secondary); font-size: 14px; margin: 2px 0 0 0; }
     .lobby-header .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
-    /* Compact filter bar */
+    /* Filter bar – single line, no wrap */
     .lobby-filters {
         display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
+        flex-wrap: nowrap;
+        gap: 12px;
         align-items: center;
         background: var(--surface);
         border: 1px solid var(--border);
@@ -27,34 +26,55 @@
         padding: 10px 16px;
         margin-bottom: 24px;
         box-shadow: var(--shadow-sm);
+        overflow-x: auto;
+        /* Prevent wrapping on large screens */
     }
     .lobby-filters .search-wrapper {
-        flex: 1;
+        flex: 1 1 200px;
         min-width: 180px;
         position: relative;
-    }
-    .lobby-filters .search-wrapper i {
-        position: absolute;
-        left: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-muted);
+        display: flex;
+        align-items: center;
     }
     .lobby-filters .search-wrapper input {
         width: 100%;
         padding: 8px 14px 8px 36px;
         border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
+        border-radius: var(--radius-sm) 0 0 var(--radius-sm);
         font-size: 14px;
         background: var(--surface);
         color: var(--text);
         transition: var(--transition);
+        outline: none;
     }
     .lobby-filters .search-wrapper input:focus {
         border-color: var(--primary);
-        outline: none;
         box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
     }
+    .lobby-filters .search-wrapper .search-icon-btn {
+        padding: 8px 14px;
+        background: var(--primary);
+        color: white;
+        border: 1px solid var(--primary);
+        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        cursor: pointer;
+        transition: var(--transition);
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        height: 100%;
+        flex-shrink: 0;
+    }
+    .lobby-filters .search-wrapper .search-icon-btn:hover {
+        background: var(--primary-hover);
+        border-color: var(--primary-hover);
+    }
+    .lobby-filters .search-wrapper .search-icon-btn i {
+        pointer-events: none;
+    }
+
     .lobby-filters select {
         padding: 8px 12px;
         border: 1px solid var(--border);
@@ -65,11 +85,47 @@
         min-width: 130px;
         cursor: pointer;
         transition: var(--transition);
+        outline: none;
+        appearance: auto;
+        -webkit-appearance: auto;
+        flex-shrink: 0;
     }
     .lobby-filters select:focus {
         border-color: var(--primary);
-        outline: none;
+        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
     }
+
+    /* Group the status and subject selects with a subtle background */
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--background);
+        padding: 2px 8px 2px 4px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-light);
+        flex-shrink: 0;
+    }
+    .filter-group .filter-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding-right: 4px;
+        white-space: nowrap;
+    }
+    .filter-group select {
+        border: none;
+        background: transparent;
+        padding: 6px 8px 6px 4px;
+        min-width: 100px;
+    }
+    .filter-group select:focus {
+        box-shadow: none;
+    }
+    /* Remove the vertical divider; we use the group background instead */
+
     .lobby-filters .btn-clear {
         padding: 8px 14px;
         background: var(--surface);
@@ -83,14 +139,42 @@
         display: inline-flex;
         align-items: center;
         gap: 4px;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
     .lobby-filters .btn-clear:hover {
         background: var(--primary-light);
         border-color: var(--primary);
         color: var(--primary);
     }
+    .lobby-filters .btn-clear.hidden {
+        display: none !important;
+    }
 
-    /* Improved quiz cards */
+    .auto-sync-status {
+        font-size: 12px;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .auto-sync-status .sync-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #10B981;
+        display: inline-block;
+        animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+
+    /* Quiz cards (unchanged) */
     .quiz-card {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -135,10 +219,9 @@
         display: flex;
         align-items: center;
         gap: 8px;
+        flex-wrap: wrap;
     }
-    .quiz-card .card-body .title .subject-icon {
-        font-size: 20px;
-    }
+    .quiz-card .card-body .title .subject-icon { font-size: 20px; }
     .quiz-card .card-body .meta {
         display: flex;
         flex-wrap: wrap;
@@ -147,19 +230,9 @@
         color: var(--text-secondary);
         margin: 2px 0;
     }
-    .quiz-card .card-body .meta span {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-    .quiz-card .card-body .creator {
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin-top: 2px;
-    }
-    .quiz-card .card-body .creator strong {
-        color: var(--text);
-    }
+    .quiz-card .card-body .meta span { display: flex; align-items: center; gap: 4px; }
+    .quiz-card .card-body .creator { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .quiz-card .card-body .creator strong { color: var(--text); }
 
     .quiz-card .card-actions {
         display: flex;
@@ -176,9 +249,7 @@
         gap: 4px;
         margin-right: 4px;
     }
-    .quiz-card .card-actions .participant-count strong {
-        color: var(--text);
-    }
+    .quiz-card .card-actions .participant-count strong { color: var(--text); }
 
     .btn-sm {
         padding: 6px 14px;
@@ -204,11 +275,7 @@
     .btn-sm.danger { background: #EF4444; color: white; }
     .btn-sm.danger:hover { background: #DC2626; }
 
-    .time-ago {
-        font-size: 12px;
-        color: var(--text-muted);
-        white-space: nowrap;
-    }
+    .time-ago { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
     .status-tag {
         font-size: 11px;
         font-weight: 600;
@@ -225,24 +292,40 @@
     .badge-you { background: #3B82F6; color: white; font-size: 10px; padding: 1px 8px; border-radius: 10px; }
     .badge-creator { background: var(--primary); color: white; font-size: 10px; padding: 1px 8px; border-radius: 10px; }
 
-    @media (max-width: 768px) {
-        .lobby-filters { flex-direction: column; align-items: stretch; }
-        .lobby-filters .search-wrapper { min-width: unset; }
-        .quiz-card { flex-direction: column; align-items: stretch; }
-        .quiz-card .card-actions { justify-content: flex-start; }
+    /* Responsive: on smaller screens, allow wrap and stack */
+    @media (max-width: 860px) {
+        .lobby-filters {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .lobby-filters .search-wrapper {
+            flex: 1 1 100%;
+            min-width: 100%;
+        }
+        .filter-group {
+            flex: 1 1 auto;
+        }
+        .lobby-filters .auto-sync-status {
+            margin-left: 0;
+        }
     }
+
     @media (max-width: 480px) {
         .lobby-header { flex-direction: column; align-items: stretch; }
         .lobby-header .actions { justify-content: stretch; }
         .lobby-header .actions a { flex: 1; text-align: center; }
-        .quiz-card .card-body .title { font-size: 16px; }
-        .quiz-card .card-body .meta { font-size: 12px; gap: 4px 12px; }
+        .filter-group {
+            flex: 1 1 100%;
+        }
+        .filter-group select {
+            min-width: 100%;
+        }
     }
 </style>
 {% endblock %}
 
 {% block dashboard_content %}
-<div class="lobby-container">
+<div class="lobby-container" id="lobbyContainer">
 
     <!-- Header -->
     <div class="lobby-header">
@@ -261,7 +344,7 @@
     </div>
 
     <!-- Stats -->
-    <div class="lobby-stats">
+    <div class="lobby-stats" id="lobbyStats">
         <div class="lobby-stat scheduled">
             <div class="number">{{ stats.scheduled_count or 0 }}</div>
             <div class="label">⏳ Scheduled</div>
@@ -288,151 +371,56 @@
         </div>
     </div>
 
-    <!-- Filter Bar -->
+    <!-- Filter Bar – Single Row -->
     <div class="lobby-filters" id="filterBar">
+        <!-- Search -->
         <div class="search-wrapper">
-            <i class="fas fa-search"></i>
+            <i class="fas fa-search" style="position:absolute; left:12px; color:var(--text-muted); pointer-events:none;"></i>
             <input type="text" id="searchInput" class="form-control" placeholder="Search by title or creator…" value="{{ search }}" />
+            <button class="search-icon-btn" id="searchBtn" aria-label="Search">
+                <i class="fas fa-arrow-right"></i>
+            </button>
         </div>
 
-        <select id="statusFilter" class="form-control">
-            <option value="">All Status</option>
-            <option value="scheduled" {% if status_filter == 'scheduled' %}selected{% endif %}>⏳ Scheduled</option>
-            <option value="waiting" {% if status_filter == 'waiting' %}selected{% endif %}>🟢 Open</option>
-            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>🟡 Active</option>
-            <option value="finished" {% if status_filter == 'finished' %}selected{% endif %}>🔵 Finished</option>
-        </select>
+        <!-- Status + Subject Group -->
+        <div class="filter-group">
+            <span class="filter-label">Status</span>
+            <select id="statusFilter" class="form-control">
+                <option value="">All</option>
+                <option value="scheduled" {% if status_filter == 'scheduled' %}selected{% endif %}>⏳ Scheduled</option>
+                <option value="waiting" {% if status_filter == 'waiting' %}selected{% endif %}>🟢 Open</option>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>🟡 Active</option>
+                <option value="finished" {% if status_filter == 'finished' %}selected{% endif %}>🔵 Finished</option>
+            </select>
+        </div>
 
-        <select id="subjectFilter" class="form-control">
-            <option value="">All Subjects</option>
-            {% for subject in subjects %}
-                <option value="{{ subject.code }}" {% if subject_filter == subject.code %}selected{% endif %}>
-                    {{ subject.icon or '📚' }} {{ subject.name }}
-                </option>
-            {% endfor %}
-        </select>
+        <div class="filter-group">
+            <span class="filter-label">Subject</span>
+            <select id="subjectFilter" class="form-control">
+                <option value="">All</option>
+                {% for subject in subjects %}
+                    <option value="{{ subject.code }}" {% if subject_filter == subject.code %}selected{% endif %}>
+                        {{ subject.icon or '📚' }} {{ subject.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
 
-        <a href="{{ url_for('live_quiz.lobby') }}" class="btn-clear">
+        <!-- Clear button (hidden if no filter active) -->
+        <button class="btn-clear hidden" id="clearBtn">
             <i class="fas fa-times"></i> Clear
-        </a>
+        </button>
+
+        <!-- Auto‑sync indicator -->
+        <span class="auto-sync-status">
+            <span class="sync-dot"></span> Auto‑sync
+        </span>
     </div>
 
     <!-- Quiz List -->
-    {% if quizzes %}
-        {% for quiz in quizzes %}
-            <div class="quiz-card" data-id="{{ quiz.id }}">
-                <div class="status-indicator {{ quiz.status }}"></div>
-
-                <div class="card-body">
-                    <div class="title">
-                        <span class="subject-icon">{{ quiz.subject_icon or '📚' }}</span>
-                        {{ quiz.title or 'Untitled Quiz' }}
-                        <span class="status-tag {{ quiz.status }}">{{ quiz.status|upper }}</span>
-                        {% if quiz.is_creator %}
-                            <span class="badge-creator">You (Creator)</span>
-                        {% elif quiz.is_participant %}
-                            <span class="badge-you">You</span>
-                        {% endif %}
-                    </div>
-                    <div class="meta">
-                        <span><i class="fas fa-book"></i> {{ quiz.subject_name or 'Unknown Subject' }}</span>
-                        <span><i class="fas fa-question-circle"></i> {{ quiz.question_count }} questions</span>
-                        <span><i class="fas fa-clock"></i> {{ quiz.time_per_question }}s each</span>
-                        {% if quiz.status == 'finished' %}
-                            <span><i class="fas fa-flag-checkered"></i> Finished</span>
-                        {% endif %}
-                        <span class="time-ago">
-                            <i class="fas fa-calendar-alt"></i>
-                            {% if quiz.status == 'finished' and quiz.ended_at %}
-                                {{ quiz.ended_at|time_ago }}
-                            {% elif quiz.created_at %}
-                                {{ quiz.created_at|time_ago }}
-                            {% endif %}
-                        </span>
-                    </div>
-                    <div class="creator">
-                        👤 By <strong>{{ quiz.creator_first_name or 'Unknown' }} {{ quiz.creator_last_name or '' }}</strong>
-                    </div>
-                </div>
-
-                <div class="card-actions">
-                    <span class="participant-count">
-                        <i class="fas fa-users"></i> <strong>{{ quiz.participant_count or 0 }}</strong> / {{ quiz.max_participants or 50 }}
-                    </span>
-
-                    {% if quiz.status == 'scheduled' or quiz.status == 'waiting' %}
-                        {% if quiz.is_participant %}
-                            <a href="{{ url_for('live_quiz.waiting_room', quiz_id=quiz.id) }}" class="btn-sm success">
-                                <i class="fas fa-door-open"></i> Waiting Room
-                            </a>
-                        {% else %}
-                            <button class="btn-sm success" onclick="joinQuiz('{{ quiz.id }}')">
-                                <i class="fas fa-arrow-right"></i> Join
-                            </button>
-                        {% endif %}
-                    {% elif quiz.status == 'active' %}
-                        {% if quiz.is_participant %}
-                            <a href="{{ url_for('live_quiz.play', quiz_id=quiz.id) }}" class="btn-sm primary">
-                                <i class="fas fa-play"></i> Continue
-                            </a>
-                        {% else %}
-                            <span class="btn-sm secondary" style="opacity:0.7; cursor:default;">
-                                <i class="fas fa-clock"></i> In Progress
-                            </span>
-                        {% endif %}
-                    {% else %}
-                        <a href="{{ url_for('live_quiz.results', quiz_id=quiz.id) }}" class="btn-sm primary">
-                            <i class="fas fa-chart-bar"></i> Results
-                        </a>
-                    {% endif %}
-
-                    <!-- Delete (only for creator or admin) -->
-                    {% if (quiz.is_creator or session.is_admin) and quiz.status != 'active' %}
-                        <button class="btn-sm danger" onclick="deleteQuiz('{{ quiz.id }}', '{{ quiz.title or 'Untitled Quiz' }}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    {% endif %}
-                </div>
-            </div>
-        {% endfor %}
-
-        <!-- Pagination -->
-        {% if total_pages > 1 %}
-            <div class="pagination">
-                <a href="?page=1&status={{ status_filter }}&subject={{ subject_filter }}&search={{ search }}" class="page-link {% if page == 1 %}disabled{% endif %}">First</a>
-                <a href="?page={{ page - 1 }}&status={{ status_filter }}&subject={{ subject_filter }}&search={{ search }}" class="page-link {% if page == 1 %}disabled{% endif %}">Previous</a>
-                {% for p in range(1, total_pages + 1) %}
-                    {% if p == page %}
-                        <span class="page-link active">{{ p }}</span>
-                    {% elif p <= page + 2 and p >= page - 2 %}
-                        <a href="?page={{ p }}&status={{ status_filter }}&subject={{ subject_filter }}&search={{ search }}" class="page-link">{{ p }}</a>
-                    {% endif %}
-                {% endfor %}
-                <a href="?page={{ page + 1 }}&status={{ status_filter }}&subject={{ subject_filter }}&search={{ search }}" class="page-link {% if page == total_pages %}disabled{% endif %}">Next</a>
-                <a href="?page={{ total_pages }}&status={{ status_filter }}&subject={{ subject_filter }}&search={{ search }}" class="page-link {% if page == total_pages %}disabled{% endif %}">Last</a>
-            </div>
-        {% endif %}
-
-    {% else %}
-        <!-- Empty State -->
-        <div class="lobby-empty">
-            <div class="icon">🎯</div>
-            <h3>No quizzes found</h3>
-            <p>
-                {% if search or status_filter or subject_filter %}
-                    Try adjusting your filters or search terms.
-                {% else %}
-                    There are no public quizzes available right now. Be the first to create one!
-                {% endif %}
-            </p>
-            <div class="actions">
-                <a href="{{ url_for('live_quiz.create') }}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Create a Quiz
-                </a>
-                <a href="{{ url_for('live_quiz.lobby') }}" class="btn btn-secondary">Clear Filters</a>
-            </div>
-        </div>
-    {% endif %}
+    <div id="quizListContainer">
+        {% include "dashboard/live_quiz/_lobby_quizzes.html" %}
+    </div>
 
 </div>
 
@@ -460,44 +448,156 @@
 
 <script>
 // ============================================
-// CSRF TOKEN (global)
+// CSRF TOKEN
 // ============================================
 const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto‑submit filters on change
     const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
     const statusFilter = document.getElementById('statusFilter');
     const subjectFilter = document.getElementById('subjectFilter');
+    const clearBtn = document.getElementById('clearBtn');
 
-    let debounceTimer;
+    let autoRefreshInterval = null;
 
+    // ============================================
+    // CHECK IF ANY FILTER IS ACTIVE
+    // ============================================
+    function hasActiveFilters() {
+        return searchInput.value.trim() !== '' ||
+               statusFilter.value !== '' ||
+               subjectFilter.value !== '';
+    }
+
+    function updateClearButton() {
+        if (hasActiveFilters()) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
+    }
+
+    // Initial state
+    updateClearButton();
+
+    // ============================================
+    // APPLY FILTERS (on Enter or click search)
+    // ============================================
     function applyFilters() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(function() {
-            const params = new URLSearchParams();
+        const params = new URLSearchParams();
+        const search = searchInput.value.trim();
+        const status = statusFilter.value;
+        const subject = subjectFilter.value;
+
+        if (search) params.set('search', search);
+        if (status) params.set('status', status);
+        if (subject) params.set('subject', subject);
+        params.set('page', '1');
+
+        refreshLobby(params);
+        updateClearButton();
+    }
+
+    // ============================================
+    // REFRESH LOBBY (AJAX)
+    // ============================================
+    function refreshLobby(params) {
+        if (!params) {
+            params = new URLSearchParams();
             const search = searchInput.value.trim();
             const status = statusFilter.value;
             const subject = subjectFilter.value;
-
             if (search) params.set('search', search);
             if (status) params.set('status', status);
             if (subject) params.set('subject', subject);
             params.set('page', '1');
+        }
 
-            window.location.href = window.location.pathname + '?' + params.toString();
-        }, 500);
+        fetch(window.location.pathname + '?' + params.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.text())
+        .then(html => {
+            const container = document.getElementById('quizListContainer');
+            if (container) {
+                container.innerHTML = html;
+            }
+            // Also update stats
+            fetch(window.location.pathname + '/stats?t=' + Date.now())
+                .then(r => r.json())
+                .then(stats => {
+                    updateStats(stats);
+                })
+                .catch(() => {});
+        })
+        .catch(err => console.warn('Lobby refresh error:', err));
     }
 
-    searchInput.addEventListener('input', applyFilters);
+    function updateStats(stats) {
+        const statElements = document.querySelectorAll('.lobby-stat .number');
+        if (statElements.length >= 6) {
+            statElements[0].textContent = stats.scheduled_count || 0;
+            statElements[1].textContent = stats.waiting_count || 0;
+            statElements[2].textContent = stats.active_count || 0;
+            statElements[3].textContent = stats.finished_count || 0;
+            statElements[4].textContent = stats.total_public || 0;
+            statElements[5].textContent = stats.total_participants || 0;
+        }
+    }
+
+    // ============================================
+    // EVENT LISTENERS
+    // ============================================
+    // Search on Enter key
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            applyFilters();
+        }
+    });
+
+    // Search button click
+    searchBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        applyFilters();
+    });
+
+    // Status and subject changes – apply immediately
     statusFilter.addEventListener('change', applyFilters);
     subjectFilter.addEventListener('change', applyFilters);
 
-    // Join Quiz Function
+    // Clear button – resets all filters and refreshes
+    clearBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        statusFilter.value = '';
+        subjectFilter.value = '';
+        applyFilters();
+        updateClearButton();
+    });
+
+    // Update clear button visibility on any change (but not trigger search)
+    searchInput.addEventListener('input', updateClearButton);
+    statusFilter.addEventListener('change', updateClearButton);
+    subjectFilter.addEventListener('change', updateClearButton);
+
+    // ============================================
+    // AUTO-SYNC (every 30 seconds)
+    // ============================================
+    function startAutoSync() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(function() {
+            refreshLobby();
+        }, 30000);
+    }
+    startAutoSync();
+
+    // ============================================
+    // JOIN / DELETE FUNCTIONS
+    // ============================================
     window.joinQuiz = function(quizId) {
         const btn = event.target.closest('.btn-sm');
         if (!btn) return;
-
         const originalText = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Joining…';
@@ -519,14 +619,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 btn.innerHTML = originalText;
                 return;
             }
-
-            if (data.already_joined) {
-                showToast('You are already in this quiz!', 'info');
-                btn.innerHTML = '<i class="fas fa-door-open"></i> Waiting Room';
-                btn.onclick = function() { window.location.href = data.redirect; };
-                return;
-            }
-
             if (data.success && data.redirect) {
                 showToast('✅ Joined successfully! Redirecting…', 'success');
                 setTimeout(function() { window.location.href = data.redirect; }, 800);
@@ -540,13 +632,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
-    // Delete Quiz
     let deleteQuizId = null;
-    let deleteQuizTitle = '';
-
     window.deleteQuiz = function(quizId, title) {
         deleteQuizId = quizId;
-        deleteQuizTitle = title;
         document.getElementById('deleteQuizTitle').textContent = title || 'this quiz';
         document.getElementById('deleteModal').classList.add('active');
     };
@@ -559,7 +647,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
         if (!deleteQuizId) return;
-
         const btn = this;
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting…';
@@ -578,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 showToast('✅ Quiz deleted successfully', 'success');
                 closeDeleteModal();
-                setTimeout(function() { location.reload(); }, 500);
+                refreshLobby();
             } else {
                 showToast(data.error || 'Failed to delete quiz', 'error');
                 btn.disabled = false;
@@ -593,19 +680,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Close modal on outside click
     document.getElementById('deleteModal').addEventListener('click', function(e) {
         if (e.target === this) closeDeleteModal();
     });
 
-    // Close modal on Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && document.getElementById('deleteModal').classList.contains('active')) {
             closeDeleteModal();
         }
     });
 
-    // Toast helper
     function showToast(message, type) {
         if (typeof window.showToast === 'function') {
             window.showToast(message, type || 'info');

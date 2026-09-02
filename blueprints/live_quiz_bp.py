@@ -748,7 +748,6 @@ def quiz_state(quiz_id):
             remaining = max(0, total_duration - elapsed)
             remaining_time = int(remaining)
             if remaining_time == 0:
-                # Auto‑finalize if timer expired
                 finalize_live_quiz(quiz_id)
                 return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
         except Exception as e:
@@ -776,9 +775,7 @@ def quiz_state(quiz_id):
             response['current_question_answer'] = answers[str(qid)].get('answer')
             response['current_question_correct'] = answers[str(qid)].get('correct', False)
 
-    # ============================================================
-    # FIX: Always include participant progress for all participants
-    # ============================================================
+    # Always include participant progress (for all participants)
     progress = []
     with quiz_state.lock:
         for uid, pp in quiz_state.participants.items():

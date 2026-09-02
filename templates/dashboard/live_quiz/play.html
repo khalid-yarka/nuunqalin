@@ -8,7 +8,7 @@
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    /* ===== Completed State – New Design ===== */
+    /* ===== Completed State – Enhanced ===== */
     .completed-state {
         text-align: center;
         padding: 20px 16px;
@@ -41,6 +41,7 @@
         font-weight: 600;
     }
 
+    /* Overall stats row */
     .waiting-dashboard {
         display: flex;
         flex-direction: column;
@@ -124,6 +125,7 @@
         animation: pulse 0.5s ease-in-out infinite;
     }
 
+    /* Participant progress list (same for all) */
     .participant-progress-list {
         background: var(--surface);
         border-radius: var(--radius-sm);
@@ -191,9 +193,7 @@
         font-style: italic;
         padding: 8px 0;
     }
-    .motivation .emoji {
-        font-style: normal;
-    }
+    .motivation .emoji { font-style: normal; }
 
     /* Confetti */
     .confetti-container {
@@ -219,6 +219,7 @@
         100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
     }
 
+    /* Reconnection notice */
     .reconnection-notice {
         display: none;
         background: #10B981;
@@ -242,6 +243,7 @@
         font-size: 13px;
     }
 
+    /* Leave button */
     .btn-leave {
         display: inline-flex;
         align-items: center;
@@ -270,7 +272,7 @@
         transform: none !important;
     }
 
-    /* Creator progress (for creator only) */
+    /* Creator progress - kept only for creator (now we have a separate list for everyone) */
     .creator-progress {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -330,7 +332,6 @@
     .progress-item .status.done { background: #ECFDF5; color: #10B981; }
     .progress-item .status.left { background: #FEF2F2; color: #EF4444; }
 
-    /* Responsive */
     @media (max-width: 480px) {
         .completed-state .icon { font-size: 54px; }
         .completed-state h3 { font-size: 20px; }
@@ -381,14 +382,13 @@
         <div id="progressBar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.5s ease; border-radius: 4px;"></div>
     </div>
 
-    {% if quiz.creator_id == session.user_id %}
-    <div class="creator-progress" id="creatorProgress">
+    <!-- Participant progress – shown to ALL participants (not just creator) -->
+    <div class="creator-progress" id="participantProgressContainer">
         <div class="cp-title">👥 Participant Progress</div>
-        <div id="creatorProgressList">
+        <div id="participantProgressList">
             <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 4px 0;">Waiting for data...</div>
         </div>
     </div>
-    {% endif %}
 
     <div class="leaderboard-mini" id="leaderboardContainer">
         <div class="header">
@@ -423,6 +423,7 @@
 
 </div>
 
+<!-- All the JavaScript remains the same as the previous version – it already handles participant progress for everyone -->
 <script>
 // ============================================
 // CSRF TOKEN
@@ -586,11 +587,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatTime(seconds) { const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60); return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'); }
     
     // ============================================
-    // CREATOR PROGRESS (for creator only)
+    // PARTICIPANT PROGRESS (shown to all)
     // ============================================
-    function updateCreatorProgress(progressData) {
-        if (!isCreator) return;
-        const container = document.getElementById('creatorProgressList');
+    function updateParticipantProgress(progressData) {
+        const container = document.getElementById('participantProgressList');
         if (!container) return;
         if (!progressData || progressData.length === 0) {
             container.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 4px 0;">No participants yet</div>';
@@ -602,8 +602,9 @@ document.addEventListener('DOMContentLoaded', function() {
             let statusClass = 'waiting', statusText = '⏳ Playing';
             if (p.status === 'left') { statusClass = 'left'; statusText = '🔴 Left'; }
             else if (p.current_question_index >= totalQuestions) { statusClass = 'done'; statusText = '✅ Done'; }
+            const isYou = p.user_id == '{{ session.user_id }}';
             html += `<div class="progress-item">
-                        <span class="name">${p.name}</span>
+                        <span class="name">${p.name}${isYou ? ' (You)' : ''}</span>
                         <div class="bar-wrap">
                             <div class="fill" style="width: ${pct}%;"></div>
                         </div>
@@ -670,13 +671,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 
-                // Update creator progress (if creator)
+                // Update participant progress (for all)
                 if (data.participant_progress) {
-                    updateCreatorProgress(data.participant_progress);
-                    // If user is completed, also update the completed-state participant list
-                    if (isCompleted) {
-                        updateCompletedProgress(data.participant_progress, data.completed_count, data.total_participants, data.remaining_time);
-                    }
+                    updateParticipantProgress(data.participant_progress);
                 }
                 
                 // Handle finished
@@ -705,7 +702,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     
-                    // If we have question data and current index changed, reload
                     if (questionData) {
                         if (data.current_question_index !== undefined && data.current_question_index !== currentQuestionIndex) {
                             if (!isAnswered) loadQuestion();
@@ -714,14 +710,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     
-                    // If no question data yet, try loading
                     if (!questionData && !isCompleted) {
                         loadQuestion();
                         resetPollTimer();
                         return;
                     }
                     
-                    // Check completion for all participants
                     if (data.all_completed && data.status === 'active') {
                         if (data.is_completed) {
                             sendBrowserNotification('🏆 All Finished!', 'All participants have completed!', '/live-quiz/results/' + quizId);
@@ -731,7 +725,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     if (data.is_completed && !isCompleted) { 
-                        // User completed
                         isCompleted = true;
                         showCompletedState(data);
                         saveStateToStorage();
@@ -755,7 +748,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.abort) { showErrorState(data.message || 'Quiz is no longer available', data.redirect || '/live-quiz/lobby'); return; }
                 if (data.error) { 
                     if (data.completed) { 
-                        // User already completed, fetch full state
                         isCompleted = true;
                         fetchAndShowCompletedState();
                     } 
@@ -910,7 +902,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     
-    // FIXED: skipQuestion marks completion if last question
     window.skipQuestion = function() {
         if (isAnswered && !hasAnsweredCurrent) {
             const container = document.getElementById('feedbackContainer');
@@ -936,10 +927,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const container = document.getElementById('feedbackContainer');
             if (container) container.innerHTML = `<div class="feedback-area skipped"><div class="feedback-title">⏭️ Skipped! 0 points</div><div style="margin-top: 6px; font-size: 13px; color: var(--text-secondary);">Moving to next question...</div></div>`;
             clearInterval(timerInterval);
-            // Increment index (already done in backend, but we also do it locally for consistency)
             currentQuestionIndex += 1;
             if (currentQuestionIndex >= totalQuestions) {
-                // User completed via skip
                 isCompleted = true;
                 saveStateToStorage();
                 fetchAndShowCompletedState();
@@ -956,9 +945,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     
-    // ============================================
-    // SUBMIT RATING
-    // ============================================
     window.submitRating = function(rating) {
         if (isRated) return;
         isRated = true;
@@ -1012,7 +998,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.is_completed) {
                     showCompletedState(data);
                 } else {
-                    // Fallback: show a basic completed state and retry
                     showBasicCompletedState();
                     setTimeout(fetchAndShowCompletedState, 1000);
                 }
@@ -1088,7 +1073,6 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         container.innerHTML = html;
 
-        // Countdown timer
         if (remaining > 0) {
             let remain = remaining;
             const timerDisplay = document.getElementById('waitingTimerLarge');
@@ -1246,12 +1230,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     restoreStateFromStorage();
 
-    // If user already completed, immediately fetch and show completed state
     if (isCompleted) {
         fetchAndShowCompletedState();
     }
 
-    // Start normal polling
     resetPollTimer();
     setTimeout(pollQuizState, 100);
     leaderboardTimer = setTimeout(updateLeaderboard, 3000);
@@ -1263,7 +1245,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window._completedTimerInterval) clearInterval(window._completedTimerInterval);
     });
     
-    // Expose functions to global scope for inline onclick handlers
     window.selectOption = selectOption;
     window.skipQuestion = skipQuestion;
     window.submitRating = submitRating;
