@@ -31,7 +31,6 @@ REQUIRED_TABLES = [
     'quiz_ratings',
     'notifications',
     'notification_preferences'
-    # 'subjects' removed – we use static config
 ]
 
 REQUIRED_COLUMNS = {
@@ -484,3 +483,51 @@ def get_database_health() -> Dict[str, Any]:
         health['errors'].append(f"WAL not enabled: {error}")
     
     return health
+
+
+# ============================================
+# LIVE QUIZ TABLES (Events & Checkpoints)
+# ============================================
+
+def ensure_live_quiz_tables():
+    """
+    Create tables for live quiz events and checkpoints if they don't exist.
+    Called during application startup.
+    """
+    try:
+        conn = _get_connection()
+        cursor = conn.cursor()
+
+        # Events table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS live_quiz_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                quiz_id INTEGER NOT NULL,
+                user_id INTEGER,
+                event_type TEXT NOT NULL,
+                question_id INTEGER,
+                payload TEXT,
+                sequence INTEGER NOT NULL,
+                created_at TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_live_quiz_events_quiz_sequence ON live_quiz_events(quiz_id, sequence)")
+
+        # Checkpoints table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS live_quiz_checkpoints (
+                quiz_id INTEGER PRIMARY KEY,
+                checkpoint_data TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                created_at TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+        """)
+
+        # Ensure live_quizzes has a status index
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_live_quizzes_status ON live_quizzes(status)")
+
+        conn.commit()
+        logger.info("Live quiz event and checkpoint tables verified/created.")
+    except Exception as e:
+        logger.error(f"Failed to create live quiz tables: {e}", exc_info=True)
+        # Don't raise; let the application start but live quiz may fail.

@@ -46,7 +46,7 @@ from blueprints.admin_backup_bp import admin_backup_bp
 # NEW: Activity logger
 from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event, init_activity_logger
 
-# ============================================ii
+# ============================================
 # BASE DIRECTORY & LOGGING
 # ============================================
 
@@ -621,6 +621,20 @@ def utility_processor():
 # ============================================
 
 init_activity_logger(app)
+
+# ============================================
+# INITIALIZE LIVE QUIZ STATE MANAGER (Redis‑free)
+# ============================================
+
+try:
+    from live_quiz_state import initialize_state_manager, recover_active_quizzes
+    initialize_state_manager()
+    recover_active_quizzes()
+    logger.info("Live Quiz State Manager initialized and recovered active quizzes.")
+except Exception as e:
+    logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
+    # Application can still start, but live quizzes may not work correctly.
+    # We log the error but don't exit, because the app may be used for other features.
 
 # ============================================
 # RUN APP
