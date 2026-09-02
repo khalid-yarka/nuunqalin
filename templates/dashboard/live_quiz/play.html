@@ -8,7 +8,184 @@
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/live_quiz.css') }}" />
 <style>
-    /* Additional styles for play page */
+    /* ===== Completed State – Enhanced ===== */
+    .completed-state {
+        text-align: center;
+        padding: 20px 16px;
+        animation: fadeInUp 0.6s ease;
+    }
+    .completed-state .icon {
+        font-size: 72px;
+        margin-bottom: 4px;
+        display: block;
+        animation: bounceIn 0.8s ease;
+    }
+    @keyframes bounceIn {
+        0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+        60% { transform: scale(1.2) rotate(2deg); }
+        100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+    .completed-state h3 {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0 0 2px 0;
+    }
+    .completed-state .sub {
+        font-size: 16px;
+        color: var(--text-secondary);
+        margin-bottom: 16px;
+    }
+    .completed-state .sub .highlight {
+        color: var(--primary);
+        font-weight: 600;
+    }
+
+    /* Progress summary */
+    .completed-state .progress-summary {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        background: var(--surface-alt);
+        border-radius: var(--radius-sm);
+        padding: 12px 16px;
+        border: 1px solid var(--border);
+    }
+    .completed-state .progress-summary .stat {
+        text-align: center;
+        flex: 1;
+        min-width: 60px;
+    }
+    .completed-state .progress-summary .stat .number {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--primary);
+        line-height: 1.2;
+    }
+    .completed-state .progress-summary .stat .label {
+        font-size: 11px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    .completed-state .progress-bar-wrap {
+        width: 100%;
+        height: 8px;
+        background: var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 6px 0 12px 0;
+    }
+    .completed-state .progress-bar-wrap .fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--primary), #FCD34D);
+        border-radius: 10px;
+        transition: width 0.8s ease;
+        width: 0%;
+    }
+
+    /* Participant list */
+    .completed-state .participant-progress-list {
+        max-height: 220px;
+        overflow-y: auto;
+        background: var(--surface);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        padding: 6px 12px;
+        margin: 12px 0;
+        text-align: left;
+    }
+    .completed-state .participant-progress-list .pp-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 4px;
+        border-bottom: 1px solid var(--border-light);
+        font-size: 14px;
+    }
+    .completed-state .participant-progress-list .pp-item:last-child {
+        border-bottom: none;
+    }
+    .completed-state .participant-progress-list .pp-item .name {
+        font-weight: 500;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .completed-state .participant-progress-list .pp-item .name .you-badge {
+        font-size: 10px;
+        background: var(--primary);
+        color: white;
+        padding: 1px 8px;
+        border-radius: 8px;
+    }
+    .completed-state .participant-progress-list .pp-item .status {
+        font-weight: 600;
+        font-size: 12px;
+        padding: 2px 10px;
+        border-radius: 10px;
+        white-space: nowrap;
+    }
+    .status-done { background: #ECFDF5; color: #10B981; }
+    .status-playing { background: #EFF6FF; color: #3B82F6; }
+    .status-left { background: #FEF2F2; color: #EF4444; }
+
+    /* Timer */
+    .completed-state .timer-remaining {
+        margin-top: 8px;
+        font-size: 15px;
+        color: var(--text-secondary);
+    }
+    .completed-state .timer-remaining strong {
+        color: var(--text);
+        font-size: 20px;
+        font-family: monospace;
+        background: var(--surface-alt);
+        padding: 2px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+    }
+
+    /* Motivational message */
+    .completed-state .motivation {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin: 8px 0 0 0;
+        font-style: italic;
+    }
+    .completed-state .motivation .emoji {
+        font-style: normal;
+    }
+
+    /* Confetti (simple CSS) */
+    .confetti-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 999;
+        overflow: hidden;
+    }
+    .confetti {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: var(--primary);
+        opacity: 0.8;
+        animation: confettiFall linear forwards;
+    }
+    @keyframes confettiFall {
+        0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+
+    /* Reconnection notice */
     .reconnection-notice {
         display: none;
         background: #10B981;
@@ -20,9 +197,7 @@
         font-weight: 500;
         animation: fadeSlide 0.5s ease;
     }
-    .reconnection-notice.show {
-        display: block;
-    }
+    .reconnection-notice.show { display: block; }
     .reconnection-notice .dismiss {
         margin-left: 12px;
         background: rgba(255,255,255,0.2);
@@ -34,6 +209,7 @@
         font-size: 13px;
     }
 
+    /* Leave button */
     .btn-leave {
         display: inline-flex;
         align-items: center;
@@ -62,6 +238,7 @@
         transform: none !important;
     }
 
+    /* Creator progress (unchanged) */
     .creator-progress {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -121,25 +298,13 @@
     .progress-item .status.done { background: #ECFDF5; color: #10B981; }
     .progress-item .status.left { background: #FEF2F2; color: #EF4444; }
 
-    /* Waiting for others state */
-    .completed-state .waiting-info {
-        display: flex;
-        justify-content: center;
-        gap: 32px;
-        margin-top: 16px;
-        flex-wrap: wrap;
-    }
-    .completed-state .waiting-info .stat {
-        text-align: center;
-    }
-    .completed-state .waiting-info .stat .number {
-        font-size: 24px;
-        font-weight: 700;
-        color: var(--primary);
-    }
-    .completed-state .waiting-info .stat .label {
-        font-size: 12px;
-        color: var(--text-secondary);
+    /* Responsive */
+    @media (max-width: 480px) {
+        .completed-state .icon { font-size: 54px; }
+        .completed-state h3 { font-size: 20px; }
+        .completed-state .progress-summary .stat .number { font-size: 22px; }
+        .completed-state .participant-progress-list .pp-item { font-size: 13px; }
+        .completed-state .timer-remaining strong { font-size: 17px; }
     }
 </style>
 {% endblock %}
@@ -261,6 +426,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let activeAttempts = 0;
     const MAX_ACTIVE_ATTEMPTS = 25;
     let isRedirecting = false;
+    let completedParticipantsCount = 0;
+    let totalParticipantsCount = 0;
     
     // ============================================
     // RESTORE STATE FROM sessionStorage
@@ -278,7 +445,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     isCompleted = state.isCompleted || false;
                     quizStarted = state.quizStarted || false;
                     hasAnsweredCurrent = state.hasAnsweredCurrent || false;
-                    // If there is a question data, we could restore it, but we'll refetch.
                 }
             }
         } catch (e) { console.warn('Failed to restore state:', e); }
@@ -386,7 +552,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatTime(seconds) { const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60); return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'); }
     
     // ============================================
-    // CREATOR PROGRESS
+    // CREATOR PROGRESS (for creator only)
     // ============================================
     function updateCreatorProgress(progressData) {
         if (!isCreator) return;
@@ -470,9 +636,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 
-                // Update creator progress
+                // Update creator progress (if creator)
                 if (data.participant_progress) {
                     updateCreatorProgress(data.participant_progress);
+                    // If user is completed, also update the completed-state participant list
+                    if (isCompleted) {
+                        updateCompletedProgress(data.participant_progress, data.completed_count, data.total_participants, data.remaining_time);
+                    }
                 }
                 
                 // Handle finished
@@ -523,32 +693,24 @@ document.addEventListener('DOMContentLoaded', function() {
                             sendBrowserNotification('🏆 All Finished!', 'All participants have completed!', '/live-quiz/results/' + quizId);
                             window.location.href = '/live-quiz/results/' + quizId;
                             return;
-                        } else {
-                            showWaitingForOthers(data);
                         }
-                        return;
                     }
                     
-                    if (data.is_completed && !isCompleted) { showCompletedState(data); return; }
+                    if (data.is_completed && !isCompleted) { 
+                        // User completed
+                        isCompleted = true;
+                        showCompletedState(data);
+                        saveStateToStorage();
+                        pollInterval = 1000;
+                        resetPollTimer();
+                        return;
+                    }
                 }
                 
                 previousStatus = data.status;
                 resetPollTimer();
             })
             .catch(function(err) { console.warn('Polling fetch error:', err); pollInterval = Math.min(pollInterval + 500, 5000); resetPollTimer(); });
-    }
-    
-    function showWaitingForOthers(data) {
-        const container = document.getElementById('questionContainer');
-        if (!container) return;
-        const existing = container.querySelector('.waiting-for-others');
-        if (!existing) {
-            const div = document.createElement('div');
-            div.className = 'waiting-for-others';
-            div.style.cssText = 'margin-top: 12px; padding: 10px; background: #FEF3C7; border-radius: var(--radius-sm); text-align: center; font-size: 13px; color: #92400E; border: 1px solid #FDE68A;';
-            div.innerHTML = '⏳ Other participants have finished. Complete your remaining questions to see results.';
-            container.appendChild(div);
-        }
     }
     
     function loadQuestion() {
@@ -564,7 +726,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 if (data.question) {
                     if (data.already_answered) {
-                        // Only show reconnection notice if we had a previous state and this is not the first load
                         if (isReconnecting) {
                             showReconnectionNotice();
                         }
@@ -773,8 +934,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             clearInterval(timerInterval);
             if (data.completed) {
-                isCompleted = true; saveStateToStorage();
-                // The quiz-state poll will handle the completion state
+                isCompleted = true;
+                saveStateToStorage();
                 pollQuizState();
             } else {
                 questionData = null; hasAnsweredCurrent = false; saveStateToStorage();
@@ -789,31 +950,161 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     
+    // ============================================
+    // ENHANCED COMPLETED STATE
+    // ============================================
     function showCompletedState(data) {
-        if (isCompleted) return;
-        isCompleted = true;
+        if (!data) return;
         const container = document.getElementById('questionContainer');
         if (!container) return;
-        container.innerHTML = `
+        completedParticipantsCount = data.completed_count || 0;
+        totalParticipantsCount = data.total_participants || 0;
+        const remaining = data.remaining_time || 0;
+
+        let html = `
             <div class="completed-state">
-                <div class="icon">🎉</div>
-                <h3>You've completed all questions!</h3>
-                <p>Waiting for other participants to finish...</p>
-                <div class="waiting-info">
-                    <div class="stat"><div class="number" id="completedCount">${data.completed_count || 0}/${data.total_participants || 0}</div><div class="label">Participants completed</div></div>
-                    <div class="stat"><div class="number" id="waitingTimer">${formatTime(data.remaining_time || 0)}</div><div class="label">Time remaining</div></div>
+                <span class="icon">🎉</span>
+                <h3>You finished all questions!</h3>
+                <p class="sub">Waiting for <span class="highlight" id="waitingCount">${totalParticipantsCount - completedParticipantsCount}</span> more participant${totalParticipantsCount - completedParticipantsCount !== 1 ? 's' : ''} to finish...</p>
+
+                <div class="progress-summary">
+                    <div class="stat">
+                        <div class="number" id="completedCount">${completedParticipantsCount}</div>
+                        <div class="label">Completed</div>
+                    </div>
+                    <div class="stat">
+                        <div class="number">${totalParticipantsCount}</div>
+                        <div class="label">Total</div>
+                    </div>
+                    <div class="stat">
+                        <div class="number" id="waitingTimer">${formatTime(remaining)}</div>
+                        <div class="label">Time Left</div>
+                    </div>
                 </div>
-            </div>`;
-        if (data.remaining_time) {
-            let remaining = data.remaining_time;
+
+                <div class="progress-bar-wrap">
+                    <div class="fill" id="completionProgress" style="width: ${totalParticipantsCount > 0 ? (completedParticipantsCount / totalParticipantsCount * 100) : 0}%;"></div>
+                </div>
+
+                <div class="participant-progress-list" id="participantProgressList">
+                    <div style="text-align: center; color: var(--text-muted); padding: 8px 0;">Loading participant status...</div>
+                </div>
+
+                <div class="timer-remaining">
+                    ⏱️ Quiz ends in <strong id="waitingTimerLarge">${formatTime(remaining)}</strong>
+                </div>
+
+                <div class="motivation" id="motivationMessage">
+                    <span class="emoji">💪</span> You're ahead of the pack!
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+
+        // Start/update the countdown timer
+        if (remaining > 0) {
+            let remain = remaining;
             const timerDisplay = document.getElementById('waitingTimer');
+            const timerLarge = document.getElementById('waitingTimerLarge');
             if (timerDisplay) {
-                const interval = setInterval(() => { remaining--; if (remaining <= 0) { timerDisplay.textContent = '00:00'; clearInterval(interval); } else { timerDisplay.textContent = formatTime(remaining); } }, 1000);
+                const interval = setInterval(() => {
+                    remain--;
+                    const formatted = formatTime(Math.max(0, remain));
+                    if (timerDisplay) timerDisplay.textContent = formatted;
+                    if (timerLarge) timerLarge.textContent = formatted;
+                    if (remain <= 0) {
+                        clearInterval(interval);
+                        if (timerDisplay) timerDisplay.textContent = '00:00';
+                        if (timerLarge) timerLarge.textContent = '00:00';
+                    }
+                }, 1000);
+                if (window._completedTimerInterval) clearInterval(window._completedTimerInterval);
+                window._completedTimerInterval = interval;
             }
         }
-        pollInterval = 1000;
-        resetPollTimer();
-        saveStateToStorage();
+
+        // Update participant list if we have progress data
+        if (data.participant_progress) {
+            updateCompletedProgress(data.participant_progress, data.completed_count, data.total_participants, data.remaining_time);
+        }
+
+        // Launch simple confetti
+        launchConfetti();
+    }
+
+    function updateCompletedProgress(progressData, completedCount, totalCount, remaining) {
+        const list = document.getElementById('participantProgressList');
+        const progressFill = document.getElementById('completionProgress');
+        const waitingCount = document.getElementById('waitingCount');
+        const countEl = document.getElementById('completedCount');
+
+        if (!list || !progressData) return;
+        completedParticipantsCount = completedCount || 0;
+        totalParticipantsCount = totalCount || 0;
+
+        if (countEl) countEl.textContent = completedParticipantsCount;
+        if (waitingCount) waitingCount.textContent = totalParticipantsCount - completedParticipantsCount;
+        if (progressFill) {
+            const pct = totalParticipantsCount > 0 ? (completedParticipantsCount / totalParticipantsCount * 100) : 0;
+            progressFill.style.width = Math.min(pct, 100) + '%';
+        }
+
+        // Update motivation message
+        const mot = document.getElementById('motivationMessage');
+        if (mot) {
+            const left = totalParticipantsCount - completedParticipantsCount;
+            if (left === 0) {
+                mot.innerHTML = '<span class="emoji">🏆</span> Everyone finished! Heading to results...';
+            } else if (left <= 2) {
+                mot.innerHTML = `<span class="emoji">🔥</span> Only ${left} participant${left > 1 ? 's' : ''} left! So close!`;
+            } else if (left <= 5) {
+                mot.innerHTML = `<span class="emoji">⏳</span> ${left} more to go – you're doing great!`;
+            } else {
+                mot.innerHTML = `<span class="emoji">💪</span> You're leading the pack! Keep cheering for others.`;
+            }
+        }
+
+        let html = '';
+        progressData.forEach(p => {
+            const isDone = p.current_question_index >= totalQuestions;
+            let statusClass = 'status-playing', statusText = '⏳ Playing';
+            if (p.status === 'left') { statusClass = 'status-left'; statusText = '🔴 Left'; }
+            else if (isDone) { statusClass = 'status-done'; statusText = '✅ Done'; }
+            const isYou = p.user_id == '{{ session.user_id }}';
+            html += `
+                <div class="pp-item">
+                    <span class="name">
+                        ${p.name}
+                        ${isYou ? '<span class="you-badge">You</span>' : ''}
+                    </span>
+                    <span class="status ${statusClass}">${statusText}</span>
+                </div>
+            `;
+        });
+        list.innerHTML = html;
+    }
+
+    // ============================================
+    // CONFETTI
+    // ============================================
+    function launchConfetti() {
+        const container = document.createElement('div');
+        container.className = 'confetti-container';
+        document.body.appendChild(container);
+        const colors = ['#FF3138', '#FCD34D', '#10B981', '#3B82F6', '#8B5CF6', '#FF6B6B'];
+        for (let i = 0; i < 60; i++) {
+            const el = document.createElement('div');
+            el.className = 'confetti';
+            el.style.left = Math.random() * 100 + '%';
+            el.style.background = colors[Math.floor(Math.random() * colors.length)];
+            el.style.width = (5 + Math.random() * 8) + 'px';
+            el.style.height = (5 + Math.random() * 8) + 'px';
+            el.style.animationDuration = (2 + Math.random() * 3) + 's';
+            el.style.animationDelay = (Math.random() * 2) + 's';
+            el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+            container.appendChild(el);
+        }
+        setTimeout(() => container.remove(), 5000);
     }
     
     // ============================================
@@ -860,6 +1151,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (pollTimer) clearTimeout(pollTimer);
         if (leaderboardTimer) clearTimeout(leaderboardTimer);
         if (timerInterval) clearInterval(timerInterval);
+        if (window._completedTimerInterval) clearInterval(window._completedTimerInterval);
     });
     
     // Expose functions to global scope for inline onclick handlers
