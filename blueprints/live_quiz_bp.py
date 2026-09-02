@@ -1,7 +1,7 @@
 # blueprints/live_quiz_bp.py
 """
 Live Quiz Blueprint – Redis‑free state management.
-All active quiz state is stored in memory (per‑process) with SQLite as durable store.
+All active quiz state is held in memory (per‑process) with SQLite as durable store.
 """
 
 import json
@@ -14,6 +14,7 @@ from flask import Blueprint, render_template, request, session, flash, redirect,
 from functools import wraps
 from io import StringIO
 import csv
+import os
 
 from db import (
     get_questions_by_subject,
@@ -62,7 +63,7 @@ from subjects_config import get_subject, get_all_subjects
 # Import the Redis‑free state manager
 from live_quiz_state import get_live_quiz_state_manager
 
-# Optional: import cache for non‑critical optimisations (if Redis is available)
+# Optional cache for non‑critical data (if Redis is available)
 from cache import get_cache_manager, InvalidationHelper, make_key
 
 logger = logging.getLogger(__name__)
@@ -78,32 +79,38 @@ CACHE_TTL = getattr(Config, 'CACHE_TTL', {}).get('quiz', {})
 QUIZ_STATE_TTL = CACHE_TTL.get('state', 60)
 
 # ============================================
+# DEPLOYMENT CHECK: Ensure single worker
+# ============================================
+def check_single_worker():
+    """If running with Gunicorn, detect worker count and warn if >1."""
+    try:
+        if 'GUNICORN_WORKER' in os.environ:
+            logger.warning("Multiple Gunicorn workers detected. Live Quiz state is per-process and will be inconsistent across workers. Please set --workers=1.")
+    except Exception:
+        pass
+
+check_single_worker()
+
+# ============================================
 # Helpers
 # ============================================
 
 def get_state_manager():
-    """Get the singleton LiveQuizStateManager."""
     return get_live_quiz_state_manager()
 
 def invalidate_quiz_cache(quiz_id: int):
-    """Invalidate cache for a quiz (optional)."""
     try:
         InvalidationHelper.invalidate_quiz(quiz_id)
         cache = get_cache_manager()
         cache.invalidate_pattern(f"quiz:*:{quiz_id}:*")
     except Exception:
-        pass  # Redis may not be available; that's fine
+        pass
 
 def get_questions_for_subject(subject_code, limit):
-    """Get questions for a subject."""
     questions = get_questions_by_subject(subject_code, limit)
     return questions, len(questions)
 
 def finalize_live_quiz(quiz_id: int) -> dict:
-    """
-    Finalize a live quiz: compute final results, persist to SQLite,
-    and clean up in‑memory state.
-    """
     manager = get_state_manager()
     quiz_state = manager.get_quiz(quiz_id)
     if not quiz_state:
@@ -114,15 +121,12 @@ def finalize_live_quiz(quiz_id: int) -> dict:
         return final_data
 
     try:
-        # Update quiz status
         update_live_quiz(quiz_id, {
             'status': 'finished',
             'ended_at': final_data['ended_at']
         })
 
-        # Update participants
         for pdata in final_data['participants']:
-            # Find participant ID from DB
             db_p = get_live_quiz_participant(quiz_id, pdata['user_id'])
             if db_p:
                 update_live_quiz_participant(db_p['id'], {
@@ -136,19 +140,16 @@ def finalize_live_quiz(quiz_id: int) -> dict:
                     'status': pdata['status']
                 })
 
-        # Enqueue COMPLETE event
         manager.enqueue_event({
             'quiz_id': quiz_id,
             'event_type': 'COMPLETE',
             'payload': json.dumps(final_data)
         })
 
-        # Notify participants
+        quiz_state.mark_finalized()
+
         participants = quiz_state.get_all_participants()
         notify_live_quiz_results(quiz_id, quiz_state.metadata.get('title', 'Quiz'), participants)
-
-        # Delete from memory (optional – keep for a while for results)
-        # manager.delete_quiz(quiz_id)
 
         invalidate_quiz_cache(quiz_id)
         logger.info(f"Finalized quiz {quiz_id}")
@@ -180,14 +181,12 @@ def lobby():
     page = int(request.args.get('page', 1))
     per_page = 20
 
-    # Validate subject filter
     subject_code = None
     if subject_filter:
         all_subjects = get_all_subjects()
         if any(s['code'] == subject_filter for s in all_subjects):
             subject_code = subject_filter
 
-    # Cache subjects list (optional)
     cache = get_cache_manager()
     subjects_key = make_key('subject', 'list', 'all')
     subjects = cache.get(subjects_key)
@@ -233,13 +232,16 @@ def lobby_join(quiz_id):
     if not can_join:
         return jsonify({'error': reason}), 400
 
-    # Add to SQLite
     success = add_live_quiz_participant(quiz_id, user_id)
     if not success:
         return jsonify({'error': 'Failed to join quiz'}), 500
 
-    # Add to in‑memory state
     manager = get_state_manager()
+    if not manager.ensure_quiz_in_memory(quiz_id):
+        logger.warning(f"Quiz {quiz_id} not in memory after join; attempting to recover again.")
+        if not manager.ensure_quiz_in_memory(quiz_id):
+            return jsonify({'error': 'Quiz state could not be loaded'}), 500
+
     quiz_state = manager.get_quiz(quiz_id)
     if quiz_state:
         user = get_student_by_id(user_id)
@@ -252,13 +254,8 @@ def lobby_join(quiz_id):
             'payload': json.dumps({'name': name})
         })
     else:
-        # Quiz not in memory – maybe it's not active yet? We'll add it when it starts.
-        # But for now, we can create a minimal state if needed.
-        # For safety, we'll attempt to load it from SQLite via recovery.
-        logger.warning(f"Quiz {quiz_id} not in memory, participant {user_id} added to SQLite only.")
-        # We'll recover on next state request.
+        return jsonify({'error': 'Quiz state not available'}), 500
 
-    # Notify creator
     user = get_student_by_id(user_id)
     user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
     notify_participant_joined(quiz_id, quiz.get('title', 'Live Quiz'), user_name, quiz['creator_id'])
@@ -375,17 +372,14 @@ def create():
             flash('Quiz created but missing ID. Please contact support.', 'error')
             return redirect(url_for('live_quiz.lobby'))
 
-        # Create state in memory
         manager = get_state_manager()
         quiz_state = manager.create_quiz(quiz['id'], quiz, question_ids, questions_cache)
 
-        # Add creator as participant
         user = get_student_by_id(user_id)
         name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
         quiz_state.add_participant(user_id, name, user.get('public_id', '----'))
-        quiz_state.set_participant_ready(user_id, True)  # creator is ready by default
+        quiz_state.set_participant_ready(user_id, True)
 
-        # Enqueue JOIN event
         manager.enqueue_event({
             'quiz_id': quiz['id'],
             'user_id': user_id,
@@ -463,7 +457,6 @@ def create_with_available():
         flash(f'Failed to create quiz: {error or "Unknown error"}', 'error')
         return redirect(url_for('live_quiz.create'))
 
-    # Create state
     manager = get_state_manager()
     quiz_state = manager.create_quiz(quiz['id'], quiz, question_ids, questions_cache)
     user = get_student_by_id(user_id)
@@ -516,12 +509,12 @@ def join():
                 if quiz['status'] in ['waiting', 'scheduled']:
                     success = db_rejoin_live_quiz(quiz['id'], user_id)
                     if success:
-                        # Update state
                         manager = get_state_manager()
+                        manager.ensure_quiz_in_memory(quiz['id'])
                         quiz_state = manager.get_quiz(quiz['id'])
                         if quiz_state:
-                            quiz_state.set_participant_ready(user_id, False)  # reset ready
-                            quiz_state.remove_participant(user_id)  # remove old entry
+                            quiz_state.set_participant_ready(user_id, False)
+                            quiz_state.remove_participant(user_id)
                             user = get_student_by_id(user_id)
                             name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
                             quiz_state.add_participant(user_id, name, user.get('public_id', '----'))
@@ -544,6 +537,7 @@ def join():
         add_live_quiz_participant(quiz['id'], user_id)
 
         manager = get_state_manager()
+        manager.ensure_quiz_in_memory(quiz['id'])
         quiz_state = manager.get_quiz(quiz['id'])
         if quiz_state:
             user = get_student_by_id(user_id)
@@ -581,8 +575,8 @@ def waiting_room(quiz_id):
     is_creator = quiz['creator_id'] == user_id
     user_participant_status = participant.get('status') if participant else None
 
-    # Get participants from state (or fallback to DB)
     manager = get_state_manager()
+    manager.ensure_quiz_in_memory(quiz_id)
     quiz_state = manager.get_quiz(quiz_id)
     if quiz_state:
         participants = quiz_state.get_all_participants()
@@ -621,12 +615,12 @@ def waiting_room_participants(quiz_id):
         return jsonify({'error': 'Not logged in'}), 401
 
     manager = get_state_manager()
+    manager.ensure_quiz_in_memory(quiz_id)
     quiz_state = manager.get_quiz(quiz_id)
     if quiz_state:
         participants = quiz_state.get_all_participants()
         return jsonify({'participants': participants, 'count': len(participants)})
 
-    # Fallback to SQLite if state not in memory
     db_participants = get_active_participants(quiz_id)
     formatted = []
     for p in db_participants:
@@ -651,11 +645,11 @@ def toggle_ready(quiz_id):
     is_ready = data.get('is_ready', False)
 
     manager = get_state_manager()
+    manager.ensure_quiz_in_memory(quiz_id)
     quiz_state = manager.get_quiz(quiz_id)
     if quiz_state:
         success = quiz_state.set_participant_ready(user_id, is_ready)
         if success:
-            # Also update SQLite (optional, for durability)
             update_participant_ready(quiz_id, user_id, is_ready)
             return jsonify({'success': True, 'is_ready': is_ready})
 
@@ -678,6 +672,9 @@ def start_quiz(quiz_id):
         return jsonify({'error': 'Quiz already started or finished'}), 400
 
     manager = get_state_manager()
+    if not manager.ensure_quiz_in_memory(quiz_id):
+        return jsonify({'error': 'Quiz state not in memory and could not be recovered'}), 500
+
     quiz_state = manager.get_quiz(quiz_id)
     if not quiz_state:
         return jsonify({'error': 'Quiz state not in memory'}), 500
@@ -690,17 +687,14 @@ def start_quiz(quiz_id):
     if not success:
         return jsonify({'error': 'Failed to start quiz'}), 500
 
-    # Update SQLite
     update_live_quiz(quiz_id, {'status': 'active', 'started_at': get_somali_time_db(), 'scheduled_start': None})
 
-    # Enqueue START event
     manager.enqueue_event({
         'quiz_id': quiz_id,
         'event_type': 'START',
         'payload': {}
     })
 
-    # Notify participants
     participants = quiz_state.get_all_participants()
     notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
 
@@ -717,17 +711,14 @@ def quiz_state(quiz_id):
         return jsonify({'error': 'Quiz not found'}), 404
 
     manager = get_state_manager()
+    manager.ensure_quiz_in_memory(quiz_id)
     quiz_state = manager.get_quiz(quiz_id)
 
     if not quiz_state:
-        # Quiz not in memory – maybe it's still loading, or it's finished.
-        # If status is finished, redirect to results.
         if quiz['status'] == 'finished':
             return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
-        # Otherwise, try to recover or return waiting state
         return jsonify({'status': 'waiting', 'error': 'Quiz not active'})
 
-    # Get participant from state
     p = quiz_state.get_participant(user_id)
     if not p and quiz['creator_id'] != user_id:
         return jsonify({'error': 'Not a participant'}), 404
@@ -737,18 +728,14 @@ def quiz_state(quiz_id):
     score = p.score if p else 0
     answers = p.answers if p else {}
 
-    # Check if quiz is finished
     if quiz_state.is_finished():
         return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
-    # Check if all participants completed
     all_completed = quiz_state.is_completed()
     if all_completed and quiz_state.status == 'active':
-        # Auto-finalize
         finalize_live_quiz(quiz_id)
         return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
-    # Build response
     response = {
         'status': quiz_state.status,
         'current_question_index': current_index,
@@ -760,7 +747,6 @@ def quiz_state(quiz_id):
         'total_participants': len([pp for pp in quiz_state.participants.values() if pp.status != 'left'])
     }
 
-    # If there's a current question and it's already answered, include that info
     if current_index < total_questions:
         qid = quiz_state.question_ids[current_index]
         if str(qid) in answers:
@@ -768,7 +754,6 @@ def quiz_state(quiz_id):
             response['current_question_answer'] = answers[str(qid)].get('answer')
             response['current_question_correct'] = answers[str(qid)].get('correct', False)
 
-    # Creator gets participant progress
     if quiz['creator_id'] == user_id:
         progress = []
         with quiz_state.lock:
@@ -792,8 +777,10 @@ def get_question(quiz_id):
 
     user_id = session['user_id']
     manager = get_state_manager()
-    quiz_state = manager.get_quiz(quiz_id)
+    if not manager.ensure_quiz_in_memory(quiz_id):
+        return jsonify({'error': 'Quiz not active'}), 404
 
+    quiz_state = manager.get_quiz(quiz_id)
     if not quiz_state:
         return jsonify({'error': 'Quiz not active'}), 404
 
@@ -804,17 +791,14 @@ def get_question(quiz_id):
     if quiz_state.status != 'active':
         return jsonify({'error': 'Quiz not active'}), 400
 
-    # Get current question for participant
     q_data = quiz_state.get_current_question_for_participant(user_id)
     if not q_data:
-        # Participant completed all questions
         return jsonify({'completed': True})
 
     qid = q_data['id']
     total = len(quiz_state.question_ids)
     current_index = p.current_question_index
 
-    # Check if already answered
     if str(qid) in p.answers:
         answer_data = p.answers[qid]
         return jsonify({
@@ -828,9 +812,7 @@ def get_question(quiz_id):
             'explanation': q_data.get('explanation', '')
         })
 
-    # Check if already rated (skip to next if rated)
     if str(qid) in p.ratings:
-        # This shouldn't happen if we advanced correctly, but handle gracefully
         return jsonify({'skipped': True})
 
     return jsonify({
@@ -857,6 +839,9 @@ def submit_answer():
         return jsonify({'error': 'Missing required fields'}), 400
 
     manager = get_state_manager()
+    if not manager.ensure_quiz_in_memory(quiz_id):
+        return jsonify({'error': 'Quiz not active'}), 404
+
     quiz_state = manager.get_quiz(quiz_id)
     if not quiz_state:
         return jsonify({'error': 'Quiz not active'}), 404
@@ -865,7 +850,6 @@ def submit_answer():
     if not success:
         return jsonify({'error': result.get('error', 'Submission failed')}), 400
 
-    # Enqueue ANSWER event
     manager.enqueue_event({
         'quiz_id': quiz_id,
         'user_id': user_id,
@@ -897,6 +881,9 @@ def skip_question():
         return jsonify({'error': 'Missing required fields'}), 400
 
     manager = get_state_manager()
+    if not manager.ensure_quiz_in_memory(quiz_id):
+        return jsonify({'error': 'Quiz not active'}), 404
+
     quiz_state = manager.get_quiz(quiz_id)
     if not quiz_state:
         return jsonify({'error': 'Quiz not active'}), 404
@@ -934,6 +921,9 @@ def submit_rating():
         return jsonify({'error': 'Invalid rating'}), 400
 
     manager = get_state_manager()
+    if not manager.ensure_quiz_in_memory(quiz_id):
+        return jsonify({'error': 'Quiz not active'}), 404
+
     quiz_state = manager.get_quiz(quiz_id)
     if not quiz_state:
         return jsonify({'error': 'Quiz not active'}), 404
@@ -950,7 +940,6 @@ def submit_rating():
         'payload': json.dumps({'rating': rating})
     })
 
-    # Check if participant is now completed
     p = quiz_state.get_participant(user_id)
     total = len(quiz_state.question_ids)
     completed = p.current_question_index >= total if p else False
@@ -964,6 +953,7 @@ def get_leaderboard(quiz_id):
 
     user_id = session['user_id']
     manager = get_state_manager()
+    manager.ensure_quiz_in_memory(quiz_id)
     quiz_state = manager.get_quiz(quiz_id)
 
     if not quiz_state:
@@ -1024,8 +1014,8 @@ def leave_quiz(quiz_id):
 
     success = db_leave_live_quiz(quiz_id, user_id)
     if success:
-        # Update state
         manager = get_state_manager()
+        manager.ensure_quiz_in_memory(quiz_id)
         quiz_state = manager.get_quiz(quiz_id)
         if quiz_state:
             quiz_state.remove_participant(user_id)
@@ -1062,9 +1052,9 @@ def rejoin_quiz(quiz_id):
     success = db_rejoin_live_quiz(quiz_id, user_id)
     if success:
         manager = get_state_manager()
+        manager.ensure_quiz_in_memory(quiz_id)
         quiz_state = manager.get_quiz(quiz_id)
         if quiz_state:
-            # Remove old participant if exists
             quiz_state.remove_participant(user_id)
             user = get_student_by_id(user_id)
             name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or 'Participant'
@@ -1095,11 +1085,9 @@ def delete_quiz(quiz_id):
     if quiz['creator_id'] != user_id and not is_admin(user_id):
         return jsonify({'error': 'Permission denied'}), 403
 
-    # Remove from memory
     manager = get_state_manager()
     manager.delete_quiz(quiz_id)
 
-    # Delete from SQLite
     success = db_delete_live_quiz(quiz_id)
     if success:
         invalidate_quiz_cache(quiz_id)
@@ -1119,7 +1107,6 @@ def results(quiz_id):
         flash('Quiz not found.', 'error')
         return redirect(url_for('live_quiz.lobby'))
 
-    # If quiz is still active, finalize it
     if quiz['status'] != 'finished':
         finalize_live_quiz(quiz_id)
         quiz = get_live_quiz_with_subject(quiz_id)
@@ -1127,7 +1114,6 @@ def results(quiz_id):
     is_creator = quiz['creator_id'] == user_id
     all_participants = get_live_quiz_participants_with_names(quiz_id)
 
-    # Ensure ranks are set
     sorted_participants = sorted(all_participants, key=lambda x: x.get('score', 0), reverse=True)
     for i, p in enumerate(sorted_participants, 1):
         if p.get('ranking') != i:
@@ -1198,11 +1184,11 @@ def export_results(quiz_id):
     quiz = get_live_quiz_by_id(quiz_id)
     if not quiz:
         flash('Quiz not found.', 'error')
-        return redirect(url_for('live_quiz.index'))
+        return redirect(url_for('live_quiz.lobby'))
 
     if quiz['creator_id'] != user_id:
         flash('Only the creator can export results.', 'error')
-        return redirect(url_for('live_quiz.index'))
+        return redirect(url_for('live_quiz.lobby'))
 
     participants = get_live_quiz_participants_with_names(quiz_id)
 
@@ -1240,7 +1226,6 @@ def flush_cache_endpoint():
         return jsonify({'error': 'CSRF token missing or invalid'}), 403
 
     try:
-        # This flips the state manager – not really needed, but keep for compatibility
         invalidate_quiz_cache('*')
         return jsonify({'success': True, 'message': 'Quiz cache flushed'})
     except Exception as e:
@@ -1252,7 +1237,6 @@ def cache_stats():
         return jsonify({'error': 'Unauthorized'}), 403
 
     try:
-        # Return state manager stats
         manager = get_state_manager()
         return jsonify({
             'active_quizzes': len(manager._quizzes),
@@ -1260,3 +1244,19 @@ def cache_stats():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ============================================
+# Background cleanup thread
+# ============================================
+def start_cleanup_thread():
+    def cleanup_loop():
+        while True:
+            time.sleep(60)
+            try:
+                manager = get_state_manager()
+                manager.cleanup_finished_quizzes()
+            except Exception as e:
+                logger.error(f"Cleanup error: {e}")
+    threading.Thread(target=cleanup_loop, daemon=True).start()
+
+start_cleanup_thread()

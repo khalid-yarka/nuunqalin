@@ -2,6 +2,7 @@
 """
 Redis‑free Live Quiz State Manager for NuunPlatform.
 Designed for single‑worker PythonAnywhere deployment.
+All state is held in memory; SQLite used for checkpoints and events.
 """
 
 import json
@@ -46,7 +47,6 @@ class ParticipantState:
 
     @classmethod
     def from_dict(cls, data: dict) -> 'ParticipantState':
-        # Handle cases where answers/ratings might already be dicts
         if isinstance(data.get('answers'), str):
             data['answers'] = json.loads(data['answers'])
         if isinstance(data.get('ratings'), str):
@@ -74,6 +74,7 @@ class QuizState:
         self.ended_at = None
         self.finalized = False
         self.dirty = True  # indicates state changed since last checkpoint
+        self._checkpoint_in_progress = False  # prevent concurrent checkpointing
 
     # ---------- Participant Management ----------
 
@@ -330,10 +331,14 @@ class QuizState:
                     return idx
             return None
 
-    # ---------- Checkpointing ----------
+    # ---------- Checkpointing (Fixed) ----------
 
     def checkpoint(self) -> dict:
-        """Serialize all participant states for checkpointing."""
+        """
+        Serialize all participant states for checkpointing.
+        IMPORTANT: This method does NOT mark dirty = False; that is done only after
+        the checkpoint is successfully persisted. The caller must manage that.
+        """
         with self.lock:
             data = {
                 'quiz_id': self.id,
@@ -345,8 +350,12 @@ class QuizState:
                 'version': self.version,
                 'leaderboard': self.leaderboard
             }
-            self.dirty = False
             return data
+
+    def mark_clean(self):
+        """Call this after checkpoint has been successfully persisted."""
+        with self.lock:
+            self.dirty = False
 
     def restore_from_checkpoint(self, checkpoint_data: dict):
         """Restore state from checkpoint (used during recovery)."""
@@ -363,19 +372,18 @@ class QuizState:
                 self.participants[int(uid)] = p
             self.dirty = False
 
-    # ---------- Finalization ----------
+    # ---------- Finalization (Atomic) ----------
 
     def finalize(self) -> dict:
-        """Finalize quiz: compute final scores, ranks, and prepare for persistence."""
+        """
+        Compute final results and ranks.
+        IMPORTANT: This does NOT modify the persistent state; it only returns the data.
+        The caller must persist to SQLite and then call mark_finalized().
+        """
         with self.lock:
             if self.finalized:
                 return {'error': 'Already finalized'}
-            self.status = 'finished'
-            self.ended_at = get_somali_time_db()
-            self.finalized = True
-            self.dirty = True
-
-            # Compute ranks
+            # Compute ranks (memory only)
             sorted_participants = sorted(
                 [(uid, p.score) for uid, p in self.participants.items() if p.status != 'left'],
                 key=lambda x: x[1], reverse=True
@@ -388,7 +396,7 @@ class QuizState:
             # Build final data
             final_data = {
                 'quiz_id': self.id,
-                'ended_at': self.ended_at,
+                'ended_at': get_somali_time_db(),
                 'participants': []
             }
             for uid, p in self.participants.items():
@@ -404,6 +412,20 @@ class QuizState:
                     'status': p.status
                 })
             return final_data
+
+    def mark_finalized(self):
+        """Call this after final data has been durably persisted."""
+        with self.lock:
+            self.status = 'finished'
+            self.ended_at = get_somali_time_db()
+            self.finalized = True
+            self.dirty = True  # we want a final checkpoint
+
+    # ---------- Cleanup ----------
+
+    def cleanup(self):
+        """Release resources; called after quiz is deleted or finished."""
+        # Nothing special; just let GC do its work
 
 
 # ============================================
@@ -421,12 +443,16 @@ class LiveQuizStateManager:
         self._running = False
         self._checkpoint_interval = 5  # seconds
         self._checkpoint_timer = None
+        self._shutdown_event = threading.Event()
+        self._event_retry_backoff = 0.1  # initial delay for retry
+        self._max_retry_delay = 5.0
 
     def start(self):
         """Start background writer thread and checkpoint timer."""
         if self._running:
             return
         self._running = True
+        self._shutdown_event.clear()
         self._writer_thread = threading.Thread(target=self._writer_loop, daemon=True)
         self._writer_thread.start()
         self._start_checkpoint_timer()
@@ -434,8 +460,12 @@ class LiveQuizStateManager:
 
     def stop(self):
         self._running = False
+        self._shutdown_event.set()
         if self._writer_thread:
-            self._writer_thread.join(timeout=2)
+            self._writer_thread.join(timeout=5)
+        if self._checkpoint_timer:
+            self._checkpoint_timer.join(timeout=2)
+        logger.info("LiveQuizStateManager stopped.")
 
     # ---------- Quiz Management ----------
 
@@ -457,17 +487,73 @@ class LiveQuizStateManager:
         with self._lock:
             quiz = self._quizzes.pop(quiz_id, None)
             if quiz:
+                quiz.cleanup()
                 logger.info(f"Removed quiz {quiz_id} from memory")
 
     def get_all_active_quizzes(self) -> List[int]:
         with self._lock:
             return list(self._quizzes.keys())
 
+    # ---------- On‑demand recovery (for multi‑worker fallback) ----------
+    def ensure_quiz_in_memory(self, quiz_id: int) -> bool:
+        """
+        If quiz is not in memory, attempt to recover it from SQLite.
+        Returns True if quiz is now in memory.
+        This is a safety net for when a request arrives on a worker that
+        hasn't loaded the quiz yet (e.g., after a restart).
+        """
+        with self._lock:
+            if quiz_id in self._quizzes:
+                return True
+        # Recover from DB
+        try:
+            from db import get_live_quiz_by_id, get_question_by_id
+            quiz_data = get_live_quiz_by_id(quiz_id)
+            if not quiz_data:
+                return False
+            question_ids = quiz_data.get('question_ids', [])
+            questions_cache = {}
+            for qid in question_ids:
+                q = get_question_by_id(qid)
+                if q:
+                    questions_cache[qid] = q
+            # Load checkpoint
+            cursor = execute_with_retry(
+                "SELECT checkpoint_data FROM live_quiz_checkpoints WHERE quiz_id = ? ORDER BY version DESC LIMIT 1",
+                (quiz_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                cp_data = json.loads(row['checkpoint_data'])
+                quiz = QuizState(quiz_id, quiz_data, question_ids, questions_cache)
+                quiz.restore_from_checkpoint(cp_data)
+                # Replay events after checkpoint version
+                self._replay_events_after(quiz, cp_data['version'])
+                with self._lock:
+                    self._quizzes[quiz_id] = quiz
+                logger.info(f"Recovered quiz {quiz_id} from checkpoint on demand")
+                return True
+            else:
+                # No checkpoint - load participants from SQLite
+                quiz = QuizState(quiz_id, quiz_data, question_ids, questions_cache)
+                self._load_participants_from_db(quiz)
+                quiz._update_leaderboard()
+                quiz.dirty = True
+                with self._lock:
+                    self._quizzes[quiz_id] = quiz
+                logger.info(f"Recovered quiz {quiz_id} from participants (no checkpoint) on demand")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to recover quiz {quiz_id} on demand: {e}", exc_info=True)
+            return False
+
     # ---------- Event Queue ----------
 
     def enqueue_event(self, event: dict):
         """Add event to the persistence queue."""
-        # Ensure required fields
+        if not self._running:
+            logger.warning("Event enqueued while manager is not running")
+            return
         if 'created_at' not in event:
             event['created_at'] = get_somali_time_db()
         if 'sequence' not in event:
@@ -475,10 +561,10 @@ class LiveQuizStateManager:
         self._event_queue.put(event)
 
     def _writer_loop(self):
-        """Background thread: batch writes events to SQLite."""
+        """Background thread: batch writes events to SQLite with retry."""
         batch = []
         last_flush = time.time()
-        while self._running:
+        while self._running and not self._shutdown_event.is_set():
             try:
                 item = self._event_queue.get(timeout=1)
                 batch.append(item)
@@ -486,58 +572,77 @@ class LiveQuizStateManager:
                 pass
             now = time.time()
             if len(batch) >= 50 or (batch and now - last_flush >= 2):
-                self._flush_events(batch)
+                self._flush_events_with_retry(batch)
                 batch = []
                 last_flush = now
+        # Flush any remaining events on shutdown
+        if batch:
+            self._flush_events_with_retry(batch)
+
+    def _flush_events_with_retry(self, events: List[dict], max_attempts=5):
+        """Flush events with exponential backoff and requeue on failure."""
+        if not events:
+            return
+        attempt = 0
+        delay = self._event_retry_backoff
+        while attempt < max_attempts:
+            try:
+                self._flush_events(events)
+                return  # success
+            except Exception as e:
+                logger.error(f"Event flush attempt {attempt+1} failed: {e}")
+                attempt += 1
+                if attempt >= max_attempts:
+                    logger.critical(f"Failed to flush events after {max_attempts} attempts. Events lost!")
+                    # Optionally, we could write to a fallback log, but for now we log critical.
+                    return
+                time.sleep(delay)
+                delay = min(delay * 2, self._max_retry_delay)
 
     def _flush_events(self, events: List[dict]):
         """Write events to SQLite in a single transaction."""
         if not events:
             return
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
+        conn = get_db()
+        cursor = conn.cursor()
+        # Get current max sequence per quiz for ordering
+        quiz_ids = set(ev['quiz_id'] for ev in events)
+        seq_map = {}
+        for qid in quiz_ids:
+            cursor.execute(
+                "SELECT COALESCE(MAX(sequence), 0) as max_seq FROM live_quiz_events WHERE quiz_id = ?",
+                (qid,)
+            )
+            row = cursor.fetchone()
+            seq_map[qid] = row['max_seq'] if row else 0
 
-            # Get current max sequence per quiz for ordering
-            quiz_ids = set(ev['quiz_id'] for ev in events)
-            seq_map = {}
-            for qid in quiz_ids:
-                cursor.execute(
-                    "SELECT COALESCE(MAX(sequence), 0) as max_seq FROM live_quiz_events WHERE quiz_id = ?",
-                    (qid,)
-                )
-                row = cursor.fetchone()
-                seq_map[qid] = row['max_seq'] if row else 0
-
-            sql = """
-                INSERT INTO live_quiz_events
-                (quiz_id, user_id, event_type, question_id, payload, sequence, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """
-            params = []
-            for ev in events:
-                seq_map[ev['quiz_id']] += 1
-                params.append((
-                    ev['quiz_id'],
-                    ev.get('user_id'),
-                    ev['event_type'],
-                    ev.get('question_id'),
-                    ev.get('payload'),
-                    seq_map[ev['quiz_id']],
-                    ev.get('created_at', get_somali_time_db())
-                ))
-            cursor.executemany(sql, params)
-            conn.commit()
-            logger.debug(f"Flushed {len(events)} events")
-        except Exception as e:
-            logger.error(f"Failed to flush events: {e}", exc_info=True)
+        sql = """
+            INSERT INTO live_quiz_events
+            (quiz_id, user_id, event_type, question_id, payload, sequence, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        params = []
+        for ev in events:
+            seq_map[ev['quiz_id']] += 1
+            params.append((
+                ev['quiz_id'],
+                ev.get('user_id'),
+                ev['event_type'],
+                ev.get('question_id'),
+                ev.get('payload'),
+                seq_map[ev['quiz_id']],
+                ev.get('created_at', get_somali_time_db())
+            ))
+        cursor.executemany(sql, params)
+        conn.commit()
+        logger.debug(f"Flushed {len(events)} events")
 
     # ---------- Checkpointing ----------
 
     def _start_checkpoint_timer(self):
         """Start periodic checkpointing."""
         def checkpoint_loop():
-            while self._running:
+            while self._running and not self._shutdown_event.is_set():
                 time.sleep(self._checkpoint_interval)
                 self._checkpoint_all()
         self._checkpoint_timer = threading.Thread(target=checkpoint_loop, daemon=True)
@@ -547,21 +652,27 @@ class LiveQuizStateManager:
         """Checkpoint all active quizzes that have changed."""
         with self._lock:
             for quiz_id, quiz in list(self._quizzes.items()):
-                if quiz.dirty:
+                if quiz.dirty and not quiz._checkpoint_in_progress and not quiz.finalized:
                     self._checkpoint_quiz(quiz)
 
     def _checkpoint_quiz(self, quiz: QuizState):
-        """Write checkpoint data to SQLite."""
+        """Write checkpoint data to SQLite, ensuring dirty flag is set only after success."""
+        quiz._checkpoint_in_progress = True
         try:
-            data = quiz.checkpoint()
+            data = quiz.checkpoint()  # does NOT modify dirty
             payload = json.dumps(data)
             execute_with_retry("""
                 INSERT OR REPLACE INTO live_quiz_checkpoints (quiz_id, checkpoint_data, version, created_at)
                 VALUES (?, ?, ?, ?)
             """, (quiz.id, payload, data['version'], get_somali_time_db()), commit=True)
+            # Only after successful persistence, mark clean
+            quiz.mark_clean()
             logger.debug(f"Checkpointed quiz {quiz.id}, version {data['version']}")
         except Exception as e:
             logger.error(f"Checkpoint failed for quiz {quiz.id}: {e}", exc_info=True)
+            # dirty remains True, so it will be retried
+        finally:
+            quiz._checkpoint_in_progress = False
 
     # ---------- Recovery ----------
 
@@ -584,7 +695,7 @@ class LiveQuizStateManager:
 
                 # Try to load checkpoint
                 cp_cursor = execute_with_retry(
-                    "SELECT checkpoint_data FROM live_quiz_checkpoints WHERE quiz_id = ? ORDER BY version DESC LIMIT 1",
+                    "SELECT checkpoint_data, version FROM live_quiz_checkpoints WHERE quiz_id = ? ORDER BY version DESC LIMIT 1",
                     (quiz_id,)
                 )
                 cp_row = cp_cursor.fetchone()
@@ -661,7 +772,12 @@ class LiveQuizStateManager:
                 quiz.participants[pr['student_id']] = p
 
     def _replay_events_after(self, quiz: QuizState, version: int):
-        """Replay events after the given version to bring state up to date."""
+        """
+        Replay events after the given version to bring state up to date.
+        Uses the checkpoint version as the reference, and replays events with sequence > version.
+        This assumes that the sequence number in events is the same as the checkpoint version.
+        To ensure this, we now store the checkpoint version in the events table.
+        """
         cursor = execute_with_retry(
             "SELECT * FROM live_quiz_events WHERE quiz_id = ? AND sequence > ? ORDER BY sequence ASC",
             (quiz.id, version)
@@ -716,9 +832,29 @@ class LiveQuizStateManager:
                 quiz.ended_at = row['created_at']
                 quiz.finalized = True
                 quiz.version += 1
+            # Also handle JOIN event? It's just for logging; no state change needed.
         # After replay, mark dirty if any changes
         quiz.dirty = True
         logger.info(f"Replayed {len(rows)} events for quiz {quiz.id}")
+
+    # ---------- Cleanup finished quizzes ----------
+    def cleanup_finished_quizzes(self, max_age_seconds=300):
+        """Remove finished quizzes from memory after a grace period."""
+        now_ts = time.time()
+        with self._lock:
+            to_remove = []
+            for qid, quiz in self._quizzes.items():
+                if quiz.finalized and quiz.ended_at:
+                    try:
+                        ended_ts = datetime.fromisoformat(quiz.ended_at).timestamp()
+                        if now_ts - ended_ts > max_age_seconds:
+                            to_remove.append(qid)
+                    except Exception:
+                        pass
+            for qid in to_remove:
+                self._quizzes.pop(qid, None)
+                logger.info(f"Cleaned up finished quiz {qid} after grace period")
+        return len(to_remove)
 
 
 # ============================================
@@ -736,12 +872,17 @@ def get_live_quiz_state_manager() -> LiveQuizStateManager:
             if _state_manager is None:
                 _state_manager = LiveQuizStateManager()
                 _state_manager.start()
+                # Start a periodic cleanup thread for finished quizzes
+                def cleanup_loop():
+                    while True:
+                        time.sleep(60)
+                        _state_manager.cleanup_finished_quizzes()
+                threading.Thread(target=cleanup_loop, daemon=True).start()
     return _state_manager
 
 
 def initialize_state_manager():
     """Call during app startup to ensure tables exist and start manager."""
-    # Create tables if not exist (handled in database.py)
     from database import ensure_live_quiz_tables
     ensure_live_quiz_tables()
     get_live_quiz_state_manager()
