@@ -5,14 +5,14 @@ from db import (
     get_leaderboard, get_user_subject_list
 )
 from utils import validate_csrf
-from tier_service import (
+from services.tier_service import (
     get_quiz_questions_limit,
     get_remaining_quota,
     check_and_consume_quota,
     get_answer_review_level,
     get_explanation_level,
     get_current_user_tier,
-    has_feature,
+    get_feature_level,
 )
 from services.achievement_service import check_and_award_achievements
 
@@ -153,17 +153,13 @@ def submit_answer():
     }
     
     if review_level > 0:
-        # Show correct/incorrect feedback
         response['feedback'] = is_correct
     else:
-        # For Danbe, no answer review at all
         response['feedback'] = None
     
     if explanation_level > 0:
         response['explanation'] = question.get('explanation', '')
         if explanation_level > 1:
-            # Extra insight: could be a related topic, but we don't have that data.
-            # We'll add a placeholder or skip.
             response['extra_insight'] = None
     else:
         response['explanation'] = None
@@ -200,7 +196,6 @@ def submit_rating():
         user_id = session['user_id']
         score = session.get('quiz_score', 0)
         total = len(questions)
-        # Check for achievements
         check_and_award_achievements(user_id, 'quiz_completed', {'score': score, 'total': total})
         return jsonify({'complete': True})
     
@@ -238,9 +233,6 @@ def results():
             new_points = current_points + score
             update_student_points(session['user_id'], new_points)
     
-    # Attempt was already consumed at start, so no need to consume again.
-    # But we should ensure we don't consume twice.
-    
     session.pop('quiz_questions', None)
     session.pop('quiz_current', None)
     session.pop('quiz_score', None)
@@ -277,7 +269,6 @@ def leaderboard():
             user_rank = i
             break
     
-    # Get tier level for detailed ranking stats
     level = get_feature_level("detailed_ranking_stats", session['user_id'])
     
     return render_template('dashboard/quiz/leaderboard.html', 
