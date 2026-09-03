@@ -228,7 +228,7 @@
         width: 100% !important;
     }
 
-    /* Live Quiz Status (New) */
+    /* Live Quiz Status */
     .live-status-card {
         background: linear-gradient(135deg, #1E293B, #0F172A);
         border-radius: var(--radius);
@@ -392,6 +392,68 @@
         transform: translateY(-2px);
     }
 
+    /* ============================================
+       SAFKA TIER INDICATOR & UPGRADE BUTTON
+       ============================================ */
+    .tier-indicator {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 30px;
+        padding: 6px 16px 6px 12px;
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+        transition: var(--transition);
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+    }
+    .tier-indicator:hover {
+        border-color: var(--primary);
+        box-shadow: var(--shadow-md);
+        transform: scale(1.02);
+    }
+    .tier-indicator .tier-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .tier-indicator .tier-dot.danbe {
+        background: var(--text-muted);
+    }
+    .tier-indicator .tier-dot.dhexe {
+        background: var(--primary);
+    }
+    .tier-indicator .tier-dot.hore {
+        background: linear-gradient(135deg, var(--primary), #B91C1C);
+    }
+    .tier-indicator .tier-label {
+        font-weight: 600;
+    }
+    .tier-indicator .upgrade-badge {
+        background: var(--primary);
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 10px;
+        border-radius: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    /* Dashboard Header */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
     @media (min-width: 768px) {
         .dashboard-grid-2 {
             grid-template-columns: 1fr 1fr;
@@ -437,6 +499,27 @@
 {% endblock %}
 
 {% block dashboard_content %}
+
+<!-- ============================================ -->
+<!-- DASHBOARD HEADER WITH TIER INDICATOR        -->
+<!-- ============================================ -->
+<div class="dashboard-header">
+    <div>
+        <h1 style="font-size: 24px; font-weight: 700; color: var(--text); margin: 0;">
+            {{ greeting }}, <span style="color: var(--primary);">{{ session.user_name }}</span>!
+        </h1>
+        <p style="color: var(--text-secondary); margin: 2px 0 0;">{% if total_points > 0 %}You've earned <strong>{{ total_points }}</strong> XP total. Keep going!{% else %}Ready to start your learning journey?{% endif %}</p>
+    </div>
+    <div class="tier-indicator" onclick="openSafkaPreview({ requiredTier: '{{ tier }}' })" title="Click to see tier details and upgrade options">
+        <span class="tier-dot {{ tier }}"></span>
+        <span class="tier-label">{{ tier|capitalize }}</span>
+        {% if tier != 'hore' %}
+            <span class="upgrade-badge">⬆ Upgrade</span>
+        {% else %}
+            <span style="font-size: 12px; color: var(--success);">★ Complete</span>
+        {% endif %}
+    </div>
+</div>
 
 <!-- ============================================ -->
 <!-- LIVE QUIZ STATUS CARD (Conditional)          -->

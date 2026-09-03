@@ -4,7 +4,7 @@
 from flask import Blueprint, request, session, jsonify, abort, render_template
 from functools import wraps
 from db import execute_with_retry, get_student_by_id
-from tier_service import can_save_content, get_saved_content_count, get_saved_content_limit, get_current_user_tier
+from services.tier_service import can_save_content, get_saved_content_count, get_saved_content_limit, get_current_user_tier
 from utils import ensure_csrf_token, validate_csrf
 
 saved_content_bp = Blueprint('saved_content', __name__, url_prefix='/saved')
@@ -32,13 +32,11 @@ def index():
         (user_id,)
     )
     saved = [dict(row) for row in cursor.fetchall()]
-    # For each, we need to fetch the actual content (PDF info, etc.) – but we'll keep it minimal.
-    # In practice, you'd join with the respective tables.
-    # We'll just pass the list and let the template handle.
     limit = get_saved_content_limit(user_id)
     total = get_saved_content_count(user_id)
     remaining = None if limit is None else max(0, limit - total)
-    return render_template('dashboard/saved_content.html', saved=saved, limit=limit, total=total, remaining=remaining)
+    tier = get_current_user_tier()
+    return render_template('dashboard/saved_content.html', saved=saved, limit=limit, total=total, remaining=remaining, tier=tier)
 
 @saved_content_bp.route('/save', methods=['POST'])
 @login_required

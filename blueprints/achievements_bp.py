@@ -4,7 +4,7 @@
 from flask import Blueprint, render_template, session, abort
 from functools import wraps
 from services.achievement_service import get_visible_achievements, get_showcase_badges, get_user_achievement_ids, get_all_achievements
-from tier_service import get_achievement_history_level, get_badge_showcase_level
+from services.tier_service import get_achievement_history_level, get_badge_showcase_level
 
 achievements_bp = Blueprint('achievements', __name__, url_prefix='/achievements')
 

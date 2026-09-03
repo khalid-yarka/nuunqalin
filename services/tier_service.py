@@ -11,16 +11,6 @@ from tier_config import Tier, FEATURES, LIMITS, get_feature, get_limit, get_tier
 logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------
-# Tier Configuration Cache (static)
-# -------------------------------------------------------------------
-_CONFIG_CACHE = None
-_CONFIG_CACHE_TIME = 0
-CACHE_TTL = 300  # 5 seconds, since we don't have a DB config, this is not used.
-
-# No database config cache needed because we use static tier_config.
-# But we might want to cache user tier? We'll keep it simple and fetch each time.
-
-# -------------------------------------------------------------------
 # Tier Retrieval
 # -------------------------------------------------------------------
 
@@ -50,10 +40,6 @@ def set_user_tier(user_id: int, new_tier: str, admin_id: Optional[int] = None) -
         (new_tier, now, user_id),
         commit=True
     )
-    # Log activity if admin_id provided (optional)
-    if admin_id:
-        # You could integrate with activity_logger if available
-        pass
     return True
 
 # -------------------------------------------------------------------
@@ -125,6 +111,9 @@ def get_achievement_history_level(user_id: Optional[int] = None) -> int:
 def get_badge_showcase_level(user_id: Optional[int] = None) -> int:
     return get_feature_level("badge_showcase", user_id)
 
+def get_resource_search_level(user_id: Optional[int] = None) -> int:
+    return get_feature_level("resource_search", user_id)
+
 # -------------------------------------------------------------------
 # Quota System
 # -------------------------------------------------------------------
@@ -157,16 +146,10 @@ def check_and_consume_quota(user_id: int, metric_code: str) -> bool:
         # Unlimited – no tracking needed
         return True
 
-    # Use a single atomic operation with conditional update.
-    # We'll attempt to increment only if current usage < limit.
     try:
-        # Use execute_with_retry which commits automatically on success.
-        # We'll use a transaction manually to ensure we can check rowcount.
         from db import get_db
         conn = get_db()
         cursor = conn.cursor()
-        # Start a transaction (SQLite automatically starts one)
-        # The INSERT ... ON CONFLICT ... DO UPDATE ... WHERE usage_count < limit
         cursor.execute("""
             INSERT INTO user_usage (user_id, metric_code, period_start, usage_count)
             VALUES (?, ?, ?, 1)
@@ -175,7 +158,6 @@ def check_and_consume_quota(user_id: int, metric_code: str) -> bool:
                 updated_at = datetime('now', 'localtime')
             WHERE usage_count < ?
         """, (user_id, metric_code, today, limit))
-        # Check if any row was affected
         if cursor.rowcount > 0:
             conn.commit()
             return True
@@ -187,12 +169,31 @@ def check_and_consume_quota(user_id: int, metric_code: str) -> bool:
         return False
 
 # -------------------------------------------------------------------
+# Wrappers for specific quotas
+# -------------------------------------------------------------------
+
+def get_resource_downloads_remaining(user_id: int) -> int:
+    """Get remaining resource downloads for today."""
+    return get_remaining_quota(user_id, "resource_download")
+
+def get_quiz_attempts_remaining(user_id: int) -> int:
+    """Get remaining quiz attempts for today."""
+    return get_remaining_quota(user_id, "quiz_attempt")
+
+def consume_quiz_attempt(user_id: int) -> bool:
+    """Consume one quiz attempt atomically."""
+    return check_and_consume_quota(user_id, "quiz_attempt")
+
+def consume_resource_download(user_id: int) -> bool:
+    """Consume one resource download atomically."""
+    return check_and_consume_quota(user_id, "resource_download")
+
+# -------------------------------------------------------------------
 # Saved Content Helpers
 # -------------------------------------------------------------------
 
 def get_saved_content_count(user_id: int) -> int:
     """Get the number of saved items for a user."""
-    from db import execute_with_retry
     cursor = execute_with_retry(
         "SELECT COUNT(*) as count FROM saved_content WHERE user_id = ?",
         (user_id,)
