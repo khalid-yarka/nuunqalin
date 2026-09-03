@@ -1,10 +1,9 @@
 -- ============================================
--- NUUNPLATFORM DATABASE SCHEMA (UPDATED)
--- REMOVED subjects TABLE, ADDED curriculum TO students
+-- NUUNPLATFORM DATABASE SCHEMA (UPDATED WITH TIER SYSTEM)
 -- ============================================
 
 -- ============================================
--- STUDENTS TABLE (added curriculum)
+-- STUDENTS TABLE (added tier and tier_updated_at)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS students (
@@ -22,14 +21,17 @@ CREATE TABLE IF NOT EXISTS students (
     total_points INTEGER DEFAULT 0,
     is_admin INTEGER DEFAULT 0,
     curriculum TEXT,
+    tier TEXT NOT NULL DEFAULT 'danbe' CHECK (tier IN ('danbe', 'dhexe', 'hore')),
+    tier_updated_at TEXT,
     created_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_students_phone ON students(phone_number);
 CREATE INDEX IF NOT EXISTS idx_students_public_id ON students(public_id);
+CREATE INDEX IF NOT EXISTS idx_students_tier ON students(tier);
 
 -- ============================================
--- QUESTIONS TABLE (subject_code instead of subject_id)
+-- QUESTIONS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS questions (
@@ -59,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_questions_updated_at ON questions(updated_at DESC
 CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);
 
 -- ============================================
--- QUIZ ATTEMPTS TABLE (subject_code)
+-- QUIZ ATTEMPTS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS quiz_attempts (
@@ -80,7 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_attempts_completed ON quiz_attempts(completed_at 
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
 
 -- ============================================
--- GROUPS TABLE (unchanged)
+-- GROUPS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS groups (
@@ -101,7 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active);
 CREATE INDEX IF NOT EXISTS idx_groups_click_count ON groups(click_count DESC);
 
 -- ============================================
--- PDFS TABLE (unchanged)
+-- PDFS TABLE (added is_premium)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS pdfs (
@@ -114,6 +116,7 @@ CREATE TABLE IF NOT EXISTS pdfs (
     grade TEXT DEFAULT '',
     category TEXT DEFAULT '',
     view_count INTEGER DEFAULT 0,
+    is_premium INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -123,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_pdfs_category ON pdfs(category);
 CREATE INDEX IF NOT EXISTS idx_pdfs_view_count ON pdfs(view_count DESC);
 
 -- ============================================
--- LIVE QUIZZES TABLE (subject_code)
+-- LIVE QUIZZES TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS live_quizzes (
@@ -155,7 +158,7 @@ CREATE INDEX IF NOT EXISTS idx_live_quizzes_scheduled ON live_quizzes(scheduled_
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
 
 -- ============================================
--- LIVE QUIZ PARTICIPANTS TABLE (unchanged)
+-- LIVE QUIZ PARTICIPANTS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS live_quiz_participants (
@@ -185,7 +188,7 @@ CREATE INDEX IF NOT EXISTS idx_participants_ranking ON live_quiz_participants(ra
 CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
 
 -- ============================================
--- DELETED USERS TABLE (unchanged)
+-- DELETED USERS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS deleted_users (
@@ -212,7 +215,7 @@ CREATE INDEX IF NOT EXISTS idx_deleted_at ON deleted_users(deleted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_deleted_deleted_by ON deleted_users(deleted_by);
 
 -- ============================================
--- QUIZ RATINGS TABLE (unchanged)
+-- QUIZ RATINGS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS quiz_ratings (
@@ -231,7 +234,7 @@ CREATE INDEX IF NOT EXISTS idx_ratings_rating ON quiz_ratings(rating);
 CREATE INDEX IF NOT EXISTS idx_ratings_created ON quiz_ratings(created_at DESC);
 
 -- ============================================
--- NOTIFICATIONS TABLE (unchanged)
+-- NOTIFICATIONS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS notifications (
@@ -255,7 +258,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
 
 -- ============================================
--- NOTIFICATION PREFERENCES TABLE (unchanged)
+-- NOTIFICATION PREFERENCES TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS notification_preferences (
@@ -273,7 +276,7 @@ CREATE INDEX IF NOT EXISTS idx_pref_user ON notification_preferences(user_id);
 CREATE INDEX IF NOT EXISTS idx_pref_type ON notification_preferences(notification_type);
 
 -- ============================================
--- ACTIVITY LOGS (unchanged)
+-- ACTIVITY LOGS
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS activity_logs (
@@ -295,7 +298,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_logs(activity_type);
 
 -- ============================================
--- BACKUP CONFIGURATION (unchanged)
+-- BACKUP CONFIGURATION
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS backup_config (
@@ -312,7 +315,7 @@ CREATE TABLE IF NOT EXISTS backup_config (
 INSERT OR IGNORE INTO backup_config (id) VALUES (1);
 
 -- ============================================
--- BACKUP OPERATIONS LOG (unchanged)
+-- BACKUP OPERATIONS LOG
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS backup_operations (
@@ -330,7 +333,7 @@ CREATE TABLE IF NOT EXISTS backup_operations (
 CREATE INDEX IF NOT EXISTS idx_backup_ops_started ON backup_operations(started_at DESC);
 
 -- ============================================
--- USER SETTINGS (unchanged)
+-- USER SETTINGS
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS user_settings (
@@ -348,3 +351,53 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id,
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);
+
+-- ============================================
+-- TIER SYSTEM TABLES
+-- ============================================
+
+-- User usage quota tracking
+CREATE TABLE IF NOT EXISTS user_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    metric_code TEXT NOT NULL,
+    period_start TEXT NOT NULL,
+    usage_count INTEGER DEFAULT 0,
+    updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
+    UNIQUE(user_id, metric_code, period_start)
+);
+CREATE INDEX IF NOT EXISTS idx_user_usage_user_period ON user_usage(user_id, metric_code, period_start);
+
+-- Saved content (bookmarks)
+CREATE TABLE IF NOT EXISTS saved_content (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    content_type TEXT NOT NULL,
+    content_id INTEGER NOT NULL,
+    saved_at TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
+    UNIQUE(user_id, content_type, content_id)
+);
+CREATE INDEX IF NOT EXISTS idx_saved_content_user ON saved_content(user_id);
+
+-- Achievements
+CREATE TABLE IF NOT EXISTS achievements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    icon TEXT,
+    tier_required TEXT DEFAULT 'danbe',
+    unlock_condition TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS user_achievements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    achievement_id INTEGER NOT NULL,
+    unlocked_at TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (achievement_id) REFERENCES achievements(id) ON DELETE CASCADE,
+    UNIQUE(user_id, achievement_id)
+);

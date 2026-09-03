@@ -29,7 +29,7 @@ def verify_startup() -> bool:
             logger.critical(f"Config error: {error}")
             errors.append(f"Config: {error}")
     
-    # 2. Initialize database
+    # 2. Initialize database (creates if missing, verifies, but does NOT run migrations)
     logger.info("Initializing database...")
     db_success, db_errors = initialize_database_startup()
     if not db_success:

@@ -30,21 +30,29 @@ REQUIRED_TABLES = [
     'deleted_users',
     'quiz_ratings',
     'notifications',
-    'notification_preferences'
+    'notification_preferences',
+    'user_usage',
+    'saved_content',
+    'achievements',
+    'user_achievements',
 ]
 
 REQUIRED_COLUMNS = {
-    'students': ['id', 'public_id', 'phone_number', 'password', 'first_name', 'last_name', 'is_admin', 'created_at'],
+    'students': ['id', 'public_id', 'phone_number', 'password', 'first_name', 'last_name', 'is_admin', 'created_at', 'tier', 'tier_updated_at'],
     'questions': ['id', 'subject_code', 'question_text', 'options', 'correct_answer', 'difficulty', 'status', 'created_at'],
     'quiz_attempts': ['id', 'student_id', 'subject_code', 'score', 'total_questions', 'answers', 'ratings', 'completed_at'],
     'groups': ['id', 'name', 'platform', 'invite_link', 'is_active', 'created_at'],
-    'pdfs': ['id', 'title', 'file_url', 'telegram_download_url', 'view_count', 'created_at'],
+    'pdfs': ['id', 'title', 'file_url', 'telegram_download_url', 'view_count', 'created_at', 'is_premium'],
     'live_quizzes': ['id', 'creator_id', 'join_code', 'status', 'question_count', 'created_at'],
     'live_quiz_participants': ['id', 'quiz_id', 'student_id', 'score', 'answers', 'ratings', 'ranking'],
     'deleted_users': ['id', 'original_id', 'first_name', 'last_name', 'phone_number', 'data', 'deleted_at'],
     'quiz_ratings': ['id', 'student_id', 'question_id', 'rating', 'created_at'],
     'notifications': ['id', 'user_id', 'type', 'title', 'body', 'is_read', 'created_at'],
-    'notification_preferences': ['id', 'user_id', 'notification_type', 'enabled', 'created_at']
+    'notification_preferences': ['id', 'user_id', 'notification_type', 'enabled', 'created_at'],
+    'user_usage': ['id', 'user_id', 'metric_code', 'period_start', 'usage_count', 'updated_at'],
+    'saved_content': ['id', 'user_id', 'content_type', 'content_id', 'saved_at'],
+    'achievements': ['id', 'name', 'description', 'icon', 'tier_required', 'unlock_condition', 'created_at'],
+    'user_achievements': ['id', 'user_id', 'achievement_id', 'unlocked_at'],
 }
 
 DB_INIT_LOCK_FILE = os.path.join(os.path.dirname(Config.DATABASE_PATH), '.db_init_lock')
@@ -225,7 +233,7 @@ def verify_columns_exist(conn: sqlite3.Connection) -> Tuple[bool, Dict[str, List
 
 
 # ============================================
-# DATABASE INITIALIZATION
+# DATABASE INITIALIZATION (Fresh Install)
 # ============================================
 
 def create_database_schema() -> Tuple[bool, Optional[str]]:
@@ -236,7 +244,6 @@ def create_database_schema() -> Tuple[bool, Optional[str]]:
         return False, f"Schema file not found: {schema_path}"
     
     try:
-        # Ensure directory exists
         db_dir = os.path.dirname(Config.DATABASE_PATH)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
@@ -360,6 +367,8 @@ def verify_database_full() -> Dict[str, Any]:
 def initialize_database_startup() -> Tuple[bool, List[str]]:
     """
     Initialize the database on application startup.
+    This only creates the database if it doesn't exist and verifies it.
+    It does NOT run migrations – that is handled by the one-time migrate.py script.
     Returns (success, errors) where errors is a list of error messages.
     """
     errors = []
@@ -385,6 +394,8 @@ def initialize_database_startup() -> Tuple[bool, List[str]]:
                 return False, errors
             
             logger.info("Database created successfully")
+        else:
+            logger.info("Database already exists. Skipping creation.")
         
         # Full verification
         logger.info("Verifying database...")
