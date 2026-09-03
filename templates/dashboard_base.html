@@ -8,9 +8,9 @@
 {% endblock %}
 
 {% block extra_css %}
-<!-- Dashboard Layout CSS -->
+{{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
-<!-- live_quiz.css is NOT loaded globally; it will be loaded only on live quiz pages -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/safka.css') }}" />
 {% block dashboard_css %}{% endblock %}
 {% endblock %}
 
@@ -200,10 +200,38 @@
         </footer>
     </main>
 </div>
+
+<!-- ============================================ -->
+<!-- SAFKA PREVIEW SHEET -->
+<!-- ============================================ -->
+<div class="safka-sheet__backdrop" id="safkaBackdrop"></div>
+<div class="safka-sheet" id="safkaSheet" role="dialog" aria-modal="true" aria-label="Safka Tiers Preview">
+    <div class="safka-sheet__handle" id="safkaHandle"></div>
+    <button class="safka-sheet__close" id="safkaClose" aria-label="Close preview">&times;</button>
+    <div class="safka-sheet__content">
+        <div class="safka-carousel">
+            <div class="safka-carousel__track" id="safkaTrack">
+                <!-- Slides will be rendered by JavaScript -->
+            </div>
+        </div>
+        <div class="safka-pagination" id="safkaPagination">
+            <button class="safka-pagination__dot active" data-slide="0" aria-label="Slide 1"></button>
+            <button class="safka-pagination__dot" data-slide="1" aria-label="Slide 2"></button>
+            <button class="safka-pagination__dot" data-slide="2" aria-label="Slide 3"></button>
+        </div>
+        <!-- Optional compact comparison could be added here -->
+    </div>
+</div>
+<!-- ============================================ -->
+<!-- END SAFKA PREVIEW SHEET -->
+<!-- ============================================ -->
+
 {% endblock %}
 
 {% block extra_js %}
+{{ super() }}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+<script src="{{ url_for('static', filename='js/safka.js') }}"></script>
 {% block dashboard_js %}{% endblock %}
 {% endblock %}
