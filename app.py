@@ -42,8 +42,6 @@ def ensure_single_worker():
             "WARNING: Gunicorn detected. Live Quiz state is per-process and WILL BE INCONSISTENT "
             "if more than one worker is used. Please set --workers=1 in your Gunicorn command."
         )
-        # In production, you may want to raise an exception to prevent startup.
-        # raise RuntimeError("Multiple workers not allowed for Live Quiz.")
     try:
         import multiprocessing
         if multiprocessing.cpu_count() > 1 and 'GUNICORN_WORKER' not in os.environ:
@@ -67,11 +65,17 @@ from blueprints.live_quiz_bp import live_quiz_bp
 from blueprints.notifications_bp import notifications_bp
 from blueprints.user_settings_bp import user_settings_bp
 
-# NEW: Activity & Backup blueprints
+# Activity & Backup blueprints
 from blueprints.admin_activity_bp import admin_activity_bp
 from blueprints.admin_backup_bp import admin_backup_bp
 
-# NEW: Activity logger
+# ============================================
+# TIER SYSTEM BLUEPRINTS
+# ============================================
+from blueprints.saved_content_bp import saved_content_bp
+from blueprints.achievements_bp import achievements_bp
+
+# Activity logger
 from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event, init_activity_logger
 
 # ============================================
@@ -258,6 +262,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = Config.SESSION_COOKIE_SAMESITE
 
 # After app = Flask(__name__)
 app.jinja_env.filters['time_ago'] = time_ago
+
 # ============================================
 # REQUEST CONTEXT
 # ============================================
@@ -302,9 +307,13 @@ app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
 app.register_blueprint(notifications_bp)
 
-# NEW: Activity & Backup
+# Activity & Backup
 app.register_blueprint(admin_activity_bp)
 app.register_blueprint(admin_backup_bp)
+
+# Tier System Blueprints
+app.register_blueprint(saved_content_bp)
+app.register_blueprint(achievements_bp)
 
 app.register_blueprint(user_settings_bp)
 
@@ -462,8 +471,9 @@ def login():
 
     return render_template('login.html')
 
+
 # ============================================
-# REGISTER – UPDATED WITH CURRICULUM
+# REGISTER
 # ============================================
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -654,8 +664,6 @@ try:
     logger.info("Live Quiz State Manager initialized and recovered active quizzes.")
 except Exception as e:
     logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
-    # Application can still start, but live quizzes may not work correctly.
-    # We log the error but don't exit, because the app may be used for other features.
 
 # ============================================
 # RUN APP

@@ -5,17 +5,19 @@ from db import (
     get_user_active_quiz, get_live_quiz_by_id
 )
 from datetime import datetime
+from services.tier_service import get_analytics_level, get_feature_level
 
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='')
 
 @dashboard_bp.route('/home')
 def home():
-    """Dashboard home page with advanced analytics and gamification"""
+    """Dashboard home page with tier‑aware analytics"""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
     user_id = session['user_id']
+    analytics_level = get_analytics_level(user_id)
     
     student = get_student_by_id(user_id)
     if not student:
@@ -23,17 +25,17 @@ def home():
         flash('Session expired. Please login again.', 'error')
         return redirect(url_for('login'))
     
-    # 1. Basic Stats
+    # 1. Basic Stats (always available)
     attempts = get_user_quiz_history(user_id, 50)
     quiz_count = len(attempts)
     total_points = student.get('total_points', 0)
     
-    # 2. Gamification (Level & XP)
+    # 2. Gamification (always available)
     level = (total_points // 10) + 1 if total_points >= 0 else 1
     xp_in_level = total_points % 10
     xp_needed = 10
     
-    # 3. Performance Metrics
+    # 3. Performance Metrics (basic)
     total_correct = get_total_correct_answers(user_id)
     subjects_attempted = get_distinct_subjects_attempted(user_id)
     
@@ -46,8 +48,12 @@ def home():
     # 4. Subject Mastery Data
     subject_performance = get_user_subject_performance(user_id)
     
-    # 5. Chart Data (Last 10 attempts)
-    recent_scores = get_user_recent_scores(user_id, 10)
+    # 5. Chart Data – depends on analytics level
+    if analytics_level >= 2:
+        recent_scores = get_user_recent_scores(user_id, 20)
+    else:
+        recent_scores = get_user_recent_scores(user_id, 5)
+    
     chart_labels = []
     chart_data = []
     for attempt in recent_scores:
@@ -56,15 +62,16 @@ def home():
         pct = round((attempt['score'] / attempt['total_questions']) * 100) if attempt['total_questions'] > 0 else 0
         chart_data.append(pct)
     
-    # 6. Live Quiz Status
+    # 6. Live Quiz Status (always)
     active_quiz_id = get_user_active_quiz(user_id)
     active_quiz = None
     if active_quiz_id:
         active_quiz = get_live_quiz_by_id(active_quiz_id)
     
-    # 7. Recent Activity (Enhanced)
+    # 7. Recent Activity – depends on analytics level
+    limit = 5 if analytics_level == 1 else 10 if analytics_level == 2 else 20
     recent_activity = []
-    for q in attempts[:5]:
+    for q in attempts[:limit]:
         subject_name = q.get('subjects', {}).get('name', 'Unknown') if q.get('subjects') else 'Unknown'
         score = q.get('score', 0)
         total = q.get('total_questions', 10)
@@ -79,7 +86,25 @@ def home():
             'time': 'Recently'
         })
     
-    # 8. Greeting based on time
+    # 8. Personal Learning Insights – only for level 3
+    insights = []
+    if analytics_level == 3:
+        # Simple insights based on subject performance
+        if subject_performance:
+            best = max(subject_performance, key=lambda x: x['avg_score'])
+            worst = min(subject_performance, key=lambda x: x['avg_score'])
+            insights.append(f"🌟 Your best subject is {best['subject_name']} with {best['avg_score']:.0f}% average.")
+            insights.append(f"📚 Your weakest subject is {worst['subject_name']} with {worst['avg_score']:.0f}% average. Focus here!")
+            if success_rate > 70:
+                insights.append("💪 You're doing great! Keep up the consistency.")
+            else:
+                insights.append("🎯 Regular practice will boost your scores. Try daily quizzes.")
+    
+    # 9. Detailed Ranking Statistics – depends on tier level
+    ranking_level = get_feature_level("detailed_ranking_stats", user_id)
+    # For now, we don't have percentile data, but we can show rank if available
+    
+    # Greeting
     hour = datetime.now().hour
     if hour < 12:
         greeting = "🌅 Good Morning"
@@ -104,7 +129,10 @@ def home():
                          subject_performance=subject_performance,
                          chart_labels=chart_labels,
                          chart_data=chart_data,
-                         active_quiz=active_quiz)
+                         active_quiz=active_quiz,
+                         analytics_level=analytics_level,
+                         insights=insights,
+                         ranking_level=ranking_level)
 
 @dashboard_bp.route('/profile')
 def profile():

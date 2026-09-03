@@ -7,13 +7,16 @@ from db import (
     bulk_create_questions, check_question_exists,
     create_notification_for_all_users,
     execute_with_retry,
-    get_user_subject_list
+    get_user_subject_list,
+    get_student_by_id,
 )
 from error_models import get_error_stats
 from functools import wraps
 import json
 import secrets
-from subjects_config import get_all_subjects  # NEW: import from config
+from subjects_config import get_all_subjects
+from services.tier_service import get_user_tier, set_user_tier, get_current_user_tier
+from activity_logger import log_admin_action
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -78,7 +81,7 @@ def dashboard():
                          users_count=len(users),
                          groups_count=len(groups),
                          pdfs_count=len(pdfs),
-                         subjects_count=len(get_all_subjects()),  # from config
+                         subjects_count=len(get_all_subjects()),
                          questions_count=len(questions),
                          quiz_attempts=0,
                          error_stats=error_stats,
@@ -87,7 +90,7 @@ def dashboard():
 
 
 # ============================================
-# BULK IMPORT QUESTIONS – UPDATED WITH subject_code
+# BULK IMPORT QUESTIONS
 # ============================================
 
 @admin_bp.route('/bulk-import', methods=['GET', 'POST'])
@@ -133,7 +136,6 @@ def bulk_import():
             flash('subject_code is required in metadata.', 'error')
             return render_template('dashboard/admin/bulk_import.html')
 
-        # Validate subject_code exists in config
         if subject_code not in all_subject_codes:
             available = ', '.join(all_subject_codes)
             flash(f'Subject code "{subject_code}" not found. Available: {available}', 'error')
@@ -301,7 +303,7 @@ def bulk_template():
 
 
 # ============================================
-# DELETE USER (unchanged)
+# DELETE USER
 # ============================================
 
 @admin_bp.route('/users/delete/<user_id>', methods=['POST'])
@@ -321,6 +323,7 @@ def delete_user(user_id):
 
     if success:
         flash('User deleted successfully!', 'success')
+        log_admin_action('user.delete', f"Deleted user {user_id}", 'warning')
     else:
         flash(f'Error deleting user: {message}', 'error')
 
@@ -343,13 +346,14 @@ def restore_deleted_user(deleted_id):
     success, message = db_restore_user(deleted_id)
     if success:
         flash('User restored successfully!', 'success')
+        log_admin_action('user.restore', f"Restored user from deleted_id {deleted_id}", 'info')
     else:
         flash(f'Error restoring user: {message}', 'error')
     return redirect(url_for('admin.deleted_users'))
 
 
 # ============================================
-# GROUPS ADMIN (unchanged)
+# GROUPS ADMIN
 # ============================================
 
 @admin_bp.route('/groups')
@@ -383,6 +387,7 @@ def add_group():
 
     if create_group(data):
         flash('Group added successfully!', 'success')
+        log_admin_action('group.create', f"Added group {name}", 'info')
     else:
         flash('Error adding group.', 'error')
     return redirect(url_for('admin.admin_groups'))
@@ -394,13 +399,14 @@ def delete_group(group_id):
     validate_csrf()
     if delete_group(group_id):
         flash('Group deleted successfully!', 'success')
+        log_admin_action('group.delete', f"Deleted group {group_id}", 'info')
     else:
         flash('Error deleting group.', 'error')
     return redirect(url_for('admin.admin_groups'))
 
 
 # ============================================
-# PDFS ADMIN (unchanged)
+# PDFS ADMIN
 # ============================================
 
 @admin_bp.route('/pdfs')
@@ -421,6 +427,7 @@ def add_pdf():
     subject = request.form.get('subject', '').strip()
     grade = request.form.get('grade', '').strip()
     category = request.form.get('category', '').strip()
+    is_premium = 1 if request.form.get('is_premium') == 'on' else 0
 
     if not title or not file_url or not telegram_download_url:
         flash('Title, file URL, and Telegram download URL are required.', 'error')
@@ -434,11 +441,13 @@ def add_pdf():
         'subject': subject if subject else '',
         'grade': grade if grade else '',
         'category': category if category else '',
-        'view_count': 0
+        'view_count': 0,
+        'is_premium': is_premium,
     }
 
     if create_pdf(data):
         flash('PDF added successfully!', 'success')
+        log_admin_action('pdf.create', f"Added PDF {title}", 'info')
     else:
         flash('Error adding PDF.', 'error')
     return redirect(url_for('admin.admin_pdfs'))
@@ -450,29 +459,29 @@ def delete_pdf(pdf_id):
     validate_csrf()
     if delete_pdf(pdf_id):
         flash('PDF deleted successfully!', 'success')
+        log_admin_action('pdf.delete', f"Deleted PDF {pdf_id}", 'info')
     else:
         flash('Error deleting PDF.', 'error')
     return redirect(url_for('admin.admin_pdfs'))
 
 
 # ============================================
-# QUESTIONS ADMIN (Single Entry) – UPDATED
+# QUESTIONS ADMIN
 # ============================================
 
 @admin_bp.route('/questions')
 @admin_required
 def admin_questions():
     questions = get_all_questions()
-    # For subject list, we need all subject codes from config for the dropdown
     from subjects_config import get_all_subjects
-    subjects = get_all_subjects()  # returns list of dicts with 'code', 'name', 'icon'
+    subjects = get_all_subjects()
     return render_template('dashboard/admin/questions.html', questions=questions, subjects=subjects)
 
 
 @admin_bp.route('/questions/add', methods=['POST'])
 @admin_required
 def add_question():
-    validate_csrf()  # Added CSRF validation
+    validate_csrf()
     subject_code = request.form.get('subject_code', '').strip()
     question_text = request.form.get('question_text', '').strip()
     option_a = request.form.get('option_a', '').strip()
@@ -490,7 +499,6 @@ def add_question():
         flash('Subject, question, options A-C, and correct answer are required.', 'error')
         return redirect(url_for('admin.admin_questions'))
 
-    # Validate subject_code exists
     from subjects_config import get_subject
     if not get_subject(subject_code):
         flash('Invalid subject code.', 'error')
@@ -517,6 +525,7 @@ def add_question():
 
     if create_question(data):
         flash('Question added successfully!', 'success')
+        log_admin_action('question.create', f"Added question for {subject_code}", 'info')
     else:
         flash('Error adding question.', 'error')
     return redirect(url_for('admin.admin_questions'))
@@ -528,19 +537,23 @@ def delete_question(question_id):
     validate_csrf()
     if delete_question(question_id):
         flash('Question archived successfully!', 'success')
+        log_admin_action('question.archive', f"Archived question {question_id}", 'info')
     else:
         flash('Error archiving question.', 'error')
     return redirect(url_for('admin.admin_questions'))
 
 
 # ============================================
-# USERS ADMIN (unchanged)
+# USERS ADMIN
 # ============================================
 
 @admin_bp.route('/users')
 @admin_required
 def admin_users():
     users = get_all_students()
+    # Get tier for each user
+    for user in users:
+        user['tier'] = get_user_tier(user['id'])
     return render_template('dashboard/admin/users.html', users=users)
 
 
@@ -555,13 +568,50 @@ def toggle_user_admin(user_id):
     result = toggle_admin(user_id)
     if result:
         flash('Admin status updated successfully!', 'success')
+        log_admin_action('admin.toggle', f"Toggled admin for user {user_id}", 'info')
     else:
         flash('Error updating admin status.', 'error')
     return redirect(url_for('admin.admin_users'))
 
 
 # ============================================
-# ADMIN ANNOUNCEMENT (unchanged)
+# TIER MANAGEMENT
+# ============================================
+
+@admin_bp.route('/users/tier/<int:user_id>', methods=['GET', 'POST'])
+@admin_required
+def manage_user_tier(user_id):
+    """View and change a user's tier."""
+    user = get_student_by_id(user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('admin.admin_users'))
+    
+    current_tier = get_user_tier(user_id)
+    admin_tier = get_current_user_tier()
+    
+    if request.method == 'POST':
+        validate_csrf()
+        new_tier = request.form.get('tier')
+        if new_tier not in ['danbe', 'dhexe', 'hore']:
+            flash('Invalid tier value.', 'error')
+            return redirect(url_for('admin.manage_user_tier', user_id=user_id))
+        
+        if set_user_tier(user_id, new_tier, session['user_id']):
+            flash(f"User {user['first_name']} {user['last_name']} tier updated to {new_tier.capitalize()}.", 'success')
+            log_admin_action('tier.change', f"Admin {session['user_id']} changed tier of {user_id} from {current_tier} to {new_tier}", 'warning')
+        else:
+            flash('Failed to update tier.', 'error')
+        return redirect(url_for('admin.admin_users'))
+    
+    return render_template('dashboard/admin/manage_tier.html', 
+                           user=user, 
+                           current_tier=current_tier,
+                           admin_tier=admin_tier)
+
+
+# ============================================
+# ADMIN ANNOUNCEMENT
 # ============================================
 
 @admin_bp.route('/announcement', methods=['GET', 'POST'])
@@ -587,6 +637,7 @@ def admin_announcement():
         )
 
         flash('✅ Announcement sent to all users!', 'success')
+        log_admin_action('announcement.send', f"Sent announcement: {title}", 'info')
         return redirect(url_for('admin.dashboard'))
 
     return render_template('dashboard/admin/announcement.html')

@@ -1,7 +1,6 @@
 # blueprints/live_quiz_bp.py
 """
-Live Quiz Blueprint – Redis‑free state management.
-All active quiz state is held in memory (per‑process) with SQLite as durable store.
+Live Quiz Blueprint – with tier enforcement.
 """
 
 import json
@@ -59,6 +58,13 @@ from db import (
 from config import Config
 from utils import get_somali_time_db, get_somali_time_display, format_somali_time, validate_csrf, ensure_csrf_token
 from subjects_config import get_subject, get_all_subjects
+from services.tier_service import (
+    can_create_live_quiz,
+    can_schedule_live_quiz,
+    can_create_private_live_quiz,
+    has_feature,
+    get_current_user_tier,
+)
 
 # Import the Redis‑free state manager
 from live_quiz_state import get_live_quiz_state_manager
@@ -210,11 +216,17 @@ def lobby():
         cache.set(stats_key, stats, ttl=30)
 
     total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+    
+    # Tier info for UI
+    user_tier = get_current_user_tier()
+    can_create = can_create_live_quiz()
+    
     return render_template('dashboard/live_quiz/lobby.html',
                          quizzes=quizzes, stats=stats, subjects=subjects,
                          status_filter=status_filter, subject_filter=subject_filter,
                          search=search, page=page, per_page=per_page,
-                         total=total, total_pages=total_pages)
+                         total=total, total_pages=total_pages,
+                         user_tier=user_tier, can_create=can_create)
 
 @live_quiz_bp.route('/lobby/join/<quiz_id>', methods=['POST'])
 def lobby_join(quiz_id):
@@ -275,6 +287,11 @@ def create():
         flash('You need to set your location and curriculum in your profile before creating a quiz.', 'error')
         return redirect(url_for('dashboard.profile'))
 
+    # --- TIER CHECK: Create Live Quiz ---
+    if not can_create_live_quiz():
+        flash('Upgrade to Safka Dhexe or Safka Hore to create live quizzes.', 'error')
+        return redirect(url_for('live_quiz.lobby'))
+
     if request.method == 'GET':
         ensure_csrf_token()
 
@@ -312,12 +329,25 @@ def create():
         if is_public not in (0, 1):
             is_public = 1
 
+        # --- TIER CHECK: Private Live Quiz ---
+        if is_public == 0 and not can_create_private_live_quiz():
+            flash('Upgrade to Safka Dhexe or Safka Hore to create private live quizzes.', 'error')
+            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
+                                   subject_code=subject_code, title=title, is_public=1)
+
         try:
             schedule_minutes = int(request.form.get('schedule_minutes', 0))
         except ValueError:
             schedule_minutes = 0
         if schedule_minutes < 0:
             schedule_minutes = 0
+
+        # --- TIER CHECK: Scheduled Live Quiz ---
+        if schedule_minutes > 0 and not can_schedule_live_quiz():
+            flash('Upgrade to Safka Dhexe or Safka Hore to schedule live quizzes.', 'error')
+            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
+                                   subject_code=subject_code, title=title, is_public=is_public,
+                                   schedule_minutes=0)
 
         try:
             questions, available = get_questions_for_subject(subject_code, question_count)
@@ -402,6 +432,11 @@ def create_with_available():
         flash('Invalid CSRF token. Please try again.', 'error')
         return redirect(url_for('live_quiz.create'))
 
+    # --- TIER CHECK: Create Live Quiz ---
+    if not can_create_live_quiz():
+        flash('Upgrade to Safka Dhexe or Safka Hore to create live quizzes.', 'error')
+        return redirect(url_for('live_quiz.lobby'))
+
     user_id = session['user_id']
     subject_code = request.form.get('subject_code', '').strip()
     try:
@@ -423,6 +458,11 @@ def create_with_available():
         is_public = 1
     if is_public not in (0, 1):
         is_public = 1
+
+    # --- TIER CHECK: Private Live Quiz ---
+    if is_public == 0 and not can_create_private_live_quiz():
+        flash('Upgrade to Safka Dhexe or Safka Hore to create private live quizzes.', 'error')
+        return redirect(url_for('live_quiz.create'))
 
     user_subjects = get_user_subject_list(user_id)
     allowed_codes = [s['code'] for s in user_subjects]
@@ -728,17 +768,14 @@ def quiz_state(quiz_id):
     score = p.score if p else 0
     answers = p.answers if p else {}
 
-    # Check if quiz is finished
     if quiz_state.is_finished():
         return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
-    # Check if all participants completed
     all_completed = quiz_state.is_completed()
     if all_completed and quiz_state.status == 'active':
         finalize_live_quiz(quiz_id)
         return jsonify({'status': 'finished', 'redirect_url': url_for('live_quiz.results', quiz_id=quiz_id)})
 
-    # Calculate remaining time for active quizzes
     remaining_time = None
     if quiz_state.status == 'active' and quiz_state.started_at:
         try:
@@ -754,7 +791,6 @@ def quiz_state(quiz_id):
             logger.error(f"Error calculating remaining time: {e}")
             remaining_time = 0
 
-    # Build response
     response = {
         'status': quiz_state.status,
         'current_question_index': current_index,
@@ -767,7 +803,6 @@ def quiz_state(quiz_id):
         'remaining_time': remaining_time
     }
 
-    # If there's a current question and it's already answered, include that info
     if current_index < total_questions:
         qid = quiz_state.question_ids[current_index]
         if str(qid) in answers:
@@ -775,7 +810,6 @@ def quiz_state(quiz_id):
             response['current_question_answer'] = answers[str(qid)].get('answer')
             response['current_question_correct'] = answers[str(qid)].get('correct', False)
 
-    # Always include participant progress (for all participants)
     progress = []
     with quiz_state.lock:
         for uid, pp in quiz_state.participants.items():
@@ -1164,6 +1198,10 @@ def analysis(quiz_id):
 
     if quiz['creator_id'] != user_id:
         return jsonify({'error': 'Only the creator can view analysis'}), 403
+
+    # --- TIER CHECK: Live Quiz Analytics ---
+    if not has_feature("live_quiz_analytics"):
+        return jsonify({'error': 'Upgrade to Safka Dhexe or Safka Hore to access host analytics.'}), 403
 
     question_ids = quiz.get('question_ids', [])
     participants = get_live_quiz_participants(quiz_id)
