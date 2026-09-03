@@ -4,6 +4,95 @@
 
 {% block page_title %}PDFs{% endblock %}
 
+{% block extra_css %}
+{{ super() }}
+<style>
+    .pdf-locked-search {
+        opacity: 0.6;
+        cursor: pointer;
+        position: relative;
+    }
+    .pdf-locked-search .lock-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.05);
+        backdrop-filter: blur(1px);
+        border-radius: var(--radius-sm);
+        pointer-events: none;
+    }
+    .pdf-locked-search .lock-overlay span {
+        background: var(--surface);
+        padding: 4px 14px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 12px;
+        color: var(--text-secondary);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .pdf-card-premium {
+        position: relative;
+        overflow: hidden;
+    }
+    .pdf-card-premium .premium-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: linear-gradient(135deg, var(--primary), #B91C1C);
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 12px;
+        border-radius: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        z-index: 2;
+    }
+    .pdf-card-premium .premium-lock {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.08);
+        backdrop-filter: blur(1px);
+        border-radius: var(--radius);
+        z-index: 1;
+        cursor: pointer;
+    }
+    .pdf-card-premium .premium-lock span {
+        background: var(--surface);
+        padding: 6px 18px;
+        border-radius: 30px;
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--primary);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .pdf-card-premium .premium-lock span i {
+        font-size: 16px;
+    }
+    .pdf-card-premium .btn-view {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+    .pdf-download-quota {
+        font-size: 12px;
+        color: var(--text-muted);
+        background: var(--background);
+        padding: 4px 12px;
+        border-radius: 12px;
+        display: inline-block;
+        margin-bottom: 8px;
+    }
+</style>
+{% endblock %}
+
 {% block dashboard_content %}
 <div style="max-width: 100%;">
     <!-- Breadcrumb -->
@@ -21,46 +110,91 @@
             </h2>
             <p style="color: var(--text-secondary); font-size: 14px;">Browse and view educational PDFs</p>
         </div>
+        <div>
+            {% if remaining_downloads is not none %}
+                <span class="pdf-download-quota">
+                    <i class="fas fa-download"></i> 
+                    {% if remaining_downloads == 999 %}
+                        Unlimited downloads
+                    {% else %}
+                        {{ remaining_downloads }} downloads remaining today
+                    {% endif %}
+                </span>
+            {% endif %}
+        </div>
     </div>
 
-    <!-- Search & Filters -->
+    <!-- Search & Filters – Tier‑aware -->
     <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
-        <form method="GET" id="searchForm" style="flex: 1; min-width: 200px;">
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 150px;">
-                    <input type="text" name="search" id="searchInput" placeholder="🔍 Search PDFs..." 
-                           value="{{ search_query }}" 
-                           style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
+        {% if search_level == 0 %}
+            <!-- Danbe: Search Locked -->
+            <div class="pdf-locked-search" style="flex: 1; min-width: 200px; position: relative;" 
+                 data-tier-locked data-feature="resource_search" data-required-tier="dhexe">
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <div style="flex: 1; min-width: 150px; position: relative;">
+                        <input type="text" placeholder="🔒 Search locked – Upgrade to unlock" disabled 
+                               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); color: var(--text-muted);">
+                    </div>
+                    <button class="btn btn-secondary" disabled style="opacity:0.5;">Search</button>
                 </div>
-                <select name="subject" id="subjectFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
-                    <option value="">All Subjects</option>
-                    {% for sub in subjects %}
-                        <option value="{{ sub }}" {% if subject_filter == sub %}selected{% endif %}>{{ sub }}</option>
-                    {% endfor %}
-                </select>
-                <select name="grade" id="gradeFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
-                    <option value="">All Grades</option>
-                    {% for g in grades %}
-                        <option value="{{ g }}" {% if grade_filter == g %}selected{% endif %}>{{ g }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" style="padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
-                    <i class="fas fa-search"></i> Search
-                </button>
-                {% if search_query or subject_filter or grade_filter %}
-                    <a href="{{ url_for('pdfs.list_pdfs') }}" style="padding: 10px 16px; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text-secondary); font-weight: 500; transition: var(--transition);">
-                        <i class="fas fa-times"></i> Clear
-                    </a>
-                {% endif %}
+                <div class="lock-overlay">
+                    <span>🔒 Upgrade to Safka Dhexe</span>
+                </div>
             </div>
-        </form>
+        {% else %}
+            <!-- Dhexe or Hore: Search Active -->
+            <form method="GET" id="searchForm" style="flex: 1; min-width: 200px;">
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 150px;">
+                        <input type="text" name="search" id="searchInput" placeholder="🔍 Search PDFs..." 
+                               value="{{ search_query }}" 
+                               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
+                    </div>
+                    {% if search_level >= 1 %}
+                        <select name="subject" id="subjectFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
+                            <option value="">All Subjects</option>
+                            {% for sub in subjects %}
+                                <option value="{{ sub }}" {% if subject_filter == sub %}selected{% endif %}>{{ sub }}</option>
+                            {% endfor %}
+                        </select>
+                    {% endif %}
+                    {% if search_level >= 2 %}
+                        <select name="grade" id="gradeFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
+                            <option value="">All Grades</option>
+                            {% for g in grades %}
+                                <option value="{{ g }}" {% if grade_filter == g %}selected{% endif %}>{{ g }}</option>
+                            {% endfor %}
+                        </select>
+                    {% endif %}
+                    <button type="submit" style="padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                    {% if search_query or subject_filter or grade_filter %}
+                        <a href="{{ url_for('pdfs.list_pdfs') }}" style="padding: 10px 16px; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text-secondary); font-weight: 500; transition: var(--transition);">
+                            <i class="fas fa-times"></i> Clear
+                        </a>
+                    {% endif %}
+                </div>
+            </form>
+        {% endif %}
     </div>
 
     <!-- PDFs Grid -->
     {% if pdfs %}
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
             {% for pdf in pdfs %}
-                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); transition: var(--transition); display: flex; flex-direction: column;">
+                <div class="{% if pdf.is_premium %}pdf-card-premium{% endif %}" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); transition: var(--transition); display: flex; flex-direction: column; position: relative;">
+                    
+                    {% if pdf.is_premium %}
+                        <span class="premium-badge">💎 Premium</span>
+                        {% if not can_access_premium %}
+                            <!-- Premium locked for Danbe -->
+                            <div class="premium-lock" data-tier-locked data-feature="premium_resources" data-required-tier="dhexe">
+                                <span><i class="fas fa-lock"></i> Upgrade to Access</span>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+
                     <!-- PDF Icon & Title -->
                     <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
                         <div style="width: 48px; height: 48px; border-radius: 12px; background: #FEF2F2; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #E74C3C;">
@@ -90,17 +224,26 @@
                         <span style="color: var(--text-secondary); font-size: 13px;">{{ pdf.view_count or 0 }} views</span>
                     </div>
 
-                    <!-- Action Buttons - View Button Only if file_url exists -->
+                    <!-- Action Buttons -->
                     <div style="display: flex; gap: 10px; margin-top: auto;">
-                        {% if pdf.file_url %}
-                            <a href="{{ url_for('pdfs.view_pdf', pdf_id=pdf.id) }}" 
-                               style="flex: 1; padding: 10px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; text-align: center; transition: var(--transition);">
-                                <i class="fas fa-eye"></i> View
-                            </a>
+                        {% if pdf.is_premium and not can_access_premium %}
+                            <!-- Premium locked: show upgrade button -->
+                            <button class="btn btn-secondary" style="flex: 1; cursor: pointer;" 
+                                    data-tier-locked data-feature="premium_resources" data-required-tier="dhexe">
+                                <i class="fas fa-lock"></i> Upgrade
+                            </button>
+                        {% else %}
+                            {% if pdf.file_url %}
+                                <a href="{{ url_for('pdfs.view_pdf', pdf_id=pdf.id) }}" 
+                                   class="btn btn-primary" style="flex: 1; text-align: center;">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            {% endif %}
                         {% endif %}
-                        <a href="{{ pdf.telegram_download_url }}" target="_blank" 
-                           style="flex: 1; padding: 10px; background: #0088CC; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; text-align: center; transition: var(--transition);">
-                            <i class="fab fa-telegram-plane"></i> Download
+                        <!-- Download button – always visible but quota checked on download -->
+                        <a href="{{ url_for('pdfs.download_pdf', pdf_id=pdf.id) }}" 
+                           class="btn btn-success" style="flex: 1; text-align: center;">
+                            <i class="fas fa-download"></i> Download
                         </a>
                     </div>
                     <div style="text-align: center; margin-top: 6px; font-size: 10px; color: var(--text-muted);">
@@ -126,30 +269,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const gradeFilter = document.getElementById('gradeFilter');
     const searchForm = document.getElementById('searchForm');
     
-    let debounceTimer;
-    
-    function autoSubmit() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(function() {
-            searchForm.submit();
-        }, 500);
+    if (searchForm) {
+        let debounceTimer;
+        function autoSubmit() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function() {
+                searchForm.submit();
+            }, 500);
+        }
+        if (searchInput) searchInput.addEventListener('input', autoSubmit);
+        if (subjectFilter) subjectFilter.addEventListener('change', function() { searchForm.submit(); });
+        if (gradeFilter) gradeFilter.addEventListener('change', function() { searchForm.submit(); });
     }
-    
-    if (searchInput) {
-        searchInput.addEventListener('input', autoSubmit);
-    }
-    
-    if (subjectFilter) {
-        subjectFilter.addEventListener('change', function() {
-            searchForm.submit();
-        });
-    }
-    
-    if (gradeFilter) {
-        gradeFilter.addEventListener('change', function() {
-            searchForm.submit();
-        });
-    }
+
+    // Locked elements with data-tier-locked will trigger the upgrade sheet automatically
+    // via the global click listener in safka.js
 });
 </script>
 {% endblock %}

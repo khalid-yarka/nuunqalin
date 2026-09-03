@@ -1,20 +1,30 @@
 // ============================================
 // SAFKA PREVIEW SYSTEM – Nuunqalin
+// Professional Upgrade Sheet
 // ============================================
 
 (function() {
     'use strict';
 
     // ----- DOM References -----
-    let backdrop, sheet, track, slides, dots, closeBtn, handle;
+    let backdrop, sheet, track, dots, closeBtn, handle;
     let currentSlide = 0;
     let totalSlides = 3;
-    let isDragging = false;
-    let startX = 0;
-    let currentX = 0;
     let isOpen = false;
+    let isDragging = false;
+    let isSwiping = false;
+    let dragStartY = 0;
+    let dragCurrentY = 0;
+    let sheetOffsetY = 0;
+    let swipeStartX = 0;
+    let swipeCurrentX = 0;
     let targetFeature = null;
     let targetRequiredTier = null;
+    let isAnimating = false;
+
+    // ----- Constants -----
+    const CLOSE_THRESHOLD = 80;
+    const SWIPE_THRESHOLD = 40;
 
     // ----- Initialization -----
     function init() {
@@ -30,40 +40,73 @@
             return;
         }
 
-        // Load slides content
+        // Render slides
         renderSlides();
 
         // Event listeners
         backdrop.addEventListener('click', closeSheet);
         closeBtn.addEventListener('click', closeSheet);
-        handle.addEventListener('mousedown', startDrag);
-        handle.addEventListener('touchstart', startDragTouch, { passive: true });
+
+        // Drag to dismiss (handle)
+        handle.addEventListener('mousedown', onDragStart);
+        handle.addEventListener('touchstart', onDragStartTouch, { passive: false });
+
+        // Swipe on carousel
+        const carousel = document.querySelector('.safka-carousel');
+        if (carousel) {
+            carousel.addEventListener('mousedown', onSwipeStart);
+            carousel.addEventListener('touchstart', onSwipeStartTouch, { passive: false });
+        }
 
         // Keyboard
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && isOpen) {
                 closeSheet();
             }
+            if (e.key === 'ArrowLeft' && isOpen) {
+                goToSlide(currentSlide - 1);
+            }
+            if (e.key === 'ArrowRight' && isOpen) {
+                goToSlide(currentSlide + 1);
+            }
         });
 
         // Dots
         dots.forEach(function(dot, idx) {
             dot.addEventListener('click', function() {
+                if (isAnimating) return;
                 goToSlide(idx);
             });
         });
 
-        // Expose open function globally
+        // Expose global functions
         window.openSafkaPreview = openSafkaPreview;
+        window.closeSafkaSheet = closeSheet;
+        window.triggerUpgrade = triggerUpgrade;
 
-        // Check for hash on load (optional)
-        // handle hash if needed
+        // Global click listener for locked features
+        document.addEventListener('click', function(e) {
+            const target = e.target.closest('[data-tier-locked]');
+            if (target) {
+                e.preventDefault();
+                const feature = target.dataset.feature || null;
+                const requiredTier = target.dataset.requiredTier || 'dhexe';
+                triggerUpgrade(feature, requiredTier);
+            }
+        });
+
+        // Add click animation to interactive elements inside sheet
+        sheet.addEventListener('mousedown', function(e) {
+            const btn = e.target.closest('.safka-pagination__dot, .safka-sheet__close, [data-tier-locked]');
+            if (btn) {
+                btn.classList.add('safka-click-pulse');
+                setTimeout(() => btn.classList.remove('safka-click-pulse'), 300);
+            }
+        });
     }
 
-    // ----- Render Slides (static content) -----
+    // ----- Render Slides -----
     function renderSlides() {
-        // We'll define slides as HTML strings for simplicity.
-        // In a real implementation, this could be fetched or templated.
         const slidesData = [
             {
                 id: 'danbe',
@@ -95,7 +138,6 @@
                     { icon: '🏆', name: 'Expanded Achievements', desc: 'More badges to unlock.' },
                 ],
                 locked: false,
-                // optional preview
                 preview: {
                     type: 'analytics',
                     title: 'Advanced Analytics Preview',
@@ -125,7 +167,6 @@
             }
         ];
 
-        // Build track HTML
         let trackHTML = '';
         slidesData.forEach(function(slide, idx) {
             let featureCards = '';
@@ -171,22 +212,25 @@
         });
 
         track.innerHTML = trackHTML;
-
-        // Update dots count
         totalSlides = slidesData.length;
-        // If dots already exist, update active class
         updateDots();
     }
 
     // ----- Navigation -----
     function goToSlide(index) {
+        if (isAnimating) return;
         if (index < 0) index = 0;
         if (index >= totalSlides) index = totalSlides - 1;
+        if (index === currentSlide) return;
+
+        isAnimating = true;
         currentSlide = index;
         track.style.transform = `translateX(-${currentSlide * 100}%)`;
         updateDots();
-        // Update slide content if needed (e.g., show locked preview based on feature)
-        // For now, we just update the slide.
+
+        setTimeout(() => {
+            isAnimating = false;
+        }, 500);
     }
 
     function updateDots() {
@@ -205,12 +249,9 @@
         const feature = options.feature || null;
         const requiredTier = options.requiredTier || null;
 
-        // Store for potential use
         targetFeature = feature;
         targetRequiredTier = requiredTier;
 
-        // If a specific feature is requested, we could highlight it or jump to the appropriate slide.
-        // For now, we'll open the sheet and maybe set the slide based on requiredTier.
         if (requiredTier) {
             const tierMap = {
                 'danbe': 0,
@@ -219,99 +260,182 @@
             };
             const slideIndex = tierMap[requiredTier];
             if (slideIndex !== undefined) {
-                goToSlide(slideIndex);
+                currentSlide = slideIndex;
+                track.style.transform = `translateX(-${currentSlide * 100}%)`;
+                updateDots();
             }
         } else {
-            // Default to Dhexe (middle) as a balanced preview
             goToSlide(1);
         }
 
+        sheet.style.transform = 'translateY(0)';
         sheet.classList.add('active');
         backdrop.classList.add('active');
         document.body.style.overflow = 'hidden';
         isOpen = true;
+        sheetOffsetY = 0;
     }
 
     // ----- Close Sheet -----
     function closeSheet() {
+        if (!isOpen) return;
+        sheet.style.transform = 'translateY(100%)';
         sheet.classList.remove('active');
         backdrop.classList.remove('active');
         document.body.style.overflow = '';
         isOpen = false;
         targetFeature = null;
         targetRequiredTier = null;
+        sheetOffsetY = 0;
     }
 
-    // ----- Drag / Swipe (desktop mouse) -----
-    function startDrag(e) {
+    // ----- Trigger Upgrade (for locked features) -----
+    function triggerUpgrade(feature, requiredTier) {
+        openSafkaPreview({ feature: feature, requiredTier: requiredTier });
+    }
+
+    // ----- Drag to Dismiss (Mouse) -----
+    function onDragStart(e) {
         if (!isOpen) return;
         isDragging = true;
-        startX = e.clientX;
+        dragStartY = e.clientY;
+        sheetOffsetY = 0;
+        sheet.classList.add('dragging');
         document.addEventListener('mousemove', onDragMove);
-        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('mouseup', onDragEnd);
         e.preventDefault();
     }
 
     function onDragMove(e) {
         if (!isDragging) return;
-        currentX = e.clientX;
-        const diff = currentX - startX;
-        // If diff > 50, close
-        if (diff > 80) {
-            closeSheet();
-            endDrag(e);
-        } else if (diff < -80) {
-            // Next slide? We'll implement simple next/prev on drag later.
-            // For now, we'll ignore.
+        const delta = e.clientY - dragStartY;
+        if (delta > 0) {
+            sheet.style.transform = `translateY(${delta}px)`;
+            sheetOffsetY = delta;
         }
     }
 
-    function endDrag(e) {
+    function onDragEnd(e) {
+        if (!isDragging) return;
         isDragging = false;
+        sheet.classList.remove('dragging');
         document.removeEventListener('mousemove', onDragMove);
-        document.removeEventListener('mouseup', endDrag);
-    }
+        document.removeEventListener('mouseup', onDragEnd);
 
-    // ----- Touch Drag -----
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchMoved = false;
-
-    function startDragTouch(e) {
-        if (!isOpen) return;
-        const touch = e.touches[0];
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-        touchMoved = false;
-        // We'll use a touchmove listener on the document
-        document.addEventListener('touchmove', onTouchMove, { passive: true });
-        document.addEventListener('touchend', onTouchEnd, { passive: true });
-    }
-
-    function onTouchMove(e) {
-        if (!isOpen) return;
-        const touch = e.touches[0];
-        const deltaX = touch.clientX - touchStartX;
-        const deltaY = touch.clientY - touchStartY;
-        if (Math.abs(deltaX) > 20 || Math.abs(deltaY) > 20) {
-            touchMoved = true;
-        }
-        // If swiping down more than up, close
-        if (deltaY > 60) {
+        if (sheetOffsetY > CLOSE_THRESHOLD) {
             closeSheet();
-            document.removeEventListener('touchmove', onTouchMove);
-            document.removeEventListener('touchend', onTouchEnd);
+        } else {
+            sheet.style.transform = 'translateY(0)';
+            sheetOffsetY = 0;
         }
     }
 
-    function onTouchEnd(e) {
-        document.removeEventListener('touchmove', onTouchMove);
-        document.removeEventListener('touchend', onTouchEnd);
+    // ----- Drag to Dismiss (Touch) -----
+    function onDragStartTouch(e) {
+        if (!isOpen) return;
+        const touch = e.touches[0];
+        isDragging = true;
+        dragStartY = touch.clientY;
+        sheetOffsetY = 0;
+        sheet.classList.add('dragging');
+        document.addEventListener('touchmove', onDragMoveTouch, { passive: false });
+        document.addEventListener('touchend', onDragEndTouch, { passive: false });
+        e.preventDefault();
     }
 
-    // ----- Expose to global -----
-    window.openSafkaPreview = openSafkaPreview;
-    window.closeSafkaSheet = closeSheet;
+    function onDragMoveTouch(e) {
+        if (!isDragging) return;
+        const touch = e.touches[0];
+        const delta = touch.clientY - dragStartY;
+        if (delta > 0) {
+            sheet.style.transform = `translateY(${delta}px)`;
+            sheetOffsetY = delta;
+        }
+        e.preventDefault();
+    }
+
+    function onDragEndTouch(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        sheet.classList.remove('dragging');
+        document.removeEventListener('touchmove', onDragMoveTouch);
+        document.removeEventListener('touchend', onDragEndTouch);
+
+        if (sheetOffsetY > CLOSE_THRESHOLD) {
+            closeSheet();
+        } else {
+            sheet.style.transform = 'translateY(0)';
+            sheetOffsetY = 0;
+        }
+    }
+
+    // ----- Swipe on Carousel (Mouse) -----
+    function onSwipeStart(e) {
+        if (!isOpen) return;
+        isSwiping = true;
+        swipeStartX = e.clientX;
+        track.classList.add('swiping');
+        document.addEventListener('mousemove', onSwipeMove);
+        document.addEventListener('mouseup', onSwipeEnd);
+        e.preventDefault();
+    }
+
+    function onSwipeMove(e) {
+        if (!isSwiping) return;
+        const delta = e.clientX - swipeStartX;
+        // We could move the track partially, but we'll keep simple: if delta exceeds threshold, change slide.
+        // For now, we just track the delta; we'll decide on end.
+        swipeCurrentX = delta;
+    }
+
+    function onSwipeEnd(e) {
+        if (!isSwiping) return;
+        isSwiping = false;
+        track.classList.remove('swiping');
+        document.removeEventListener('mousemove', onSwipeMove);
+        document.removeEventListener('mouseup', onSwipeEnd);
+
+        if (swipeCurrentX < -SWIPE_THRESHOLD) {
+            goToSlide(currentSlide + 1);
+        } else if (swipeCurrentX > SWIPE_THRESHOLD) {
+            goToSlide(currentSlide - 1);
+        }
+        swipeCurrentX = 0;
+    }
+
+    // ----- Swipe on Carousel (Touch) -----
+    function onSwipeStartTouch(e) {
+        if (!isOpen) return;
+        const touch = e.touches[0];
+        isSwiping = true;
+        swipeStartX = touch.clientX;
+        track.classList.add('swiping');
+        document.addEventListener('touchmove', onSwipeMoveTouch, { passive: false });
+        document.addEventListener('touchend', onSwipeEndTouch, { passive: false });
+        e.preventDefault();
+    }
+
+    function onSwipeMoveTouch(e) {
+        if (!isSwiping) return;
+        const touch = e.touches[0];
+        swipeCurrentX = touch.clientX - swipeStartX;
+        e.preventDefault();
+    }
+
+    function onSwipeEndTouch(e) {
+        if (!isSwiping) return;
+        isSwiping = false;
+        track.classList.remove('swiping');
+        document.removeEventListener('touchmove', onSwipeMoveTouch);
+        document.removeEventListener('touchend', onSwipeEndTouch);
+
+        if (swipeCurrentX < -SWIPE_THRESHOLD) {
+            goToSlide(currentSlide + 1);
+        } else if (swipeCurrentX > SWIPE_THRESHOLD) {
+            goToSlide(currentSlide - 1);
+        }
+        swipeCurrentX = 0;
+    }
 
     // ----- Init on DOM ready -----
     if (document.readyState === 'loading') {
