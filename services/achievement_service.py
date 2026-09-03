@@ -4,7 +4,7 @@
 import logging
 from typing import List, Dict, Optional
 from db import execute_with_retry, get_student_by_id
-from tier_service import get_achievement_history_level, get_badge_showcase_level
+from services.tier_service import get_achievement_history_level, get_badge_showcase_level
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,6 @@ def evaluate_conditions(user_id: int, event: str, data: Dict) -> List[int]:
     Given an event (e.g., 'quiz_completed') and associated data,
     return a list of achievement IDs that should be awarded.
     """
-    # Get user stats
     from db import execute_with_retry
     # Count quizzes completed
     cursor = execute_with_retry(
@@ -154,11 +153,8 @@ def evaluate_conditions(user_id: int, event: str, data: Dict) -> List[int]:
     achievements = get_user_achievement_ids(user_id)
     ach_count = len(achievements)
 
-    # Premium resource access (we can track via a flag in user_settings or just by checking if user has ever accessed one)
+    # Premium resource access
     premium_access = False
-    # We can check if user has any premium resource download in resource_downloads? 
-    # For simplicity, we'll check if user has a flag in user_settings.
-    # But we'll skip that for now.
 
     # Now check all achievements
     to_award = []
@@ -200,24 +196,19 @@ def get_visible_achievements(user_id: int) -> List[Dict]:
     level = get_achievement_history_level(user_id)
     all_user_ach = get_user_achievements(user_id)
     if level == 1:
-        # limited/recent: last 10
         return all_user_ach[:10]
     elif level == 2:
-        # expanded: last 50
         return all_user_ach[:50]
     else:
-        # complete: all
         return all_user_ach
 
 def get_showcase_badges(user_id: int) -> List[Dict]:
     """Return badges for showcase, limited by tier."""
     level = get_badge_showcase_level(user_id)
     all_ach = get_user_achievements(user_id)
-    # For showcase, we might want to return only a few, e.g., top 3.
-    # We'll just return the first N based on level.
     if level == 1:
         return all_ach[:3]
     elif level == 2:
         return all_ach[:6]
     else:
-        return all_ach  # all
+        return all_ach
