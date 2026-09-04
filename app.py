@@ -18,7 +18,6 @@ from db import (
     get_student_by_phone, get_student_by_id, create_student, is_admin,
     close_db_connections, close_db,
 )
-# Import from utils (single import)
 from utils import get_somali_time_display, validate_csrf, ensure_csrf_token, time_ago
 from startup import verify_startup, get_startup_health
 from database import get_database_health
@@ -29,12 +28,6 @@ from error_models import get_error_stats, get_error_log_count
 # DEPLOYMENT SAFETY CHECK: Single worker
 # ============================================
 def ensure_single_worker():
-    """
-    Check if the application is running with multiple Gunicorn workers.
-    If so, log a critical error and warn, because the Live Quiz in-memory state
-    is not shared across processes.
-    Set environment variable FORCE_MULTI_WORKER=1 to override (for development).
-    """
     if os.environ.get('FORCE_MULTI_WORKER') == '1':
         return
     if 'GUNICORN_WORKER' in os.environ:
@@ -64,16 +57,16 @@ from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
 from blueprints.notifications_bp import notifications_bp
 from blueprints.user_settings_bp import user_settings_bp
-
-# Activity & Backup blueprints
+from blueprints.saved_content_bp import saved_content_bp
+from blueprints.achievements_bp import achievements_bp
 from blueprints.admin_activity_bp import admin_activity_bp
 from blueprints.admin_backup_bp import admin_backup_bp
 
 # ============================================
-# TIER SYSTEM BLUEPRINTS
+# PDF ADMIN BLUEPRINT & TELEGRAM BOT
 # ============================================
-from blueprints.saved_content_bp import saved_content_bp
-from blueprints.achievements_bp import achievements_bp
+from blueprints.pdf_admin_bp import pdf_admin_bp
+from bot.bot import start_bot, stop_bot
 
 # Activity logger
 from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event, init_activity_logger
@@ -260,7 +253,6 @@ app.config['SESSION_COOKIE_SECURE'] = Config.SESSION_COOKIE_SECURE
 app.config['SESSION_COOKIE_HTTPONLY'] = Config.SESSION_COOKIE_HTTPONLY
 app.config['SESSION_COOKIE_SAMESITE'] = Config.SESSION_COOKIE_SAMESITE
 
-# After app = Flask(__name__)
 app.jinja_env.filters['time_ago'] = time_ago
 
 # ============================================
@@ -286,7 +278,7 @@ def log_request_end(response):
     return response
 
 # ============================================
-# CSRF PROTECTION (centralized)
+# CSRF PROTECTION
 # ============================================
 
 @app.before_request
@@ -306,16 +298,20 @@ app.register_blueprint(admin_errors_bp)
 app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
 app.register_blueprint(notifications_bp)
-
-# Activity & Backup
+app.register_blueprint(user_settings_bp)
+app.register_blueprint(saved_content_bp)
+app.register_blueprint(achievements_bp)
 app.register_blueprint(admin_activity_bp)
 app.register_blueprint(admin_backup_bp)
 
-# Tier System Blueprints
-app.register_blueprint(saved_content_bp)
-app.register_blueprint(achievements_bp)
-
-app.register_blueprint(user_settings_bp)
+# ============================================
+# REGISTER PDF ADMIN BLUEPRINT (Secret Path)
+# ============================================
+PDF_ADMIN_SECRET = os.getenv('PDF_ADMIN_SECRET_PATH', 'pdf-admin-' + os.urandom(8).hex())
+if not PDF_ADMIN_SECRET.startswith('/'):
+    PDF_ADMIN_SECRET = '/' + PDF_ADMIN_SECRET
+app.register_blueprint(pdf_admin_bp, url_prefix=PDF_ADMIN_SECRET)
+logger.info(f"PDF Admin panel mounted at {PDF_ADMIN_SECRET}")
 
 # ============================================
 # REGISTER ERROR HANDLERS
@@ -334,6 +330,7 @@ def close_db_connection(exception=None):
 @atexit.register
 def cleanup():
     logger.info("Application shutdown initiated.")
+    stop_bot()
     try:
         close_db_connections()
     except Exception as e:
@@ -471,10 +468,6 @@ def login():
 
     return render_template('login.html')
 
-
-# ============================================
-# REGISTER
-# ============================================
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -648,13 +641,13 @@ def utility_processor():
     }
 
 # ============================================
-# INITIALIZE ACTIVITY LOGGER (with app context)
+# INITIALIZE ACTIVITY LOGGER
 # ============================================
 
 init_activity_logger(app)
 
 # ============================================
-# INITIALIZE LIVE QUIZ STATE MANAGER (Redis‑free)
+# INITIALIZE LIVE QUIZ STATE MANAGER
 # ============================================
 
 try:
@@ -664,6 +657,15 @@ try:
     logger.info("Live Quiz State Manager initialized and recovered active quizzes.")
 except Exception as e:
     logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
+
+# ============================================
+# START TELEGRAM BOT
+# ============================================
+try:
+    start_bot()
+    logger.info("Telegram bot started")
+except Exception as e:
+    logger.error(f"Failed to start Telegram bot: {e}")
 
 # ============================================
 # RUN APP

@@ -1,0 +1,130 @@
+{% extends "pdf_admin/base.html" %}
+
+{% block title %}Process PDF - PDF Admin{% endblock %}
+
+{% block content %}
+<div class="pdf-admin-page">
+    <div class="pdf-page-header">
+        <h1><i class="fas fa-edit"></i> Process Pending PDF</h1>
+        <a href="{{ url_for('pdf_admin.pending_list') }}" class="pdf-btn pdf-btn-secondary pdf-btn-sm">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="pdf-process-container">
+        <!-- Left: PDF Info & Preview -->
+        <div class="pdf-process-info">
+            <div class="pdf-info-card">
+                <h3><i class="fas fa-info-circle"></i> PDF Information</h3>
+                <div class="pdf-info-item"><span class="label">Filename:</span> <span>{{ pending.filename }}</span></div>
+                <div class="pdf-info-item"><span class="label">Uploaded By:</span> <span>{{ pending.uploaded_by or 'Unknown' }}</span></div>
+                <div class="pdf-info-item"><span class="label">Uploaded At:</span> <span>{{ pending.uploaded_at|replace('T', ' ')|truncate(16, True, '') }}</span></div>
+                <div class="pdf-info-item"><span class="label">File ID:</span> <span class="mono">{{ pending.file_id[:12] }}...</span></div>
+            </div>
+            <div class="pdf-preview-card">
+                <h3><i class="fas fa-eye"></i> Preview</h3>
+                <div class="pdf-preview-container">
+                    <iframe src="{{ url_for('pdf_admin.preview_pdf', pending_id=pending.id) }}" frameborder="0" class="pdf-preview-iframe"></iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Metadata Form -->
+        <div class="pdf-process-form">
+            <form method="POST" action="{{ url_for('pdf_admin.process_pending', pending_id=pending.id) }}" id="pdfProcessForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="pdf-form-card">
+                    <h3><i class="fas fa-pen"></i> Metadata</h3>
+
+                    <div class="pdf-form-group">
+                        <label for="title">Title <span class="required">*</span></label>
+                        <input type="text" id="title" name="title" placeholder="Enter PDF title" required>
+                    </div>
+
+                    <div class="pdf-form-group">
+                        <label for="description">Description</label>
+                        <textarea id="description" name="description" rows="3" placeholder="Brief description"></textarea>
+                    </div>
+
+                    <div class="pdf-form-row">
+                        <div class="pdf-form-group half">
+                            <label for="subject">Subject <span class="required">*</span></label>
+                            <select id="subject" name="subject" required>
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.code }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="pdf-form-group half">
+                            <label for="grade">Grade <span class="required">*</span></label>
+                            <input type="text" id="grade" name="grade" placeholder="e.g., F4, Grade 10" required>
+                        </div>
+                    </div>
+
+                    <div class="pdf-form-group">
+                        <label for="category">Category</label>
+                        <input type="text" id="category" name="category" placeholder="e.g., Revision, Notes">
+                    </div>
+
+                    <div class="pdf-form-group">
+                        <label>Chapters</label>
+                        <div class="pdf-chapters-checkboxes" id="chaptersContainer">
+                            <!-- Will be populated by JS -->
+                        </div>
+                        <input type="hidden" name="chapters" id="chaptersInput" value="">
+                    </div>
+
+                    <div class="pdf-form-group">
+                        <label for="tags">Tags (comma separated)</label>
+                        <input type="text" id="tags" name="tags" placeholder="e.g., biology, exam, revision">
+                    </div>
+
+                    <div class="pdf-form-group pdf-toggle-group">
+                        <label class="pdf-toggle-label">
+                            <span>Premium Content</span>
+                            <div class="pdf-toggle-switch">
+                                <input type="checkbox" id="is_premium" name="is_premium" value="1">
+                                <span class="pdf-slider"></span>
+                            </div>
+                        </label>
+                        <span class="pdf-toggle-hint">Enable for premium-only access</span>
+                    </div>
+
+                    <div class="pdf-form-actions">
+                        <button type="submit" class="pdf-btn pdf-btn-primary pdf-btn-block">
+                            <i class="fas fa-check"></i> Review & Confirm
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Populate chapters checkboxes (1-20)
+    const container = document.getElementById('chaptersContainer');
+    const maxChapters = 20;
+    for (let i = 1; i <= maxChapters; i++) {
+        const label = document.createElement('label');
+        label.className = 'pdf-chapter-checkbox';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = i;
+        input.name = 'chapters_select';
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(' ' + i));
+        container.appendChild(label);
+    }
+
+    // On form submit, collect selected chapters
+    document.getElementById('pdfProcessForm').addEventListener('submit', function(e) {
+        const checkboxes = document.querySelectorAll('input[name="chapters_select"]:checked');
+        const selected = Array.from(checkboxes).map(cb => cb.value).join(',');
+        document.getElementById('chaptersInput').value = selected;
+    });
+});
+</script>
+{% endblock %}

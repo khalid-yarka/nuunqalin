@@ -401,3 +401,24 @@ CREATE TABLE IF NOT EXISTS user_achievements (
     FOREIGN KEY (achievement_id) REFERENCES achievements(id) ON DELETE CASCADE,
     UNIQUE(user_id, achievement_id)
 );
+
+
+-- ============================================
+-- PENDING PDFS TABLE (for bot intake)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS pending_pdfs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id TEXT NOT NULL,
+    file_unique_id TEXT UNIQUE NOT NULL,
+    filename TEXT,
+    uploaded_by INTEGER,
+    uploaded_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_pdfs_uploaded_at ON pending_pdfs(uploaded_at DESC);
+
+-- Add file_unique_id to pdfs for duplicate detection
+ALTER TABLE pdfs ADD COLUMN file_unique_id TEXT UNIQUE;
+CREATE INDEX IF NOT EXISTS idx_pdfs_file_unique_id ON pdfs(file_unique_id);
+

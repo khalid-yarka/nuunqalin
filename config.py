@@ -181,4 +181,20 @@ class Config:
                 errors.append("SMTP_TO is missing")
         return errors
 
+# ============================================
+# TELEGRAM BOT
+# ============================================
+
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_ADMIN_IDS = os.getenv('TELEGRAM_ADMIN_IDS', '')  # comma-separated user IDs
+
+# ============================================
+# PDF ADMIN PANEL
+# ============================================
+
+PDF_ADMIN_SECRET_PATH = os.getenv('PDF_ADMIN_SECRET_PATH', '')
+PDF_ADMIN_USERNAME = os.getenv('PDF_ADMIN_USERNAME', 'admin')
+PDF_ADMIN_PASSWORD_HASH = os.getenv('PDF_ADMIN_PASSWORD_HASH', '')
+PDF_ADMIN_SESSION_TIMEOUT = int(os.getenv('PDF_ADMIN_SESSION_TIMEOUT', '1800'))  # seconds
+
 Config.ensure_directories()
