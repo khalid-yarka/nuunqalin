@@ -6,9 +6,9 @@ import telebot
 from telebot import types
 
 from bot.utils import (
-    is_duplicate_pdf, save_pending_pdf, get_pending_pdfs_count,
-    get_pending_pdf_list, is_admin
+    is_duplicate_pdf, save_pending_pdf, is_admin
 )
+from bot.db import count_pending_pdfs, get_pending_pdf_list
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ def handle_admin_pending(bot: telebot.TeleBot, call: telebot.types.CallbackQuery
     bot.answer_callback_query(call.id)
 
     if call.data == "pdf_admin_pending":
-        count = get_pending_pdfs_count()
+        count = count_pending_pdfs()
         pending_list = get_pending_pdf_list(limit=5)
         text = f"📚 Pending PDFs: {count}\n\n"
         if pending_list:

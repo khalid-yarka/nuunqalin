@@ -76,7 +76,7 @@ def get_pending_pdf_by_id(pending_id):
     conn.close()
     return dict(row) if row else None
 
-def get_pending_pdfs(limit=50, offset=0):
+def get_pending_pdf_list(limit=50, offset=0):
     cursor, conn = execute_query("""
         SELECT * FROM pending_pdfs
         ORDER BY uploaded_at DESC
