@@ -337,6 +337,16 @@ def cleanup():
         logger.warning(f"Cleanup error: {e}")
 
 # ============================================
+# ENSURE PENDING PDFS TABLE EXISTS
+# ============================================
+from db import ensure_pending_pdfs_table
+try:
+    ensure_pending_pdfs_table()
+    logger.info("pending_pdfs table verified")
+except Exception as e:
+    logger.error(f"Failed to ensure pending_pdfs table: {e}")
+
+# ============================================
 # ROUTES
 # ============================================
 

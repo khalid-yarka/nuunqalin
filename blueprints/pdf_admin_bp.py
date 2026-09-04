@@ -1,5 +1,5 @@
 # blueprints/pdf_admin_bp.py
-# Standalone PDF Admin Panel with plain password authentication
+# Standalone PDF Admin Panel – Uses main db.py for all operations
 
 import os
 import logging
@@ -10,7 +10,7 @@ from functools import wraps
 from config import Config
 from db import (
     get_pending_pdf_by_id, get_pending_pdfs, count_pending_pdfs,
-    move_pending_to_pdfs, execute_with_retry
+    delete_pending_pdf, move_pending_to_pdfs, execute_with_retry
 )
 from subjects_config import get_all_subjects, get_subject
 from bot.utils import get_bot
@@ -22,7 +22,7 @@ pdf_admin_bp = Blueprint('pdf_admin', __name__, url_prefix='/pdf-admin')
 
 # Auth config - plain password
 ADMIN_USERNAME = os.getenv('PDF_ADMIN_USERNAME', 'admin')
-ADMIN_PASSWORD = os.getenv('PDF_ADMIN_PASSWORD', 'admin')  # Plain password from env
+ADMIN_PASSWORD = os.getenv('PDF_ADMIN_PASSWORD', 'admin')
 SESSION_KEY = 'pdf_admin_logged_in'
 USERNAME_KEY = 'pdf_admin_username'
 SESSION_TIMEOUT = int(os.getenv('PDF_ADMIN_SESSION_TIMEOUT', '1800'))
@@ -56,12 +56,12 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
 
-        # Plain password comparison
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session[SESSION_KEY] = True
             session[USERNAME_KEY] = username
             session['pdf_admin_login_time'] = int(__import__('time').time())
             flash('Login successful.', 'success')
+            logger.info(f"PDF Admin login successful for {username}")
             return redirect(url_for('pdf_admin.dashboard'))
         else:
             flash('Invalid username or password.', 'error')
@@ -81,19 +81,44 @@ def logout():
 @pdf_admin_bp.route('/')
 @pdf_admin_required
 def dashboard():
-    pending_count = count_pending_pdfs()
-    cursor = execute_with_retry("SELECT COUNT(*) as count FROM pdfs")
-    processed_count = cursor.fetchone()['count'] if cursor.fetchone() else 0
-    cursor = execute_with_retry(
-        "SELECT COUNT(*) as count FROM pending_pdfs WHERE date(uploaded_at) = date('now', 'localtime')"
-    )
-    today_uploads = cursor.fetchone()['count'] if cursor.fetchone() else 0
-    cursor = execute_with_retry(
-        "SELECT COUNT(*) as count FROM pdfs WHERE date(created_at) = date('now', 'localtime')"
-    )
-    today_processed = cursor.fetchone()['count'] if cursor.fetchone() else 0
+    pending_count = 0
+    processed_count = 0
+    today_uploads = 0
+    today_processed = 0
+    pending_list = []
 
-    pending_list = get_pending_pdfs(limit=10)
+    try:
+        pending_count = count_pending_pdfs()
+    except Exception as e:
+        logger.error(f"Error counting pending PDFs: {e}")
+
+    try:
+        cursor = execute_with_retry("SELECT COUNT(*) as count FROM pdfs")
+        processed_count = cursor.fetchone()['count'] if cursor.fetchone() else 0
+    except Exception as e:
+        logger.error(f"Error counting pdfs: {e}")
+
+    try:
+        cursor = execute_with_retry(
+            "SELECT COUNT(*) as count FROM pending_pdfs WHERE date(uploaded_at) = date('now', 'localtime')"
+        )
+        today_uploads = cursor.fetchone()['count'] if cursor.fetchone() else 0
+    except Exception as e:
+        logger.error(f"Error counting today's uploads: {e}")
+
+    try:
+        cursor = execute_with_retry(
+            "SELECT COUNT(*) as count FROM pdfs WHERE date(created_at) = date('now', 'localtime')"
+        )
+        today_processed = cursor.fetchone()['count'] if cursor.fetchone() else 0
+    except Exception as e:
+        logger.error(f"Error counting today's processed: {e}")
+
+    try:
+        pending_list = get_pending_pdfs(limit=10)
+    except Exception as e:
+        logger.error(f"Error fetching pending list: {e}")
+
     return render_template('pdf_admin/dashboard.html',
                            pending_count=pending_count,
                            processed_count=processed_count,
@@ -108,8 +133,13 @@ def pending_list():
     page = request.args.get('page', 1, type=int)
     per_page = 20
     offset = (page - 1) * per_page
-    pending_list = get_pending_pdfs(limit=per_page, offset=offset)
-    total = count_pending_pdfs()
+    pending_list = []
+    total = 0
+    try:
+        pending_list = get_pending_pdfs(limit=per_page, offset=offset)
+        total = count_pending_pdfs()
+    except Exception as e:
+        logger.error(f"Error in pending_list: {e}")
     total_pages = (total + per_page - 1) // per_page if total > 0 else 1
     return render_template('pdf_admin/pending_list.html',
                            pending_list=pending_list,
@@ -120,7 +150,14 @@ def pending_list():
 @pdf_admin_bp.route('/pending/<int:pending_id>/process', methods=['GET', 'POST'])
 @pdf_admin_required
 def process_pending(pending_id):
-    pending = get_pending_pdf_by_id(pending_id)
+    pending = None
+    try:
+        pending = get_pending_pdf_by_id(pending_id)
+    except Exception as e:
+        logger.error(f"Error fetching pending {pending_id}: {e}")
+        flash('Database error.', 'error')
+        return redirect(url_for('pdf_admin.pending_list'))
+
     if not pending:
         flash('Pending PDF not found.', 'error')
         return redirect(url_for('pdf_admin.pending_list'))
@@ -151,7 +188,14 @@ def process_pending(pending_id):
 @pdf_admin_bp.route('/pending/<int:pending_id>/review')
 @pdf_admin_required
 def review_pending(pending_id):
-    pending = get_pending_pdf_by_id(pending_id)
+    pending = None
+    try:
+        pending = get_pending_pdf_by_id(pending_id)
+    except Exception as e:
+        logger.error(f"Error fetching pending {pending_id}: {e}")
+        flash('Database error.', 'error')
+        return redirect(url_for('pdf_admin.pending_list'))
+
     if not pending:
         flash('Pending PDF not found.', 'error')
         return redirect(url_for('pdf_admin.pending_list'))
@@ -170,7 +214,14 @@ def review_pending(pending_id):
 @pdf_admin_bp.route('/pending/<int:pending_id>/save', methods=['POST'])
 @pdf_admin_required
 def save_pending(pending_id):
-    pending = get_pending_pdf_by_id(pending_id)
+    pending = None
+    try:
+        pending = get_pending_pdf_by_id(pending_id)
+    except Exception as e:
+        logger.error(f"Error fetching pending {pending_id}: {e}")
+        flash('Database error.', 'error')
+        return redirect(url_for('pdf_admin.pending_list'))
+
     if not pending:
         flash('Pending PDF not found.', 'error')
         return redirect(url_for('pdf_admin.pending_list'))
@@ -240,9 +291,16 @@ def save_pending(pending_id):
 @pdf_admin_bp.route('/pending/<int:pending_id>/preview')
 @pdf_admin_required
 def preview_pdf(pending_id):
-    pending = get_pending_pdf_by_id(pending_id)
+    pending = None
+    try:
+        pending = get_pending_pdf_by_id(pending_id)
+    except Exception as e:
+        logger.error(f"Error fetching pending {pending_id}: {e}")
+        abort(500)
+
     if not pending:
         abort(404)
+
     try:
         bot = get_bot()
         file_info = bot.get_file(pending['file_id'])

@@ -1,9 +1,9 @@
 -- ============================================
--- NUUNPLATFORM DATABASE SCHEMA (UPDATED WITH TIER SYSTEM)
+-- NUUNPLATFORM DATABASE SCHEMA (UPDATED WITH PDF SYSTEM)
 -- ============================================
 
 -- ============================================
--- STUDENTS TABLE (added tier and tier_updated_at)
+-- STUDENTS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS students (
@@ -103,7 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active);
 CREATE INDEX IF NOT EXISTS idx_groups_click_count ON groups(click_count DESC);
 
 -- ============================================
--- PDFS TABLE (added is_premium)
+-- PDFS TABLE (added file_unique_id, chapters, tags)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS pdfs (
@@ -115,8 +115,11 @@ CREATE TABLE IF NOT EXISTS pdfs (
     subject TEXT DEFAULT '',
     grade TEXT DEFAULT '',
     category TEXT DEFAULT '',
+    chapters TEXT DEFAULT '',
+    tags TEXT DEFAULT '',
     view_count INTEGER DEFAULT 0,
     is_premium INTEGER DEFAULT 0,
+    file_unique_id TEXT UNIQUE,
     created_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -124,6 +127,22 @@ CREATE INDEX IF NOT EXISTS idx_pdfs_subject ON pdfs(subject);
 CREATE INDEX IF NOT EXISTS idx_pdfs_grade ON pdfs(grade);
 CREATE INDEX IF NOT EXISTS idx_pdfs_category ON pdfs(category);
 CREATE INDEX IF NOT EXISTS idx_pdfs_view_count ON pdfs(view_count DESC);
+CREATE INDEX IF NOT EXISTS idx_pdfs_file_unique_id ON pdfs(file_unique_id);
+
+-- ============================================
+-- PENDING PDFS TABLE (for Telegram bot intake)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS pending_pdfs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id TEXT NOT NULL,
+    file_unique_id TEXT UNIQUE NOT NULL,
+    filename TEXT,
+    uploaded_by INTEGER,
+    uploaded_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_pdfs_uploaded_at ON pending_pdfs(uploaded_at DESC);
 
 -- ============================================
 -- LIVE QUIZZES TABLE
@@ -343,20 +362,9 @@ CREATE TABLE IF NOT EXISTS user_settings (
 );
 
 -- ============================================
--- ADDITIONAL PERFORMANCE INDEXES
--- ============================================
-
-CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
-CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);
-
--- ============================================
 -- TIER SYSTEM TABLES
 -- ============================================
 
--- User usage quota tracking
 CREATE TABLE IF NOT EXISTS user_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -369,7 +377,6 @@ CREATE TABLE IF NOT EXISTS user_usage (
 );
 CREATE INDEX IF NOT EXISTS idx_user_usage_user_period ON user_usage(user_id, metric_code, period_start);
 
--- Saved content (bookmarks)
 CREATE TABLE IF NOT EXISTS saved_content (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -381,7 +388,6 @@ CREATE TABLE IF NOT EXISTS saved_content (
 );
 CREATE INDEX IF NOT EXISTS idx_saved_content_user ON saved_content(user_id);
 
--- Achievements
 CREATE TABLE IF NOT EXISTS achievements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -402,23 +408,12 @@ CREATE TABLE IF NOT EXISTS user_achievements (
     UNIQUE(user_id, achievement_id)
 );
 
-
 -- ============================================
--- PENDING PDFS TABLE (for bot intake)
+-- ADDITIONAL PERFORMANCE INDEXES
 -- ============================================
 
-CREATE TABLE IF NOT EXISTS pending_pdfs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_id TEXT NOT NULL,
-    file_unique_id TEXT UNIQUE NOT NULL,
-    filename TEXT,
-    uploaded_by INTEGER,
-    uploaded_at TEXT DEFAULT (datetime('now', 'localtime'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_pending_pdfs_uploaded_at ON pending_pdfs(uploaded_at DESC);
-
--- Add file_unique_id to pdfs for duplicate detection
-ALTER TABLE pdfs ADD COLUMN file_unique_id TEXT UNIQUE;
-CREATE INDEX IF NOT EXISTS idx_pdfs_file_unique_id ON pdfs(file_unique_id);
-
+CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);

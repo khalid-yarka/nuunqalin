@@ -40,28 +40,39 @@ def start_bot():
         logger.info("Bot already running")
         return
 
-    bot = get_bot()
-    _register_handlers(bot)
-
-    # Remove any existing webhook to avoid 404 errors
     try:
-        bot.remove_webhook()
-        logger.info("Removed existing webhook")
-    except Exception as e:
-        logger.warning(f"Failed to remove webhook: {e}")
+        bot = get_bot()
+        _register_handlers(bot)
 
-    def run_polling():
-        logger.info("Starting Telegram bot polling (telebot)...")
+        # Remove any existing webhook to avoid 404 errors
         try:
-            bot.polling(non_stop=True, interval=1, timeout=30)
+            bot.remove_webhook()
+            logger.info("Removed existing webhook")
         except Exception as e:
-            logger.error(f"Bot polling error: {e}")
-        finally:
-            logger.info("Telegram bot polling stopped")
+            logger.warning(f"Failed to remove webhook: {e}")
 
-    _polling_thread = threading.Thread(target=run_polling, daemon=True)
-    _polling_thread.start()
-    logger.info("Telegram bot thread started")
+        # Test the bot by getting me info
+        try:
+            me = bot.get_me()
+            logger.info(f"Bot connected: @{me.username} (ID: {me.id})")
+        except Exception as e:
+            logger.error(f"Bot get_me failed: {e} - check your token")
+            return
+
+        def run_polling():
+            logger.info("Starting Telegram bot polling (telebot)...")
+            try:
+                bot.polling(non_stop=True, interval=1, timeout=30)
+            except Exception as e:
+                logger.error(f"Bot polling error: {e}")
+            finally:
+                logger.info("Telegram bot polling stopped")
+
+        _polling_thread = threading.Thread(target=run_polling, daemon=True)
+        _polling_thread.start()
+        logger.info("Telegram bot thread started")
+    except Exception as e:
+        logger.error(f"Failed to start bot: {e}", exc_info=True)
 
 def stop_bot():
     """Stop the bot."""
