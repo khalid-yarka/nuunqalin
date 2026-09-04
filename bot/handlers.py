@@ -45,6 +45,7 @@ def handle_document(bot: telebot.TeleBot, message: telebot.types.Message):
         bot.reply_to(message, "❌ Please send a document file (PDF).")
         return
 
+    # Check if it's a PDF
     if document.mime_type != 'application/pdf' and not document.file_name.endswith('.pdf'):
         bot.reply_to(message, "❌ Only PDF files are accepted.")
         return
@@ -54,6 +55,7 @@ def handle_document(bot: telebot.TeleBot, message: telebot.types.Message):
     filename = document.file_name or 'unknown.pdf'
     user_id = message.from_user.id
 
+    # Duplicate check
     if is_duplicate_pdf(file_unique_id):
         bot.reply_to(
             message,
@@ -61,6 +63,7 @@ def handle_document(bot: telebot.TeleBot, message: telebot.types.Message):
         )
         return
 
+    # Save to pending
     pending_id = save_pending_pdf(file_id, file_unique_id, filename, user_id)
     if pending_id:
         bot.reply_to(

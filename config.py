@@ -39,7 +39,6 @@ class Config:
     
     SESSION_TYPE = 'filesystem'
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
-    # Default to False unless explicitly set to true (e.g., when HTTPS is guaranteed)
     SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
@@ -127,13 +126,12 @@ class Config:
     # CACHE
     # ============================================
     
-    REDIS_URL = os.getenv('REDIS_URL', '')  # Empty string means disabled
+    REDIS_URL = os.getenv('REDIS_URL', '')
     CACHE_LOCAL_MAX_SIZE = int(os.getenv('CACHE_LOCAL_MAX_SIZE', '1000'))
     CACHE_LOCAL_TTL = int(os.getenv('CACHE_LOCAL_TTL', '60'))
     CACHE_SERIALIZATION = os.getenv('CACHE_SERIALIZATION', 'json')
     REDIS_MAX_CONNECTIONS = int(os.getenv('REDIS_MAX_CONNECTIONS', '10'))
     
-    # Cache TTLs per namespace (seconds)
     CACHE_TTL = {
         'user': {'profile': 300, 'preferences': 600},
         'subject': {'list': 3600, 'data': 1800},
@@ -145,6 +143,22 @@ class Config:
         'admin': {'stats': 300},
         'session': {'data': 86400},
     }
+    
+    # ============================================
+    # TELEGRAM BOT
+    # ============================================
+    
+    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+    TELEGRAM_ADMIN_IDS = os.getenv('TELEGRAM_ADMIN_IDS', '')
+    
+    # ============================================
+    # PDF ADMIN PANEL
+    # ============================================
+    
+    PDF_ADMIN_SECRET_PATH = os.getenv('PDF_ADMIN_SECRET_PATH', '')
+    PDF_ADMIN_USERNAME = os.getenv('PDF_ADMIN_USERNAME', 'admin')
+    PDF_ADMIN_PASSWORD = os.getenv('PDF_ADMIN_PASSWORD', 'admin')
+    PDF_ADMIN_SESSION_TIMEOUT = int(os.getenv('PDF_ADMIN_SESSION_TIMEOUT', '1800'))
     
     # ============================================
     # DIRECTORY CREATION & VALIDATION
@@ -180,21 +194,5 @@ class Config:
             if not cls.SMTP_TO:
                 errors.append("SMTP_TO is missing")
         return errors
-
-# ============================================
-# TELEGRAM BOT
-# ============================================
-
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
-TELEGRAM_ADMIN_IDS = os.getenv('TELEGRAM_ADMIN_IDS', '')  # comma-separated user IDs
-
-# ============================================
-# PDF ADMIN PANEL
-# ============================================
-
-PDF_ADMIN_SECRET_PATH = os.getenv('PDF_ADMIN_SECRET_PATH', '')
-PDF_ADMIN_USERNAME = os.getenv('PDF_ADMIN_USERNAME', 'admin')
-PDF_ADMIN_PASSWORD_HASH = os.getenv('PDF_ADMIN_PASSWORD_HASH', '')
-PDF_ADMIN_SESSION_TIMEOUT = int(os.getenv('PDF_ADMIN_SESSION_TIMEOUT', '1800'))  # seconds
 
 Config.ensure_directories()

@@ -1,4 +1,5 @@
-# db.py – complete file with subject changes
+# db.py – complete file with subject changes + pending PDF functions
+
 import sqlite3
 import json
 import secrets
@@ -271,17 +272,15 @@ def get_student_by_public_id(public_id: str):
     return dict(result) if result else None
 
 # ============================================
-# JOIN CODE GENERATION (MOVED HERE FROM live_quiz_bp)
+# JOIN CODE GENERATION
 # ============================================
 
 def generate_join_code():
-    """Generate a random join code in format A3B9-X7K2."""
     letters = ''.join(secrets.choice(string.ascii_uppercase + '123456789') for _ in range(4))
     numbers = ''.join(secrets.choice('123456789') for _ in range(4))
     return f"{letters}-{numbers}"
 
 def generate_unique_join_code():
-    """Generate a unique join code not already used in the database."""
     code = generate_join_code()
     while True:
         quiz = get_live_quiz_by_code(code)
@@ -415,11 +414,10 @@ def get_all_students():
         return []
 
 # ============================================
-# SUBJECT-RELATED FUNCTIONS (using config)
+# SUBJECT-RELATED FUNCTIONS
 # ============================================
 
 def get_user_subject_list(user_id: int):
-    """Return list of subject dicts for a user based on location/curriculum."""
     student = get_student_by_id(user_id)
     if not student:
         return []
@@ -441,7 +439,7 @@ def get_user_subject_list(user_id: int):
     return subjects
 
 # ============================================
-# QUESTION FUNCTIONS (using subject_code)
+# QUESTION FUNCTIONS
 # ============================================
 
 def get_questions_by_subject(subject_code: str, limit: int = 10):
@@ -736,7 +734,7 @@ def check_question_exists(question_text: str, subject_code: str):
         return False
 
 # ============================================
-# QUIZ ATTEMPT FUNCTIONS (using subject_code)
+# QUIZ ATTEMPT FUNCTIONS
 # ============================================
 
 def save_quiz_attempt(student_id: int, subject_code: str, score: int, total: int, answers: list, ratings: list):
@@ -922,7 +920,7 @@ def restore_deleted_user(deleted_id: int):
         return False, str(e)
 
 # ============================================
-# GROUP FUNCTIONS (unchanged)
+# GROUP FUNCTIONS
 # ============================================
 
 def get_all_groups():
@@ -1045,8 +1043,8 @@ def create_pdf(data: dict):
         execute_with_retry("""
             INSERT INTO pdfs (
                 title, description, file_url, telegram_download_url,
-                subject, grade, category, view_count, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                subject, grade, category, view_count, is_premium, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             data['title'],
             data.get('description', ''),
@@ -1056,6 +1054,7 @@ def create_pdf(data: dict):
             data.get('grade', ''),
             data.get('category', ''),
             data.get('view_count', 0),
+            data.get('is_premium', 0),
             now()
         ), commit=True)
         return True
@@ -1142,14 +1141,10 @@ def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
         return []
 
 # ============================================
-# LIVE QUIZ FUNCTIONS (using subject_code)
+# LIVE QUIZ FUNCTIONS
 # ============================================
 
 def create_live_quiz(data: dict):
-    """
-    Create a new live quiz.
-    Returns the quiz dict with 'id' on success, None on failure.
-    """
     try:
         execute_with_retry("""
             INSERT INTO live_quizzes (
@@ -1174,8 +1169,6 @@ def create_live_quiz(data: dict):
             data.get('is_public', 1),
             now()
         ), commit=True)
-
-        # Fetch the newly created quiz by join_code
         cursor = execute_with_retry(
             "SELECT * FROM live_quizzes WHERE join_code = ?",
             (data['join_code'],)
@@ -1184,36 +1177,25 @@ def create_live_quiz(data: dict):
         if not result:
             logger.error(f"Quiz created but NOT found by join_code: {data['join_code']}")
             return None
-
         quiz = dict(result)
         if not quiz.get('id'):
             logger.error(f"Quiz found but missing 'id' field: {quiz}")
             return None
-
         return quiz
-
     except Exception as e:
         logger.error(f"Error creating live quiz: {e}", exc_info=True)
         return None
 
-# NEW: Atomic creation of quiz + participant
 def create_live_quiz_with_participant(data, user_id):
-    """
-    Create a live quiz and add the creator as a participant in a single transaction.
-    Returns (quiz_dict, error_message) where quiz_dict is the quiz data or None.
-    """
     import random
     conn = None
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
-        # Generate a unique join code (with retry on integrity error)
         max_attempts = 3
         for attempt in range(max_attempts):
             join_code = generate_unique_join_code()
             try:
-                # Insert quiz
                 cursor.execute("""
                     INSERT INTO live_quizzes (
                         creator_id, title, subject_code, question_count, join_code,
@@ -1237,24 +1219,18 @@ def create_live_quiz_with_participant(data, user_id):
                     data.get('is_public', 1),
                     now()
                 ))
-                break  # success
+                break
             except sqlite3.IntegrityError as e:
                 if 'join_code' in str(e) and attempt < max_attempts - 1:
                     continue
-                raise  # re-raise if it's not join_code conflict or max attempts reached
+                raise
         else:
-            # If we exhausted attempts without success
             return None, "Failed to generate a unique join code after multiple attempts."
-
         quiz_id = cursor.lastrowid
-
-        # Shuffle question IDs for this participant
         question_ids = data.get('question_ids', [])
         shuffled = question_ids[:]
         random.shuffle(shuffled)
         answers = {'__shuffled_ids': shuffled}
-
-        # Insert participant
         cursor.execute("""
             INSERT INTO live_quiz_participants (
                 quiz_id, student_id, score, current_question_index,
@@ -1275,10 +1251,7 @@ def create_live_quiz_with_participant(data, user_id):
             'active',
             now()
         ))
-
         conn.commit()
-
-        # Retrieve the quiz
         cursor.execute("SELECT * FROM live_quizzes WHERE id = ?", (quiz_id,))
         row = cursor.fetchone()
         if row:
@@ -1287,7 +1260,6 @@ def create_live_quiz_with_participant(data, user_id):
             return quiz, None
         else:
             return None, "Quiz created but not found in database"
-
     except sqlite3.IntegrityError as e:
         if conn:
             conn.rollback()
@@ -1430,9 +1402,7 @@ def add_live_quiz_participant(quiz_id: int, student_id: int):
         import random
         shuffled = question_ids[:]
         random.shuffle(shuffled)
-
         answers = {'__shuffled_ids': shuffled}
-
         execute_with_retry("""
             INSERT INTO live_quiz_participants (
                 quiz_id, student_id, score, current_question_index,
@@ -1774,9 +1744,7 @@ def mark_all_notifications_read(user_id):
             logger.error(f"Error marking all notifications read: {e}")
         return False
 
-# NEW: Live quiz notification functions
 def notify_live_quiz_start(quiz_id, title, participants):
-    """Send notification to each participant when quiz starts."""
     try:
         participant_ids = [p['student_id'] for p in participants]
         for uid in participant_ids:
@@ -1794,7 +1762,6 @@ def notify_live_quiz_start(quiz_id, title, participants):
         return False
 
 def notify_live_quiz_results(quiz_id, title, participants):
-    """Send notification to each participant when quiz ends."""
     try:
         for p in participants:
             rank = p.get('ranking', 'N/A')
@@ -1813,7 +1780,6 @@ def notify_live_quiz_results(quiz_id, title, participants):
         return False
 
 def notify_participant_joined(quiz_id, title, participant_name, creator_id):
-    """Notify quiz creator when someone joins."""
     try:
         create_notification(
             user_id=creator_id,
@@ -1829,7 +1795,7 @@ def notify_participant_joined(quiz_id, title, participant_name, creator_id):
         return False
 
 # ============================================
-# DASHBOARD ANALYTICS (unchanged)
+# DASHBOARD ANALYTICS
 # ============================================
 
 def get_user_subject_performance(student_id: int):
@@ -1912,7 +1878,7 @@ def get_distinct_subjects_attempted(student_id: int) -> int:
         return 0
 
 # ============================================
-# LIVE QUIZ LOBBY FUNCTIONS (using subject_code)
+# LIVE QUIZ LOBBY FUNCTIONS
 # ============================================
 
 def get_live_quizzes_lobby(
@@ -2212,13 +2178,36 @@ def get_participant_ready(quiz_id: int, student_id: int) -> bool:
     except Exception as e:
         logger.error(f"Error getting participant ready: {e}")
         return False
-        
+
 # ============================================
-# PENDING PDF FUNCTIONS
+# PENDING PDF FUNCTIONS (for Telegram bot)
 # ============================================
 
+def ensure_pending_pdfs_table():
+    """Create pending_pdfs table if not exists."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pending_pdfs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_id TEXT NOT NULL,
+                file_unique_id TEXT UNIQUE NOT NULL,
+                filename TEXT,
+                uploaded_by INTEGER,
+                uploaded_at TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_pdfs_uploaded_at ON pending_pdfs(uploaded_at DESC)")
+        conn.commit()
+        logger.info("pending_pdfs table verified/created")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create pending_pdfs table: {e}")
+        return False
+
 def insert_pending_pdf(file_id, file_unique_id, filename, uploaded_by):
-    """Insert a new pending PDF record."""
+    """Insert a new pending PDF record and return its ID."""
     try:
         cursor = execute_with_retry("""
             INSERT INTO pending_pdfs (file_id, file_unique_id, filename, uploaded_by)
@@ -2227,7 +2216,7 @@ def insert_pending_pdf(file_id, file_unique_id, filename, uploaded_by):
         return cursor.lastrowid
     except Exception as e:
         logger.error(f"Failed to insert pending PDF: {e}")
-        return None
+        return 0
 
 def get_pending_pdf_by_id(pending_id):
     cursor = execute_with_retry("SELECT * FROM pending_pdfs WHERE id = ?", (pending_id,))
@@ -2254,16 +2243,24 @@ def delete_pending_pdf(pending_id):
     except Exception:
         return False
 
+def is_duplicate_pdf(file_unique_id):
+    """Check if a PDF with this file_unique_id exists in pending_pdfs or pdfs."""
+    cursor = execute_with_retry("SELECT id FROM pending_pdfs WHERE file_unique_id = ?", (file_unique_id,))
+    if cursor.fetchone():
+        return True
+    cursor = execute_with_retry("SELECT id FROM pdfs WHERE file_unique_id = ?", (file_unique_id,))
+    if cursor.fetchone():
+        return True
+    return False
+
 def move_pending_to_pdfs(pending_id, pdf_data):
     """
     Atomically move a pending PDF to the pdfs table.
     pdf_data must contain: title, description, subject, grade, category,
     chapters, tags, is_premium, file_url, telegram_download_url, file_unique_id.
     """
-    from db import get_db
     conn = get_db()
     try:
-        # Start transaction with immediate exclusive lock
         conn.execute("BEGIN IMMEDIATE")
         # Check if pending still exists
         cursor = conn.execute("SELECT * FROM pending_pdfs WHERE id = ?", (pending_id,))
@@ -2271,7 +2268,7 @@ def move_pending_to_pdfs(pending_id, pdf_data):
         if not pending:
             conn.rollback()
             return False, "Pending record not found"
-        # Check duplicate in pdfs (by file_unique_id)
+        # Check duplicate in pdfs
         cursor = conn.execute("SELECT id FROM pdfs WHERE file_unique_id = ?", (pdf_data['file_unique_id'],))
         if cursor.fetchone():
             conn.rollback()
@@ -2296,11 +2293,10 @@ def move_pending_to_pdfs(pending_id, pdf_data):
             pdf_data['file_unique_id']
         ))
         new_pdf_id = cursor.lastrowid
-        # Delete pending
         conn.execute("DELETE FROM pending_pdfs WHERE id = ?", (pending_id,))
         conn.commit()
         return True, new_pdf_id
     except Exception as e:
         conn.rollback()
         logger.error(f"move_pending_to_pdfs failed: {e}")
-        return False, str(e)        
+        return False, str(e)

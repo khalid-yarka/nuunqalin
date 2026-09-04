@@ -3,6 +3,7 @@
 
 import logging
 import threading
+import requests
 import telebot
 from telebot import types
 
@@ -44,12 +45,23 @@ def start_bot():
         bot = get_bot()
         _register_handlers(bot)
 
-        # Remove any existing webhook to avoid 404 errors
+        # FORCE DELETE ANY EXISTING WEBHOOK
         try:
             bot.remove_webhook()
-            logger.info("Removed existing webhook")
+            logger.info("Webhook removed via bot.remove_webhook()")
         except Exception as e:
-            logger.warning(f"Failed to remove webhook: {e}")
+            logger.warning(f"Failed to remove webhook via bot: {e}")
+
+        # Also try direct API call to be sure
+        token = get_bot_token()
+        try:
+            response = requests.get(f"https://api.telegram.org/bot{token}/deleteWebhook")
+            if response.status_code == 200 and response.json().get('ok'):
+                logger.info("Webhook deleted via direct API call")
+            else:
+                logger.warning(f"Direct API deleteWebhook failed: {response.text}")
+        except Exception as e:
+            logger.warning(f"Direct API deleteWebhook error: {e}")
 
         # Test the bot by getting me info
         try:
@@ -58,6 +70,15 @@ def start_bot():
         except Exception as e:
             logger.error(f"Bot get_me failed: {e} - check your token")
             return
+
+        # Check webhook info
+        try:
+            response = requests.get(f"https://api.telegram.org/bot{token}/getWebhookInfo")
+            if response.status_code == 200:
+                webhook_info = response.json()
+                logger.info(f"Webhook info: {webhook_info}")
+        except Exception as e:
+            logger.warning(f"Could not fetch webhook info: {e}")
 
         def run_polling():
             logger.info("Starting Telegram bot polling (telebot)...")
