@@ -10,9 +10,9 @@ from functools import wraps
 from config import Config
 from db import execute_with_retry, move_pending_to_pdfs  # main db for pdfs
 from subjects_config import get_all_subjects, get_subject
-from bot.utils import get_bot
+from bot.utils import get_bot  # <-- Import from utils, not db directly
 from bot.db import (
-    get_pending_pdf_by_id, get_pending_pdfs, count_pending_pdfs,
+    get_pending_pdf_by_id, get_pending_pdf_list, count_pending_pdfs,
     delete_pending_pdf
 )
 
@@ -104,7 +104,7 @@ def dashboard():
     except Exception as e:
         logger.error(f"Error counting today's processed: {e}")
     try:
-        pending_list = get_pending_pdfs(limit=10)
+        pending_list = get_pending_pdf_list(limit=10)
     except Exception as e:
         logger.error(f"Error fetching pending list: {e}")
     return render_template('pdf_admin/dashboard.html',
@@ -123,7 +123,7 @@ def pending_list():
     pending_list = []
     total = 0
     try:
-        pending_list = get_pending_pdfs(limit=per_page, offset=offset)
+        pending_list = get_pending_pdf_list(limit=per_page, offset=offset)
         total = count_pending_pdfs()
     except Exception as e:
         logger.error(f"Error in pending_list: {e}")

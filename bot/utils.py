@@ -5,7 +5,7 @@ import os
 import logging
 import telebot
 from bot.db import (
-    insert_pending_pdf, get_pending_pdf_by_id, get_pending_pdfs,
+    insert_pending_pdf, get_pending_pdf_by_id, get_pending_pdf_list,
     count_pending_pdfs, delete_pending_pdf, is_duplicate_pdf
 )
 
