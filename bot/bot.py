@@ -1,41 +1,22 @@
 # bot/bot.py
 # Telegram bot initialization and polling loop using telebot
 
-import os
 import logging
 import threading
 import telebot
 from telebot import types
 
 from bot.handlers import handle_document, handle_start, handle_help, handle_admin_pending
-from bot.utils import is_admin
+from bot.utils import get_bot, is_admin, get_bot_token
 
 logger = logging.getLogger(__name__)
 
-# Global bot instance
+# Global references
 _bot = None
 _polling_thread = None
 
-def get_bot_token():
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
-    if not token:
-        raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
-    return token
-
-def get_bot() -> telebot.TeleBot:
-    global _bot
-    if _bot is None:
-        token = get_bot_token()
-        _bot = telebot.TeleBot(token, threaded=False)
-        _register_handlers()
-    return _bot
-
-def _register_handlers():
+def _register_handlers(bot: telebot.TeleBot):
     """Register all message and callback handlers."""
-    bot = _bot
-    if bot is None:
-        return
-
     @bot.message_handler(commands=['start'])
     def start_handler(message):
         handle_start(bot, message)
@@ -60,6 +41,7 @@ def start_bot():
         return
 
     bot = get_bot()
+    _register_handlers(bot)
 
     def run_polling():
         logger.info("Starting Telegram bot polling (telebot)...")
@@ -75,7 +57,7 @@ def start_bot():
     logger.info("Telegram bot thread started")
 
 def stop_bot():
-    """Stop the bot (not fully supported by telebot, but we can try)."""
+    """Stop the bot."""
     global _bot, _polling_thread
     if _bot:
         try:

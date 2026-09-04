@@ -14,7 +14,7 @@ from db import (
     move_pending_to_pdfs, execute_with_retry
 )
 from subjects_config import get_all_subjects, get_subject
-from bot.bot import get_bot
+from bot.utils import get_bot  # <-- Import from bot.utils, not bot.bot
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,6 @@ def pdf_admin_required(f):
         if not session.get(SESSION_KEY):
             flash('Please log in to access the PDF admin panel.', 'error')
             return redirect(url_for('pdf_admin.login'))
-        # Check session expiry
         if session.get('pdf_admin_login_time'):
             import time
             if time.time() - session['pdf_admin_login_time'] > SESSION_TIMEOUT:

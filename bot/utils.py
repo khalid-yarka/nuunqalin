@@ -1,21 +1,49 @@
 # bot/utils.py
-# Database helpers for the bot
+# Shared utilities for the bot
 
+import os
 import logging
+import telebot
 from db import execute_with_retry
 
 logger = logging.getLogger(__name__)
 
+# Global bot instance
+_bot = None
+
+def get_bot_token():
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    if not token:
+        raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
+    return token
+
+def get_bot() -> telebot.TeleBot:
+    """Get or create the global TeleBot instance."""
+    global _bot
+    if _bot is None:
+        token = get_bot_token()
+        _bot = telebot.TeleBot(token, threaded=False)
+    return _bot
+
+def get_admin_ids():
+    ids_str = os.getenv('TELEGRAM_ADMIN_IDS', '')
+    if ids_str:
+        return [int(x.strip()) for x in ids_str.split(',') if x.strip()]
+    return []
+
+def is_admin(user_id: int) -> bool:
+    """Check if a Telegram user is an admin."""
+    return user_id in get_admin_ids()
+
+# Database helpers
 def is_duplicate_pdf(file_unique_id: str) -> bool:
     """Check if a PDF with this file_unique_id already exists in pending_pdfs or pdfs."""
-    # Check pending_pdfs
     cursor = execute_with_retry(
         "SELECT id FROM pending_pdfs WHERE file_unique_id = ?",
         (file_unique_id,)
     )
     if cursor.fetchone():
         return True
-    # Check pdfs (needs file_unique_id column)
     cursor = execute_with_retry(
         "SELECT id FROM pdfs WHERE file_unique_id = ?",
         (file_unique_id,)
