@@ -63,10 +63,11 @@ from blueprints.admin_activity_bp import admin_activity_bp
 from blueprints.admin_backup_bp import admin_backup_bp
 
 # ============================================
-# PDF ADMIN BLUEPRINT & TELEGRAM BOT
+# PDF ADMIN BLUEPRINT & TELEGRAM BOT (Webhook)
 # ============================================
 from blueprints.pdf_admin_bp import pdf_admin_bp
-from bot.bot import start_bot, stop_bot
+from bot.bot import start_bot, stop_bot, get_bot
+from bot.handlers import process_telegram_update
 from bot.db import init_bot_db
 
 # Activity logger
@@ -338,13 +339,45 @@ def cleanup():
         logger.warning(f"Cleanup error: {e}")
 
 # ============================================
-# INITIALIZE BOT DATABASE (separate file)
+# INITIALIZE BOT DATABASE
 # ============================================
 try:
     init_bot_db()
     logger.info("Bot database initialized")
 except Exception as e:
     logger.error(f"Failed to initialize bot database: {e}")
+
+# ============================================
+# TELEGRAM WEBHOOK ROUTE
+# ============================================
+
+@app.route('/webhook/<token>', methods=['POST'])
+def telegram_webhook(token):
+    """Handle incoming Telegram updates via webhook."""
+    expected_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    if not expected_token or token != expected_token:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    try:
+        update_data = request.get_json()
+        if not update_data:
+            return jsonify({'error': 'Invalid data'}), 400
+
+        bot = get_bot()
+        process_telegram_update(bot, update_data)
+        return jsonify({'status': 'ok'}), 200
+    except Exception as e:
+        logger.error(f"Webhook error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal error'}), 500
+
+# ============================================
+# START BOT (Set Webhook, No Polling)
+# ============================================
+try:
+    start_bot()
+    logger.info("Bot webhook configured successfully.")
+except Exception as e:
+    logger.error(f"Failed to configure bot webhook: {e}")
 
 # ============================================
 # ROUTES
@@ -434,11 +467,14 @@ def index():
 def login():
     if 'user_id' in session:
         return redirect(url_for('dashboard.home'))
+
     if request.method == 'POST':
         phone = request.form.get('phone', '').strip()
         password = request.form.get('password', '')
+
         if not phone.startswith('+252'):
             phone = '+252' + phone
+
         try:
             student = get_student_by_phone(phone)
         except Exception as e:
@@ -449,6 +485,7 @@ def login():
             logger.error(f"Login error: {e}")
             flash('An error occurred. Please try again.', 'error')
             return render_template('login.html')
+
         if student:
             if password == student['password']:
                 session['user_id'] = student['id']
@@ -461,7 +498,9 @@ def login():
                 session['csrf_token'] = secrets.token_hex(32)
                 logger.info(f"User logged in: user_id={student['id']}")
                 flash('Welcome back!', 'success')
+
                 log_activity('user.login', f"User {student['id']} logged in", 'info', user_id=student['id'])
+
                 return redirect(url_for('dashboard.home'))
             else:
                 flash('Invalid password. Please try again.', 'error')
@@ -469,12 +508,15 @@ def login():
         else:
             flash('No account found with this phone number.', 'error')
             log_activity('user.login', f"Unknown phone {phone} tried to login", 'warning')
+
     return render_template('login.html')
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if 'user_id' in session:
         return redirect(url_for('dashboard.home'))
+
     if request.method == 'POST':
         phone = request.form.get('phone', '').strip()
         password = request.form.get('password', '')
@@ -499,29 +541,37 @@ def register():
             logger.warning(f"Registration failed: Invalid first_name '{first_name}'")
             flash('Registration failed. Please check your details.', 'error')
             return render_template('register.html')
+
         if not validate_name(last_name):
             logger.warning(f"Registration failed: Invalid last_name '{last_name}'")
             flash('Registration failed. Please check your details.', 'error')
             return render_template('register.html')
+
         if len(password) < 8:
             flash('Registration failed. Please check your details.', 'error')
             return render_template('register.html')
+
         if not phone.startswith('+252'):
             phone = '+252' + phone
+
         if location not in ['SO', 'PL', 'SL']:
             flash('Invalid location.', 'error')
             return render_template('register.html')
+
         if location == 'PL':
             if curriculum not in ['general', 'science', 'arts']:
                 flash('Please select your curriculum.', 'error')
                 return render_template('register.html')
         else:
             curriculum = None
+
         existing = get_student_by_phone(phone)
         if existing:
             flash('This phone number is already registered.', 'error')
             return render_template('register.html')
+
         school_value = school_manual if school == 'manual' and school_manual else school
+
         student_data = {
             'phone_number': phone,
             'password': password,
@@ -535,7 +585,9 @@ def register():
             'total_points': 0,
             'curriculum': curriculum
         }
+
         new_student = create_student(student_data)
+
         if new_student:
             logger.info(f"New user registered: {phone}")
             log_activity('user.register', f"New user registered: {new_student['id']}", 'info', user_id=new_student['id'])
@@ -543,6 +595,7 @@ def register():
             return redirect(url_for('login'))
         else:
             flash('Registration failed. Please try again.', 'error')
+
     return render_template('register.html')
 
 @app.route('/logout')
@@ -563,20 +616,26 @@ def logout():
 def trigger_backup():
     if not BACKUP_ENABLED:
         return jsonify({'status': 'disabled', 'message': 'Backup system is disabled'}), 503
+
     token = request.args.get('token')
     if token != BACKUP_TRIGGER_TOKEN:
         logger.warning(f"Unauthorized backup trigger attempt from {request.remote_addr}")
         return jsonify({'error': 'Unauthorized'}), 401
+
     backup_type = request.args.get('type', 'daily')
     if backup_type not in ['daily', 'weekly', 'monthly', 'manual']:
         backup_type = 'daily'
+
     if not BACKUP_AVAILABLE:
         return jsonify({'status': 'error', 'message': 'Backup module not available'}), 503
+
     if is_backup_locked():
         return jsonify({'status': 'skipped', 'message': 'Backup already running'}), 409
+
     start_time = time.time()
     result = execute_backup(backup_type)
     duration = time.time() - start_time
+
     if result and result['success']:
         return jsonify({
             'status': 'success',
@@ -595,11 +654,14 @@ def trigger_backup():
 def backup_status():
     if 'user_id' not in session or not is_admin(session['user_id']):
         return jsonify({'error': 'Unauthorized'}), 401
+
     if not BACKUP_AVAILABLE:
         return jsonify({'error': 'Backup module not available'}), 503
+
     manager = get_backup_manager()
     if manager is None:
         return jsonify({'error': 'Backup manager not available'}), 503
+
     try:
         health = manager.health_check()
         return jsonify(health)
@@ -638,15 +700,6 @@ try:
     logger.info("Live Quiz State Manager initialized and recovered active quizzes.")
 except Exception as e:
     logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
-
-# ============================================
-# START TELEGRAM BOT
-# ============================================
-try:
-    start_bot()
-    logger.info("Telegram bot started")
-except Exception as e:
-    logger.error(f"Failed to start Telegram bot: {e}")
 
 # ============================================
 # RUN APP

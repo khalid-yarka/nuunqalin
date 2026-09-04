@@ -1,5 +1,5 @@
 # bot/handlers.py
-# Message and callback handlers for telebot
+# Message and callback handlers for webhook mode
 
 import logging
 import telebot
@@ -12,7 +12,34 @@ from bot.db import count_pending_pdfs, get_pending_pdf_list
 
 logger = logging.getLogger(__name__)
 
-def handle_start(bot: telebot.TeleBot, message: telebot.types.Message):
+def process_telegram_update(bot: telebot.TeleBot, update_data: dict):
+    """Process a raw Telegram update dict (from webhook)."""
+    try:
+        # Convert to a telebot Update object
+        update = types.Update.de_json(update_data)
+        if update.message:
+            handle_message(bot, update.message)
+        elif update.callback_query:
+            handle_callback(bot, update.callback_query)
+        else:
+            logger.debug("Unhandled update type.")
+    except Exception as e:
+        logger.error(f"Error processing update: {e}", exc_info=True)
+
+def handle_message(bot: telebot.TeleBot, message: types.Message):
+    if message.text:
+        if message.text.startswith('/start'):
+            handle_start(bot, message)
+        elif message.text.startswith('/help'):
+            handle_help(bot, message)
+    elif message.document:
+        handle_document(bot, message)
+
+def handle_callback(bot: telebot.TeleBot, call: types.CallbackQuery):
+    if call.data.startswith('pdf_admin_'):
+        handle_admin_pending(bot, call)
+
+def handle_start(bot: telebot.TeleBot, message: types.Message):
     user_id = message.from_user.id
     first_name = message.from_user.first_name or ''
     text = (
@@ -29,7 +56,7 @@ def handle_start(bot: telebot.TeleBot, message: telebot.types.Message):
         markup.add(types.InlineKeyboardButton("📚 Pending PDFs", callback_data="pdf_admin_pending"))
     bot.send_message(message.chat.id, text, reply_markup=markup)
 
-def handle_help(bot: telebot.TeleBot, message: telebot.types.Message):
+def handle_help(bot: telebot.TeleBot, message: types.Message):
     bot.send_message(
         message.chat.id,
         "📖 Help:\n\n"
@@ -39,7 +66,7 @@ def handle_help(bot: telebot.TeleBot, message: telebot.types.Message):
         "Admins: Use the Pending PDFs button to manage uploads."
     )
 
-def handle_document(bot: telebot.TeleBot, message: telebot.types.Message):
+def handle_document(bot: telebot.TeleBot, message: types.Message):
     document = message.document
     if not document:
         bot.reply_to(message, "❌ Please send a document file (PDF).")
@@ -75,7 +102,7 @@ def handle_document(bot: telebot.TeleBot, message: telebot.types.Message):
     else:
         bot.reply_to(message, "❌ Failed to save the PDF. Please try again later.")
 
-def handle_admin_pending(bot: telebot.TeleBot, call: telebot.types.CallbackQuery):
+def handle_admin_pending(bot: telebot.TeleBot, call: types.CallbackQuery):
     user_id = call.from_user.id
     if not is_admin(user_id):
         bot.answer_callback_query(call.id, "You are not authorized.", show_alert=True)

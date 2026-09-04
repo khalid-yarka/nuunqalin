@@ -151,11 +151,12 @@ class Config:
     }
     
     # ============================================
-    # TELEGRAM BOT
+    # TELEGRAM BOT (Webhook Mode)
     # ============================================
     
     TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
     TELEGRAM_ADMIN_IDS = os.getenv('TELEGRAM_ADMIN_IDS', '')
+    BASE_URL = os.getenv('BASE_URL', 'https://zabots1.pythonanywhere.com')
     
     # ============================================
     # PDF ADMIN PANEL

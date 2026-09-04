@@ -1,110 +1,76 @@
 # bot/bot.py
-# Telegram bot initialization and polling loop using telebot
+# Telegram bot initialization using webhook (no polling)
 
+import os
 import logging
-import threading
 import requests
 import telebot
 from telebot import types
 
-from bot.handlers import handle_document, handle_start, handle_help, handle_admin_pending
-from bot.utils import get_bot, is_admin, get_bot_token
+from bot.handlers import process_telegram_update
+from bot.utils import get_bot_token
 
 logger = logging.getLogger(__name__)
 
-# Global references
+# Global bot instance
 _bot = None
-_polling_thread = None
 
-def _register_handlers(bot: telebot.TeleBot):
-    """Register all message and callback handlers."""
-    @bot.message_handler(commands=['start'])
-    def start_handler(message):
-        handle_start(bot, message)
+def get_bot():
+    global _bot
+    if _bot is None:
+        token = get_bot_token()
+        _bot = telebot.TeleBot(token, threaded=False)
+        logger.info("TeleBot instance created.")
+    return _bot
 
-    @bot.message_handler(commands=['help'])
-    def help_handler(message):
-        handle_help(bot, message)
-
-    @bot.message_handler(content_types=['document'])
-    def document_handler(message):
-        handle_document(bot, message)
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith('pdf_admin_'))
-    def callback_handler(call):
-        handle_admin_pending(bot, call)
-
-def start_bot():
-    """Start the Telegram bot in a separate thread."""
-    global _polling_thread
-    if _polling_thread and _polling_thread.is_alive():
-        logger.info("Bot already running")
-        return
+def set_webhook():
+    """Register the webhook URL with Telegram."""
+    bot = get_bot()
+    token = get_bot_token()
+    base_url = os.getenv('BASE_URL', '')
+    if not base_url:
+        logger.error("BASE_URL environment variable not set! Cannot set webhook.")
+        return False
+    webhook_path = f"/webhook/{token}"
+    webhook_url = f"{base_url}{webhook_path}"
 
     try:
-        bot = get_bot()
-        _register_handlers(bot)
-
-        # FORCE DELETE ANY EXISTING WEBHOOK
-        try:
-            bot.remove_webhook()
-            logger.info("Webhook removed via bot.remove_webhook()")
-        except Exception as e:
-            logger.warning(f"Failed to remove webhook via bot: {e}")
-
-        # Also try direct API call to be sure
-        token = get_bot_token()
-        try:
-            response = requests.get(f"https://api.telegram.org/bot{token}/deleteWebhook")
-            if response.status_code == 200 and response.json().get('ok'):
-                logger.info("Webhook deleted via direct API call")
-            else:
-                logger.warning(f"Direct API deleteWebhook failed: {response.text}")
-        except Exception as e:
-            logger.warning(f"Direct API deleteWebhook error: {e}")
-
-        # Test the bot by getting me info
-        try:
-            me = bot.get_me()
-            logger.info(f"Bot connected: @{me.username} (ID: {me.id})")
-        except Exception as e:
-            logger.error(f"Bot get_me failed: {e} - check your token")
-            return
-
-        # Check webhook info
-        try:
-            response = requests.get(f"https://api.telegram.org/bot{token}/getWebhookInfo")
-            if response.status_code == 200:
-                webhook_info = response.json()
-                logger.info(f"Webhook info: {webhook_info}")
-        except Exception as e:
-            logger.warning(f"Could not fetch webhook info: {e}")
-
-        def run_polling():
-            logger.info("Starting Telegram bot polling (telebot)...")
-            try:
-                bot.polling(non_stop=True, interval=1, timeout=30)
-            except Exception as e:
-                logger.error(f"Bot polling error: {e}")
-            finally:
-                logger.info("Telegram bot polling stopped")
-
-        _polling_thread = threading.Thread(target=run_polling, daemon=True)
-        _polling_thread.start()
-        logger.info("Telegram bot thread started")
+        url = f"https://api.telegram.org/bot{token}/setWebhook"
+        payload = {
+            "url": webhook_url,
+            "allowed_updates": ["message", "callback_query"],
+            "drop_pending_updates": True
+        }
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 200 and response.json().get('ok'):
+            logger.info(f"Webhook set successfully: {webhook_url}")
+            return True
+        else:
+            logger.error(f"Failed to set webhook: {response.text}")
+            return False
     except Exception as e:
-        logger.error(f"Failed to start bot: {e}", exc_info=True)
+        logger.error(f"Error setting webhook: {e}")
+        return False
+
+def delete_webhook():
+    """Delete the webhook."""
+    token = get_bot_token()
+    try:
+        url = f"https://api.telegram.org/bot{token}/deleteWebhook"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200 and response.json().get('ok'):
+            logger.info("Webhook deleted successfully.")
+        else:
+            logger.warning(f"Failed to delete webhook: {response.text}")
+    except Exception as e:
+        logger.warning(f"Error deleting webhook: {e}")
+
+def start_bot():
+    """Set up the webhook (no polling)."""
+    set_webhook()
+    logger.info("Bot configured to use webhook.")
 
 def stop_bot():
-    """Stop the bot."""
-    global _bot, _polling_thread
-    if _bot:
-        try:
-            _bot.stop_polling()
-        except Exception:
-            pass
-        _bot = None
-    if _polling_thread:
-        _polling_thread.join(timeout=2)
-        _polling_thread = None
-    logger.info("Telegram bot stopped")
+    """Clean up webhook (optional)."""
+    delete_webhook()
+    logger.info("Bot webhook removed.")
