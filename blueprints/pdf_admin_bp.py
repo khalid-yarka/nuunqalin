@@ -1,6 +1,5 @@
 # blueprints/pdf_admin_bp.py
 # Standalone PDF Admin Panel – Uses bot.db for pending operations
-# and main db for pdfs table
 
 import os
 import logging

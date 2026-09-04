@@ -1,5 +1,5 @@
 # bot/utils.py
-# Shared utilities for the bot, using bot.db
+# Shared utilities for the bot
 
 import os
 import logging
