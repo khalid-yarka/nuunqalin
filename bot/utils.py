@@ -1,10 +1,10 @@
 # bot/utils.py
-# Shared utilities for the bot
+# Shared utilities for the bot, using bot.db
 
 import os
 import logging
 import telebot
-from db import (
+from bot.db import (
     insert_pending_pdf, get_pending_pdf_by_id, get_pending_pdfs,
     count_pending_pdfs, delete_pending_pdf, is_duplicate_pdf
 )

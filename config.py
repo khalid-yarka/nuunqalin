@@ -16,7 +16,7 @@ class Config:
     ADMIN_ERROR_PASSWORD = os.getenv('ADMIN_ERROR_PASSWORD', '')
     
     # ============================================
-    # DATABASE
+    # DATABASE (Main)
     # ============================================
     
     DATABASE_PATH = os.getenv('DATABASE_PATH')
@@ -25,6 +25,12 @@ class Config:
             DATABASE_PATH = str(BASE_DIR / DATABASE_PATH)
     else:
         DATABASE_PATH = str(BASE_DIR / 'nuunplatform.db')
+    
+    # ============================================
+    # BOT DATABASE (separate)
+    # ============================================
+    
+    BOT_DATABASE_PATH = os.getenv('BOT_DATABASE_PATH', str(BASE_DIR / 'bot_data.db'))
     
     DB_TIMEOUT = float(os.getenv('DB_TIMEOUT', '30.0'))
     DB_BUSY_TIMEOUT = int(os.getenv('DB_BUSY_TIMEOUT', '30000'))
@@ -170,7 +176,8 @@ class Config:
             cls.BACKUP_DIR,
             cls.LOG_DIR,
             os.path.dirname(cls.UPLOAD_FOLDER),
-            os.path.dirname(cls.DATABASE_PATH)
+            os.path.dirname(cls.DATABASE_PATH),
+            os.path.dirname(cls.BOT_DATABASE_PATH),
         ]
         for directory in directories:
             if directory and not os.path.exists(directory):
