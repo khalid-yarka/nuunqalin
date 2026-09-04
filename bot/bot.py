@@ -43,6 +43,13 @@ def start_bot():
     bot = get_bot()
     _register_handlers(bot)
 
+    # Remove any existing webhook to avoid 404 errors
+    try:
+        bot.remove_webhook()
+        logger.info("Removed existing webhook")
+    except Exception as e:
+        logger.warning(f"Failed to remove webhook: {e}")
+
     def run_polling():
         logger.info("Starting Telegram bot polling (telebot)...")
         try:

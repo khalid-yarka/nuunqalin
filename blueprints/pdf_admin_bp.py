@@ -1,9 +1,8 @@
 # blueprints/pdf_admin_bp.py
-# Standalone PDF Admin Panel with independent authentication
+# Standalone PDF Admin Panel with plain password authentication
 
 import os
 import logging
-import bcrypt
 import tempfile
 import shutil
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, abort, send_file
@@ -14,24 +13,22 @@ from db import (
     move_pending_to_pdfs, execute_with_retry
 )
 from subjects_config import get_all_subjects, get_subject
-from bot.utils import get_bot  # <-- Import from bot.utils, not bot.bot
+from bot.utils import get_bot
 
 logger = logging.getLogger(__name__)
 
 # Blueprint
 pdf_admin_bp = Blueprint('pdf_admin', __name__, url_prefix='/pdf-admin')
 
-# Auth config
+# Auth config - plain password
 ADMIN_USERNAME = os.getenv('PDF_ADMIN_USERNAME', 'admin')
-ADMIN_PASSWORD_HASH = os.getenv('PDF_ADMIN_PASSWORD_HASH', '')
+ADMIN_PASSWORD = os.getenv('PDF_ADMIN_PASSWORD', 'admin')  # Plain password from env
 SESSION_KEY = 'pdf_admin_logged_in'
 USERNAME_KEY = 'pdf_admin_username'
 SESSION_TIMEOUT = int(os.getenv('PDF_ADMIN_SESSION_TIMEOUT', '1800'))
 
-# Ensure password hash is set
-if not ADMIN_PASSWORD_HASH:
-    logger.warning("PDF_ADMIN_PASSWORD_HASH not set. Using default password 'admin' (INSECURE).")
-    ADMIN_PASSWORD_HASH = bcrypt.hashpw(b'admin', bcrypt.gensalt()).decode('utf-8')
+if ADMIN_PASSWORD == 'admin':
+    logger.warning("PDF_ADMIN_PASSWORD is set to default 'admin'. Change it in .env for security.")
 
 # Decorator for protected routes
 def pdf_admin_required(f):
@@ -59,7 +56,8 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
 
-        if username == ADMIN_USERNAME and bcrypt.checkpw(password.encode('utf-8'), ADMIN_PASSWORD_HASH.encode('utf-8')):
+        # Plain password comparison
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session[SESSION_KEY] = True
             session[USERNAME_KEY] = username
             session['pdf_admin_login_time'] = int(__import__('time').time())
