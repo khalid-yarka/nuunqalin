@@ -170,7 +170,7 @@ logger.info("Startup verification PASSED")
 logger.info("=" * 60)
 
 # ============================================
-# BACKUP INTEGRATION
+# BACKUP INTEGRATION (uses Config for token and enabled flag)
 # ============================================
 
 BACKUP_AVAILABLE = False
@@ -181,8 +181,9 @@ try:
 except ImportError as e:
     logger.warning(f"Backup module not available: {e}")
 
-BACKUP_TRIGGER_TOKEN = os.getenv('BACKUP_TRIGGER_TOKEN', 'change_this_token_in_production')
-BACKUP_ENABLED = os.getenv('BACKUP_ENABLED', 'true').lower() == 'true'
+# Use Config values (no direct os.getenv)
+BACKUP_TRIGGER_TOKEN = Config.BACKUP_TRIGGER_TOKEN
+BACKUP_ENABLED = Config.BACKUP_ENABLED
 
 _backup_manager = None
 
@@ -230,7 +231,7 @@ try:
     logger.info("Cache manager initialized successfully.")
 
     if Config.REDIS_URL and Config.REDIS_URL.strip():
-        if os.getenv('CACHE_WORKER_ENABLED', 'false').lower() == 'true':
+        if Config.CACHE_WORKER_ENABLED:
             start_worker()
             logger.info("Cache worker started.")
         else:
@@ -309,8 +310,11 @@ app.register_blueprint(admin_backup_bp)
 # ============================================
 # REGISTER PDF ADMIN BLUEPRINT (Secret Path)
 # ============================================
-PDF_ADMIN_SECRET = os.getenv('PDF_ADMIN_SECRET_PATH', 'pdf-admin-' + os.urandom(8).hex())
-if not PDF_ADMIN_SECRET.startswith('/'):
+PDF_ADMIN_SECRET = Config.PDF_ADMIN_SECRET_PATH
+if not PDF_ADMIN_SECRET:
+    # Fallback to a random path if not configured (still better than hardcoding)
+    PDF_ADMIN_SECRET = '/pdf-admin-' + os.urandom(8).hex()
+elif not PDF_ADMIN_SECRET.startswith('/'):
     PDF_ADMIN_SECRET = '/' + PDF_ADMIN_SECRET
 app.register_blueprint(pdf_admin_bp, url_prefix=PDF_ADMIN_SECRET)
 logger.info(f"PDF Admin panel mounted at {PDF_ADMIN_SECRET}")
@@ -348,13 +352,13 @@ except Exception as e:
     logger.error(f"Failed to initialize bot database: {e}")
 
 # ============================================
-# TELEGRAM WEBHOOK ROUTE
+# TELEGRAM WEBHOOK ROUTE (uses Config.TELEGRAM_BOT_TOKEN)
 # ============================================
 
 @app.route('/webhook/<token>', methods=['POST'])
 def telegram_webhook(token):
     """Handle incoming Telegram updates via webhook."""
-    expected_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    expected_token = Config.TELEGRAM_BOT_TOKEN
     if not expected_token or token != expected_token:
         return jsonify({'error': 'Unauthorized'}), 403
 
@@ -609,16 +613,16 @@ def logout():
     return redirect(url_for('login'))
 
 # ============================================
-# BACKUP TRIGGER ENDPOINTS
+# BACKUP TRIGGER ENDPOINTS (uses Config.BACKUP_TRIGGER_TOKEN, Config.BACKUP_ENABLED)
 # ============================================
 
 @app.route('/backup/trigger', methods=['GET'])
 def trigger_backup():
-    if not BACKUP_ENABLED:
+    if not Config.BACKUP_ENABLED:
         return jsonify({'status': 'disabled', 'message': 'Backup system is disabled'}), 503
 
     token = request.args.get('token')
-    if token != BACKUP_TRIGGER_TOKEN:
+    if token != Config.BACKUP_TRIGGER_TOKEN:
         logger.warning(f"Unauthorized backup trigger attempt from {request.remote_addr}")
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -702,11 +706,12 @@ except Exception as e:
     logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
 
 # ============================================
-# RUN APP
+# RUN APP (uses Config.FLASK_DEBUG and Config.PORT)
 # ============================================
 
 if __name__ == '__main__':
-    debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    debug_mode = Config.FLASK_DEBUG
+    port = Config.PORT
     logger.info(f"Server starting at: {get_somali_time_display()}")
     logger.info(f"Database path: {Config.DATABASE_PATH}")
     logger.info(f"Bot database path: {Config.BOT_DATABASE_PATH}")
@@ -714,4 +719,4 @@ if __name__ == '__main__':
     logger.info(f"Backup directory: {Config.BACKUP_DIR}")
     logger.info(f"Redis URL: {Config.REDIS_URL or 'Not configured'}")
     logger.info(f"Debug mode: {debug_mode}")
-    app.run(debug=debug_mode, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)

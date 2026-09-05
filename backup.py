@@ -32,16 +32,21 @@ APP_NAME = "NUUNPLATFORM BACKUP SYSTEM"
 # Get base directory
 BASE_DIR = Path(__file__).resolve().parent
 
-# Try to load config for paths
-try:
-    from config import Config
-    DEFAULT_DB_PATH = getattr(Config, 'DATABASE_PATH', str(BASE_DIR / 'nuunplatform.db'))
-    DEFAULT_BACKUP_DIR = getattr(Config, 'BACKUP_DIR', str(BASE_DIR / 'BACKUPS'))
-    LOG_DIR = getattr(Config, 'LOG_DIR', str(BASE_DIR / 'logs'))
-except ImportError:
-    DEFAULT_DB_PATH = str(BASE_DIR / 'nuunplatform.db')
-    DEFAULT_BACKUP_DIR = str(BASE_DIR / 'BACKUPS')
-    LOG_DIR = str(BASE_DIR / 'logs')
+# Import Config – no fallback, use directly
+from config import Config
+
+# Use Config values directly
+DEFAULT_DB_PATH = Config.DATABASE_PATH
+DEFAULT_BACKUP_DIR = Config.BACKUP_DIR
+LOG_DIR = Config.LOG_DIR
+
+# Retention settings from Config
+RETENTION = {
+    'daily': Config.BACKUP_RETENTION_DAILY,
+    'weekly': Config.BACKUP_RETENTION_WEEKLY,
+    'monthly': Config.BACKUP_RETENTION_MONTHLY,
+    'manual': None,
+}
 
 # Ensure directories exist
 for directory in [DEFAULT_BACKUP_DIR, LOG_DIR]:
@@ -53,23 +58,6 @@ for directory in [DEFAULT_BACKUP_DIR, LOG_DIR]:
 
 DEFAULT_LOG_FILE = os.path.join(LOG_DIR, 'backup.log')
 BACKUP_LOCK_FILE = os.path.join(DEFAULT_BACKUP_DIR, 'backup.lock')
-
-# Retention settings - from config if available
-try:
-    from config import Config
-    RETENTION = {
-        'daily': getattr(Config, 'BACKUP_RETENTION_DAILY', 7),
-        'weekly': getattr(Config, 'BACKUP_RETENTION_WEEKLY', 4),
-        'monthly': getattr(Config, 'BACKUP_RETENTION_MONTHLY', 12),
-        'manual': None,
-    }
-except ImportError:
-    RETENTION = {
-        'daily': 7,
-        'weekly': 4,
-        'monthly': 12,
-        'manual': None,
-    }
 
 BACKUP_TYPES = {
     'daily': {'label': 'Daily', 'retention': RETENTION['daily'], 'emoji': '📅'},

@@ -9,6 +9,7 @@ from telebot import types
 
 from bot.handlers import process_telegram_update
 from bot.utils import get_bot_token
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +28,9 @@ def set_webhook():
     """Register the webhook URL with Telegram."""
     bot = get_bot()
     token = get_bot_token()
-    base_url = os.getenv('BASE_URL', '')
+    base_url = Config.BASE_URL
     if not base_url:
-        logger.error("BASE_URL environment variable not set! Cannot set webhook.")
+        logger.error("BASE_URL not configured in Config! Cannot set webhook.")
         return False
     webhook_path = f"/webhook/{token}"
     webhook_url = f"{base_url}{webhook_path}"

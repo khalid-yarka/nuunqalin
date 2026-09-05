@@ -4,6 +4,7 @@
 import os
 import logging
 import telebot
+from config import Config
 from bot.db import (
     insert_pending_pdf, get_pending_pdf_by_id, get_pending_pdf_list,
     count_pending_pdfs, delete_pending_pdf, is_duplicate_pdf
@@ -15,9 +16,9 @@ logger = logging.getLogger(__name__)
 _bot = None
 
 def get_bot_token():
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    token = Config.TELEGRAM_BOT_TOKEN
     if not token:
-        raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
+        raise ValueError("TELEGRAM_BOT_TOKEN not configured in Config")
     return token
 
 def get_bot() -> telebot.TeleBot:
@@ -28,7 +29,7 @@ def get_bot() -> telebot.TeleBot:
     return _bot
 
 def get_admin_ids():
-    ids_str = os.getenv('TELEGRAM_ADMIN_IDS', '')
+    ids_str = Config.TELEGRAM_ADMIN_IDS or ''
     if ids_str:
         return [int(x.strip()) for x in ids_str.split(',') if x.strip()]
     return []

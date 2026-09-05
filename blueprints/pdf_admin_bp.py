@@ -5,6 +5,7 @@ import os
 import logging
 import tempfile
 import shutil
+import time
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, abort, send_file
 from functools import wraps
 from config import Config
@@ -21,15 +22,19 @@ logger = logging.getLogger(__name__)
 # Blueprint
 pdf_admin_bp = Blueprint('pdf_admin', __name__, url_prefix='/pdf-admin')
 
-# Auth config - plain password
-ADMIN_USERNAME = os.getenv('PDF_ADMIN_USERNAME', 'admin')
-ADMIN_PASSWORD = os.getenv('PDF_ADMIN_PASSWORD', 'admin')
+# Auth config - using Config (no direct os.getenv)
+ADMIN_USERNAME = Config.PDF_ADMIN_USERNAME
+ADMIN_PASSWORD = Config.PDF_ADMIN_PASSWORD
 SESSION_KEY = 'pdf_admin_logged_in'
 USERNAME_KEY = 'pdf_admin_username'
-SESSION_TIMEOUT = int(os.getenv('PDF_ADMIN_SESSION_TIMEOUT', '1800'))
+SESSION_TIMEOUT = Config.PDF_ADMIN_SESSION_TIMEOUT
 
-if ADMIN_PASSWORD == 'admin':
-    logger.warning("PDF_ADMIN_PASSWORD is set to default 'admin'. Change it in .env for security.")
+# Warn if default credentials are used
+if ADMIN_PASSWORD == 'admin' or ADMIN_USERNAME == 'admin':
+    logger.critical(
+        "PDF_ADMIN_USERNAME and/or PDF_ADMIN_PASSWORD are set to default! "
+        "Change them immediately in .env for security."
+    )
 
 # ============================================
 # DECORATORS
@@ -42,7 +47,6 @@ def pdf_admin_required(f):
             flash('Please log in to access the PDF admin panel.', 'error')
             return redirect(url_for('pdf_admin.login'))
         if session.get('pdf_admin_login_time'):
-            import time
             if time.time() - session['pdf_admin_login_time'] > SESSION_TIMEOUT:
                 session.clear()
                 flash('Session expired. Please log in again.', 'error')
@@ -66,7 +70,7 @@ def login():
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session[SESSION_KEY] = True
             session[USERNAME_KEY] = username
-            session['pdf_admin_login_time'] = int(__import__('time').time())
+            session['pdf_admin_login_time'] = int(time.time())
             flash('Login successful.', 'success')
             logger.info(f"PDF Admin login successful for {username}")
             return redirect(url_for('pdf_admin.dashboard'))

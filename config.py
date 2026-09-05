@@ -44,10 +44,11 @@ class Config:
     # ============================================
     
     SESSION_TYPE = 'filesystem'
-    PERMANENT_SESSION_LIFETIME = timedelta(days=1)
+    PERMANENT_SESSION_LIFETIME_DAYS = int(os.getenv('PERMANENT_SESSION_LIFETIME_DAYS', '1'))
+    PERMANENT_SESSION_LIFETIME = timedelta(days=PERMANENT_SESSION_LIFETIME_DAYS)
     SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_HTTPONLY = os.getenv('SESSION_COOKIE_HTTPONLY', 'true').lower() == 'true'
+    SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
     ADMIN_SESSION_TIMEOUT = int(os.getenv('ADMIN_SESSION_TIMEOUT', '1800'))
     
     # ============================================
@@ -137,6 +138,7 @@ class Config:
     CACHE_LOCAL_TTL = int(os.getenv('CACHE_LOCAL_TTL', '60'))
     CACHE_SERIALIZATION = os.getenv('CACHE_SERIALIZATION', 'json')
     REDIS_MAX_CONNECTIONS = int(os.getenv('REDIS_MAX_CONNECTIONS', '10'))
+    CACHE_WORKER_ENABLED = os.getenv('CACHE_WORKER_ENABLED', 'false').lower() == 'true'
     
     CACHE_TTL = {
         'user': {'profile': 300, 'preferences': 600},
@@ -156,7 +158,7 @@ class Config:
     
     TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
     TELEGRAM_ADMIN_IDS = os.getenv('TELEGRAM_ADMIN_IDS', '')
-    BASE_URL = os.getenv('BASE_URL', 'https://zabots1.pythonanywhere.com')
+    BASE_URL = os.getenv('BASE_URL', 'https://yourdomain.com')  # CHANGED: generic placeholder
     
     # ============================================
     # PDF ADMIN PANEL
@@ -166,6 +168,13 @@ class Config:
     PDF_ADMIN_USERNAME = os.getenv('PDF_ADMIN_USERNAME', 'admin')
     PDF_ADMIN_PASSWORD = os.getenv('PDF_ADMIN_PASSWORD', 'admin')
     PDF_ADMIN_SESSION_TIMEOUT = int(os.getenv('PDF_ADMIN_SESSION_TIMEOUT', '1800'))
+    
+    # ============================================
+    # FLASK / RUN
+    # ============================================
+    
+    FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    PORT = int(os.getenv('PORT', 5000))
     
     # ============================================
     # DIRECTORY CREATION & VALIDATION
