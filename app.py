@@ -70,6 +70,11 @@ from bot.bot import start_bot, stop_bot, get_bot
 from bot.handlers import process_telegram_update
 from bot.db import init_bot_db
 
+# ============================================
+# INTERACTIONS BLUEPRINT (NEW)
+# ============================================
+from blueprints.interactions_bp import interactions_bp
+
 # Activity logger
 from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event, init_activity_logger
 
@@ -320,6 +325,11 @@ app.register_blueprint(pdf_admin_bp, url_prefix=PDF_ADMIN_SECRET)
 logger.info(f"PDF Admin panel mounted at {PDF_ADMIN_SECRET}")
 
 # ============================================
+# REGISTER INTERACTIONS BLUEPRINT
+# ============================================
+app.register_blueprint(interactions_bp)
+
+# ============================================
 # REGISTER ERROR HANDLERS
 # ============================================
 
@@ -498,6 +508,7 @@ def login():
                 session['user_phone'] = student['phone_number']
                 session['is_admin'] = bool(student.get('is_admin', 0))
                 session['curriculum'] = student.get('curriculum')
+                session['tier'] = student.get('tier', 'danbe')
                 session.permanent = True
                 session['csrf_token'] = secrets.token_hex(32)
                 logger.info(f"User logged in: user_id={student['id']}")
@@ -505,6 +516,10 @@ def login():
 
                 log_activity('user.login', f"User {student['id']} logged in", 'info', user_id=student['id'])
 
+                # Redirect to original page if 'next' parameter exists
+                next_url = request.args.get('next')
+                if next_url:
+                    return redirect(next_url)
                 return redirect(url_for('dashboard.home'))
             else:
                 flash('Invalid password. Please try again.', 'error')
@@ -596,6 +611,10 @@ def register():
             logger.info(f"New user registered: {phone}")
             log_activity('user.register', f"New user registered: {new_student['id']}", 'info', user_id=new_student['id'])
             flash('Registration successful! Please login.', 'success')
+            # Redirect to original page if 'next' parameter exists
+            next_url = request.args.get('next')
+            if next_url:
+                return redirect(next_url)
             return redirect(url_for('login'))
         else:
             flash('Registration failed. Please try again.', 'error')

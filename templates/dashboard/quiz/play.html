@@ -276,7 +276,7 @@
             <div id="feedback-message" style="font-weight: 600;"></div>
             <div id="feedback-explanation" style="font-size: 14px; margin-top: 6px; color: var(--text-secondary);"></div>
 
-            <!-- Interaction Row -->
+            <!-- Interaction Row (buttons) -->
             <div class="interaction-row" id="interactionRow">
                 <button class="interaction-btn" id="likeBtn" data-question-id="{{ question.id }}" data-action="like">
                     ❤️ <span id="likeCount">0</span>
@@ -287,8 +287,8 @@
                 <button class="interaction-btn" id="reportBtn" data-question-id="{{ question.id }}" data-action="report">
                     ⚠️ Report
                 </button>
-                <button class="interaction-btn" id="skipBtn" data-question-id="{{ question.id }}" data-action="skip">
-                    ⏭️ Skip
+                <button class="interaction-btn" id="nextBtn" data-question-id="{{ question.id }}" data-action="next">
+                    ⏭️ Next
                 </button>
                 <div class="interaction-wrapper">
                     <button class="help-icon" id="helpBtn" title="Help">❓</button>
@@ -296,7 +296,7 @@
                         <div class="item"><span class="icon">❤️</span> Like this question</div>
                         <div class="item"><span class="icon">📑</span> Save to bookmarks</div>
                         <div class="item"><span class="icon">⚠️</span> Report an issue</div>
-                        <div class="item"><span class="icon">⏭️</span> Skip to next question</div>
+                        <div class="item"><span class="icon">⏭️</span> Next question (no rating saved)</div>
                         {% if user_tier in ['dhexe', 'hore'] %}
                         <div class="note">💡 Auto-advance enabled in Settings → Quiz Preferences.</div>
                         {% else %}
@@ -306,14 +306,9 @@
                 </div>
             </div>
 
-            <!-- Auto-skip indicator -->
+            <!-- Auto-skip indicator (subtle) -->
             <div id="autoSkipIndicator" class="auto-skip-indicator" style="display: none;">
                 <span class="spinner"></span> Moving to next question...
-            </div>
-
-            <!-- Next button (manual) -->
-            <div style="margin-top: 12px; display: none;" id="nextBtnContainer">
-                <button id="nextQuestionBtn" class="btn btn-primary" style="width: 100%;">Next Question →</button>
             </div>
         </div>
     </div>
@@ -369,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const likeBtn = document.getElementById('likeBtn');
     const saveBtn = document.getElementById('saveBtn');
     const reportBtn = document.getElementById('reportBtn');
-    const skipBtn = document.getElementById('skipBtn');
+    const nextBtn = document.getElementById('nextBtn');
     const helpBtn = document.getElementById('helpBtn');
     const helpPopup = document.getElementById('helpPopup');
     const autoSkipIndicator = document.getElementById('autoSkipIndicator');
@@ -553,8 +548,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeReportModal = closeReportModal;
     reportModal.addEventListener('click', function(e) { if (e.target === this) closeReportModal(); });
 
-    // Skip
-    skipBtn.addEventListener('click', function(e) {
+    // Next button (formerly Skip)
+    nextBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         if (isSubmitting || !answered) return;
         clearTimeout(autoSkipTimer);
@@ -605,8 +600,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         autoSkipIndicator.style.display = 'none';
                         advanceQuestion();
                     }, 3000);
-                } else {
-                    document.getElementById('nextBtnContainer').style.display = 'block';
                 }
                 isSubmitting = false;
             })
@@ -616,13 +609,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 isSubmitting = false;
             });
         });
-    });
-
-    document.getElementById('nextQuestionBtn').addEventListener('click', function() {
-        if (isSubmitting) return;
-        clearTimeout(autoSkipTimer);
-        autoSkipIndicator.style.display = 'none';
-        advanceQuestion();
     });
 
     function advanceQuestion() {
