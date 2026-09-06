@@ -101,20 +101,14 @@ def play():
     question = questions[current]
     total = len(questions)
     
-    # Get tier levels for UI
-    review_level = get_answer_review_level(user_id)
-    explanation_level = get_explanation_level(user_id)
-    
-    # Get user settings and tier for auto-skip
+    # Get user settings and tier for auto-skip and other preferences
     user_settings = get_user_settings(user_id)
     user_tier = get_user_tier(user_id)
     
-    return render_template('dashboard/quiz/play.html', 
-                         question=question, 
-                         current=current, 
+    return render_template('dashboard/quiz/play.html',
+                         question=question,
+                         current=current,
                          total=total,
-                         review_level=review_level,
-                         explanation_level=explanation_level,
                          user_settings=user_settings,
                          user_tier=user_tier)
 
@@ -149,7 +143,7 @@ def submit_answer():
         score = session.get('quiz_score', 0) + 1
         session['quiz_score'] = score
     
-    # Determine response based on tier levels
+    # Determine response based on tier levels (for feedback)
     user_id = session['user_id']
     review_level = get_answer_review_level(user_id)
     explanation_level = get_explanation_level(user_id)
