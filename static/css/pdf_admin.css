@@ -61,6 +61,9 @@
     font-size: 14px;
     opacity: 0.8;
 }
+.pdf-header-user i {
+    margin-right: 6px;
+}
 
 /* ----- Buttons ----- */
 .pdf-btn {
@@ -138,68 +141,114 @@
     padding: 24px 32px;
 }
 
-/* ----- Login Page ----- */
+/* ----- Login Page Wrapper (for pdf_admin.css) ----- */
 .pdf-admin-wrapper {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
     padding: 20px;
 }
 
 .pdf-admin-login {
     width: 100%;
-    max-width: 420px;
+    max-width: 400px;
 }
 
 .pdf-admin-login-card {
-    background: #fff;
-    border-radius: 16px;
-    padding: 40px 32px;
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 48px 40px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.05);
 }
 
 .login-header {
     text-align: center;
-    margin-bottom: 28px;
+    margin-bottom: 32px;
 }
-.login-icon {
-    font-size: 48px;
-    color: #e74c3c;
+
+.login-header .icon-wrapper {
+    width: 72px;
+    height: 72px;
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    box-shadow: 0 8px 24px rgba(231, 76, 60, 0.30);
 }
+
+.login-header .icon-wrapper i {
+    font-size: 32px;
+    color: white;
+}
+
 .login-header h1 {
     font-size: 24px;
     font-weight: 700;
-    margin: 8px 0 4px;
     color: #1a1a2e;
+    margin: 0 0 4px;
 }
+.login-header h1 span {
+    color: #e74c3c;
+}
+
 .login-header p {
     color: #7f8c8d;
     font-size: 14px;
+    margin: 0;
+}
+
+.login-header .access-hint {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #f8f9fa;
+    color: #7f8c8d;
+    border: 1px solid #e5e7eb;
+}
+
+.login-header .access-hint i {
+    margin-right: 4px;
+    color: #e74c3c;
 }
 
 .pdf-alert {
-    padding: 10px 14px;
-    border-radius: 6px;
+    padding: 12px 16px;
+    border-radius: 10px;
     margin-bottom: 16px;
     font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 .pdf-alert-success {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
 }
 .pdf-alert-error {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
 }
 .pdf-alert-info {
-    background: #d1ecf1;
-    color: #0c5460;
-    border: 1px solid #bee5eb;
+    background: #eff6ff;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
 }
+.pdf-alert i {
+    font-size: 18px;
+}
+.pdf-alert-success i { color: #10b981; }
+.pdf-alert-error i { color: #ef4444; }
+.pdf-alert-info i { color: #3b82f6; }
 
 /* ----- Forms ----- */
 .pdf-form-group {
@@ -257,6 +306,8 @@
     cursor: pointer;
     color: #95a5a6;
     padding: 0 4px;
+    background: none;
+    border: none;
 }
 .pdf-input-wrapper .toggle-password:hover {
     color: #2c3e50;
@@ -338,6 +389,9 @@
     font-size: 14px;
     font-weight: 500;
     color: #2c3e50;
+    cursor: pointer;
+}
+.pdf-chapter-checkbox input[type="checkbox"] {
     cursor: pointer;
 }
 
@@ -433,6 +487,10 @@
     font-size: 20px;
     font-weight: 700;
     color: #1a1a2e;
+}
+.pdf-section-header h2 i {
+    color: #e74c3c;
+    margin-right: 8px;
 }
 
 /* ----- Empty State ----- */
@@ -540,6 +598,13 @@
     color: #1a1a2e;
     margin-bottom: 12px;
 }
+.pdf-info-card h3 i,
+.pdf-preview-card h3 i,
+.pdf-form-card h3 i {
+    color: #e74c3c;
+    margin-right: 6px;
+}
+
 .pdf-info-item {
     display: flex;
     padding: 6px 0;
@@ -574,6 +639,10 @@
     font-weight: 600;
     color: #1a1a2e;
     margin-bottom: 16px;
+}
+.pdf-review-card h3 i {
+    color: #e74c3c;
+    margin-right: 8px;
 }
 .pdf-review-grid {
     display: grid;
@@ -617,12 +686,188 @@
     color: #f39c12;
 }
 
+/* ----- Dark Mode Overrides ----- */
+[data-theme="dark"] .pdf-admin-app {
+    background: #1a1a2e;
+    color: #f1f1f1;
+}
+
+[data-theme="dark"] .pdf-admin-login-card {
+    background: #252540;
+    border-color: #3a3a5a;
+}
+
+[data-theme="dark"] .login-header h1 {
+    color: #f1f1f1;
+}
+[data-theme="dark"] .login-header h1 span {
+    color: #ff6b70;
+}
+[data-theme="dark"] .login-header p {
+    color: #b0b0c8;
+}
+[data-theme="dark"] .login-header .access-hint {
+    background: #2d2d4a;
+    color: #b0b0c8;
+    border-color: #3a3a5a;
+}
+
+[data-theme="dark"] .pdf-stat-card {
+    background: #252540;
+    border-left-color: #ff6b70;
+}
+[data-theme="dark"] .pdf-stat-card .stat-number {
+    color: #f1f1f1;
+}
+[data-theme="dark"] .pdf-stat-card .stat-label {
+    color: #b0b0c8;
+}
+[data-theme="dark"] .pdf-stat-card .stat-icon {
+    color: #ff6b70;
+}
+
+[data-theme="dark"] .pdf-table-wrap {
+    background: #252540;
+}
+[data-theme="dark"] .pdf-table th {
+    background: #2d2d4a;
+    color: #b0b0c8;
+    border-bottom-color: #3a3a5a;
+}
+[data-theme="dark"] .pdf-table td {
+    color: #f1f1f1;
+    border-bottom-color: #2d2d4a;
+}
+[data-theme="dark"] .pdf-table tbody tr:hover {
+    background: #2d2d4a;
+}
+
+[data-theme="dark"] .pdf-info-card,
+[data-theme="dark"] .pdf-preview-card,
+[data-theme="dark"] .pdf-form-card,
+[data-theme="dark"] .pdf-review-card {
+    background: #252540;
+}
+[data-theme="dark"] .pdf-info-card h3,
+[data-theme="dark"] .pdf-preview-card h3,
+[data-theme="dark"] .pdf-form-card h3,
+[data-theme="dark"] .pdf-review-card h3 {
+    color: #f1f1f1;
+}
+
+[data-theme="dark"] .pdf-info-item {
+    border-bottom-color: #2d2d4a;
+}
+[data-theme="dark"] .pdf-info-item .label {
+    color: #b0b0c8;
+}
+[data-theme="dark"] .pdf-info-item span:last-child {
+    color: #f1f1f1;
+}
+
+[data-theme="dark"] .pdf-form-group label {
+    color: #d1d1e0;
+}
+[data-theme="dark"] .pdf-input-wrapper {
+    background: #2d2d4a;
+    border-color: #3a3a5a;
+}
+[data-theme="dark"] .pdf-input-wrapper:focus-within {
+    border-color: #ff6b70;
+    box-shadow: 0 0 0 3px rgba(255, 107, 112, 0.15);
+}
+[data-theme="dark"] .pdf-input-wrapper input,
+[data-theme="dark"] .pdf-input-wrapper textarea,
+[data-theme="dark"] .pdf-input-wrapper select {
+    color: #f1f1f1;
+}
+[data-theme="dark"] .pdf-input-wrapper i {
+    color: #7a7a9a;
+}
+
+[data-theme="dark"] .pdf-toggle-label {
+    color: #d1d1d0;
+}
+
+[data-theme="dark"] .pdf-search-input {
+    background: #2d2d4a;
+    border-color: #3a3a5a;
+    color: #f1f1f1;
+}
+[data-theme="dark"] .pdf-search-input:focus {
+    border-color: #ff6b70;
+}
+[data-theme="dark"] .pdf-search-wrapper i {
+    color: #7a7a9a;
+}
+
+[data-theme="dark"] .pdf-badge {
+    background: #ff6b70;
+    color: #1a1a2e;
+}
+
+[data-theme="dark"] .pdf-section-header h2 {
+    color: #f1f1f1;
+}
+[data-theme="dark"] .pdf-page-header h1 {
+    color: #f1f1f1;
+}
+[data-theme="dark"] .pdf-page-header h1 i {
+    color: #ff6b70;
+}
+
+[data-theme="dark"] .pdf-empty-state {
+    color: #7a7a9a;
+}
+
+[data-theme="dark"] .pdf-review-warning {
+    background: #3a2e1a;
+    border-left-color: #fbbf24;
+    color: #fcd34d;
+}
+[data-theme="dark"] .pdf-review-warning i {
+    color: #fbbf24;
+}
+
+[data-theme="dark"] .pdf-chapter-checkbox {
+    color: #d1d1d0;
+}
+
+[data-theme="dark"] .pdf-alert-success {
+    background: #1a3a2e;
+    color: #d1fae5;
+    border-color: #10b981;
+}
+[data-theme="dark"] .pdf-alert-error {
+    background: #3a1a1a;
+    color: #fecaca;
+    border-color: #ef4444;
+}
+[data-theme="dark"] .pdf-alert-info {
+    background: #1a2a4a;
+    color: #bfdbfe;
+    border-color: #3b82f6;
+}
+
+[data-theme="dark"] .pdf-admin-header {
+    background: #0f0f1a;
+}
+
+[data-theme="dark"] .pdf-btn-secondary {
+    background: #2d2d4a;
+    color: #d1d1e0;
+}
+[data-theme="dark"] .pdf-btn-secondary:hover {
+    background: #3a3a5a;
+}
+
 /* ----- Responsive ----- */
 @media (max-width: 1024px) {
     .pdf-process-container {
         grid-template-columns: 1fr;
     }
 }
+
 @media (max-width: 768px) {
     .pdf-admin-main {
         padding: 16px;
@@ -650,7 +895,11 @@
         align-items: flex-start;
         gap: 12px;
     }
+    .pdf-admin-login-card {
+        padding: 32px 20px;
+    }
 }
+
 @media (max-width: 480px) {
     .pdf-stats-grid {
         grid-template-columns: 1fr;
@@ -664,5 +913,18 @@
     .pdf-table-toolbar {
         flex-direction: column;
         align-items: stretch;
+    }
+    .login-header h1 {
+        font-size: 20px;
+    }
+    .login-header .icon-wrapper {
+        width: 60px;
+        height: 60px;
+    }
+    .login-header .icon-wrapper i {
+        font-size: 28px;
+    }
+    .pdf-review-actions {
+        flex-direction: column;
     }
 }

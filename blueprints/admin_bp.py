@@ -3,7 +3,7 @@ from db import (
     is_admin, get_all_students, get_all_questions,
     toggle_admin, delete_user as db_delete_user, get_deleted_users,
     restore_deleted_user as db_restore_user, create_question, delete_question,
-    create_group, delete_group, create_pdf, delete_pdf, get_all_groups, get_all_pdfs,
+    create_group, delete_group, get_all_groups,
     bulk_create_questions, check_question_exists,
     create_notification_for_all_users,
     execute_with_retry,
@@ -18,8 +18,20 @@ from subjects_config import get_all_subjects
 from services.tier_service import get_user_tier, set_user_tier, get_current_user_tier
 from activity_logger import log_admin_action
 
-admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+# Import new PDF functions with correct names
+from db import (
+    get_all_pdfs,
+    get_pdf_by_id,
+    get_pdf_by_code,
+    create_main_pdf,
+    delete_main_pdf,
+    get_pdf_distinct_subjects,
+    get_pdf_distinct_classes,
+    get_pdf_distinct_curricula,
+    get_main_pdf_count,
+)
 
+admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 # ============================================
 # DECORATORS
@@ -406,12 +418,13 @@ def delete_group(group_id):
 
 
 # ============================================
-# PDFS ADMIN
+# PDFS ADMIN (Updated to new schema)
 # ============================================
 
 @admin_bp.route('/pdfs')
 @admin_required
 def admin_pdfs():
+    """List all PDFs (main platform) – using new schema."""
     pdfs = get_all_pdfs()
     return render_template('dashboard/admin/pdfs.html', pdfs=pdfs)
 
@@ -419,33 +432,48 @@ def admin_pdfs():
 @admin_bp.route('/pdfs/add', methods=['POST'])
 @admin_required
 def add_pdf():
+    """Add a new PDF to the main platform (for super admin)."""
     validate_csrf()
+    code = request.form.get('code', '').strip()
+    if not code:
+        flash('Code is required.', 'error')
+        return redirect(url_for('admin.admin_pdfs'))
+    # Check uniqueness
+    existing = get_pdf_by_code(code)
+    if existing:
+        flash('This code already exists. Please use a unique code.', 'error')
+        return redirect(url_for('admin.admin_pdfs'))
+
     title = request.form.get('title', '').strip()
     description = request.form.get('description', '').strip()
-    file_url = request.form.get('file_url', '').strip()
-    telegram_download_url = request.form.get('telegram_download_url', '').strip()
+    curriculum = request.form.get('curriculum', 'PL')
+    class_filter = request.form.get('class', '')
     subject = request.form.get('subject', '').strip()
-    grade = request.form.get('grade', '').strip()
-    category = request.form.get('category', '').strip()
+    chapter = request.form.get('chapter', '').strip()
+    tags = request.form.get('tags', '').strip()
     is_premium = 1 if request.form.get('is_premium') == 'on' else 0
+    file_url = request.form.get('file_url', '').strip()
+    uploaded_by = request.form.get('uploaded_by', 'NUUN')
 
-    if not title or not file_url or not telegram_download_url:
-        flash('Title, file URL, and Telegram download URL are required.', 'error')
+    if not title or not subject:
+        flash('Title and Subject are required.', 'error')
         return redirect(url_for('admin.admin_pdfs'))
 
     data = {
+        'code': code,
         'title': title,
         'description': description,
-        'file_url': file_url,
-        'telegram_download_url': telegram_download_url,
-        'subject': subject if subject else '',
-        'grade': grade if grade else '',
-        'category': category if category else '',
-        'view_count': 0,
+        'curriculum': curriculum,
+        'class': class_filter,
+        'subject': subject,
+        'chapter': chapter,
+        'tags': tags,
         'is_premium': is_premium,
+        'file_url': file_url if file_url else None,
+        'uploaded_by': uploaded_by
     }
 
-    if create_pdf(data):
+    if create_main_pdf(data):
         flash('PDF added successfully!', 'success')
         log_admin_action('pdf.create', f"Added PDF {title}", 'info')
     else:
@@ -457,7 +485,7 @@ def add_pdf():
 @admin_required
 def delete_pdf(pdf_id):
     validate_csrf()
-    if delete_pdf(pdf_id):
+    if delete_main_pdf(pdf_id):
         flash('PDF deleted successfully!', 'success')
         log_admin_action('pdf.delete', f"Deleted PDF {pdf_id}", 'info')
     else:
@@ -466,7 +494,7 @@ def delete_pdf(pdf_id):
 
 
 # ============================================
-# QUESTIONS ADMIN
+# QUESTIONS ADMIN (unchanged)
 # ============================================
 
 @admin_bp.route('/questions')
