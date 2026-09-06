@@ -5,18 +5,19 @@
 {% block page_title %}Quiz{% endblock %}
 
 {% block extra_css %}
+{{ super() }}
 <style>
-    /* Interaction buttons */
+    /* Minimal custom styles for interaction buttons */
     .interaction-row {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 8px;
         margin-top: 16px;
         align-items: center;
         justify-content: center;
     }
     .interaction-btn {
-        background: none;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
         padding: 6px 14px;
@@ -27,15 +28,10 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        min-width: 70px;
+        min-width: 60px;
         justify-content: center;
     }
-    .interaction-btn:hover {
-        border-color: var(--primary);
-        color: var(--primary);
-        background: var(--primary-light);
-    }
-    .interaction-btn.active {
+    .interaction-btn:hover:not(.locked):not(:disabled) {
         border-color: var(--primary);
         color: var(--primary);
         background: var(--primary-light);
@@ -45,33 +41,16 @@
         color: #EF4444;
         background: #FEF2F2;
     }
-    .interaction-btn .badge {
-        font-size: 10px;
-        background: var(--background);
-        padding: 0 6px;
-        border-radius: 10px;
-        color: var(--text-muted);
-        margin-left: 2px;
-    }
-    .interaction-btn.active-like .badge {
-        background: #FEF2F2;
-        color: #EF4444;
+    .interaction-btn.active {
+        border-color: var(--primary);
+        color: var(--primary);
+        background: var(--primary-light);
     }
     .interaction-btn.locked {
         opacity: 0.5;
         cursor: not-allowed;
     }
-    .interaction-btn.locked:hover {
-        border-color: var(--border);
-        color: var(--text-secondary);
-        background: transparent;
-    }
-    .interaction-btn.locked .lock-icon {
-        font-size: 10px;
-        margin-right: 2px;
-    }
     .help-icon {
-        margin-left: 12px;
         font-size: 16px;
         color: var(--text-muted);
         cursor: pointer;
@@ -80,25 +59,25 @@
         border: none;
         padding: 4px 8px;
         border-radius: 50%;
+        margin-left: 4px;
     }
     .help-icon:hover {
         color: var(--primary);
         background: var(--primary-light);
     }
-
     .help-popup {
         display: none;
         position: absolute;
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
-        padding: 14px 18px;
+        padding: 12px 16px;
         box-shadow: var(--shadow-lg);
-        max-width: 280px;
+        max-width: 260px;
         z-index: 100;
         font-size: 13px;
         color: var(--text-secondary);
-        line-height: 1.6;
+        line-height: 1.5;
         top: 100%;
         right: 0;
         margin-top: 6px;
@@ -110,22 +89,12 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 4px;
-    }
-    .help-popup .item:last-child {
-        margin-bottom: 0;
+        margin-bottom: 2px;
     }
     .help-popup .item .icon {
         font-size: 16px;
         min-width: 24px;
         text-align: center;
-    }
-    .help-popup .item .desc {
-        color: var(--text-secondary);
-    }
-    .help-popup .item .highlight {
-        color: var(--primary);
-        font-weight: 600;
     }
     .help-popup .note {
         margin-top: 6px;
@@ -135,13 +104,10 @@
         color: var(--text-muted);
         font-style: italic;
     }
-
     .interaction-wrapper {
         position: relative;
         display: inline-block;
     }
-
-    /* Auto-skip (subtle) */
     .auto-skip-indicator {
         font-size: 12px;
         color: var(--text-muted);
@@ -165,7 +131,7 @@
         100% { transform: rotate(360deg); }
     }
 
-    /* Report modal */
+    /* Report Modal */
     .report-modal {
         display: none;
         position: fixed;
@@ -174,7 +140,6 @@
         z-index: 9999;
         align-items: center;
         justify-content: center;
-        backdrop-filter: blur(4px);
         padding: 20px;
     }
     .report-modal.show {
@@ -183,8 +148,8 @@
     .report-modal .modal-content {
         background: var(--surface);
         border-radius: var(--radius);
-        padding: 28px 32px;
-        max-width: 480px;
+        padding: 24px;
+        max-width: 460px;
         width: 100%;
         box-shadow: var(--shadow-lg);
         max-height: 90vh;
@@ -245,31 +210,6 @@
         cursor: pointer;
         transition: var(--transition);
     }
-    .report-modal .modal-actions .btn-secondary {
-        background: var(--surface);
-        color: var(--text);
-        border: 1px solid var(--border);
-    }
-    .report-modal .modal-actions .btn-secondary:hover {
-        background: var(--background);
-        border-color: var(--primary);
-        color: var(--primary);
-    }
-    .report-modal .modal-actions .btn-primary {
-        background: var(--primary);
-        color: white;
-    }
-    .report-modal .modal-actions .btn-primary:hover {
-        background: var(--primary-hover);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 14px rgba(255,49,56,0.3);
-    }
-
-    /* Toast override for small */
-    .toast-small {
-        font-size: 13px;
-        padding: 8px 14px;
-    }
 
     @media (max-width: 480px) {
         .interaction-row {
@@ -278,14 +218,13 @@
         .interaction-btn {
             font-size: 12px;
             padding: 4px 10px;
-            min-width: 55px;
+            min-width: 50px;
         }
         .help-icon {
             font-size: 14px;
-            margin-left: 6px;
         }
         .report-modal .modal-content {
-            padding: 20px;
+            padding: 16px;
         }
     }
 </style>
@@ -298,14 +237,14 @@
         <span style="color: var(--text-secondary); font-size: 14px;">Question <span id="current-num">{{ current + 1 }}</span>/<span id="total-num">{{ total }}</span></span>
         <span style="color: var(--primary); font-weight: 600; font-size: 14px;">⭐ <span id="score-display">0</span> points</span>
     </div>
-    
+
     <!-- Progress Bar -->
     <div style="width: 100%; height: 6px; background: var(--border); border-radius: 10px; margin-bottom: 24px; overflow: hidden;">
         <div id="progress-bar" style="width: {{ ((current + 1) / total * 100)|round(1) }}%; height: 100%; background: var(--primary); transition: width 0.5s ease; border-radius: 10px;"></div>
     </div>
 
     <!-- Question Card -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; box-shadow: var(--shadow-sm); position: relative;">
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm);">
         <div id="question-text" style="font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 20px; line-height: 1.4;">
             {{ question.question_text }}
         </div>
@@ -333,38 +272,33 @@
         </div>
 
         <!-- Feedback Area -->
-        <div id="feedback-area" style="display: none; margin-top: 20px; padding: 16px 20px; border-radius: var(--radius-sm);">
+        <div id="feedback-area" style="display: none; margin-top: 20px; padding: 16px 20px; border-radius: var(--radius-sm); background: var(--background); border: 1px solid var(--border);">
             <div id="feedback-message" style="font-weight: 600;"></div>
             <div id="feedback-explanation" style="font-size: 14px; margin-top: 6px; color: var(--text-secondary);"></div>
-            
+
             <!-- Interaction Row -->
             <div class="interaction-row" id="interactionRow">
-                <!-- Like -->
                 <button class="interaction-btn" id="likeBtn" data-question-id="{{ question.id }}" data-action="like">
                     ❤️ <span id="likeCount">0</span>
                 </button>
-                <!-- Save -->
                 <button class="interaction-btn" id="saveBtn" data-question-id="{{ question.id }}" data-action="save">
                     📑 Save
                 </button>
-                <!-- Report -->
                 <button class="interaction-btn" id="reportBtn" data-question-id="{{ question.id }}" data-action="report">
                     ⚠️ Report
                 </button>
-                <!-- Skip -->
                 <button class="interaction-btn" id="skipBtn" data-question-id="{{ question.id }}" data-action="skip">
                     ⏭️ Skip
                 </button>
-                <!-- Help Icon (placed outside the row using relative wrapper) -->
                 <div class="interaction-wrapper">
                     <button class="help-icon" id="helpBtn" title="Help">❓</button>
                     <div class="help-popup" id="helpPopup">
-                        <div class="item"><span class="icon">❤️</span><span class="desc">Like this question</span></div>
-                        <div class="item"><span class="icon">📑</span><span class="desc">Save to bookmarks</span></div>
-                        <div class="item"><span class="icon">⚠️</span><span class="desc">Report an issue</span></div>
-                        <div class="item"><span class="icon">⏭️</span><span class="desc">Skip to next question</span></div>
+                        <div class="item"><span class="icon">❤️</span> Like this question</div>
+                        <div class="item"><span class="icon">📑</span> Save to bookmarks</div>
+                        <div class="item"><span class="icon">⚠️</span> Report an issue</div>
+                        <div class="item"><span class="icon">⏭️</span> Skip to next question</div>
                         {% if user_tier in ['dhexe', 'hore'] %}
-                        <div class="note">💡 You can enable auto-advance in Settings → Quiz Preferences.</div>
+                        <div class="note">💡 Auto-advance enabled in Settings → Quiz Preferences.</div>
                         {% else %}
                         <div class="note">🔒 Upgrade to Dhexe for auto-advance.</div>
                         {% endif %}
@@ -372,21 +306,16 @@
                 </div>
             </div>
 
-            <!-- Auto-skip indicator (subtle) -->
+            <!-- Auto-skip indicator -->
             <div id="autoSkipIndicator" class="auto-skip-indicator" style="display: none;">
                 <span class="spinner"></span> Moving to next question...
             </div>
 
-            <!-- Next button (legacy) -->
+            <!-- Next button (manual) -->
             <div style="margin-top: 12px; display: none;" id="nextBtnContainer">
                 <button id="nextQuestionBtn" class="btn btn-primary" style="width: 100%;">Next Question →</button>
             </div>
         </div>
-    </div>
-
-    <!-- Loading/Next Indicator -->
-    <div id="next-indicator" style="display: none; text-align: center; margin-top: 16px; color: var(--text-secondary); font-size: 14px;">
-        <i class="fas fa-spinner fa-spin"></i> Loading next question...
     </div>
 </div>
 
@@ -394,7 +323,7 @@
 <div class="report-modal" id="reportModal">
     <div class="modal-content">
         <div class="modal-title">⚠️ Report Question</div>
-        <div class="modal-sub">Help us improve by reporting any issues with this question.</div>
+        <div class="modal-sub">Help us improve by reporting any issues.</div>
         <form id="reportForm">
             <input type="hidden" id="reportQuestionId" value="{{ question.id }}">
             <div class="form-group">
@@ -429,20 +358,14 @@ const userTier = '{{ user_tier|default("danbe") }}';
 const autoSkipEnabled = {{ user_settings.auto_skip_enabled|default(0)|int }};
 
 document.addEventListener('DOMContentLoaded', function() {
-    // ============================================
-    // Quiz logic (answer, rating, etc.)
-    // ============================================
-    
     const optionsContainer = document.getElementById('options-container');
     const feedbackArea = document.getElementById('feedback-area');
     const feedbackMessage = document.getElementById('feedback-message');
     const feedbackExplanation = document.getElementById('feedback-explanation');
     const progressBar = document.getElementById('progress-bar');
     const scoreDisplay = document.getElementById('score-display');
-    const nextIndicator = document.getElementById('next-indicator');
     const currentNum = document.getElementById('current-num');
     const totalNum = document.getElementById('total-num');
-    const interactionRow = document.getElementById('interactionRow');
     const likeBtn = document.getElementById('likeBtn');
     const saveBtn = document.getElementById('saveBtn');
     const reportBtn = document.getElementById('reportBtn');
@@ -453,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const reportModal = document.getElementById('reportModal');
     const reportForm = document.getElementById('reportForm');
     const reportQuestionId = document.getElementById('reportQuestionId');
-    
+
     let score = 0;
     let current = parseInt(currentNum.textContent) - 1;
     const total = parseInt(totalNum.textContent);
@@ -462,9 +385,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let autoSkipTimer = null;
     let interactionStatus = {};
 
-    // ============================================
-    // Help icon
-    // ============================================
+    // Help toggle
     helpBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         helpPopup.classList.toggle('show');
@@ -475,9 +396,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // ============================================
     // Fetch interaction status
-    // ============================================
     function fetchInteractionStatus() {
         fetch('/api/interaction/status?question_id=' + questionId)
             .then(res => res.json())
@@ -492,13 +411,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateButtons() {
         // Like
-        if (interactionStatus.liked) {
-            likeBtn.classList.add('active-like');
-        } else {
-            likeBtn.classList.remove('active-like');
-        }
-        const likeCount = interactionStatus.like_count || 0;
-        document.getElementById('likeCount').textContent = likeCount;
+        likeBtn.classList.toggle('active-like', interactionStatus.liked);
+        document.getElementById('likeCount').textContent = interactionStatus.like_count || 0;
 
         // Save
         if (interactionStatus.saved) {
@@ -509,7 +423,7 @@ document.addEventListener('DOMContentLoaded', function() {
             saveBtn.innerHTML = '📑 Save';
         }
 
-        // Report (disable if already reported)
+        // Report
         if (interactionStatus.reported) {
             reportBtn.disabled = true;
             reportBtn.classList.add('locked');
@@ -520,7 +434,7 @@ document.addEventListener('DOMContentLoaded', function() {
             reportBtn.innerHTML = '⚠️ Report';
         }
 
-        // Tier for save
+        // Tier lock for save
         if (userTier === 'danbe') {
             saveBtn.classList.add('locked');
             saveBtn.dataset.tierLocked = 'true';
@@ -530,228 +444,141 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // ============================================
-    // Interaction handlers
-    // ============================================
-
     // Like
     likeBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (isSubmitting) return;
-        if (!answered) return; // Only allow after answering
-        
+        if (isSubmitting || !answered) return;
         const btn = this;
-        const questionId = btn.dataset.questionId;
-        const isLiked = btn.classList.contains('active-like');
-        // Optimistic update
-        if (isLiked) {
-            btn.classList.remove('active-like');
-            let count = parseInt(document.getElementById('likeCount').textContent) - 1;
-            document.getElementById('likeCount').textContent = Math.max(0, count);
-        } else {
-            btn.classList.add('active-like');
-            let count = parseInt(document.getElementById('likeCount').textContent) + 1;
-            document.getElementById('likeCount').textContent = count;
-        }
+        const qid = btn.dataset.questionId;
+        const wasLiked = btn.classList.contains('active-like');
+
+        // Optimistic
+        btn.classList.toggle('active-like', !wasLiked);
+        let count = parseInt(document.getElementById('likeCount').textContent) + (wasLiked ? -1 : 1);
+        document.getElementById('likeCount').textContent = Math.max(0, count);
 
         fetch('/api/interaction/like', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken
-            },
-            body: JSON.stringify({ question_id: questionId })
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            body: JSON.stringify({ question_id: qid })
         })
         .then(res => res.json())
         .then(data => {
-            if (data.error) {
-                showToast('Error: ' + data.error, 'error');
-                // Revert optimistic
-                fetchInteractionStatus();
-                return;
-            }
-            // Update with server data
+            if (data.error) { showToast('Error: ' + data.error, 'error'); fetchInteractionStatus(); return; }
             document.getElementById('likeCount').textContent = data.count;
-            if (data.liked) {
-                btn.classList.add('active-like');
-            } else {
-                btn.classList.remove('active-like');
-            }
+            btn.classList.toggle('active-like', data.liked);
         })
-        .catch(err => {
-            showToast('Network error', 'error');
-            fetchInteractionStatus();
-        });
+        .catch(() => { showToast('Network error', 'error'); fetchInteractionStatus(); });
     });
 
     // Save
     saveBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         if (this.classList.contains('locked')) {
-            // If Danbe, show upgrade sheet
-            if (userTier === 'danbe') {
-                // Trigger upgrade sheet
-                if (typeof window.openSafkaPreview === 'function') {
-                    window.openSafkaPreview({ feature: 'save_question', requiredTier: 'dhexe' });
-                }
-                return;
+            if (userTier === 'danbe' && typeof window.openSafkaPreview === 'function') {
+                window.openSafkaPreview({ feature: 'save_question', requiredTier: 'dhexe' });
             }
             return;
         }
         if (isSubmitting || !answered) return;
-        
         const btn = this;
-        const questionId = btn.dataset.questionId;
-        const isSaved = btn.classList.contains('active');
-        
-        // Optimistic
-        if (isSaved) {
-            btn.classList.remove('active');
-            btn.innerHTML = '📑 Save';
-        } else {
-            btn.classList.add('active');
-            btn.innerHTML = '📑 Saving...';
-        }
+        const qid = btn.dataset.questionId;
+        const wasSaved = btn.classList.contains('active');
+        btn.classList.toggle('active', !wasSaved);
+        btn.innerHTML = wasSaved ? '📑 Save' : '📑 Saving...';
 
         fetch('/api/interaction/save', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken
-            },
-            body: JSON.stringify({ question_id: questionId })
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            body: JSON.stringify({ question_id: qid })
         })
         .then(res => res.json())
         .then(data => {
-            if (data.error) {
-                showToast(data.error, 'error');
-                fetchInteractionStatus();
-                return;
-            }
+            if (data.error) { showToast(data.error, 'error'); fetchInteractionStatus(); return; }
             if (data.saved) {
                 btn.classList.add('active');
                 btn.innerHTML = '📑 Saved';
-                if (data.total_saves !== undefined) {
-                    // Show remaining count if Dhexe
-                    // We'll just show a toast
-                }
-                showToast('✅ Question saved to bookmarks!', 'success');
+                showToast('✅ Saved!', 'success');
             } else {
                 btn.classList.remove('active');
                 btn.innerHTML = '📑 Save';
                 if (data.error === 'Save limit reached') {
-                    showToast('🔒 Save limit reached. Upgrade to Hore for unlimited.', 'warning');
+                    showToast('🔒 Save limit reached. Upgrade to Hore.', 'warning');
                 }
             }
         })
-        .catch(err => {
-            showToast('Network error', 'error');
-            fetchInteractionStatus();
-        });
+        .catch(() => { showToast('Network error', 'error'); fetchInteractionStatus(); });
     });
 
     // Report
     reportBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (this.disabled) return;
-        if (!answered) return;
+        if (this.disabled || !answered) return;
         reportQuestionId.value = questionId;
         document.getElementById('reportReason').value = '';
         document.getElementById('reportComment').value = '';
         reportModal.classList.add('show');
     });
 
-    // Report form submit
     reportForm.addEventListener('submit', function(e) {
         e.preventDefault();
         const reason = document.getElementById('reportReason').value;
         const comment = document.getElementById('reportComment').value.trim();
-        if (!reason) {
-            showToast('Please select a reason.', 'warning');
-            return;
-        }
+        if (!reason) { showToast('Please select a reason.', 'warning'); return; }
         const submitBtn = this.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting...';
 
         fetch('/api/interaction/report', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken
-            },
-            body: JSON.stringify({
-                question_id: questionId,
-                reason: reason,
-                comment: comment
-            })
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            body: JSON.stringify({ question_id: questionId, reason: reason, comment: comment })
         })
         .then(res => res.json())
         .then(data => {
-            if (data.error) {
-                showToast('Error: ' + data.error, 'error');
-            } else {
-                showToast('✅ Report submitted. We will review it shortly.', 'success');
-                reportModal.classList.remove('show');
-                reportBtn.disabled = true;
-                reportBtn.classList.add('locked');
-                reportBtn.innerHTML = '⚠️ Reported';
-            }
+            if (data.error) { showToast('Error: ' + data.error, 'error'); return; }
+            showToast('✅ Report submitted.', 'success');
+            reportModal.classList.remove('show');
+            reportBtn.disabled = true;
+            reportBtn.classList.add('locked');
+            reportBtn.innerHTML = '⚠️ Reported';
         })
-        .catch(err => {
-            showToast('Network error', 'error');
-        })
-        .finally(() => {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Submit Report';
-        });
+        .catch(() => showToast('Network error', 'error'))
+        .finally(() => { submitBtn.disabled = false; submitBtn.textContent = 'Submit Report'; });
     });
 
     function closeReportModal() {
         reportModal.classList.remove('show');
     }
     window.closeReportModal = closeReportModal;
-
-    // Close modal on backdrop click
-    reportModal.addEventListener('click', function(e) {
-        if (e.target === this) closeReportModal();
-    });
+    reportModal.addEventListener('click', function(e) { if (e.target === this) closeReportModal(); });
 
     // Skip
     skipBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (isSubmitting) return;
-        if (!answered) return;
+        if (isSubmitting || !answered) return;
         clearTimeout(autoSkipTimer);
         autoSkipIndicator.style.display = 'none';
         advanceQuestion();
     });
 
-    // ============================================
     // Option selection
-    // ============================================
     document.querySelectorAll('.option-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             if (answered || isSubmitting) return;
             answered = true;
             isSubmitting = true;
-            
             const answer = this.dataset.value;
             const allBtns = document.querySelectorAll('.option-btn');
             allBtns.forEach(b => b.style.pointerEvents = 'none');
-            
-            // Show feedback
+
             fetch('{{ url_for("quiz.submit_answer") }}', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
                 body: JSON.stringify({ answer: answer })
             })
             .then(res => res.json())
             .then(data => {
-                // Highlight correct/incorrect
                 allBtns.forEach(b => {
                     if (b.dataset.value === data.correct_answer) {
                         b.style.borderColor = '#10B981';
@@ -762,39 +589,25 @@ document.addEventListener('DOMContentLoaded', function() {
                         b.style.background = '#FEF2F2';
                     }
                 });
-                
-                // Update score
-                if (data.correct) {
-                    score++;
-                    scoreDisplay.textContent = score;
-                }
-                
-                // Show feedback
+                if (data.correct) { score++; scoreDisplay.textContent = score; }
                 feedbackArea.style.display = 'block';
-                if (data.correct) {
-                    feedbackMessage.innerHTML = '✅ <span style="color: #10B981;">CORRECT! +1 point</span>';
-                } else {
-                    feedbackMessage.innerHTML = '❌ <span style="color: #EF4444;">WRONG! Correct answer was: ' + data.correct_answer + '</span>';
-                }
+                feedbackMessage.innerHTML = data.correct ?
+                    '✅ <span style="color: #10B981;">CORRECT! +1 point</span>' :
+                    '❌ <span style="color: #EF4444;">WRONG! Correct answer was: ' + data.correct_answer + '</span>';
                 if (data.explanation) {
                     feedbackExplanation.textContent = '💡 ' + data.explanation;
                 }
-                
-                // Fetch interaction status
                 fetchInteractionStatus();
-                
-                // Auto-skip logic (premium)
+
                 if (autoSkipEnabled && (userTier === 'dhexe' || userTier === 'hore')) {
                     autoSkipIndicator.style.display = 'block';
                     autoSkipTimer = setTimeout(function() {
                         autoSkipIndicator.style.display = 'none';
                         advanceQuestion();
-                    }, 3000); // 3 seconds
+                    }, 3000);
                 } else {
-                    // Show next button for manual advance
                     document.getElementById('nextBtnContainer').style.display = 'block';
                 }
-
                 isSubmitting = false;
             })
             .catch(err => {
@@ -805,7 +618,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Next question button (legacy)
     document.getElementById('nextQuestionBtn').addEventListener('click', function() {
         if (isSubmitting) return;
         clearTimeout(autoSkipTimer);
@@ -813,18 +625,8 @@ document.addEventListener('DOMContentLoaded', function() {
         advanceQuestion();
     });
 
-    // ============================================
-    // Advance to next question
-    // ============================================
     function advanceQuestion() {
         if (isSubmitting) return;
-        // Skip rating step – we use the skip button to bypass HAA/MAY
-        // The original rating flow is HAA/MAY, but we skip it entirely.
-        // We need to submit a dummy rating or just increment session['quiz_current'].
-        // We'll call the existing /submit_rating with 'SKIP' to advance without storing.
-        // Since we want no storage, we'll just increment the current and reload.
-        // But we also need to update the session. We can reload with ?next=1.
-        // The server will handle incrementing the current question index.
         if (current + 1 < total) {
             window.location.href = window.location.pathname + '?next=1';
         } else {
@@ -832,9 +634,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // ============================================
-    // Toast helper
-    // ============================================
     function showToast(message, type) {
         if (typeof window.showToast === 'function') {
             window.showToast(message, type || 'info', 3000);
@@ -843,16 +642,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Initial fetch of interaction status
     fetchInteractionStatus();
 
-    // ============================================
-    // Handle next param on load (for skip)
-    // ============================================
+    // Handle ?next=1 param
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('next') === '1') {
-        // The server will handle incrementing current question.
-        // We just reload with clean URL.
         window.location.href = window.location.pathname;
     }
 });
