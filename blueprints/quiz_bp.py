@@ -29,7 +29,6 @@ def index():
     user_id = session['user_id']
     subjects = get_user_subject_list(user_id)
     
-    # Show remaining attempts
     remaining = get_remaining_quota(user_id, 'quiz_attempt')
     tier = get_current_user_tier()
     
@@ -50,20 +49,18 @@ def start_quiz(subject_code):
         flash('Subject not available for your location/curriculum.', 'error')
         return redirect(url_for('quiz.index'))
     
-    # Check attempt quota
     remaining = get_remaining_quota(user_id, 'quiz_attempt')
     if remaining <= 0:
         flash('You have used all your quiz attempts for today. Come back tomorrow!', 'error')
         return redirect(url_for('quiz.index'))
     
-    # Get the max questions allowed per quiz
     max_questions = get_quiz_questions_limit(user_id)
     questions = get_questions_by_subject(subject_code, max_questions)
     if not questions:
         flash('No questions available for this subject yet.', 'error')
         return redirect(url_for('quiz.index'))
     
-    # Store in session
+    # Reset session state for the new quiz
     session['quiz_questions'] = questions
     session['quiz_current'] = 0
     session['quiz_score'] = 0
@@ -72,13 +69,11 @@ def start_quiz(subject_code):
     session['quiz_subject_code'] = subject_code
     session['quiz_attempt_consumed'] = False
     
-    # Consume the attempt atomically now
     if not check_and_consume_quota(user_id, 'quiz_attempt'):
         flash('Failed to start quiz. Try again.', 'error')
         return redirect(url_for('quiz.index'))
     
     session['quiz_attempt_consumed'] = True
-    
     return redirect(url_for('quiz.play'))
 
 @quiz_bp.route('/play')
@@ -91,6 +86,15 @@ def play():
     questions = session.get('quiz_questions', [])
     current = session.get('quiz_current', 0)
     
+    # Handle 'next' parameter to advance to the next question
+    if request.args.get('next') == '1':
+        if questions and current + 1 < len(questions):
+            session['quiz_current'] = current + 1
+        else:
+            # Quiz finished, redirect to results
+            return redirect(url_for('quiz.results'))
+        return redirect(url_for('quiz.play'))
+    
     if not questions:
         flash('No quiz in progress. Start a new quiz.', 'error')
         return redirect(url_for('quiz.index'))
@@ -100,8 +104,8 @@ def play():
     
     question = questions[current]
     total = len(questions)
+    score = session.get('quiz_score', 0)
     
-    # Get user settings and tier
     user_settings = get_user_settings(user_id)
     user_tier = get_user_tier(user_id)
     
@@ -109,6 +113,7 @@ def play():
                          question=question,
                          current=current,
                          total=total,
+                         score=score,
                          user_settings=user_settings,
                          user_tier=user_tier)
 
@@ -142,6 +147,8 @@ def submit_answer():
     if is_correct:
         score = session.get('quiz_score', 0) + 1
         session['quiz_score'] = score
+    else:
+        score = session.get('quiz_score', 0)
     
     user_id = session['user_id']
     review_level = get_answer_review_level(user_id)
@@ -151,7 +158,8 @@ def submit_answer():
         'correct': is_correct,
         'correct_answer': question['correct_answer'],
         'current': current,
-        'total': len(questions)
+        'total': len(questions),
+        'score': score
     }
     
     if review_level > 0:
@@ -191,16 +199,17 @@ def submit_rating():
     })
     session['quiz_ratings'] = ratings
     
-    session['quiz_current'] = current + 1
-    
-    if session['quiz_current'] >= len(questions):
+    # Advance to next question
+    if current + 1 < len(questions):
+        session['quiz_current'] = current + 1
+        return jsonify({'complete': False, 'next': session['quiz_current']})
+    else:
+        # Quiz complete
         user_id = session['user_id']
         score = session.get('quiz_score', 0)
         total = len(questions)
         check_and_award_achievements(user_id, 'quiz_completed', {'score': score, 'total': total})
         return jsonify({'complete': True})
-    
-    return jsonify({'complete': False, 'next': session['quiz_current']})
 
 @quiz_bp.route('/results')
 def results():

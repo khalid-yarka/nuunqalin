@@ -235,7 +235,7 @@
     <!-- Progress -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <span style="color: var(--text-secondary); font-size: 14px;">Question <span id="current-num">{{ current + 1 }}</span>/<span id="total-num">{{ total }}</span></span>
-        <span style="color: var(--primary); font-weight: 600; font-size: 14px;">⭐ <span id="score-display">0</span> points</span>
+        <span style="color: var(--primary); font-weight: 600; font-size: 14px;">⭐ <span id="score-display">{{ score }}</span> points</span>
     </div>
 
     <!-- Progress Bar -->
@@ -372,7 +372,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const reportForm = document.getElementById('reportForm');
     const reportQuestionId = document.getElementById('reportQuestionId');
 
-    let score = 0;
+    let score = {{ score }};
     let current = parseInt(currentNum.textContent) - 1;
     const total = parseInt(totalNum.textContent);
     let answered = false;
@@ -614,6 +614,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function advanceQuestion() {
         if (isSubmitting) return;
         if (current + 1 < total) {
+            // Redirect with ?next=1 – server will handle incrementing
             window.location.href = window.location.pathname + '?next=1';
         } else {
             window.location.href = '{{ url_for("quiz.results") }}';
@@ -630,11 +631,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     fetchInteractionStatus();
 
-    // Handle ?next=1 param
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('next') === '1') {
-        window.location.href = window.location.pathname;
-    }
+    // The server now handles ?next=1, so no need to strip it here.
+    // The page will reload without the parameter after the server redirects.
 });
 </script>
 {% endblock %}
