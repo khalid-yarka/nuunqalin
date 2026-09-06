@@ -7,22 +7,86 @@
 {% block extra_css %}
 {{ super() }}
 <style>
-    .pdf-locked-search {
-        opacity: 0.6;
-        cursor: pointer;
+    /* Premium button styles */
+    .btn-premium {
+        background: linear-gradient(135deg, #FF3138, #B91C1C) !important;
+        color: white !important;
+        border: none !important;
+        box-shadow: 0 4px 14px rgba(255, 49, 56, 0.35) !important;
+        transition: all 0.3s ease !important;
+        position: relative;
+        overflow: hidden;
+    }
+    .btn-premium:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 24px rgba(255, 49, 56, 0.45) !important;
+    }
+    .btn-premium::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 60%);
+        opacity: 0;
+        transition: opacity 0.4s ease;
+    }
+    .btn-premium:hover::after {
+        opacity: 1;
+    }
+    .btn-premium .premium-star {
+        font-size: 12px;
+        margin-right: 4px;
+        color: #FCD34D;
+    }
+
+    .btn-disabled {
+        opacity: 0.6 !important;
+        cursor: not-allowed !important;
+        filter: grayscale(0.5);
         position: relative;
     }
-    .pdf-locked-search .lock-overlay {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(0,0,0,0.05);
-        backdrop-filter: blur(1px);
-        border-radius: var(--radius-sm);
-        pointer-events: none;
+    .btn-disabled .lock-icon {
+        margin-right: 4px;
     }
+    .btn-disabled:hover::after {
+        content: ' Upgrade to access';
+        position: absolute;
+        background: #1A1A2E;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        white-space: nowrap;
+        top: -30px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+    }
+
+    .pdf-card {
+        transition: all 0.3s ease;
+    }
+    .pdf-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .pdf-actions-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .pdf-actions-row .btn {
+        flex: 1 1 auto;
+        min-width: 80px;
+        justify-content: center;
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+
     .pdf-locked-search .lock-overlay span {
         background: var(--surface);
         padding: 4px 14px;
@@ -77,10 +141,6 @@
     .pdf-card-premium .premium-lock span i {
         font-size: 16px;
     }
-    .pdf-card-premium .btn-view {
-        opacity: 0.5;
-        pointer-events: none;
-    }
     .pdf-download-quota {
         font-size: 12px;
         color: var(--text-muted);
@@ -89,6 +149,23 @@
         border-radius: 12px;
         display: inline-block;
         margin-bottom: 8px;
+    }
+
+    /* Tooltip on disabled */
+    .btn-disabled[data-tooltip]:hover::before {
+        content: attr(data-tooltip);
+        position: absolute;
+        background: #1A1A2E;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        white-space: nowrap;
+        top: -35px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100;
+        font-weight: 500;
     }
 </style>
 {% endblock %}
@@ -159,17 +236,23 @@
                         </select>
                     {% endif %}
                     {% if search_level >= 2 %}
-                        <select name="grade" id="gradeFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
-                            <option value="">All Grades</option>
-                            {% for g in grades %}
-                                <option value="{{ g }}" {% if grade_filter == g %}selected{% endif %}>{{ g }}</option>
+                        <select name="class" id="classFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
+                            <option value="">All Classes</option>
+                            {% for cls in classes %}
+                                <option value="{{ cls }}" {% if class_filter == cls %}selected{% endif %}>{{ cls }}</option>
+                            {% endfor %}
+                        </select>
+                        <select name="curriculum" id="curriculumFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
+                            <option value="">All Curricula</option>
+                            {% for cur in curricula %}
+                                <option value="{{ cur }}" {% if curriculum_filter == cur %}selected{% endif %}>{{ cur }}</option>
                             {% endfor %}
                         </select>
                     {% endif %}
                     <button type="submit" style="padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
                         <i class="fas fa-search"></i> Search
                     </button>
-                    {% if search_query or subject_filter or grade_filter %}
+                    {% if search_query or subject_filter or class_filter or curriculum_filter %}
                         <a href="{{ url_for('pdfs.list_pdfs') }}" style="padding: 10px 16px; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text-secondary); font-weight: 500; transition: var(--transition);">
                             <i class="fas fa-times"></i> Clear
                         </a>
@@ -183,7 +266,8 @@
     {% if pdfs %}
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
             {% for pdf in pdfs %}
-                <div class="{% if pdf.is_premium %}pdf-card-premium{% endif %}" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); transition: var(--transition); display: flex; flex-direction: column; position: relative;">
+                <div class="{% if pdf.is_premium %}pdf-card-premium{% endif %} pdf-card" 
+                     style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); transition: var(--transition); display: flex; flex-direction: column; position: relative;">
                     
                     {% if pdf.is_premium %}
                         <span class="premium-badge">💎 Premium</span>
@@ -206,8 +290,11 @@
                                 {% if pdf.subject %}
                                     <span style="font-size: 11px; color: var(--text-secondary); background: var(--background); padding: 1px 8px; border-radius: 8px;">{{ pdf.subject }}</span>
                                 {% endif %}
-                                {% if pdf.grade %}
-                                    <span style="font-size: 11px; color: var(--text-secondary); background: var(--background); padding: 1px 8px; border-radius: 8px;">{{ pdf.grade }}</span>
+                                {% if pdf.class %}
+                                    <span style="font-size: 11px; color: var(--text-secondary); background: var(--background); padding: 1px 8px; border-radius: 8px;">{{ pdf.class }}</span>
+                                {% endif %}
+                                {% if pdf.curriculum %}
+                                    <span style="font-size: 11px; color: var(--text-secondary); background: var(--background); padding: 1px 8px; border-radius: 8px;">{{ pdf.curriculum }}</span>
                                 {% endif %}
                             </div>
                         </div>
@@ -224,30 +311,60 @@
                         <span style="color: var(--text-secondary); font-size: 13px;">{{ pdf.view_count or 0 }} views</span>
                     </div>
 
-                    <!-- Action Buttons -->
-                    <div style="display: flex; gap: 10px; margin-top: auto;">
-                        {% if pdf.is_premium and not can_access_premium %}
-                            <!-- Premium locked: show upgrade button -->
-                            <button class="btn btn-secondary" style="flex: 1; cursor: pointer;" 
-                                    data-tier-locked data-feature="premium_resources" data-required-tier="dhexe">
-                                <i class="fas fa-lock"></i> Upgrade
-                            </button>
-                        {% else %}
-                            {% if pdf.file_url %}
+                    <!-- Actions: 4 Buttons -->
+                    <div class="pdf-actions-row">
+                        {% set tier = user_tier|default('danbe') %}
+                        {% set has_url = pdf.file_url is not none and pdf.file_url != '' %}
+
+                        <!-- 1. Read (Direct) – Hore only, if URL exists -->
+                        {% if has_url %}
+                            {% if tier == 'hore' %}
                                 <a href="{{ url_for('pdfs.view_pdf', pdf_id=pdf.id) }}" 
-                                   class="btn btn-primary" style="flex: 1; text-align: center;">
-                                    <i class="fas fa-eye"></i> View
+                                   class="btn btn-premium btn-sm" title="Read online">
+                                    <span class="premium-star">✦</span> Read
                                 </a>
+                            {% else %}
+                                <button class="btn btn-secondary btn-sm btn-disabled" disabled data-tooltip="Upgrade to Hore to read online">
+                                    <i class="fas fa-lock lock-icon"></i> Read
+                                </button>
                             {% endif %}
                         {% endif %}
-                        <!-- Download button – always visible but quota checked on download -->
-                        <a href="{{ url_for('pdfs.download_pdf', pdf_id=pdf.id) }}" 
-                           class="btn btn-success" style="flex: 1; text-align: center;">
-                            <i class="fas fa-download"></i> Download
+
+                        <!-- 2. Download (Direct) – Hore only, if URL exists -->
+                        {% if has_url %}
+                            {% if tier == 'hore' %}
+                                <a href="{{ url_for('pdfs.download_pdf', pdf_id=pdf.id) }}" 
+                                   class="btn btn-premium btn-sm" title="Download directly">
+                                    <span class="premium-star">✦</span> Download
+                                </a>
+                            {% else %}
+                                <button class="btn btn-secondary btn-sm btn-disabled" disabled data-tooltip="Upgrade to Hore to download directly">
+                                    <i class="fas fa-lock lock-icon"></i> Download
+                                </button>
+                            {% endif %}
+                        {% endif %}
+
+                        <!-- 3. Preview (Telegram stream) – Dhexe and Hore only -->
+                        {% if tier in ['dhexe', 'hore'] %}
+                            <a href="{{ url_for('pdfs.preview_telegram', code=pdf.code) }}" 
+                               class="btn {% if tier == 'hore' %}btn-premium{% else %}btn-info{% endif %} btn-sm" 
+                               title="Preview via Telegram" target="_blank">
+                                {% if tier == 'hore' %}<span class="premium-star">✦</span>{% endif %}
+                                Preview
+                            </a>
+                        {% else %}
+                            <button class="btn btn-secondary btn-sm btn-disabled" disabled data-tooltip="Upgrade to Dhexe to preview">
+                                <i class="fas fa-lock lock-icon"></i> Preview
+                            </button>
+                        {% endif %}
+
+                        <!-- 4. Get PDF (Telegram download) – All tiers -->
+                        <a href="{{ url_for('pdfs.telegram_download', code=pdf.code) }}" 
+                           class="btn {% if tier == 'hore' %}btn-premium{% else %}btn-telegram{% endif %} btn-sm" 
+                           title="Get via Telegram">
+                            {% if tier == 'hore' %}<span class="premium-star">✦</span>{% endif %}
+                            <i class="fab fa-telegram-plane"></i> Get PDF
                         </a>
-                    </div>
-                    <div style="text-align: center; margin-top: 6px; font-size: 10px; color: var(--text-muted);">
-                        <i class="fab fa-telegram"></i> Download from Telegram Channel
                     </div>
                 </div>
             {% endfor %}
@@ -266,7 +383,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
     const subjectFilter = document.getElementById('subjectFilter');
-    const gradeFilter = document.getElementById('gradeFilter');
+    const classFilter = document.getElementById('classFilter');
+    const curriculumFilter = document.getElementById('curriculumFilter');
     const searchForm = document.getElementById('searchForm');
     
     if (searchForm) {
@@ -279,7 +397,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (searchInput) searchInput.addEventListener('input', autoSubmit);
         if (subjectFilter) subjectFilter.addEventListener('change', function() { searchForm.submit(); });
-        if (gradeFilter) gradeFilter.addEventListener('change', function() { searchForm.submit(); });
+        if (classFilter) classFilter.addEventListener('change', function() { searchForm.submit(); });
+        if (curriculumFilter) curriculumFilter.addEventListener('change', function() { searchForm.submit(); });
     }
 
     // Locked elements with data-tier-locked will trigger the upgrade sheet automatically

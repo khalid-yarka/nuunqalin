@@ -132,3 +132,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     console.log('✅ NuunPlatform main.js loaded');
 });
+
+// ============================================
+// DISABLED BUTTON HANDLER (Added for PDF system)
+// ============================================
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-disabled');
+    if (btn && btn.disabled) {
+        e.preventDefault();
+        const tooltip = btn.getAttribute('data-tooltip') || 'This feature is not available for your tier.';
+        if (typeof window.showToast === 'function') {
+            window.showToast('🔒 ' + tooltip, 'warning');
+        } else {
+            alert('🔒 ' + tooltip);
+        }
+    }
+});

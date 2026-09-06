@@ -187,6 +187,30 @@ a:hover {
     justify-content: center;
 }
 
+/* Telegram button */
+.btn-telegram {
+    background: #0088CC;
+    color: white;
+}
+.btn-telegram:hover:not(:disabled) {
+    background: #006699;
+    transform: translateY(-2px);
+    color: white;
+    text-decoration: none;
+}
+
+/* Info button */
+.btn-info {
+    background: var(--info);
+    color: white;
+}
+.btn-info:hover:not(:disabled) {
+    background: #2563EB;
+    transform: translateY(-2px);
+    color: white;
+    text-decoration: none;
+}
+
 /* ============================================
    CARDS – Shared Component
    ============================================ */
@@ -964,4 +988,76 @@ textarea.form-control {
     .modal-actions .btn {
         width: 100%;
     }
+}
+
+/* ============================================
+   PDF SYSTEM - PREMIUM & DISABLED BUTTONS
+   ============================================ */
+
+/* Premium button for Hore tier */
+.btn-premium {
+    background: linear-gradient(135deg, #FF3138, #B91C1C) !important;
+    color: white !important;
+    border: none !important;
+    box-shadow: 0 4px 14px rgba(255, 49, 56, 0.35) !important;
+    transition: all 0.3s ease !important;
+    position: relative;
+    overflow: hidden;
+}
+.btn-premium:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 24px rgba(255, 49, 56, 0.45) !important;
+}
+.btn-premium::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+.btn-premium:hover::after {
+    opacity: 1;
+}
+.btn-premium .premium-star {
+    font-size: 12px;
+    margin-right: 4px;
+    color: #FCD34D;
+}
+
+/* Disabled buttons with lock icon */
+.btn-disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+    filter: grayscale(0.5);
+    position: relative;
+}
+.btn-disabled .lock-icon {
+    margin-right: 4px;
+}
+.btn-disabled:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    background: #1A1A2E;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    white-space: nowrap;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+/* PDF card hover effect */
+.pdf-card {
+    transition: all 0.3s ease;
+}
+.pdf-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
 }

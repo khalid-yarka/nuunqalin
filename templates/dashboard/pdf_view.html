@@ -116,7 +116,7 @@
         color: var(--text-secondary);
     }
 
-    .pdf-topbar .right .btn-download {
+    .pdf-topbar .right .btn-telegram {
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -132,7 +132,7 @@
         cursor: pointer;
     }
 
-    .pdf-topbar .right .btn-download:hover {
+    .pdf-topbar .right .btn-telegram:hover {
         background: #006699;
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(0, 136, 204, 0.30);
@@ -364,13 +364,9 @@
             font-size: 12px;
         }
 
-        .pdf-topbar .right .btn-download {
+        .pdf-topbar .right .btn-telegram {
             padding: 4px 10px;
             font-size: 12px;
-        }
-
-        .pdf-topbar .right .btn-download span {
-            display: none;
         }
 
         .pdf-container {
@@ -485,9 +481,9 @@
             <span class="views">
                 <i class="fas fa-eye" style="color: var(--text-muted);"></i> {{ pdf.view_count or 0 }}
             </span>
-            <a href="{{ pdf.telegram_download_url }}" target="_blank" class="btn-download">
+            <a href="{{ url_for('pdfs.telegram_download', code=pdf.code) }}" target="_blank" class="btn-telegram">
                 <i class="fab fa-telegram-plane"></i>
-                <span>Download</span>
+                Get PDF
             </a>
         </div>
     </div>
@@ -543,8 +539,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // PDF.JS VIEWER - VERTICAL SCROLLING + PINCH ZOOM
     // ============================================
 
-    const PDF_URL = "{{ pdf.file_url }}";
-    const TELEGRAM_URL = "{{ pdf.telegram_download_url }}";
+    // Determine which URL to use
+    // If file_url exists, use it directly; otherwise stream from Telegram
+    let PDF_URL = null;
+    {% if pdf.file_url %}
+        PDF_URL = "{{ pdf.file_url }}";
+    {% else %}
+        PDF_URL = "{{ url_for('pdfs.stream_pdf', code=pdf.code) }}";
+    {% endif %}
+
+    // If PDF_URL is still null, fallback to Telegram link
+    if (!PDF_URL) {
+        document.getElementById('pdfLoading').innerHTML = `
+            <div style="font-size: 48px; opacity:0.3;">📲</div>
+            <h3 style="font-size:18px; color:var(--text);">PDF not available</h3>
+            <p style="font-size:14px; color:var(--text-secondary);">
+                This document is available via Telegram.
+            </p>
+            <a href="{{ url_for('pdfs.telegram_download', code=pdf.code) }}" target="_blank"
+               style="display:inline-block; margin-top:16px; padding:10px 24px; background:#0088CC; color:white; border-radius:8px; text-decoration:none; font-weight:600;">
+                <i class="fab fa-telegram-plane"></i> Get PDF via Telegram
+            </a>
+        `;
+        document.getElementById('pdfControls').style.display = 'none';
+        return;
+    }
 
     // Set worker source
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -666,9 +685,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div style="font-size: 48px; opacity:0.3;">⚠️</div>
                     <h3 style="font-size:18px; color:var(--text);">Failed to load PDF</h3>
                     <p style="font-size:14px; color:var(--text-secondary);">${error.message}</p>
-                    <a href="${TELEGRAM_URL}" target="_blank"
+                    <a href="{{ url_for('pdfs.telegram_download', code=pdf.code) }}" target="_blank"
                        style="display:inline-block; margin-top:12px; padding:8px 20px; background:#0088CC; color:white; border-radius:8px; text-decoration:none; font-weight:600;">
-                        <i class="fab fa-telegram-plane"></i> Download from Telegram
+                        <i class="fab fa-telegram-plane"></i> Get PDF via Telegram
                     </a>
                 `;
                 controls.style.display = 'none';
