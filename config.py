@@ -3,7 +3,12 @@ from dotenv import load_dotenv
 from datetime import timedelta
 from pathlib import Path
 
-load_dotenv()
+# ============================================
+# LOAD .env FILE EXPLICITLY
+# ============================================
+# This ensures .env is loaded from the same directory as this config file
+env_path = Path(__file__).resolve().parent / '.env'
+load_dotenv(env_path)
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -159,7 +164,7 @@ class Config:
     TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
     TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'nuunplatform_bot')
     TELEGRAM_ADMIN_IDS = os.getenv('TELEGRAM_ADMIN_IDS', '')
-    BASE_URL = os.getenv('BASE_URL', 'https://yourdomain.com')  # CHANGED: generic placeholder
+    BASE_URL = os.getenv('BASE_URL', 'https://yourdomain.com')
     
     # ============================================
     # PDF ADMIN PANEL
@@ -194,6 +199,7 @@ class Config:
             if directory and not os.path.exists(directory):
                 try:
                     os.makedirs(directory, exist_ok=True)
+                    print(f"Created directory: {directory}")
                 except Exception as e:
                     print(f"Warning: Could not create directory {directory}: {e}")
     
@@ -213,4 +219,15 @@ class Config:
                 errors.append("SMTP_TO is missing")
         return errors
 
+# ============================================
+# CREATE DIRECTORIES AFTER CLASS DEFINITION
+# ============================================
 Config.ensure_directories()
+
+# Optional: Print confirmation that config loaded
+print(f"✅ Config loaded successfully!")
+print(f"   Database: {Config.DATABASE_PATH}")
+print(f"   Backup Dir: {Config.BACKUP_DIR}")
+print(f"   Log Dir: {Config.LOG_DIR}")
+print(f"   Upload Dir: {Config.UPLOAD_FOLDER}")
+print(f"   Bot Database: {Config.BOT_DATABASE_PATH}")

@@ -17,19 +17,22 @@ pdfs_bp = Blueprint('pdfs', __name__, url_prefix='/pdfs')
 
 @pdfs_bp.route('/')
 def list_pdfs():
-    if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
+    """Public PDF listing – no login required."""
     subject_filter = request.args.get('subject', '')
     class_filter = request.args.get('class', '')
     curriculum_filter = request.args.get('curriculum', '')
     search_query = request.args.get('search', '').strip()
 
-    # Get tier and search level
-    user_tier = get_user_tier(user_id)
-    search_level = get_feature_level("resource_search", user_id)
+    # Get user tier if logged in
+    user_id = session.get('user_id')
+    if user_id:
+        user_tier = get_user_tier(user_id)
+        search_level = get_feature_level("resource_search", user_id)
+        can_access_premium = can_access_premium_resources()
+    else:
+        user_tier = 'danbe'
+        search_level = 0
+        can_access_premium = False
 
     pdfs = get_all_pdfs(
         limit=100,
@@ -40,7 +43,6 @@ def list_pdfs():
         class_filter=class_filter if search_level >= 2 else ''
     )
 
-    can_access_premium = can_access_premium_resources()
     if not can_access_premium:
         pdfs = [p for p in pdfs if not p.get('is_premium', 0)]
 
@@ -59,13 +61,14 @@ def list_pdfs():
                          search_query=search_query if search_level > 0 else '',
                          search_level=search_level,
                          user_tier=user_tier,
-                         can_access_premium=can_access_premium)
+                         can_access_premium=can_access_premium,
+                         is_logged_in=bool(user_id))
 
 @pdfs_bp.route('/view/<pdf_id>')
 def view_pdf(pdf_id):
     if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
+        flash('Please login to view PDFs.', 'warning')
+        return redirect(url_for('login', next=request.url))
 
     user_id = session['user_id']
     pdf = get_pdf_by_id(pdf_id)
@@ -84,8 +87,8 @@ def view_pdf(pdf_id):
 @pdfs_bp.route('/download/<pdf_id>')
 def download_pdf(pdf_id):
     if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
+        flash('Please login to download PDFs.', 'warning')
+        return redirect(url_for('login', next=request.url))
 
     user_id = session['user_id']
     user_tier = get_user_tier(user_id)
@@ -111,6 +114,7 @@ def download_pdf(pdf_id):
 
 @pdfs_bp.route('/telegram/<code>')
 def telegram_download(code):
+    """Direct Telegram link – no intermediate page."""
     pdf = get_pdf_by_code(code)
     if not pdf:
         flash('PDF not found.', 'error')
@@ -118,9 +122,7 @@ def telegram_download(code):
 
     bot_username = Config.TELEGRAM_BOT_USERNAME or 'nuunplatform_bot'
     telegram_link = f"https://t.me/{bot_username}?start={code}"
-
-    return render_template('pdf_admin/telegram_download.html',
-                         pdf=pdf, telegram_link=telegram_link)
+    return redirect(telegram_link)
 
 @pdfs_bp.route('/stream/<code>')
 def stream_pdf(code):
@@ -129,7 +131,7 @@ def stream_pdf(code):
     Used for Preview (Telegram view) – accessible to Dhexe and Hore tiers.
     """
     if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
+        return jsonify({'error': 'Please login first.'}), 401
 
     user_id = session['user_id']
     user_tier = get_user_tier(user_id)
@@ -180,7 +182,5 @@ def stream_pdf(code):
 
 @pdfs_bp.route('/preview/<code>')
 def preview_telegram(code):
-    """
-    Alias for /stream/<code> – used by the 'Preview' button.
-    """
+    """Alias for /stream/<code> – used by the 'Preview' button."""
     return stream_pdf(code)

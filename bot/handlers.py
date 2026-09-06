@@ -9,6 +9,7 @@ from bot.utils import (
     is_duplicate_in_bot, save_pending_pdf, is_admin
 )
 from bot.db import count_pending_pdfs, get_pending_pdf_list, get_bot_pdf_by_code
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ def handle_start(bot, message):
     bot.send_message(message.chat.id, text, reply_markup=markup)
 
 def handle_start_with_code(bot, message):
-    """Handle /start <code> to send a PDF."""
+    """Handle /start <code> to send a PDF with rich description and button."""
     text = message.text
     parts = text.split(maxsplit=1)
     if len(parts) == 2:
@@ -70,11 +71,33 @@ def handle_start_with_code(bot, message):
         if bot_pdf:
             try:
                 file_id = bot_pdf['file_id']
-                caption = f"📄 {bot_pdf['title']}\n"
+                
+                # Build rich caption
+                caption = f"📄 *{bot_pdf['title']}*\n\n"
                 if bot_pdf.get('description'):
-                    caption += f"Description: {bot_pdf['description']}\n"
-                caption += f"Code: {code}"
-                bot.send_document(message.chat.id, file_id, caption=caption)
+                    caption += f"{bot_pdf['description']}\n\n"
+                caption += f"📌 *Code:* `{code}`\n"
+                caption += f"🔗 *Available on our platform with more study materials!*"
+                
+                # Build inline keyboard with "More PDFs" button
+                base_url = Config.BASE_URL.rstrip('/')
+                markup = types.InlineKeyboardMarkup()
+                markup.add(
+                    types.InlineKeyboardButton(
+                        "📚 Browse More PDFs",
+                        url=f"{base_url}/pdfs"
+                    )
+                )
+                
+                # Send with protect_content=True (prevents forwarding, saving, screenshotting)
+                bot.send_document(
+                    message.chat.id,
+                    file_id,
+                    caption=caption,
+                    parse_mode='Markdown',
+                    reply_markup=markup,
+                    protect_content=True
+                )
                 return
             except Exception as e:
                 logger.error(f"Error sending PDF with code {code}: {e}")
@@ -111,20 +134,39 @@ def handle_document(bot, message):
     if is_duplicate_in_bot(file_unique_id):
         bot.reply_to(
             message,
-            "⚠️ This PDF is already in the system (either already published or pending review)."
+            "⚠️ This PDF is already in the system (either already published or pending review).",
+            protect_content=True
         )
         return
 
     pending_id = save_pending_pdf(file_id, file_unique_id, filename, user_id)
     if pending_id:
+        # Build rich confirmation with "More PDFs" button
+        base_url = Config.BASE_URL.rstrip('/')
+        markup = types.InlineKeyboardMarkup()
+        markup.add(
+            types.InlineKeyboardButton(
+                "📚 Browse More PDFs",
+                url=f"{base_url}/pdfs"
+            )
+        )
+        
         bot.reply_to(
             message,
-            f"✅ PDF received and is pending admin review.\n"
-            f"Filename: {filename}\n"
-            f"Pending ID: #{pending_id}"
+            f"✅ PDF received and is pending admin review.\n\n"
+            f"📄 *{filename}*\n"
+            f"🆔 Pending ID: #{pending_id}\n\n"
+            f"🔗 *Available on our platform with more study materials!*",
+            parse_mode='Markdown',
+            reply_markup=markup,
+            protect_content=True
         )
     else:
-        bot.reply_to(message, "❌ Failed to save the PDF. Please try again later.")
+        bot.reply_to(
+            message,
+            "❌ Failed to save the PDF. Please try again later.",
+            protect_content=True
+        )
 
 def handle_admin_pending(bot, call):
     user_id = call.from_user.id
@@ -142,7 +184,10 @@ def handle_admin_pending(bot, call):
             for p in pending_list:
                 text += f"• {p['filename']} (ID: {p['id']}) - uploaded {p['uploaded_at']}\n"
             text += "\nUse the web admin panel to process them.\n"
-            text += "Web panel: <your-secret-url> (configured by admin)"
+            # Get the admin panel URL
+            base_url = Config.BASE_URL.rstrip('/')
+            secret_path = Config.PDF_ADMIN_SECRET_PATH or '/pdf-admin'
+            text += f"Web panel: {base_url}{secret_path}"
         else:
             text += "No pending PDFs."
         bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=None)

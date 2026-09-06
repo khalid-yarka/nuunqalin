@@ -41,28 +41,19 @@
         color: #FCD34D;
     }
 
-    .btn-disabled {
-        opacity: 0.6 !important;
-        cursor: not-allowed !important;
-        filter: grayscale(0.5);
+    /* Tier-locked buttons – clickable but trigger upgrade sheet */
+    .btn-tier-locked {
+        cursor: pointer !important;
+        opacity: 0.7 !important;
         position: relative;
     }
-    .btn-disabled .lock-icon {
-        margin-right: 4px;
+    .btn-tier-locked:hover {
+        opacity: 1 !important;
+        border-color: var(--primary) !important;
     }
-    .btn-disabled:hover::after {
-        content: ' Upgrade to access';
-        position: absolute;
-        background: #1A1A2E;
-        color: white;
-        padding: 4px 10px;
-        border-radius: 6px;
+    .btn-tier-locked .lock-icon {
+        margin-right: 4px;
         font-size: 11px;
-        white-space: nowrap;
-        top: -30px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 10;
     }
 
     .pdf-card {
@@ -151,21 +142,36 @@
         margin-bottom: 8px;
     }
 
-    /* Tooltip on disabled */
-    .btn-disabled[data-tooltip]:hover::before {
-        content: attr(data-tooltip);
+    /* Login prompt overlay for non-logged-in users */
+    .login-prompt-overlay {
         position: absolute;
-        background: #1A1A2E;
-        color: white;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 12px;
-        white-space: nowrap;
-        top: -35px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 100;
-        font-weight: 500;
+        inset: 0;
+        background: rgba(0,0,0,0.05);
+        backdrop-filter: blur(2px);
+        border-radius: var(--radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2;
+    }
+    .login-prompt-overlay span {
+        background: var(--surface);
+        padding: 8px 20px;
+        border-radius: 30px;
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--primary);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .login-prompt-overlay span i {
+        font-size: 16px;
+    }
+    .pdf-card.login-required {
+        position: relative;
+        overflow: hidden;
     }
 </style>
 {% endblock %}
@@ -174,7 +180,7 @@
 <div style="max-width: 100%;">
     <!-- Breadcrumb -->
     <div class="breadcrumb">
-        <a href="{{ url_for('dashboard.home') }}">Dashboard</a>
+        <a href="{{ url_for('dashboard.home') if is_logged_in else '#' }}">Dashboard</a>
         <span class="separator">/</span>
         <span class="current">PDFs</span>
     </div>
@@ -185,10 +191,17 @@
             <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
                 <i class="fas fa-file-pdf" style="color: #E74C3C;"></i> Study Materials
             </h2>
-            <p style="color: var(--text-secondary); font-size: 14px;">Browse and view educational PDFs</p>
+            <p style="color: var(--text-secondary); font-size: 14px;">
+                {% if is_logged_in %}
+                    Browse and view educational PDFs
+                {% else %}
+                    <a href="{{ url_for('login', next=request.url) }}" style="color: var(--primary); font-weight: 600;">Login</a> or 
+                    <a href="{{ url_for('register', next=request.url) }}" style="color: var(--primary); font-weight: 600;">Register</a> to access features
+                {% endif %}
+            </p>
         </div>
         <div>
-            {% if remaining_downloads is not none %}
+            {% if remaining_downloads is not none and is_logged_in %}
                 <span class="pdf-download-quota">
                     <i class="fas fa-download"></i> 
                     {% if remaining_downloads == 999 %}
@@ -203,19 +216,19 @@
 
     <!-- Search & Filters – Tier‑aware -->
     <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
-        {% if search_level == 0 %}
-            <!-- Danbe: Search Locked -->
+        {% if search_level == 0 or not is_logged_in %}
+            <!-- Search Locked for Danbe or non-logged-in -->
             <div class="pdf-locked-search" style="flex: 1; min-width: 200px; position: relative;" 
                  data-tier-locked data-feature="resource_search" data-required-tier="dhexe">
                 <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
                     <div style="flex: 1; min-width: 150px; position: relative;">
-                        <input type="text" placeholder="🔒 Search locked – Upgrade to unlock" disabled 
+                        <input type="text" placeholder="🔒 Search locked – Login/Upgrade to unlock" disabled 
                                style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); color: var(--text-muted);">
                     </div>
                     <button class="btn btn-secondary" disabled style="opacity:0.5;">Search</button>
                 </div>
                 <div class="lock-overlay">
-                    <span>🔒 Upgrade to Safka Dhexe</span>
+                    <span>🔒 {{ 'Login to search' if not is_logged_in else 'Upgrade to Safka Dhexe' }}</span>
                 </div>
             </div>
         {% else %}
@@ -266,7 +279,7 @@
     {% if pdfs %}
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
             {% for pdf in pdfs %}
-                <div class="{% if pdf.is_premium %}pdf-card-premium{% endif %} pdf-card" 
+                <div class="{% if pdf.is_premium %}pdf-card-premium{% endif %} {% if not is_logged_in %}login-required{% endif %} pdf-card" 
                      style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); transition: var(--transition); display: flex; flex-direction: column; position: relative;">
                     
                     {% if pdf.is_premium %}
@@ -274,9 +287,16 @@
                         {% if not can_access_premium %}
                             <!-- Premium locked for Danbe -->
                             <div class="premium-lock" data-tier-locked data-feature="premium_resources" data-required-tier="dhexe">
-                                <span><i class="fas fa-lock"></i> Upgrade to Access</span>
+                                <span><i class="fas fa-lock"></i> {{ 'Login to access' if not is_logged_in else 'Upgrade to Access' }}</span>
                             </div>
                         {% endif %}
+                    {% endif %}
+
+                    <!-- Login prompt overlay for non-logged-in -->
+                    {% if not is_logged_in %}
+                    <div class="login-prompt-overlay">
+                        <span><i class="fas fa-lock"></i> <a href="{{ url_for('login', next=request.url) }}" style="color: var(--primary); text-decoration: none;">Login</a> to access</span>
+                    </div>
                     {% endif %}
 
                     <!-- PDF Icon & Title -->
@@ -315,16 +335,22 @@
                     <div class="pdf-actions-row">
                         {% set tier = user_tier|default('danbe') %}
                         {% set has_url = pdf.file_url is not none and pdf.file_url != '' %}
+                        {% set logged_in = is_logged_in|default(false) %}
 
                         <!-- 1. Read (Direct) – Hore only, if URL exists -->
                         {% if has_url %}
-                            {% if tier == 'hore' %}
+                            {% if tier == 'hore' and logged_in %}
                                 <a href="{{ url_for('pdfs.view_pdf', pdf_id=pdf.id) }}" 
                                    class="btn btn-premium btn-sm" title="Read online">
                                     <span class="premium-star">✦</span> Read
                                 </a>
                             {% else %}
-                                <button class="btn btn-secondary btn-sm btn-disabled" disabled data-tooltip="Upgrade to Hore to read online">
+                                <button class="btn btn-secondary btn-sm btn-tier-locked" 
+                                        {% if logged_in %}
+                                            data-tier-locked data-feature="direct_view" data-required-tier="hore"
+                                        {% else %}
+                                            onclick="window.location.href='{{ url_for('login', next=request.url) }}'"
+                                        {% endif %}>
                                     <i class="fas fa-lock lock-icon"></i> Read
                                 </button>
                             {% endif %}
@@ -332,20 +358,25 @@
 
                         <!-- 2. Download (Direct) – Hore only, if URL exists -->
                         {% if has_url %}
-                            {% if tier == 'hore' %}
+                            {% if tier == 'hore' and logged_in %}
                                 <a href="{{ url_for('pdfs.download_pdf', pdf_id=pdf.id) }}" 
                                    class="btn btn-premium btn-sm" title="Download directly">
                                     <span class="premium-star">✦</span> Download
                                 </a>
                             {% else %}
-                                <button class="btn btn-secondary btn-sm btn-disabled" disabled data-tooltip="Upgrade to Hore to download directly">
+                                <button class="btn btn-secondary btn-sm btn-tier-locked" 
+                                        {% if logged_in %}
+                                            data-tier-locked data-feature="direct_download" data-required-tier="hore"
+                                        {% else %}
+                                            onclick="window.location.href='{{ url_for('login', next=request.url) }}'"
+                                        {% endif %}>
                                     <i class="fas fa-lock lock-icon"></i> Download
                                 </button>
                             {% endif %}
                         {% endif %}
 
                         <!-- 3. Preview (Telegram stream) – Dhexe and Hore only -->
-                        {% if tier in ['dhexe', 'hore'] %}
+                        {% if tier in ['dhexe', 'hore'] and logged_in %}
                             <a href="{{ url_for('pdfs.preview_telegram', code=pdf.code) }}" 
                                class="btn {% if tier == 'hore' %}btn-premium{% else %}btn-info{% endif %} btn-sm" 
                                title="Preview via Telegram" target="_blank">
@@ -353,16 +384,23 @@
                                 Preview
                             </a>
                         {% else %}
-                            <button class="btn btn-secondary btn-sm btn-disabled" disabled data-tooltip="Upgrade to Dhexe to preview">
+                            <button class="btn btn-secondary btn-sm btn-tier-locked" 
+                                    {% if logged_in %}
+                                        data-tier-locked data-feature="telegram_view" data-required-tier="dhexe"
+                                    {% else %}
+                                        onclick="window.location.href='{{ url_for('login', next=request.url) }}'"
+                                    {% endif %}>
                                 <i class="fas fa-lock lock-icon"></i> Preview
                             </button>
                         {% endif %}
 
-                        <!-- 4. Get PDF (Telegram download) – All tiers -->
-                        <a href="{{ url_for('pdfs.telegram_download', code=pdf.code) }}" 
-                           class="btn {% if tier == 'hore' %}btn-premium{% else %}btn-telegram{% endif %} btn-sm" 
+                        <!-- 4. Get PDF (Telegram download) – All tiers, opens Telegram directly -->
+                        {% set bot_username = config.TELEGRAM_BOT_USERNAME or 'nuunplatform_bot' %}
+                        <a href="https://t.me/{{ bot_username }}?start={{ pdf.code }}" 
+                           target="_blank" 
+                           class="btn {% if tier == 'hore' and logged_in %}btn-premium{% else %}btn-telegram{% endif %} btn-sm" 
                            title="Get via Telegram">
-                            {% if tier == 'hore' %}<span class="premium-star">✦</span>{% endif %}
+                            {% if tier == 'hore' and logged_in %}<span class="premium-star">✦</span>{% endif %}
                             <i class="fab fa-telegram-plane"></i> Get PDF
                         </a>
                     </div>
