@@ -1,5 +1,6 @@
 -- ============================================
--- NUUNPLATFORM DATABASE SCHEMA (PDF SYSTEM REDESIGN)
+-- NUUNPLATFORM DATABASE SCHEMA
+-- Complete schema with all tables
 -- ============================================
 
 -- ============================================
@@ -103,7 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active);
 CREATE INDEX IF NOT EXISTS idx_groups_click_count ON groups(click_count DESC);
 
 -- ============================================
--- PDFS TABLE (Main Platform – redesigned)
+-- PDFS TABLE (Main Platform)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS pdfs (
@@ -117,7 +118,7 @@ CREATE TABLE IF NOT EXISTS pdfs (
     chapter TEXT DEFAULT '',
     tags TEXT DEFAULT '',
     is_premium INTEGER DEFAULT 0,
-    file_url TEXT,  -- NULL -> use Telegram bot via code
+    file_url TEXT,
     uploaded_by TEXT NOT NULL DEFAULT 'NUUN',
     uploaded_at TEXT DEFAULT (datetime('now', 'localtime')),
     view_count INTEGER DEFAULT 0
@@ -394,16 +395,6 @@ CREATE TABLE IF NOT EXISTS user_achievements (
 );
 
 -- ============================================
--- ADDITIONAL PERFORMANCE INDEXES
--- ============================================
-
-CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
-CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);
-
--- ============================================
 -- QUESTION INTERACTIONS (Likes, Saves, Reports)
 -- ============================================
 
@@ -424,11 +415,20 @@ CREATE TABLE IF NOT EXISTS question_interactions (
     FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
     FOREIGN KEY (quiz_attempt_id) REFERENCES quiz_attempts(id) ON DELETE SET NULL,
-    FOREIGN KEY (live_quiz_id) REFERENCES live_quizzes(id) ON DELETE SET NULL,
-    UNIQUE(user_id, question_id, interaction_type, COALESCE(quiz_attempt_id, 0), COALESCE(live_quiz_id, 0))
+    FOREIGN KEY (live_quiz_id) REFERENCES live_quizzes(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_question_interactions_user ON question_interactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_question_interactions_question ON question_interactions(question_id);
 CREATE INDEX IF NOT EXISTS idx_question_interactions_type ON question_interactions(interaction_type);
 CREATE INDEX IF NOT EXISTS idx_question_interactions_report_status ON question_interactions(report_status);
+
+-- ============================================
+-- ADDITIONAL PERFORMANCE INDEXES
+-- ============================================
+
+CREATE INDEX IF NOT EXISTS idx_live_quiz_participants_quiz_score ON live_quiz_participants(quiz_id, score DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);

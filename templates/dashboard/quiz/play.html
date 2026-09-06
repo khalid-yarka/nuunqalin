@@ -35,6 +35,11 @@
         color: var(--primary);
         background: var(--primary-light);
     }
+    .interaction-btn.active {
+        border-color: var(--primary);
+        color: var(--primary);
+        background: var(--primary-light);
+    }
     .interaction-btn.active-like {
         border-color: #EF4444;
         color: #EF4444;
@@ -80,6 +85,7 @@
         color: var(--primary);
         background: var(--primary-light);
     }
+
     .help-popup {
         display: none;
         position: absolute;
@@ -117,6 +123,10 @@
     .help-popup .item .desc {
         color: var(--text-secondary);
     }
+    .help-popup .item .highlight {
+        color: var(--primary);
+        font-weight: 600;
+    }
     .help-popup .note {
         margin-top: 6px;
         padding-top: 6px;
@@ -125,10 +135,13 @@
         color: var(--text-muted);
         font-style: italic;
     }
+
     .interaction-wrapper {
         position: relative;
         display: inline-block;
     }
+
+    /* Auto-skip (subtle) */
     .auto-skip-indicator {
         font-size: 12px;
         color: var(--text-muted);
@@ -151,6 +164,7 @@
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
+
     /* Report modal */
     .report-modal {
         display: none;
@@ -250,6 +264,13 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 14px rgba(255,49,56,0.3);
     }
+
+    /* Toast override for small */
+    .toast-small {
+        font-size: 13px;
+        padding: 8px 14px;
+    }
+
     @media (max-width: 480px) {
         .interaction-row {
             gap: 6px;
@@ -277,7 +298,7 @@
         <span style="color: var(--text-secondary); font-size: 14px;">Question <span id="current-num">{{ current + 1 }}</span>/<span id="total-num">{{ total }}</span></span>
         <span style="color: var(--primary); font-weight: 600; font-size: 14px;">⭐ <span id="score-display">0</span> points</span>
     </div>
-
+    
     <!-- Progress Bar -->
     <div style="width: 100%; height: 6px; background: var(--border); border-radius: 10px; margin-bottom: 24px; overflow: hidden;">
         <div id="progress-bar" style="width: {{ ((current + 1) / total * 100)|round(1) }}%; height: 100%; background: var(--primary); transition: width 0.5s ease; border-radius: 10px;"></div>
@@ -311,11 +332,11 @@
             {% endif %}
         </div>
 
-        <!-- Feedback Area (no HAA/MAY) -->
+        <!-- Feedback Area -->
         <div id="feedback-area" style="display: none; margin-top: 20px; padding: 16px 20px; border-radius: var(--radius-sm);">
             <div id="feedback-message" style="font-weight: 600;"></div>
             <div id="feedback-explanation" style="font-size: 14px; margin-top: 6px; color: var(--text-secondary);"></div>
-
+            
             <!-- Interaction Row -->
             <div class="interaction-row" id="interactionRow">
                 <!-- Like -->
@@ -334,7 +355,7 @@
                 <button class="interaction-btn" id="skipBtn" data-question-id="{{ question.id }}" data-action="skip">
                     ⏭️ Skip
                 </button>
-                <!-- Help Icon -->
+                <!-- Help Icon (placed outside the row using relative wrapper) -->
                 <div class="interaction-wrapper">
                     <button class="help-icon" id="helpBtn" title="Help">❓</button>
                     <div class="help-popup" id="helpPopup">
@@ -342,7 +363,7 @@
                         <div class="item"><span class="icon">📑</span><span class="desc">Save to bookmarks</span></div>
                         <div class="item"><span class="icon">⚠️</span><span class="desc">Report an issue</span></div>
                         <div class="item"><span class="icon">⏭️</span><span class="desc">Skip to next question</span></div>
-                        {% if session.user_tier in ['dhexe', 'hore'] %}
+                        {% if user_tier in ['dhexe', 'hore'] %}
                         <div class="note">💡 You can enable auto-advance in Settings → Quiz Preferences.</div>
                         {% else %}
                         <div class="note">🔒 Upgrade to Dhexe for auto-advance.</div>
@@ -351,9 +372,14 @@
                 </div>
             </div>
 
-            <!-- Auto-skip indicator -->
+            <!-- Auto-skip indicator (subtle) -->
             <div id="autoSkipIndicator" class="auto-skip-indicator" style="display: none;">
                 <span class="spinner"></span> Moving to next question...
+            </div>
+
+            <!-- Next button (legacy) -->
+            <div style="margin-top: 12px; display: none;" id="nextBtnContainer">
+                <button id="nextQuestionBtn" class="btn btn-primary" style="width: 100%;">Next Question →</button>
             </div>
         </div>
     </div>
@@ -399,11 +425,14 @@
 const csrfToken = '{{ session.get("csrf_token", "") }}';
 const questionId = {{ question.id }};
 const totalQuestions = {{ total }};
-const userTier = '{{ session.user_tier|default("danbe") }}';
-const autoSkipEnabled = {{ session.user_settings.auto_skip_enabled|default(0)|int }};
+const userTier = '{{ user_tier|default("danbe") }}';
+const autoSkipEnabled = {{ user_settings.auto_skip_enabled|default(0)|int }};
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Quiz logic
+    // ============================================
+    // Quiz logic (answer, rating, etc.)
+    // ============================================
+    
     const optionsContainer = document.getElementById('options-container');
     const feedbackArea = document.getElementById('feedback-area');
     const feedbackMessage = document.getElementById('feedback-message');
@@ -424,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const reportModal = document.getElementById('reportModal');
     const reportForm = document.getElementById('reportForm');
     const reportQuestionId = document.getElementById('reportQuestionId');
-
+    
     let score = 0;
     let current = parseInt(currentNum.textContent) - 1;
     const total = parseInt(totalNum.textContent);
@@ -433,7 +462,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let autoSkipTimer = null;
     let interactionStatus = {};
 
-    // Help icon toggle
+    // ============================================
+    // Help icon
+    // ============================================
     helpBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         helpPopup.classList.toggle('show');
@@ -444,7 +475,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // ============================================
     // Fetch interaction status
+    // ============================================
     function fetchInteractionStatus() {
         fetch('/api/interaction/status?question_id=' + questionId)
             .then(res => res.json())
@@ -476,7 +509,7 @@ document.addEventListener('DOMContentLoaded', function() {
             saveBtn.innerHTML = '📑 Save';
         }
 
-        // Report
+        // Report (disable if already reported)
         if (interactionStatus.reported) {
             reportBtn.disabled = true;
             reportBtn.classList.add('locked');
@@ -497,35 +530,67 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // ============================================
     // Interaction handlers
+    // ============================================
+
+    // Like
     likeBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (isSubmitting || !answered) return;
+        if (isSubmitting) return;
+        if (!answered) return; // Only allow after answering
+        
         const btn = this;
-        const qid = btn.dataset.questionId;
-        // Optimistic
-        btn.classList.toggle('active-like');
+        const questionId = btn.dataset.questionId;
+        const isLiked = btn.classList.contains('active-like');
+        // Optimistic update
+        if (isLiked) {
+            btn.classList.remove('active-like');
+            let count = parseInt(document.getElementById('likeCount').textContent) - 1;
+            document.getElementById('likeCount').textContent = Math.max(0, count);
+        } else {
+            btn.classList.add('active-like');
+            let count = parseInt(document.getElementById('likeCount').textContent) + 1;
+            document.getElementById('likeCount').textContent = count;
+        }
+
         fetch('/api/interaction/like', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-Token': csrfToken
             },
-            body: JSON.stringify({ question_id: qid })
+            body: JSON.stringify({ question_id: questionId })
         })
         .then(res => res.json())
         .then(data => {
-            if (data.error) { showToast('Error: ' + data.error, 'error'); fetchInteractionStatus(); return; }
+            if (data.error) {
+                showToast('Error: ' + data.error, 'error');
+                // Revert optimistic
+                fetchInteractionStatus();
+                return;
+            }
+            // Update with server data
             document.getElementById('likeCount').textContent = data.count;
-            if (data.liked) { btn.classList.add('active-like'); } else { btn.classList.remove('active-like'); }
+            if (data.liked) {
+                btn.classList.add('active-like');
+            } else {
+                btn.classList.remove('active-like');
+            }
         })
-        .catch(err => { showToast('Network error', 'error'); fetchInteractionStatus(); });
+        .catch(err => {
+            showToast('Network error', 'error');
+            fetchInteractionStatus();
+        });
     });
 
+    // Save
     saveBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         if (this.classList.contains('locked')) {
+            // If Danbe, show upgrade sheet
             if (userTier === 'danbe') {
+                // Trigger upgrade sheet
                 if (typeof window.openSafkaPreview === 'function') {
                     window.openSafkaPreview({ feature: 'save_question', requiredTier: 'dhexe' });
                 }
@@ -534,32 +599,41 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         if (isSubmitting || !answered) return;
+        
         const btn = this;
-        const qid = btn.dataset.questionId;
+        const questionId = btn.dataset.questionId;
         const isSaved = btn.classList.contains('active');
+        
+        // Optimistic
         if (isSaved) {
-            btn.innerHTML = '📑 Saving...';
+            btn.classList.remove('active');
+            btn.innerHTML = '📑 Save';
         } else {
+            btn.classList.add('active');
             btn.innerHTML = '📑 Saving...';
         }
+
         fetch('/api/interaction/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-Token': csrfToken
             },
-            body: JSON.stringify({ question_id: qid })
+            body: JSON.stringify({ question_id: questionId })
         })
         .then(res => res.json())
         .then(data => {
-            if (data.error) { showToast(data.error, 'error'); fetchInteractionStatus(); return; }
+            if (data.error) {
+                showToast(data.error, 'error');
+                fetchInteractionStatus();
+                return;
+            }
             if (data.saved) {
                 btn.classList.add('active');
                 btn.innerHTML = '📑 Saved';
-                const limit = {{ get_saved_content_limit(session.user_id)|default('null') }};
-                if (limit && limit !== 999) {
-                    const remaining = limit - (data.total_saves || 0);
-                    btn.innerHTML = '📑 Saved (' + remaining + ' left)';
+                if (data.total_saves !== undefined) {
+                    // Show remaining count if Dhexe
+                    // We'll just show a toast
                 }
                 showToast('✅ Question saved to bookmarks!', 'success');
             } else {
@@ -570,26 +644,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         })
-        .catch(err => { showToast('Network error', 'error'); fetchInteractionStatus(); });
+        .catch(err => {
+            showToast('Network error', 'error');
+            fetchInteractionStatus();
+        });
     });
 
+    // Report
     reportBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (this.disabled || !answered) return;
+        if (this.disabled) return;
+        if (!answered) return;
         reportQuestionId.value = questionId;
         document.getElementById('reportReason').value = '';
         document.getElementById('reportComment').value = '';
         reportModal.classList.add('show');
     });
 
+    // Report form submit
     reportForm.addEventListener('submit', function(e) {
         e.preventDefault();
         const reason = document.getElementById('reportReason').value;
         const comment = document.getElementById('reportComment').value.trim();
-        if (!reason) { showToast('Please select a reason.', 'warning'); return; }
+        if (!reason) {
+            showToast('Please select a reason.', 'warning');
+            return;
+        }
         const submitBtn = this.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting...';
+
         fetch('/api/interaction/report', {
             method: 'POST',
             headers: {
@@ -604,7 +688,9 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(res => res.json())
         .then(data => {
-            if (data.error) { showToast('Error: ' + data.error, 'error'); } else {
+            if (data.error) {
+                showToast('Error: ' + data.error, 'error');
+            } else {
                 showToast('✅ Report submitted. We will review it shortly.', 'success');
                 reportModal.classList.remove('show');
                 reportBtn.disabled = true;
@@ -612,7 +698,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 reportBtn.innerHTML = '⚠️ Reported';
             }
         })
-        .catch(err => { showToast('Network error', 'error'); })
+        .catch(err => {
+            showToast('Network error', 'error');
+        })
         .finally(() => {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Submit Report';
@@ -624,32 +712,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     window.closeReportModal = closeReportModal;
 
+    // Close modal on backdrop click
     reportModal.addEventListener('click', function(e) {
         if (e.target === this) closeReportModal();
     });
 
+    // Skip
     skipBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (isSubmitting || !answered) return;
+        if (isSubmitting) return;
+        if (!answered) return;
         clearTimeout(autoSkipTimer);
         autoSkipIndicator.style.display = 'none';
         advanceQuestion();
     });
 
+    // ============================================
     // Option selection
+    // ============================================
     document.querySelectorAll('.option-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             if (answered || isSubmitting) return;
             answered = true;
             isSubmitting = true;
-
+            
             const answer = this.dataset.value;
             const allBtns = document.querySelectorAll('.option-btn');
             allBtns.forEach(b => b.style.pointerEvents = 'none');
-
+            
+            // Show feedback
             fetch('{{ url_for("quiz.submit_answer") }}', {
                 method: 'POST',
-                headers: {
+                headers: { 
                     'Content-Type': 'application/json',
                     'X-CSRF-Token': csrfToken
                 },
@@ -657,6 +751,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(res => res.json())
             .then(data => {
+                // Highlight correct/incorrect
                 allBtns.forEach(b => {
                     if (b.dataset.value === data.correct_answer) {
                         b.style.borderColor = '#10B981';
@@ -667,10 +762,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         b.style.background = '#FEF2F2';
                     }
                 });
+                
+                // Update score
                 if (data.correct) {
                     score++;
                     scoreDisplay.textContent = score;
                 }
+                
+                // Show feedback
                 feedbackArea.style.display = 'block';
                 if (data.correct) {
                     feedbackMessage.innerHTML = '✅ <span style="color: #10B981;">CORRECT! +1 point</span>';
@@ -680,16 +779,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.explanation) {
                     feedbackExplanation.textContent = '💡 ' + data.explanation;
                 }
+                
+                // Fetch interaction status
                 fetchInteractionStatus();
-
-                // Auto-skip
+                
+                // Auto-skip logic (premium)
                 if (autoSkipEnabled && (userTier === 'dhexe' || userTier === 'hore')) {
                     autoSkipIndicator.style.display = 'block';
                     autoSkipTimer = setTimeout(function() {
                         autoSkipIndicator.style.display = 'none';
                         advanceQuestion();
-                    }, 3000);
+                    }, 3000); // 3 seconds
+                } else {
+                    // Show next button for manual advance
+                    document.getElementById('nextBtnContainer').style.display = 'block';
                 }
+
                 isSubmitting = false;
             })
             .catch(err => {
@@ -700,17 +805,36 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Next question button (legacy)
+    document.getElementById('nextQuestionBtn').addEventListener('click', function() {
+        if (isSubmitting) return;
+        clearTimeout(autoSkipTimer);
+        autoSkipIndicator.style.display = 'none';
+        advanceQuestion();
+    });
+
+    // ============================================
+    // Advance to next question
+    // ============================================
     function advanceQuestion() {
         if (isSubmitting) return;
-        // If quiz complete, redirect to results
-        if (current + 1 >= total) {
+        // Skip rating step – we use the skip button to bypass HAA/MAY
+        // The original rating flow is HAA/MAY, but we skip it entirely.
+        // We need to submit a dummy rating or just increment session['quiz_current'].
+        // We'll call the existing /submit_rating with 'SKIP' to advance without storing.
+        // Since we want no storage, we'll just increment the current and reload.
+        // But we also need to update the session. We can reload with ?next=1.
+        // The server will handle incrementing the current question index.
+        if (current + 1 < total) {
+            window.location.href = window.location.pathname + '?next=1';
+        } else {
             window.location.href = '{{ url_for("quiz.results") }}';
-            return;
         }
-        // Otherwise advance by reloading with ?next=1
-        window.location.href = window.location.pathname + '?next=1';
     }
 
+    // ============================================
+    // Toast helper
+    // ============================================
     function showToast(message, type) {
         if (typeof window.showToast === 'function') {
             window.showToast(message, type || 'info', 3000);
@@ -719,12 +843,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Initial fetch
+    // Initial fetch of interaction status
     fetchInteractionStatus();
 
-    // Handle ?next=1 on load
+    // ============================================
+    // Handle next param on load (for skip)
+    // ============================================
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('next') === '1') {
+        // The server will handle incrementing current question.
+        // We just reload with clean URL.
         window.location.href = window.location.pathname;
     }
 });

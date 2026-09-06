@@ -13,8 +13,10 @@ from services.tier_service import (
     get_explanation_level,
     get_current_user_tier,
     get_feature_level,
+    get_user_tier,
 )
 from services.achievement_service import check_and_award_achievements
+from user_settings import get_user_settings
 
 quiz_bp = Blueprint('quiz', __name__, url_prefix='/quiz')
 
@@ -85,14 +87,7 @@ def play():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
-    # Handle skip: if ?next=1, advance current and redirect cleanly
-    if request.args.get('next') == '1':
-        current = session.get('quiz_current', 0)
-        questions = session.get('quiz_questions', [])
-        if current + 1 < len(questions):
-            session['quiz_current'] = current + 1
-        return redirect(url_for('quiz.play'))
-    
+    user_id = session['user_id']
     questions = session.get('quiz_questions', [])
     current = session.get('quiz_current', 0)
     
@@ -107,12 +102,12 @@ def play():
     total = len(questions)
     
     # Get tier levels for UI
-    review_level = get_answer_review_level(session['user_id'])
-    explanation_level = get_explanation_level(session['user_id'])
+    review_level = get_answer_review_level(user_id)
+    explanation_level = get_explanation_level(user_id)
     
-    # Pass auto-skip setting
-    from user_settings import get_user_setting
-    auto_skip_enabled = get_user_setting(session['user_id'], 'auto_skip_enabled', 0)
+    # Get user settings and tier for auto-skip
+    user_settings = get_user_settings(user_id)
+    user_tier = get_user_tier(user_id)
     
     return render_template('dashboard/quiz/play.html', 
                          question=question, 
@@ -120,7 +115,8 @@ def play():
                          total=total,
                          review_level=review_level,
                          explanation_level=explanation_level,
-                         auto_skip_enabled=auto_skip_enabled)
+                         user_settings=user_settings,
+                         user_tier=user_tier)
 
 @quiz_bp.route('/submit_answer', methods=['POST'])
 def submit_answer():
@@ -212,24 +208,6 @@ def submit_rating():
         check_and_award_achievements(user_id, 'quiz_completed', {'score': score, 'total': total})
         return jsonify({'complete': True})
     
-    return jsonify({'complete': False, 'next': session['quiz_current']})
-
-@quiz_bp.route('/skip_question', methods=['POST'])
-def skip_question():
-    """Skip the current question without storing any data."""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-    
-    if not validate_csrf():
-        return jsonify({'error': 'CSRF token missing or invalid'}), 403
-    
-    current = session.get('quiz_current', 0)
-    questions = session.get('quiz_questions', [])
-    
-    if current + 1 >= len(questions):
-        return jsonify({'complete': True})
-    
-    session['quiz_current'] = current + 1
     return jsonify({'complete': False, 'next': session['quiz_current']})
 
 @quiz_bp.route('/results')
