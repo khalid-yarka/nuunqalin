@@ -35,6 +35,7 @@ REQUIRED_TABLES = [
     'saved_content',
     'achievements',
     'user_achievements',
+    'question_interactions',   # NEW
 ]
 
 REQUIRED_COLUMNS = {
@@ -53,6 +54,12 @@ REQUIRED_COLUMNS = {
     'saved_content': ['id', 'user_id', 'content_type', 'content_id', 'saved_at'],
     'achievements': ['id', 'name', 'description', 'icon', 'tier_required', 'unlock_condition', 'created_at'],
     'user_achievements': ['id', 'user_id', 'achievement_id', 'unlocked_at'],
+    'question_interactions': [
+        'id', 'user_id', 'question_id', 'quiz_attempt_id',
+        'live_quiz_id', 'interaction_type', 'report_reason',
+        'report_comment', 'report_status', 'admin_reply',
+        'resolved_by', 'resolved_at', 'created_at'
+    ],
 }
 
 DB_INIT_LOCK_FILE = os.path.join(os.path.dirname(Config.DATABASE_PATH), '.db_init_lock')
@@ -233,6 +240,41 @@ def verify_columns_exist(conn: sqlite3.Connection) -> Tuple[bool, Dict[str, List
 
 
 # ============================================
+# QUESTION INTERACTIONS TABLE CREATION
+# ============================================
+
+def ensure_question_interactions_table(conn: sqlite3.Connection) -> None:
+    """Create the question_interactions table if it does not exist."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS question_interactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            question_id INTEGER NOT NULL,
+            quiz_attempt_id INTEGER,
+            live_quiz_id INTEGER,
+            interaction_type TEXT NOT NULL CHECK (interaction_type IN ('like', 'save', 'report')),
+            report_reason TEXT,
+            report_comment TEXT,
+            report_status TEXT DEFAULT 'pending' CHECK (report_status IN ('pending', 'resolved', 'dismissed')),
+            admin_reply TEXT,
+            resolved_by INTEGER,
+            resolved_at TEXT,
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
+            FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+            FOREIGN KEY (quiz_attempt_id) REFERENCES quiz_attempts(id) ON DELETE SET NULL,
+            FOREIGN KEY (live_quiz_id) REFERENCES live_quizzes(id) ON DELETE SET NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_user ON question_interactions(user_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_question ON question_interactions(question_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_type ON question_interactions(interaction_type)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_report_status ON question_interactions(report_status)")
+    conn.commit()
+    logger.info("question_interactions table verified/created.")
+
+
+# ============================================
 # DATABASE INITIALIZATION (Fresh Install)
 # ============================================
 
@@ -255,6 +297,8 @@ def create_database_schema() -> Tuple[bool, Optional[str]]:
             schema = f.read()
         
         conn.executescript(schema)
+        # Ensure the question_interactions table is included even if schema.sql is old
+        ensure_question_interactions_table(conn)
         conn.commit()
         conn.close()
         
@@ -320,6 +364,9 @@ def verify_database_full() -> Dict[str, Any]:
     
     try:
         conn = _get_connection()
+        
+        # Ensure question_interactions table exists
+        ensure_question_interactions_table(conn)
         
         # Check schema version
         results['schema_version'] = get_schema_version(conn)
@@ -466,6 +513,9 @@ def get_database_health() -> Dict[str, Any]:
     try:
         conn = _get_connection()
         
+        # Ensure question_interactions table exists (for health check too)
+        ensure_question_interactions_table(conn)
+        
         # Check tables
         tables_ok, missing = verify_tables_exist(conn)
         health['tables_ok'] = tables_ok
@@ -541,4 +591,3 @@ def ensure_live_quiz_tables():
         logger.info("Live quiz event and checkpoint tables verified/created.")
     except Exception as e:
         logger.error(f"Failed to create live quiz tables: {e}", exc_info=True)
-        # Don't raise; let the application start but live quiz may fail.

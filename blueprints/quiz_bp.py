@@ -90,10 +90,10 @@ def play():
     if request.args.get('next') == '1':
         if questions and current + 1 < len(questions):
             session['quiz_current'] = current + 1
+            return redirect(url_for('quiz.play'))
         else:
             # Quiz finished, redirect to results
             return redirect(url_for('quiz.results'))
-        return redirect(url_for('quiz.play'))
     
     if not questions:
         flash('No quiz in progress. Start a new quiz.', 'error')
