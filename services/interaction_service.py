@@ -3,13 +3,56 @@
 
 import json
 import logging
+import sqlite3
+import traceback
 from typing import Optional, Dict, Any, List
 from db import execute_with_retry, get_db, get_question_by_id
 from services.tier_service import get_saved_content_limit, get_saved_content_count
 from utils import get_somali_time_db
 from live_quiz_state import get_live_quiz_state_manager
+from config import Config
 
 logger = logging.getLogger(__name__)
+
+# ============================================
+# Ensure table exists
+# ============================================
+
+def ensure_question_interactions_table():
+    """Create the question_interactions table if it does not exist."""
+    try:
+        conn = get_db()
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS question_interactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                question_id INTEGER NOT NULL,
+                quiz_attempt_id INTEGER,
+                live_quiz_id INTEGER,
+                interaction_type TEXT NOT NULL CHECK (interaction_type IN ('like', 'save', 'report')),
+                report_reason TEXT,
+                report_comment TEXT,
+                report_status TEXT DEFAULT 'pending' CHECK (report_status IN ('pending', 'resolved', 'dismissed')),
+                admin_reply TEXT,
+                resolved_by INTEGER,
+                resolved_at TEXT,
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
+                FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+                FOREIGN KEY (quiz_attempt_id) REFERENCES quiz_attempts(id) ON DELETE SET NULL,
+                FOREIGN KEY (live_quiz_id) REFERENCES live_quizzes(id) ON DELETE SET NULL
+            )
+        """)
+        # Create indexes
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_user ON question_interactions(user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_question ON question_interactions(question_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_type ON question_interactions(interaction_type)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_report_status ON question_interactions(report_status)")
+        conn.commit()
+        logger.info("question_interactions table verified/created.")
+    except Exception as e:
+        logger.error(f"Failed to create question_interactions table: {e}\n{traceback.format_exc()}")
+        raise
 
 # ============================================
 # Save counting
