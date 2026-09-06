@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 # ============================================
 
 def count_user_saves(user_id: int) -> int:
-    """Count total saved questions for a user (across regular and live quizzes)."""
     cursor = execute_with_retry(
         "SELECT COUNT(*) as count FROM question_interactions WHERE user_id = ? AND interaction_type = 'save'",
         (user_id,)
@@ -25,7 +24,6 @@ def count_user_saves(user_id: int) -> int:
     return row['count'] if row else 0
 
 def get_user_saves(user_id: int, limit: int = 50, offset: int = 0) -> List[Dict]:
-    """Get saved questions for a user."""
     cursor = execute_with_retry("""
         SELECT q.*, qi.created_at as saved_at
         FROM question_interactions qi
@@ -41,36 +39,43 @@ def get_user_saves(user_id: int, limit: int = 50, offset: int = 0) -> List[Dict]
 # Like
 # ============================================
 
-def toggle_like(user_id: int, question_id: int, context: Optional[Dict] = None) -> Dict[str, Any]:
+def toggle_like(user_id: int, question_id: int) -> Dict[str, Any]:
     """
     Toggle like on a question.
-    context: optional, for live quizzes: {'live_quiz_id': int, 'participant_state': ...}
-    For regular quizzes, writes directly to DB.
-    For live quizzes, uses in-memory state.
+    - For live quizzes: uses in-memory state.
+    - For regular quizzes: uses direct DB, with quiz_attempt_id = NULL.
     """
     # Check if user is in a live quiz
     manager = get_live_quiz_state_manager()
-    active_quiz_id = None
     quiz_state = None
-
-    # Try to find an active live quiz for this user
-    for qid in manager.get_all_active_quizzes():
-        qs = manager.get_quiz(qid)
-        if qs and qs.is_active() and qs.get_participant(user_id):
-            active_quiz_id = qid
-            quiz_state = qs
-            break
+    try:
+        for qid in manager.get_all_active_quizzes():
+            qs = manager.get_quiz(qid)
+            if qs and qs.is_active() and qs.get_participant(user_id):
+                quiz_state = qs
+                break
+    except Exception as e:
+        logger.warning(f"Error checking live quiz state: {e}. Falling back to DB.")
 
     if quiz_state:
-        # Live quiz – use in-memory
-        result = quiz_state.toggle_like(user_id, question_id)
-        if not result:
-            return {'error': 'Could not toggle like'}
-        # Get updated like count for the question (from all participants)
-        like_count = sum(1 for p in quiz_state.participants.values() if question_id in p.likes)
-        return {'liked': question_id in quiz_state.get_participant(user_id).likes, 'count': like_count}
+        # Live quiz – use in-memory methods
+        try:
+            result = quiz_state.toggle_like(user_id, question_id)
+            if not result:
+                return {'error': 'Could not toggle like'}
+            # Get updated like count from all participants
+            like_count = 0
+            for p in quiz_state.participants.values():
+                if question_id in p.likes:
+                    like_count += 1
+            liked = question_id in quiz_state.get_participant(user_id).likes
+            return {'liked': liked, 'count': like_count}
+        except AttributeError as e:
+            logger.error(f"Live quiz missing interaction methods: {e}. Falling back to DB.")
+            # Fall through to DB
 
-    # Regular quiz – direct DB write
+    # Regular quiz – direct DB write, quiz_attempt_id = NULL
+    # Check if already liked (global per user/question)
     cursor = execute_with_retry(
         "SELECT id FROM question_interactions WHERE user_id = ? AND question_id = ? AND interaction_type = 'like'",
         (user_id, question_id)
@@ -78,6 +83,7 @@ def toggle_like(user_id: int, question_id: int, context: Optional[Dict] = None) 
     existing = cursor.fetchone()
 
     if existing:
+        # Unlike: delete the like
         execute_with_retry(
             "DELETE FROM question_interactions WHERE id = ?",
             (existing['id'],),
@@ -85,22 +91,12 @@ def toggle_like(user_id: int, question_id: int, context: Optional[Dict] = None) 
         )
         liked = False
     else:
-        # Check if there is a quiz_attempt_id for this user/question (regular quiz)
-        # We can try to find the latest attempt for this question
-        cursor = execute_with_retry(
-            """SELECT id FROM quiz_attempts
-               WHERE student_id = ? AND completed_at IS NOT NULL
-               ORDER BY completed_at DESC LIMIT 1""",
-            (user_id,)
-        )
-        attempt_row = cursor.fetchone()
-        attempt_id = attempt_row['id'] if attempt_row else None
-
+        # Like: insert with NULL quiz_attempt_id
         execute_with_retry(
-            """INSERT INTO question_interactions 
+            """INSERT INTO question_interactions
                (user_id, question_id, quiz_attempt_id, interaction_type)
-               VALUES (?, ?, ?, 'like')""",
-            (user_id, question_id, attempt_id),
+               VALUES (?, ?, NULL, 'like')""",
+            (user_id, question_id),
             commit=True
         )
         liked = True
@@ -121,34 +117,39 @@ def toggle_like(user_id: int, question_id: int, context: Optional[Dict] = None) 
 
 def toggle_save(user_id: int, question_id: int) -> Dict[str, Any]:
     """Toggle save on a question. Works for both regular and live quizzes."""
-    # Check tier limit
+    # Tier limit check
     limit = get_saved_content_limit(user_id)
     if limit is not None:
         save_count = count_user_saves(user_id)
         if save_count >= limit:
             return {'saved': False, 'error': 'Save limit reached', 'limit': limit}
 
-    # Check if user is in a live quiz
+    # Check live quiz participation
     manager = get_live_quiz_state_manager()
     quiz_state = None
-    for qid in manager.get_all_active_quizzes():
-        qs = manager.get_quiz(qid)
-        if qs and qs.is_active() and qs.get_participant(user_id):
-            quiz_state = qs
-            break
+    try:
+        for qid in manager.get_all_active_quizzes():
+            qs = manager.get_quiz(qid)
+            if qs and qs.is_active() and qs.get_participant(user_id):
+                quiz_state = qs
+                break
+    except Exception:
+        quiz_state = None
 
     if quiz_state:
         # Live quiz – in-memory
-        result = quiz_state.toggle_save(user_id, question_id)
-        if not result:
-            return {'error': 'Could not toggle save'}
-        # Get updated counts
-        p = quiz_state.get_participant(user_id)
-        saved = question_id in p.saves if p else False
-        total_saves = count_user_saves(user_id)  # count from all quizzes (in case of mixed)
-        return {'saved': saved, 'total_saves': total_saves}
+        try:
+            result = quiz_state.toggle_save(user_id, question_id)
+            if not result:
+                return {'error': 'Could not toggle save'}
+            p = quiz_state.get_participant(user_id)
+            saved = question_id in p.saves if p else False
+            total_saves = count_user_saves(user_id)
+            return {'saved': saved, 'total_saves': total_saves}
+        except AttributeError:
+            pass
 
-    # Regular quiz – direct DB
+    # Regular quiz – direct DB, quiz_attempt_id = NULL
     cursor = execute_with_retry(
         "SELECT id FROM question_interactions WHERE user_id = ? AND question_id = ? AND interaction_type = 'save'",
         (user_id, question_id)
@@ -156,6 +157,7 @@ def toggle_save(user_id: int, question_id: int) -> Dict[str, Any]:
     existing = cursor.fetchone()
 
     if existing:
+        # Unsave: delete
         execute_with_retry(
             "DELETE FROM question_interactions WHERE id = ?",
             (existing['id'],),
@@ -163,20 +165,12 @@ def toggle_save(user_id: int, question_id: int) -> Dict[str, Any]:
         )
         saved = False
     else:
-        cursor = execute_with_retry(
-            """SELECT id FROM quiz_attempts
-               WHERE student_id = ? AND completed_at IS NOT NULL
-               ORDER BY completed_at DESC LIMIT 1""",
-            (user_id,)
-        )
-        attempt_row = cursor.fetchone()
-        attempt_id = attempt_row['id'] if attempt_row else None
-
+        # Save: insert with NULL quiz_attempt_id
         execute_with_retry(
             """INSERT INTO question_interactions
                (user_id, question_id, quiz_attempt_id, interaction_type)
-               VALUES (?, ?, ?, 'save')""",
-            (user_id, question_id, attempt_id),
+               VALUES (?, ?, NULL, 'save')""",
+            (user_id, question_id),
             commit=True
         )
         saved = True
@@ -197,26 +191,28 @@ REPORT_REASONS = [
 ]
 
 def submit_report(user_id: int, question_id: int, reason: str, comment: str = '') -> Dict[str, Any]:
-    """Submit a report. Works for both regular and live quizzes."""
+    """Submit a report. Always writes directly to DB."""
     # Check if already reported this question
     cursor = execute_with_retry(
-        """SELECT id FROM question_interactions
-           WHERE user_id = ? AND question_id = ? AND interaction_type = 'report'""",
+        "SELECT id FROM question_interactions WHERE user_id = ? AND question_id = ? AND interaction_type = 'report'",
         (user_id, question_id)
     )
     if cursor.fetchone():
         return {'success': False, 'error': 'You have already reported this question.'}
 
-    # Determine if this is part of a live quiz
+    # Determine if live quiz (for live_quiz_id)
     manager = get_live_quiz_state_manager()
     live_quiz_id = None
-    for qid in manager.get_all_active_quizzes():
-        qs = manager.get_quiz(qid)
-        if qs and qs.is_active() and qs.get_participant(user_id):
-            live_quiz_id = qid
-            break
+    try:
+        for qid in manager.get_all_active_quizzes():
+            qs = manager.get_quiz(qid)
+            if qs and qs.is_active() and qs.get_participant(user_id):
+                live_quiz_id = qid
+                break
+    except Exception:
+        pass
 
-    # Insert directly into DB
+    # Insert report with NULL quiz_attempt_id (reports always go to DB)
     execute_with_retry(
         """INSERT INTO question_interactions
            (user_id, question_id, live_quiz_id, interaction_type, report_reason, report_comment, report_status)
@@ -240,7 +236,7 @@ def submit_report(user_id: int, question_id: int, reason: str, comment: str = ''
     return {'success': True, 'message': 'Report submitted. We will review it shortly.'}
 
 # ============================================
-# Admin report management
+# Admin report management (unchanged)
 # ============================================
 
 def get_pending_reports(limit: int = 50, offset: int = 0) -> List[Dict]:
@@ -342,10 +338,6 @@ def get_report_by_id(report_id: int) -> Optional[Dict]:
     """, (report_id,))
     row = cursor.fetchone()
     return dict(row) if row else None
-
-# ============================================
-# Get user interaction status for a question
-# ============================================
 
 def get_user_interaction_status(user_id: int, question_id: int) -> Dict[str, Any]:
     cursor = execute_with_retry(
