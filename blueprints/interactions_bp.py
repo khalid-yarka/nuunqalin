@@ -1,5 +1,5 @@
 # blueprints/interactions_bp.py
-# API endpoints for quiz interactions
+# API endpoints for quiz interactions (Normal Quiz only)
 
 from flask import Blueprint, request, session, jsonify
 from functools import wraps
@@ -28,9 +28,7 @@ def login_required(f):
 @login_required
 def like():
     try:
-        # Ensure table exists before any operation
         ensure_question_interactions_table()
-        
         if not validate_csrf():
             return jsonify({'error': 'CSRF token missing or invalid'}), 403
 
@@ -56,7 +54,6 @@ def like():
 def save():
     try:
         ensure_question_interactions_table()
-        
         if not validate_csrf():
             return jsonify({'error': 'CSRF token missing or invalid'}), 403
 
@@ -82,7 +79,6 @@ def save():
 def report():
     try:
         ensure_question_interactions_table()
-        
         if not validate_csrf():
             return jsonify({'error': 'CSRF token missing or invalid'}), 403
 
@@ -111,7 +107,6 @@ def report():
 def status():
     try:
         ensure_question_interactions_table()
-        
         question_id = request.args.get('question_id')
         if not question_id:
             return jsonify({'error': 'Missing question_id'}), 400

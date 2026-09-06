@@ -1,16 +1,12 @@
 # services/interaction_service.py
 # Quiz interaction service: likes, saves, reports
+# Simplified for normal quiz (global per user per question)
 
-import json
 import logging
-import sqlite3
 import traceback
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 from db import execute_with_retry, get_db, get_question_by_id
-from services.tier_service import get_saved_content_limit, get_saved_content_count
-from utils import get_somali_time_db
-from live_quiz_state import get_live_quiz_state_manager
-from config import Config
+from services.tier_service import get_saved_content_limit
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +23,6 @@ def ensure_question_interactions_table():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 question_id INTEGER NOT NULL,
-                quiz_attempt_id INTEGER,
-                live_quiz_id INTEGER,
                 interaction_type TEXT NOT NULL CHECK (interaction_type IN ('like', 'save', 'report')),
                 report_reason TEXT,
                 report_comment TEXT,
@@ -39,8 +33,7 @@ def ensure_question_interactions_table():
                 created_at TEXT DEFAULT (datetime('now', 'localtime')),
                 FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
                 FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
-                FOREIGN KEY (quiz_attempt_id) REFERENCES quiz_attempts(id) ON DELETE SET NULL,
-                FOREIGN KEY (live_quiz_id) REFERENCES live_quizzes(id) ON DELETE SET NULL
+                UNIQUE(user_id, question_id, interaction_type)
             )
         """)
         # Create indexes
@@ -83,42 +76,8 @@ def get_user_saves(user_id: int, limit: int = 50, offset: int = 0) -> List[Dict]
 # ============================================
 
 def toggle_like(user_id: int, question_id: int) -> Dict[str, Any]:
-    """
-    Toggle like on a question.
-    - For live quizzes: uses in-memory state.
-    - For regular quizzes: uses direct DB, with quiz_attempt_id = NULL.
-    """
-    # Check if user is in a live quiz
-    manager = get_live_quiz_state_manager()
-    quiz_state = None
-    try:
-        for qid in manager.get_all_active_quizzes():
-            qs = manager.get_quiz(qid)
-            if qs and qs.is_active() and qs.get_participant(user_id):
-                quiz_state = qs
-                break
-    except Exception as e:
-        logger.warning(f"Error checking live quiz state: {e}. Falling back to DB.")
-
-    if quiz_state:
-        # Live quiz – use in-memory methods
-        try:
-            result = quiz_state.toggle_like(user_id, question_id)
-            if not result:
-                return {'error': 'Could not toggle like'}
-            # Get updated like count from all participants
-            like_count = 0
-            for p in quiz_state.participants.values():
-                if question_id in p.likes:
-                    like_count += 1
-            liked = question_id in quiz_state.get_participant(user_id).likes
-            return {'liked': liked, 'count': like_count}
-        except AttributeError as e:
-            logger.error(f"Live quiz missing interaction methods: {e}. Falling back to DB.")
-            # Fall through to DB
-
-    # Regular quiz – direct DB write, quiz_attempt_id = NULL
-    # Check if already liked (global per user/question)
+    """Toggle a like for a user on a question."""
+    # Check if already liked
     cursor = execute_with_retry(
         "SELECT id FROM question_interactions WHERE user_id = ? AND question_id = ? AND interaction_type = 'like'",
         (user_id, question_id)
@@ -134,11 +93,9 @@ def toggle_like(user_id: int, question_id: int) -> Dict[str, Any]:
         )
         liked = False
     else:
-        # Like: insert with NULL quiz_attempt_id
+        # Like: insert
         execute_with_retry(
-            """INSERT INTO question_interactions
-               (user_id, question_id, quiz_attempt_id, interaction_type)
-               VALUES (?, ?, NULL, 'like')""",
+            "INSERT INTO question_interactions (user_id, question_id, interaction_type) VALUES (?, ?, 'like')",
             (user_id, question_id),
             commit=True
         )
@@ -159,7 +116,7 @@ def toggle_like(user_id: int, question_id: int) -> Dict[str, Any]:
 # ============================================
 
 def toggle_save(user_id: int, question_id: int) -> Dict[str, Any]:
-    """Toggle save on a question. Works for both regular and live quizzes."""
+    """Toggle a save for a user on a question."""
     # Tier limit check
     limit = get_saved_content_limit(user_id)
     if limit is not None:
@@ -167,32 +124,7 @@ def toggle_save(user_id: int, question_id: int) -> Dict[str, Any]:
         if save_count >= limit:
             return {'saved': False, 'error': 'Save limit reached', 'limit': limit}
 
-    # Check live quiz participation
-    manager = get_live_quiz_state_manager()
-    quiz_state = None
-    try:
-        for qid in manager.get_all_active_quizzes():
-            qs = manager.get_quiz(qid)
-            if qs and qs.is_active() and qs.get_participant(user_id):
-                quiz_state = qs
-                break
-    except Exception:
-        quiz_state = None
-
-    if quiz_state:
-        # Live quiz – in-memory
-        try:
-            result = quiz_state.toggle_save(user_id, question_id)
-            if not result:
-                return {'error': 'Could not toggle save'}
-            p = quiz_state.get_participant(user_id)
-            saved = question_id in p.saves if p else False
-            total_saves = count_user_saves(user_id)
-            return {'saved': saved, 'total_saves': total_saves}
-        except AttributeError:
-            pass
-
-    # Regular quiz – direct DB, quiz_attempt_id = NULL
+    # Check if already saved
     cursor = execute_with_retry(
         "SELECT id FROM question_interactions WHERE user_id = ? AND question_id = ? AND interaction_type = 'save'",
         (user_id, question_id)
@@ -208,11 +140,9 @@ def toggle_save(user_id: int, question_id: int) -> Dict[str, Any]:
         )
         saved = False
     else:
-        # Save: insert with NULL quiz_attempt_id
+        # Save: insert
         execute_with_retry(
-            """INSERT INTO question_interactions
-               (user_id, question_id, quiz_attempt_id, interaction_type)
-               VALUES (?, ?, NULL, 'save')""",
+            "INSERT INTO question_interactions (user_id, question_id, interaction_type) VALUES (?, ?, 'save')",
             (user_id, question_id),
             commit=True
         )
@@ -234,7 +164,7 @@ REPORT_REASONS = [
 ]
 
 def submit_report(user_id: int, question_id: int, reason: str, comment: str = '') -> Dict[str, Any]:
-    """Submit a report. Always writes directly to DB."""
+    """Submit a report for a question."""
     # Check if already reported this question
     cursor = execute_with_retry(
         "SELECT id FROM question_interactions WHERE user_id = ? AND question_id = ? AND interaction_type = 'report'",
@@ -243,24 +173,12 @@ def submit_report(user_id: int, question_id: int, reason: str, comment: str = ''
     if cursor.fetchone():
         return {'success': False, 'error': 'You have already reported this question.'}
 
-    # Determine if live quiz (for live_quiz_id)
-    manager = get_live_quiz_state_manager()
-    live_quiz_id = None
-    try:
-        for qid in manager.get_all_active_quizzes():
-            qs = manager.get_quiz(qid)
-            if qs and qs.is_active() and qs.get_participant(user_id):
-                live_quiz_id = qid
-                break
-    except Exception:
-        pass
-
-    # Insert report with NULL quiz_attempt_id (reports always go to DB)
+    # Insert report
     execute_with_retry(
         """INSERT INTO question_interactions
-           (user_id, question_id, live_quiz_id, interaction_type, report_reason, report_comment, report_status)
-           VALUES (?, ?, ?, 'report', ?, ?, 'pending')""",
-        (user_id, question_id, live_quiz_id, reason, comment),
+           (user_id, question_id, interaction_type, report_reason, report_comment, report_status)
+           VALUES (?, ?, 'report', ?, ?, 'pending')""",
+        (user_id, question_id, reason, comment),
         commit=True
     )
 
