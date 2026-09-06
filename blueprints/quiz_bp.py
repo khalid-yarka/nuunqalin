@@ -85,6 +85,14 @@ def play():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     
+    # Handle skip: if ?next=1, advance current and redirect cleanly
+    if request.args.get('next') == '1':
+        current = session.get('quiz_current', 0)
+        questions = session.get('quiz_questions', [])
+        if current + 1 < len(questions):
+            session['quiz_current'] = current + 1
+        return redirect(url_for('quiz.play'))
+    
     questions = session.get('quiz_questions', [])
     current = session.get('quiz_current', 0)
     
@@ -102,12 +110,17 @@ def play():
     review_level = get_answer_review_level(session['user_id'])
     explanation_level = get_explanation_level(session['user_id'])
     
+    # Pass auto-skip setting
+    from user_settings import get_user_setting
+    auto_skip_enabled = get_user_setting(session['user_id'], 'auto_skip_enabled', 0)
+    
     return render_template('dashboard/quiz/play.html', 
                          question=question, 
                          current=current, 
                          total=total,
                          review_level=review_level,
-                         explanation_level=explanation_level)
+                         explanation_level=explanation_level,
+                         auto_skip_enabled=auto_skip_enabled)
 
 @quiz_bp.route('/submit_answer', methods=['POST'])
 def submit_answer():
@@ -199,6 +212,24 @@ def submit_rating():
         check_and_award_achievements(user_id, 'quiz_completed', {'score': score, 'total': total})
         return jsonify({'complete': True})
     
+    return jsonify({'complete': False, 'next': session['quiz_current']})
+
+@quiz_bp.route('/skip_question', methods=['POST'])
+def skip_question():
+    """Skip the current question without storing any data."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
+    
+    current = session.get('quiz_current', 0)
+    questions = session.get('quiz_questions', [])
+    
+    if current + 1 >= len(questions):
+        return jsonify({'complete': True})
+    
+    session['quiz_current'] = current + 1
     return jsonify({'complete': False, 'next': session['quiz_current']})
 
 @quiz_bp.route('/results')

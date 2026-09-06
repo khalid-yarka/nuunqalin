@@ -4,22 +4,288 @@
 
 {% block page_title %}Quiz{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Interaction buttons */
+    .interaction-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+        align-items: center;
+        justify-content: center;
+    }
+    .interaction-btn {
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 6px 14px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: var(--transition);
+        color: var(--text-secondary);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 70px;
+        justify-content: center;
+    }
+    .interaction-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+        background: var(--primary-light);
+    }
+    .interaction-btn.active-like {
+        border-color: #EF4444;
+        color: #EF4444;
+        background: #FEF2F2;
+    }
+    .interaction-btn .badge {
+        font-size: 10px;
+        background: var(--background);
+        padding: 0 6px;
+        border-radius: 10px;
+        color: var(--text-muted);
+        margin-left: 2px;
+    }
+    .interaction-btn.active-like .badge {
+        background: #FEF2F2;
+        color: #EF4444;
+    }
+    .interaction-btn.locked {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .interaction-btn.locked:hover {
+        border-color: var(--border);
+        color: var(--text-secondary);
+        background: transparent;
+    }
+    .interaction-btn.locked .lock-icon {
+        font-size: 10px;
+        margin-right: 2px;
+    }
+    .help-icon {
+        margin-left: 12px;
+        font-size: 16px;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: var(--transition);
+        background: none;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 50%;
+    }
+    .help-icon:hover {
+        color: var(--primary);
+        background: var(--primary-light);
+    }
+    .help-popup {
+        display: none;
+        position: absolute;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 14px 18px;
+        box-shadow: var(--shadow-lg);
+        max-width: 280px;
+        z-index: 100;
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        top: 100%;
+        right: 0;
+        margin-top: 6px;
+    }
+    .help-popup.show {
+        display: block;
+    }
+    .help-popup .item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+    .help-popup .item:last-child {
+        margin-bottom: 0;
+    }
+    .help-popup .item .icon {
+        font-size: 16px;
+        min-width: 24px;
+        text-align: center;
+    }
+    .help-popup .item .desc {
+        color: var(--text-secondary);
+    }
+    .help-popup .note {
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid var(--border-light);
+        font-size: 12px;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+    .interaction-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+    .auto-skip-indicator {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 4px;
+        text-align: center;
+        opacity: 0.7;
+    }
+    .auto-skip-indicator .spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid var(--border);
+        border-top: 2px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        vertical-align: middle;
+        margin-right: 6px;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    /* Report modal */
+    .report-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+        padding: 20px;
+    }
+    .report-modal.show {
+        display: flex;
+    }
+    .report-modal .modal-content {
+        background: var(--surface);
+        border-radius: var(--radius);
+        padding: 28px 32px;
+        max-width: 480px;
+        width: 100%;
+        box-shadow: var(--shadow-lg);
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    .report-modal .modal-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .report-modal .modal-sub {
+        color: var(--text-secondary);
+        font-size: 14px;
+        margin-bottom: 16px;
+    }
+    .report-modal .form-group {
+        margin-bottom: 14px;
+    }
+    .report-modal .form-group label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 4px;
+    }
+    .report-modal .form-group select,
+    .report-modal .form-group textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        background: var(--surface);
+        color: var(--text);
+    }
+    .report-modal .form-group select:focus,
+    .report-modal .form-group textarea:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(255,49,56,0.1);
+    }
+    .report-modal .modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+        justify-content: flex-end;
+    }
+    .report-modal .modal-actions .btn {
+        padding: 8px 20px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 14px;
+        border: none;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .report-modal .modal-actions .btn-secondary {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+    }
+    .report-modal .modal-actions .btn-secondary:hover {
+        background: var(--background);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+    .report-modal .modal-actions .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+    .report-modal .modal-actions .btn-primary:hover {
+        background: var(--primary-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(255,49,56,0.3);
+    }
+    @media (max-width: 480px) {
+        .interaction-row {
+            gap: 6px;
+        }
+        .interaction-btn {
+            font-size: 12px;
+            padding: 4px 10px;
+            min-width: 55px;
+        }
+        .help-icon {
+            font-size: 14px;
+            margin-left: 6px;
+        }
+        .report-modal .modal-content {
+            padding: 20px;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block dashboard_content %}
-<div id="quiz-container" style="max-width: 640px; margin: 0 auto;">
+<div id="quiz-container" style="max-width: 680px; margin: 0 auto;">
     <!-- Progress -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <span style="color: var(--text-secondary); font-size: 14px;">Question <span id="current-num">{{ current + 1 }}</span>/<span id="total-num">{{ total }}</span></span>
         <span style="color: var(--primary); font-weight: 600; font-size: 14px;">⭐ <span id="score-display">0</span> points</span>
     </div>
-    
+
     <!-- Progress Bar -->
     <div style="width: 100%; height: 6px; background: var(--border); border-radius: 10px; margin-bottom: 24px; overflow: hidden;">
         <div id="progress-bar" style="width: {{ ((current + 1) / total * 100)|round(1) }}%; height: 100%; background: var(--primary); transition: width 0.5s ease; border-radius: 10px;"></div>
     </div>
 
     <!-- Question Card -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; box-shadow: var(--shadow-sm);">
-        <div id="question-text" style="font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 24px; line-height: 1.4;">
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; box-shadow: var(--shadow-sm); position: relative;">
+        <div id="question-text" style="font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 20px; line-height: 1.4;">
             {{ question.question_text }}
         </div>
 
@@ -45,20 +311,49 @@
             {% endif %}
         </div>
 
-        <!-- Feedback Area -->
+        <!-- Feedback Area (no HAA/MAY) -->
         <div id="feedback-area" style="display: none; margin-top: 20px; padding: 16px 20px; border-radius: var(--radius-sm);">
             <div id="feedback-message" style="font-weight: 600;"></div>
             <div id="feedback-explanation" style="font-size: 14px; margin-top: 6px; color: var(--text-secondary);"></div>
-            <div style="margin-top: 14px;">
-                <p style="font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 8px;">Malaga Yaba in Suashan mid uso micna dhaw lagu keeno imtixaanaadka wasaarada:</p>
-                <div style="display: flex; gap: 10px;">
-                    <button id="rate-haa" style="padding: 8px 20px; background: #10B981; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
-                        ✅ HAA
-                    </button>
-                    <button id="rate-may" style="padding: 8px 20px; background: #EF4444; color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
-                        ❌ MAY
-                    </button>
+
+            <!-- Interaction Row -->
+            <div class="interaction-row" id="interactionRow">
+                <!-- Like -->
+                <button class="interaction-btn" id="likeBtn" data-question-id="{{ question.id }}" data-action="like">
+                    ❤️ <span id="likeCount">0</span>
+                </button>
+                <!-- Save -->
+                <button class="interaction-btn" id="saveBtn" data-question-id="{{ question.id }}" data-action="save">
+                    📑 Save
+                </button>
+                <!-- Report -->
+                <button class="interaction-btn" id="reportBtn" data-question-id="{{ question.id }}" data-action="report">
+                    ⚠️ Report
+                </button>
+                <!-- Skip -->
+                <button class="interaction-btn" id="skipBtn" data-question-id="{{ question.id }}" data-action="skip">
+                    ⏭️ Skip
+                </button>
+                <!-- Help Icon -->
+                <div class="interaction-wrapper">
+                    <button class="help-icon" id="helpBtn" title="Help">❓</button>
+                    <div class="help-popup" id="helpPopup">
+                        <div class="item"><span class="icon">❤️</span><span class="desc">Like this question</span></div>
+                        <div class="item"><span class="icon">📑</span><span class="desc">Save to bookmarks</span></div>
+                        <div class="item"><span class="icon">⚠️</span><span class="desc">Report an issue</span></div>
+                        <div class="item"><span class="icon">⏭️</span><span class="desc">Skip to next question</span></div>
+                        {% if session.user_tier in ['dhexe', 'hore'] %}
+                        <div class="note">💡 You can enable auto-advance in Settings → Quiz Preferences.</div>
+                        {% else %}
+                        <div class="note">🔒 Upgrade to Dhexe for auto-advance.</div>
+                        {% endif %}
+                    </div>
                 </div>
+            </div>
+
+            <!-- Auto-skip indicator -->
+            <div id="autoSkipIndicator" class="auto-skip-indicator" style="display: none;">
+                <span class="spinner"></span> Moving to next question...
             </div>
         </div>
     </div>
@@ -69,11 +364,46 @@
     </div>
 </div>
 
+<!-- Report Modal -->
+<div class="report-modal" id="reportModal">
+    <div class="modal-content">
+        <div class="modal-title">⚠️ Report Question</div>
+        <div class="modal-sub">Help us improve by reporting any issues with this question.</div>
+        <form id="reportForm">
+            <input type="hidden" id="reportQuestionId" value="{{ question.id }}">
+            <div class="form-group">
+                <label for="reportReason">Reason <span style="color: var(--primary);">*</span></label>
+                <select id="reportReason" required>
+                    <option value="">Select a reason...</option>
+                    <option value="incorrect">Incorrect Answer</option>
+                    <option value="inappropriate">Inappropriate Content</option>
+                    <option value="spam">Spam or Irrelevant</option>
+                    <option value="duplicate">Duplicate Question</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="reportComment">Additional Comments</label>
+                <textarea id="reportComment" rows="3" placeholder="Please provide more details..."></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeReportModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Submit Report</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-// CSRF token from session
-const csrfToken = '{{ session.get('csrf_token', '') }}';
+// CSRF token
+const csrfToken = '{{ session.get("csrf_token", "") }}';
+const questionId = {{ question.id }};
+const totalQuestions = {{ total }};
+const userTier = '{{ session.user_tier|default("danbe") }}';
+const autoSkipEnabled = {{ session.user_settings.auto_skip_enabled|default(0)|int }};
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Quiz logic
     const optionsContainer = document.getElementById('options-container');
     const feedbackArea = document.getElementById('feedback-area');
     const feedbackMessage = document.getElementById('feedback-message');
@@ -83,26 +413,243 @@ document.addEventListener('DOMContentLoaded', function() {
     const nextIndicator = document.getElementById('next-indicator');
     const currentNum = document.getElementById('current-num');
     const totalNum = document.getElementById('total-num');
-    
+    const interactionRow = document.getElementById('interactionRow');
+    const likeBtn = document.getElementById('likeBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const reportBtn = document.getElementById('reportBtn');
+    const skipBtn = document.getElementById('skipBtn');
+    const helpBtn = document.getElementById('helpBtn');
+    const helpPopup = document.getElementById('helpPopup');
+    const autoSkipIndicator = document.getElementById('autoSkipIndicator');
+    const reportModal = document.getElementById('reportModal');
+    const reportForm = document.getElementById('reportForm');
+    const reportQuestionId = document.getElementById('reportQuestionId');
+
     let score = 0;
     let current = parseInt(currentNum.textContent) - 1;
     const total = parseInt(totalNum.textContent);
     let answered = false;
+    let isSubmitting = false;
+    let autoSkipTimer = null;
+    let interactionStatus = {};
 
-    // Option buttons
+    // Help icon toggle
+    helpBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        helpPopup.classList.toggle('show');
+    });
+    document.addEventListener('click', function(e) {
+        if (!helpBtn.contains(e.target) && !helpPopup.contains(e.target)) {
+            helpPopup.classList.remove('show');
+        }
+    });
+
+    // Fetch interaction status
+    function fetchInteractionStatus() {
+        fetch('/api/interaction/status?question_id=' + questionId)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.error) {
+                    interactionStatus = data;
+                    updateButtons();
+                }
+            })
+            .catch(err => console.warn('Error fetching interaction status:', err));
+    }
+
+    function updateButtons() {
+        // Like
+        if (interactionStatus.liked) {
+            likeBtn.classList.add('active-like');
+        } else {
+            likeBtn.classList.remove('active-like');
+        }
+        const likeCount = interactionStatus.like_count || 0;
+        document.getElementById('likeCount').textContent = likeCount;
+
+        // Save
+        if (interactionStatus.saved) {
+            saveBtn.classList.add('active');
+            saveBtn.innerHTML = '📑 Saved';
+        } else {
+            saveBtn.classList.remove('active');
+            saveBtn.innerHTML = '📑 Save';
+        }
+
+        // Report
+        if (interactionStatus.reported) {
+            reportBtn.disabled = true;
+            reportBtn.classList.add('locked');
+            reportBtn.innerHTML = '⚠️ Reported';
+        } else {
+            reportBtn.disabled = false;
+            reportBtn.classList.remove('locked');
+            reportBtn.innerHTML = '⚠️ Report';
+        }
+
+        // Tier for save
+        if (userTier === 'danbe') {
+            saveBtn.classList.add('locked');
+            saveBtn.dataset.tierLocked = 'true';
+            saveBtn.dataset.requiredTier = 'dhexe';
+            saveBtn.dataset.feature = 'save_question';
+            saveBtn.innerHTML = '📑 Save 🔒';
+        }
+    }
+
+    // Interaction handlers
+    likeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (isSubmitting || !answered) return;
+        const btn = this;
+        const qid = btn.dataset.questionId;
+        // Optimistic
+        btn.classList.toggle('active-like');
+        fetch('/api/interaction/like', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ question_id: qid })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) { showToast('Error: ' + data.error, 'error'); fetchInteractionStatus(); return; }
+            document.getElementById('likeCount').textContent = data.count;
+            if (data.liked) { btn.classList.add('active-like'); } else { btn.classList.remove('active-like'); }
+        })
+        .catch(err => { showToast('Network error', 'error'); fetchInteractionStatus(); });
+    });
+
+    saveBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (this.classList.contains('locked')) {
+            if (userTier === 'danbe') {
+                if (typeof window.openSafkaPreview === 'function') {
+                    window.openSafkaPreview({ feature: 'save_question', requiredTier: 'dhexe' });
+                }
+                return;
+            }
+            return;
+        }
+        if (isSubmitting || !answered) return;
+        const btn = this;
+        const qid = btn.dataset.questionId;
+        const isSaved = btn.classList.contains('active');
+        if (isSaved) {
+            btn.innerHTML = '📑 Saving...';
+        } else {
+            btn.innerHTML = '📑 Saving...';
+        }
+        fetch('/api/interaction/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ question_id: qid })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) { showToast(data.error, 'error'); fetchInteractionStatus(); return; }
+            if (data.saved) {
+                btn.classList.add('active');
+                btn.innerHTML = '📑 Saved';
+                const limit = {{ get_saved_content_limit(session.user_id)|default('null') }};
+                if (limit && limit !== 999) {
+                    const remaining = limit - (data.total_saves || 0);
+                    btn.innerHTML = '📑 Saved (' + remaining + ' left)';
+                }
+                showToast('✅ Question saved to bookmarks!', 'success');
+            } else {
+                btn.classList.remove('active');
+                btn.innerHTML = '📑 Save';
+                if (data.error === 'Save limit reached') {
+                    showToast('🔒 Save limit reached. Upgrade to Hore for unlimited.', 'warning');
+                }
+            }
+        })
+        .catch(err => { showToast('Network error', 'error'); fetchInteractionStatus(); });
+    });
+
+    reportBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (this.disabled || !answered) return;
+        reportQuestionId.value = questionId;
+        document.getElementById('reportReason').value = '';
+        document.getElementById('reportComment').value = '';
+        reportModal.classList.add('show');
+    });
+
+    reportForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const reason = document.getElementById('reportReason').value;
+        const comment = document.getElementById('reportComment').value.trim();
+        if (!reason) { showToast('Please select a reason.', 'warning'); return; }
+        const submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+        fetch('/api/interaction/report', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({
+                question_id: questionId,
+                reason: reason,
+                comment: comment
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) { showToast('Error: ' + data.error, 'error'); } else {
+                showToast('✅ Report submitted. We will review it shortly.', 'success');
+                reportModal.classList.remove('show');
+                reportBtn.disabled = true;
+                reportBtn.classList.add('locked');
+                reportBtn.innerHTML = '⚠️ Reported';
+            }
+        })
+        .catch(err => { showToast('Network error', 'error'); })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Report';
+        });
+    });
+
+    function closeReportModal() {
+        reportModal.classList.remove('show');
+    }
+    window.closeReportModal = closeReportModal;
+
+    reportModal.addEventListener('click', function(e) {
+        if (e.target === this) closeReportModal();
+    });
+
+    skipBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (isSubmitting || !answered) return;
+        clearTimeout(autoSkipTimer);
+        autoSkipIndicator.style.display = 'none';
+        advanceQuestion();
+    });
+
+    // Option selection
     document.querySelectorAll('.option-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            if (answered) return;
+            if (answered || isSubmitting) return;
             answered = true;
-            
+            isSubmitting = true;
+
             const answer = this.dataset.value;
             const allBtns = document.querySelectorAll('.option-btn');
             allBtns.forEach(b => b.style.pointerEvents = 'none');
-            
-            // Show feedback
+
             fetch('{{ url_for("quiz.submit_answer") }}', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-Token': csrfToken
                 },
@@ -110,7 +657,6 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(res => res.json())
             .then(data => {
-                // Highlight correct/incorrect
                 allBtns.forEach(b => {
                     if (b.dataset.value === data.correct_answer) {
                         b.style.borderColor = '#10B981';
@@ -121,14 +667,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         b.style.background = '#FEF2F2';
                     }
                 });
-                
-                // Update score
                 if (data.correct) {
                     score++;
                     scoreDisplay.textContent = score;
                 }
-                
-                // Show feedback
                 feedbackArea.style.display = 'block';
                 if (data.correct) {
                     feedbackMessage.innerHTML = '✅ <span style="color: #10B981;">CORRECT! +1 point</span>';
@@ -138,43 +680,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.explanation) {
                     feedbackExplanation.textContent = '💡 ' + data.explanation;
                 }
+                fetchInteractionStatus();
+
+                // Auto-skip
+                if (autoSkipEnabled && (userTier === 'dhexe' || userTier === 'hore')) {
+                    autoSkipIndicator.style.display = 'block';
+                    autoSkipTimer = setTimeout(function() {
+                        autoSkipIndicator.style.display = 'none';
+                        advanceQuestion();
+                    }, 3000);
+                }
+                isSubmitting = false;
+            })
+            .catch(err => {
+                console.error('Error submitting answer:', err);
+                showToast('Error submitting answer.', 'error');
+                isSubmitting = false;
             });
         });
     });
 
-    // Rating buttons
-    document.getElementById('rate-haa').addEventListener('click', function() {
-        submitRating('HAA');
-    });
-    document.getElementById('rate-may').addEventListener('click', function() {
-        submitRating('MAY');
-    });
+    function advanceQuestion() {
+        if (isSubmitting) return;
+        // If quiz complete, redirect to results
+        if (current + 1 >= total) {
+            window.location.href = '{{ url_for("quiz.results") }}';
+            return;
+        }
+        // Otherwise advance by reloading with ?next=1
+        window.location.href = window.location.pathname + '?next=1';
+    }
 
-    function submitRating(rating) {
-        const btn = document.getElementById('rate-' + (rating === 'HAA' ? 'haa' : 'may'));
-        btn.disabled = true;
-        btn.style.opacity = '0.5';
-        
-        fetch('{{ url_for("quiz.submit_rating") }}', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken
-            },
-            body: JSON.stringify({ rating: rating })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.complete) {
-                window.location.href = '{{ url_for("quiz.results") }}';
-            } else {
-                // Advance to next question
-                nextIndicator.style.display = 'block';
-                setTimeout(() => {
-                    window.location.reload();
-                }, 800);
-            }
-        });
+    function showToast(message, type) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(message, type || 'info', 3000);
+        } else {
+            alert(message);
+        }
+    }
+
+    // Initial fetch
+    fetchInteractionStatus();
+
+    // Handle ?next=1 on load
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('next') === '1') {
+        window.location.href = window.location.pathname;
     }
 });
 </script>

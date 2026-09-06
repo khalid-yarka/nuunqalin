@@ -168,6 +168,25 @@
                         <p class="toggle-desc">If on, you won't be asked to rate each question.</p>
                     </div>
                 </div>
+                <!-- NEW: Auto-skip toggle -->
+                <div class="form-row toggle-group">
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">🚀 Auto-advance after answering</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="auto_skip_enabled" name="auto_skip_enabled" {% if settings.auto_skip_enabled %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">
+                            {% if session.user_tier in ['dhexe', 'hore'] %}
+                                Smoothly move to the next question after answering.
+                            {% else %}
+                                Upgrade to Dhexe or Hore to enable this feature.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
                 <div class="form-row">
                     <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Preferences</button>
                 </div>
@@ -321,8 +340,11 @@
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
 <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+<script>
+// The auto-skip checkbox is already handled by the settings.js form
+// Ensure that the quiz-prefs-form includes the auto_skip_enabled field.
+// The existing settings.js will submit all form fields.
+</script>
 {% endblock %}

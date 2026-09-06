@@ -402,3 +402,33 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id,
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);
+
+-- ============================================
+-- QUESTION INTERACTIONS (Likes, Saves, Reports)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS question_interactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    question_id INTEGER NOT NULL,
+    quiz_attempt_id INTEGER,
+    live_quiz_id INTEGER,
+    interaction_type TEXT NOT NULL CHECK (interaction_type IN ('like', 'save', 'report')),
+    report_reason TEXT,
+    report_comment TEXT,
+    report_status TEXT DEFAULT 'pending' CHECK (report_status IN ('pending', 'resolved', 'dismissed')),
+    admin_reply TEXT,
+    resolved_by INTEGER,
+    resolved_at TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+    FOREIGN KEY (quiz_attempt_id) REFERENCES quiz_attempts(id) ON DELETE SET NULL,
+    FOREIGN KEY (live_quiz_id) REFERENCES live_quizzes(id) ON DELETE SET NULL,
+    UNIQUE(user_id, question_id, interaction_type, COALESCE(quiz_attempt_id, 0), COALESCE(live_quiz_id, 0))
+);
+
+CREATE INDEX IF NOT EXISTS idx_question_interactions_user ON question_interactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_question_interactions_question ON question_interactions(question_id);
+CREATE INDEX IF NOT EXISTS idx_question_interactions_type ON question_interactions(interaction_type);
+CREATE INDEX IF NOT EXISTS idx_question_interactions_report_status ON question_interactions(report_status);

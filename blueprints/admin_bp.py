@@ -31,6 +31,11 @@ from db import (
     get_main_pdf_count,
 )
 
+from services.interaction_service import (
+    get_pending_reports, get_all_reports, count_reports,
+    resolve_report, dismiss_report, get_report_by_id
+)
+
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 # ============================================
@@ -669,3 +674,59 @@ def admin_announcement():
         return redirect(url_for('admin.dashboard'))
 
     return render_template('dashboard/admin/announcement.html')
+    
+@admin_bp.route('/reports')
+@admin_required
+def reports():
+    status = request.args.get('status', 'pending')
+    page = int(request.args.get('page', 1))
+    per_page = 20
+    offset = (page - 1) * per_page
+
+    if status == 'pending':
+        reports_list = get_pending_reports(limit=per_page, offset=offset)
+        total = count_reports('pending')
+    else:
+        reports_list = get_all_reports(limit=per_page, offset=offset, status=status if status != 'all' else None)
+        total = count_reports(status if status != 'all' else None)
+
+    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+    return render_template('dashboard/admin/reports.html',
+                         reports=reports_list,
+                         status=status,
+                         page=page,
+                         total_pages=total_pages,
+                         total=total)
+
+@admin_bp.route('/reports/<int:report_id>/resolve', methods=['POST'])
+@admin_required
+def resolve_report_route(report_id):
+    validate_csrf()
+    reply = request.form.get('reply', '').strip()
+    if resolve_report(report_id, session['user_id'], reply):
+        flash('Report resolved successfully.', 'success')
+        report = get_report_by_id(report_id)
+        if report and reply:
+            from db import create_notification
+            create_notification(
+                user_id=report['user_id'],
+                type='admin_reply',
+                title='Report Update',
+                body=f'Admin replied: {reply[:100]}{"..." if len(reply) > 100 else ""}',
+                link='/quiz',
+                icon='📬'
+            )
+    else:
+        flash('Failed to resolve report.', 'error')
+    return redirect(url_for('admin.reports', status='pending'))
+
+@admin_bp.route('/reports/<int:report_id>/dismiss', methods=['POST'])
+@admin_required
+def dismiss_report_route(report_id):
+    validate_csrf()
+    reply = request.form.get('reply', '').strip()
+    if dismiss_report(report_id, session['user_id'], reply):
+        flash('Report dismissed.', 'success')
+    else:
+        flash('Failed to dismiss report.', 'error')
+    return redirect(url_for('admin.reports', status='pending'))    

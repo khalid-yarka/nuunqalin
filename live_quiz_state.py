@@ -38,11 +38,18 @@ class ParticipantState:
     status: str = 'active'   # active, completed, left
     is_ready: bool = False
     rank: Optional[int] = None  # only set during finalization
+    # NEW: interaction fields
+    likes: List[int] = field(default_factory=list)           # question_ids liked
+    saves: List[int] = field(default_factory=list)           # question_ids saved
+    reports: Dict[int, Dict] = field(default_factory=dict)   # question_id -> {reason, comment}
 
     def to_dict(self) -> dict:
         d = asdict(self)
         d['answers'] = json.dumps(d['answers'])
         d['ratings'] = json.dumps(d['ratings'])
+        d['likes'] = json.dumps(d['likes'])
+        d['saves'] = json.dumps(d['saves'])
+        d['reports'] = json.dumps(d['reports'])
         return d
 
     @classmethod
@@ -51,6 +58,12 @@ class ParticipantState:
             data['answers'] = json.loads(data['answers'])
         if isinstance(data.get('ratings'), str):
             data['ratings'] = json.loads(data['ratings'])
+        if isinstance(data.get('likes'), str):
+            data['likes'] = json.loads(data['likes'])
+        if isinstance(data.get('saves'), str):
+            data['saves'] = json.loads(data['saves'])
+        if isinstance(data.get('reports'), str):
+            data['reports'] = json.loads(data['reports'])
         return cls(**data)
 
 
@@ -302,6 +315,46 @@ class QuizState:
 
             return True, 'rated'
 
+    # ---------- Interaction Methods (NEW) ----------
+
+    def toggle_like(self, user_id: int, question_id: int) -> bool:
+        with self.lock:
+            p = self.participants.get(user_id)
+            if not p or p.status == 'left':
+                return False
+            if question_id in p.likes:
+                p.likes.remove(question_id)
+            else:
+                p.likes.append(question_id)
+            self.version += 1
+            self.dirty = True
+            return True
+
+    def toggle_save(self, user_id: int, question_id: int) -> bool:
+        with self.lock:
+            p = self.participants.get(user_id)
+            if not p or p.status == 'left':
+                return False
+            if question_id in p.saves:
+                p.saves.remove(question_id)
+            else:
+                p.saves.append(question_id)
+            self.version += 1
+            self.dirty = True
+            return True
+
+    def add_report(self, user_id: int, question_id: int, reason: str, comment: str = '') -> bool:
+        with self.lock:
+            p = self.participants.get(user_id)
+            if not p or p.status == 'left':
+                return False
+            if question_id in p.reports:
+                return False
+            p.reports[question_id] = {'reason': reason, 'comment': comment}
+            self.version += 1
+            self.dirty = True
+            return True
+
     # ---------- Leaderboard ----------
 
     def _update_leaderboard(self):
@@ -331,13 +384,11 @@ class QuizState:
                     return idx
             return None
 
-    # ---------- Checkpointing (Fixed) ----------
+    # ---------- Checkpointing ----------
 
     def checkpoint(self) -> dict:
         """
         Serialize all participant states for checkpointing.
-        IMPORTANT: This method does NOT mark dirty = False; that is done only after
-        the checkpoint is successfully persisted. The caller must manage that.
         """
         with self.lock:
             data = {
@@ -348,7 +399,12 @@ class QuizState:
                 'started_at': self.started_at,
                 'participants': {str(uid): p.to_dict() for uid, p in self.participants.items()},
                 'version': self.version,
-                'leaderboard': self.leaderboard
+                'leaderboard': self.leaderboard,
+                'interactions': {
+                    'likes': {str(uid): p.likes for uid, p in self.participants.items()},
+                    'saves': {str(uid): p.saves for uid, p in self.participants.items()},
+                    'reports': {str(uid): p.reports for uid, p in self.participants.items()}
+                }
             }
             return data
 
@@ -370,6 +426,17 @@ class QuizState:
             for uid, pdata in checkpoint_data['participants'].items():
                 p = ParticipantState.from_dict(pdata)
                 self.participants[int(uid)] = p
+            # Restore interactions
+            interactions = checkpoint_data.get('interactions', {})
+            for uid, likes in interactions.get('likes', {}).items():
+                if int(uid) in self.participants:
+                    self.participants[int(uid)].likes = likes
+            for uid, saves in interactions.get('saves', {}).items():
+                if int(uid) in self.participants:
+                    self.participants[int(uid)].saves = saves
+            for uid, reports in interactions.get('reports', {}).items():
+                if int(uid) in self.participants:
+                    self.participants[int(uid)].reports = reports
             self.dirty = False
 
     # ---------- Finalization (Atomic) ----------
@@ -377,7 +444,7 @@ class QuizState:
     def finalize(self) -> dict:
         """
         Compute final results and ranks.
-        IMPORTANT: This does NOT modify the persistent state; it only returns the data.
+        This does not modify persistent state; it only returns the data.
         The caller must persist to SQLite and then call mark_finalized().
         """
         with self.lock:
@@ -408,6 +475,9 @@ class QuizState:
                     'skipped_count': p.skipped_count,
                     'answers': p.answers,
                     'ratings': p.ratings,
+                    'likes': p.likes,
+                    'saves': p.saves,
+                    'reports': p.reports,
                     'rank': getattr(p, 'rank', None),
                     'status': p.status
                 })
@@ -496,12 +566,7 @@ class LiveQuizStateManager:
 
     # ---------- On‑demand recovery (for multi‑worker fallback) ----------
     def ensure_quiz_in_memory(self, quiz_id: int) -> bool:
-        """
-        If quiz is not in memory, attempt to recover it from SQLite.
-        Returns True if quiz is now in memory.
-        This is a safety net for when a request arrives on a worker that
-        hasn't loaded the quiz yet (e.g., after a restart).
-        """
+        """Attempt to recover quiz from SQLite if not in memory."""
         with self._lock:
             if quiz_id in self._quizzes:
                 return True
@@ -594,7 +659,6 @@ class LiveQuizStateManager:
                 attempt += 1
                 if attempt >= max_attempts:
                     logger.critical(f"Failed to flush events after {max_attempts} attempts. Events lost!")
-                    # Optionally, we could write to a fallback log, but for now we log critical.
                     return
                 time.sleep(delay)
                 delay = min(delay * 2, self._max_retry_delay)
@@ -774,9 +838,6 @@ class LiveQuizStateManager:
     def _replay_events_after(self, quiz: QuizState, version: int):
         """
         Replay events after the given version to bring state up to date.
-        Uses the checkpoint version as the reference, and replays events with sequence > version.
-        This assumes that the sequence number in events is the same as the checkpoint version.
-        To ensure this, we now store the checkpoint version in the events table.
         """
         cursor = execute_with_retry(
             "SELECT * FROM live_quiz_events WHERE quiz_id = ? AND sequence > ? ORDER BY sequence ASC",

@@ -395,7 +395,7 @@
                         {% endif %}
 
                         <!-- 4. Get PDF (Telegram download) – All tiers, opens Telegram directly -->
-                        {% set bot_username = config.TELEGRAM_BOT_USERNAME or 'nuunplatform_bot' %}
+                        {% set bot_username = config.TELEGRAM_BOT_USERNAME or 'nuunplatformbot' %}
                         <a href="https://t.me/{{ bot_username }}?start={{ pdf.code }}" 
                            target="_blank" 
                            class="btn {% if tier == 'hore' and logged_in %}btn-premium{% else %}btn-telegram{% endif %} btn-sm" 
