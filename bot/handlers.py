@@ -6,14 +6,13 @@ import telebot
 from telebot import types
 
 from bot.utils import (
-    is_duplicate_pdf, save_pending_pdf, is_admin
+    is_duplicate_in_bot, save_pending_pdf, is_admin
 )
-from bot.db import count_pending_pdfs, get_pending_pdf_list
+from bot.db import count_pending_pdfs, get_pending_pdf_list, get_bot_pdf_by_code
 
 logger = logging.getLogger(__name__)
 
 def process_telegram_update(bot: telebot.TeleBot, update_data: dict):
-    """Process a raw Telegram update dict (from webhook)."""
     try:
         update = types.Update.de_json(update_data)
         if update.message:
@@ -25,20 +24,26 @@ def process_telegram_update(bot: telebot.TeleBot, update_data: dict):
     except Exception as e:
         logger.error(f"Error processing update: {e}", exc_info=True)
 
-def handle_message(bot: telebot.TeleBot, message: types.Message):
+def handle_message(bot, message):
     if message.text:
         if message.text.startswith('/start'):
-            handle_start(bot, message)
+            if len(message.text.split()) > 1:
+                handle_start_with_code(bot, message)
+            else:
+                handle_start(bot, message)
         elif message.text.startswith('/help'):
             handle_help(bot, message)
+        else:
+            # Other text messages
+            pass
     elif message.document:
         handle_document(bot, message)
 
-def handle_callback(bot: telebot.TeleBot, call: types.CallbackQuery):
+def handle_callback(bot, call):
     if call.data.startswith('pdf_admin_'):
         handle_admin_pending(bot, call)
 
-def handle_start(bot: telebot.TeleBot, message: types.Message):
+def handle_start(bot, message):
     user_id = message.from_user.id
     first_name = message.from_user.first_name or ''
     text = (
@@ -55,7 +60,30 @@ def handle_start(bot: telebot.TeleBot, message: types.Message):
         markup.add(types.InlineKeyboardButton("📚 Pending PDFs", callback_data="pdf_admin_pending"))
     bot.send_message(message.chat.id, text, reply_markup=markup)
 
-def handle_help(bot: telebot.TeleBot, message: types.Message):
+def handle_start_with_code(bot, message):
+    """Handle /start <code> to send a PDF."""
+    text = message.text
+    parts = text.split(maxsplit=1)
+    if len(parts) == 2:
+        code = parts[1].strip()
+        bot_pdf = get_bot_pdf_by_code(code)
+        if bot_pdf:
+            try:
+                file_id = bot_pdf['file_id']
+                caption = f"📄 {bot_pdf['title']}\n"
+                if bot_pdf.get('description'):
+                    caption += f"Description: {bot_pdf['description']}\n"
+                caption += f"Code: {code}"
+                bot.send_document(message.chat.id, file_id, caption=caption)
+                return
+            except Exception as e:
+                logger.error(f"Error sending PDF with code {code}: {e}")
+                bot.reply_to(message, "❌ Sorry, I couldn't retrieve the PDF. Please try again later.")
+                return
+    # If no code or invalid, show help
+    handle_start(bot, message)
+
+def handle_help(bot, message):
     bot.send_message(
         message.chat.id,
         "📖 Help:\n\n"
@@ -65,7 +93,7 @@ def handle_help(bot: telebot.TeleBot, message: types.Message):
         "Admins: Use the Pending PDFs button to manage uploads."
     )
 
-def handle_document(bot: telebot.TeleBot, message: types.Message):
+def handle_document(bot, message):
     document = message.document
     if not document:
         bot.reply_to(message, "❌ Please send a document file (PDF).")
@@ -80,7 +108,7 @@ def handle_document(bot: telebot.TeleBot, message: types.Message):
     filename = document.file_name or 'unknown.pdf'
     user_id = message.from_user.id
 
-    if is_duplicate_pdf(file_unique_id):
+    if is_duplicate_in_bot(file_unique_id):
         bot.reply_to(
             message,
             "⚠️ This PDF is already in the system (either already published or pending review)."
@@ -98,7 +126,7 @@ def handle_document(bot: telebot.TeleBot, message: types.Message):
     else:
         bot.reply_to(message, "❌ Failed to save the PDF. Please try again later.")
 
-def handle_admin_pending(bot: telebot.TeleBot, call: types.CallbackQuery):
+def handle_admin_pending(bot, call):
     user_id = call.from_user.id
     if not is_admin(user_id):
         bot.answer_callback_query(call.id, "You are not authorized.", show_alert=True)

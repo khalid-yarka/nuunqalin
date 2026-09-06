@@ -1,4 +1,4 @@
-# db.py – complete file with subject changes + pending PDF functions
+# db.py – complete file with redesigned PDF system
 # Uses main database (nuunplatform.db) for all platform data.
 # Pending PDF operations are handled via bot.db (separate file).
 
@@ -1013,137 +1013,176 @@ def get_group_by_id(group_id: int):
         return None
 
 # ============================================
-# PDF FUNCTIONS (Main Platform)
+# PDF FUNCTIONS (Main Platform – Redesigned)
 # ============================================
 
-def get_all_pdfs():
+def get_all_pdfs(limit=100, offset=0, search='', subject='', curriculum='', class_filter=''):
     try:
-        cursor = execute_with_retry("SELECT * FROM pdfs ORDER BY created_at DESC")
-        results = cursor.fetchall()
-        return [dict(row) for row in results]
+        query = "SELECT * FROM pdfs WHERE 1=1"
+        params = []
+        if search:
+            query += " AND (title LIKE ? OR description LIKE ? OR code LIKE ? OR subject LIKE ?)"
+            like = f"%{search}%"
+            params.extend([like, like, like, like])
+        if subject:
+            query += " AND subject = ?"
+            params.append(subject)
+        if curriculum:
+            query += " AND curriculum = ?"
+            params.append(curriculum)
+        if class_filter:
+            query += " AND class = ?"
+            params.append(class_filter)
+        query += " ORDER BY uploaded_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        cursor = execute_with_retry(query, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching PDFs: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching PDFs: {e}")
+        logger.error(f"Error fetching PDFs: {e}")
         return []
 
-def get_pdf_by_id(pdf_id: int):
+def get_pdf_by_code(code):
     try:
-        cursor = execute_with_retry("SELECT * FROM pdfs WHERE id = ?", (pdf_id,))
-        result = cursor.fetchone()
-        return dict(result) if result else None
+        cursor = execute_with_retry("SELECT * FROM pdfs WHERE code = ?", (code,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching PDF: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching PDF: {e}")
+        logger.error(f"Error fetching PDF by code: {e}")
         return None
 
-def create_pdf(data: dict):
+def get_pdf_by_id(pdf_id):
     try:
-        execute_with_retry("""
+        cursor = execute_with_retry("SELECT * FROM pdfs WHERE id = ?", (pdf_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Error fetching PDF: {e}")
+        return None
+
+def create_main_pdf(data):
+    """
+    Insert a new main PDF.
+    data keys: code, title, description, curriculum, class, subject,
+               chapter, tags, is_premium, file_url, uploaded_by
+    """
+    try:
+        cursor = execute_with_retry("""
             INSERT INTO pdfs (
-                title, description, file_url, telegram_download_url,
-                subject, grade, category, chapters, tags, view_count, is_premium, file_unique_id, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                code, title, description, curriculum, class, subject,
+                chapter, tags, is_premium, file_url, uploaded_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            data['title'],
-            data.get('description', ''),
-            data['file_url'],
-            data['telegram_download_url'],
-            data.get('subject', ''),
-            data.get('grade', ''),
-            data.get('category', ''),
-            data.get('chapters', ''),
-            data.get('tags', ''),
-            data.get('view_count', 0),
-            data.get('is_premium', 0),
-            data.get('file_unique_id'),
-            now()
+            data['code'], data['title'], data.get('description', ''),
+            data.get('curriculum', 'PL'), data.get('class', ''),
+            data['subject'], data.get('chapter', ''), data.get('tags', ''),
+            data.get('is_premium', 0), data.get('file_url'),
+            data.get('uploaded_by', 'NUUN')
         ), commit=True)
         return True
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error creating PDF: {e}")
-        except RuntimeError:
-            logger.error(f"Error creating PDF: {e}")
+        logger.error(f"Error creating main PDF: {e}")
         return False
 
-def delete_pdf(pdf_id: int):
+def delete_main_pdf(pdf_id):
     try:
         execute_with_retry("DELETE FROM pdfs WHERE id = ?", (pdf_id,), commit=True)
         return True
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error deleting PDF: {e}")
-        except RuntimeError:
-            logger.error(f"Error deleting PDF: {e}")
+        logger.error(f"Error deleting main PDF: {e}")
         return False
 
-def increment_pdf_view(pdf_id: int):
+def increment_pdf_view(pdf_id):
     try:
         execute_with_retry(
             "UPDATE pdfs SET view_count = view_count + 1 WHERE id = ?",
-            (pdf_id,),
-            commit=True
+            (pdf_id,), commit=True
         )
         return True
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error incrementing PDF view: {e}")
-        except RuntimeError:
-            logger.error(f"Error incrementing PDF view: {e}")
+        logger.error(f"Error incrementing PDF view: {e}")
         return False
 
 def get_pdf_distinct_subjects():
     try:
         cursor = execute_with_retry("SELECT DISTINCT subject FROM pdfs WHERE subject IS NOT NULL AND subject != ''")
-        results = cursor.fetchall()
-        return [row['subject'] for row in results]
+        rows = cursor.fetchall()
+        return [row['subject'] for row in rows]
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching PDF subjects: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching PDF subjects: {e}")
+        logger.error(f"Error fetching distinct subjects: {e}")
         return []
 
-def get_pdf_distinct_grades():
+def get_pdf_distinct_classes():
     try:
-        cursor = execute_with_retry("SELECT DISTINCT grade FROM pdfs WHERE grade IS NOT NULL AND grade != ''")
-        results = cursor.fetchall()
-        return [row['grade'] for row in results]
+        cursor = execute_with_retry("SELECT DISTINCT class FROM pdfs WHERE class IS NOT NULL AND class != ''")
+        rows = cursor.fetchall()
+        return [row['class'] for row in rows]
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching PDF grades: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching PDF grades: {e}")
+        logger.error(f"Error fetching distinct classes: {e}")
         return []
 
-def search_pdfs(search: str = '', subject: str = '', grade: str = ''):
+def get_pdf_distinct_curricula():
     try:
-        query = "SELECT * FROM pdfs WHERE 1=1"
+        cursor = execute_with_retry("SELECT DISTINCT curriculum FROM pdfs WHERE curriculum IS NOT NULL AND curriculum != ''")
+        rows = cursor.fetchall()
+        return [row['curriculum'] for row in rows]
+    except Exception as e:
+        logger.error(f"Error fetching distinct curricula: {e}")
+        return []
+
+def get_main_pdf_count(search='', subject='', curriculum='', class_filter=''):
+    try:
+        query = "SELECT COUNT(*) as count FROM pdfs WHERE 1=1"
         params = []
         if search:
-            query += " AND (title LIKE ? OR description LIKE ?)"
-            search_pattern = f"%{search}%"
-            params.extend([search_pattern, search_pattern])
+            query += " AND (title LIKE ? OR description LIKE ? OR code LIKE ? OR subject LIKE ?)"
+            like = f"%{search}%"
+            params.extend([like, like, like, like])
         if subject:
             query += " AND subject = ?"
             params.append(subject)
-        if grade:
-            query += " AND grade = ?"
-            params.append(grade)
-        query += " ORDER BY created_at DESC"
+        if curriculum:
+            query += " AND curriculum = ?"
+            params.append(curriculum)
+        if class_filter:
+            query += " AND class = ?"
+            params.append(class_filter)
         cursor = execute_with_retry(query, params)
-        results = cursor.fetchall()
-        return [dict(row) for row in results]
+        row = cursor.fetchone()
+        return row['count'] if row else 0
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error searching PDFs: {e}")
-        except RuntimeError:
-            logger.error(f"Error searching PDFs: {e}")
-        return []
+        logger.error(f"Error counting PDFs: {e}")
+        return 0
+
+# ---- Publishing from bot to main ----
+
+def publish_bot_pdf_to_main(bot_pdf_id):
+    """Copy a bot PDF to main database using its code."""
+    from bot.db import get_bot_pdf_by_id
+    bot_pdf = get_bot_pdf_by_id(bot_pdf_id)
+    if not bot_pdf:
+        return False, "Bot PDF not found"
+    # Check if main already has this code
+    existing = get_pdf_by_code(bot_pdf['code'])
+    if existing:
+        return False, f"Code {bot_pdf['code']} already exists in main"
+    # Prepare main data (file_url is None by default)
+    main_data = {
+        'code': bot_pdf['code'],
+        'title': bot_pdf['title'],
+        'description': bot_pdf.get('description', ''),
+        'curriculum': bot_pdf.get('curriculum', 'PL'),
+        'class': bot_pdf.get('class', ''),
+        'subject': bot_pdf['subject'],
+        'chapter': bot_pdf.get('chapter', ''),
+        'tags': bot_pdf.get('tags', ''),
+        'is_premium': bot_pdf.get('is_premium', 0),
+        'file_url': None,  # Initially no file_url; admin can later set
+        'uploaded_by': 'NUUN'
+    }
+    if create_main_pdf(main_data):
+        return True, "Published successfully"
+    return False, "Failed to create main PDF"
 
 # ============================================
 # LIVE QUIZ FUNCTIONS
@@ -1606,46 +1645,6 @@ def get_live_quiz_creator_id(quiz_id: int):
             logger.error(f"Error getting creator ID: {e}")
         return None
 
-def get_group_categories():
-    try:
-        cursor = execute_with_retry("""
-            SELECT DISTINCT category FROM groups 
-            WHERE category IS NOT NULL AND category != '' AND is_active = 1
-        """)
-        results = cursor.fetchall()
-        return [row['category'] for row in results]
-    except Exception as e:
-        try:
-            current_app.logger.error(f"Error fetching group categories: {e}")
-        except RuntimeError:
-            logger.error(f"Error fetching group categories: {e}")
-        return []
-
-def search_groups(search: str = '', platform: str = '', category: str = ''):
-    try:
-        query = "SELECT * FROM groups WHERE is_active = 1"
-        params = []
-        if search:
-            query += " AND (name LIKE ? OR description LIKE ?)"
-            search_pattern = f"%{search}%"
-            params.extend([search_pattern, search_pattern])
-        if platform:
-            query += " AND platform = ?"
-            params.append(platform)
-        if category:
-            query += " AND category = ?"
-            params.append(category)
-        query += " ORDER BY created_at DESC"
-        cursor = execute_with_retry(query, params)
-        results = cursor.fetchall()
-        return [dict(row) for row in results]
-    except Exception as e:
-        try:
-            current_app.logger.error(f"Error searching groups: {e}")
-        except RuntimeError:
-            logger.error(f"Error searching groups: {e}")
-        return []
-
 # ============================================
 # NOTIFICATION FUNCTIONS
 # ============================================
@@ -1988,8 +1987,8 @@ def get_live_quizzes_lobby(
             if quiz['status'] == 'scheduled' and quiz.get('scheduled_start'):
                 try:
                     start_dt = datetime.fromisoformat(quiz['scheduled_start'].replace('Z', '+00:00'))
-                    now = datetime.now(timezone.utc)
-                    diff = (start_dt - now).total_seconds()
+                    now_dt = datetime.now(timezone.utc)
+                    diff = (start_dt - now_dt).total_seconds()
                     quiz['starts_in_seconds'] = max(0, int(diff))
                 except Exception:
                     quiz['starts_in_seconds'] = 0
@@ -2185,64 +2184,45 @@ def get_participant_ready(quiz_id: int, student_id: int) -> bool:
         return False
 
 # ============================================
-# PENDING PDF FUNCTIONS – MOVING TO PDFS
-# This function receives pending data from bot.db
-# and inserts into the main pdfs table.
+# GROUP FILTER FUNCTIONS
 # ============================================
 
-def move_pending_to_pdfs(pending_id, pdf_data):
-    """
-    Atomically move a pending PDF from bot.db to the main pdfs table.
-    This function receives pending data from the bot database and
-    inserts it into the main database's pdfs table.
-    
-    Args:
-        pending_id: ID from bot.db pending_pdfs table
-        pdf_data: dict containing all pdf fields including file_unique_id
-    
-    Returns:
-        (success: bool, result: str or int)
-    """
-    from bot.db import get_pending_pdf_by_id, delete_pending_pdf
-
-    # Verify pending still exists in bot DB
-    pending = get_pending_pdf_by_id(pending_id)
-    if not pending:
-        return False, "Pending record not found"
-
-    conn = get_db()
+def get_group_categories():
     try:
-        conn.execute("BEGIN IMMEDIATE")
-        # Check duplicate in pdfs
-        cursor = conn.execute("SELECT id FROM pdfs WHERE file_unique_id = ?", (pdf_data['file_unique_id'],))
-        if cursor.fetchone():
-            conn.rollback()
-            return False, "Duplicate PDF already in pdfs"
-        # Insert into pdfs
-        cursor = conn.execute("""
-            INSERT INTO pdfs (
-                title, description, subject, grade, category, chapters, tags,
-                is_premium, file_url, telegram_download_url, file_unique_id, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
-        """, (
-            pdf_data['title'],
-            pdf_data.get('description', ''),
-            pdf_data['subject'],
-            pdf_data['grade'],
-            pdf_data.get('category', ''),
-            pdf_data.get('chapters', ''),
-            pdf_data.get('tags', ''),
-            pdf_data.get('is_premium', 0),
-            pdf_data['file_url'],
-            pdf_data['telegram_download_url'],
-            pdf_data['file_unique_id']
-        ))
-        new_pdf_id = cursor.lastrowid
-        # Delete from bot DB pending table
-        delete_pending_pdf(pending_id)
-        conn.commit()
-        return True, new_pdf_id
+        cursor = execute_with_retry("""
+            SELECT DISTINCT category FROM groups 
+            WHERE category IS NOT NULL AND category != '' AND is_active = 1
+        """)
+        results = cursor.fetchall()
+        return [row['category'] for row in results]
     except Exception as e:
-        conn.rollback()
-        logger.error(f"move_pending_to_pdfs failed: {e}")
-        return False, str(e)
+        try:
+            current_app.logger.error(f"Error fetching group categories: {e}")
+        except RuntimeError:
+            logger.error(f"Error fetching group categories: {e}")
+        return []
+
+def search_groups(search: str = '', platform: str = '', category: str = ''):
+    try:
+        query = "SELECT * FROM groups WHERE is_active = 1"
+        params = []
+        if search:
+            query += " AND (name LIKE ? OR description LIKE ?)"
+            search_pattern = f"%{search}%"
+            params.extend([search_pattern, search_pattern])
+        if platform:
+            query += " AND platform = ?"
+            params.append(platform)
+        if category:
+            query += " AND category = ?"
+            params.append(category)
+        query += " ORDER BY created_at DESC"
+        cursor = execute_with_retry(query, params)
+        results = cursor.fetchall()
+        return [dict(row) for row in results]
+    except Exception as e:
+        try:
+            current_app.logger.error(f"Error searching groups: {e}")
+        except RuntimeError:
+            logger.error(f"Error searching groups: {e}")
+        return []

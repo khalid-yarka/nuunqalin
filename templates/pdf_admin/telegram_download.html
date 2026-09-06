@@ -1,0 +1,30 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Download via Telegram - {{ pdf.title }}{% endblock %}
+
+{% block page_title %}Telegram Download{% endblock %}
+
+{% block dashboard_content %}
+<div style="max-width: 600px; margin: 40px auto; text-align: center;">
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px; box-shadow: var(--shadow-sm);">
+        <div style="font-size: 64px; margin-bottom: 16px;">📲</div>
+        <h2 style="font-size: 24px; font-weight: 700; color: var(--text);">Get this PDF via Telegram</h2>
+        <p style="color: var(--text-secondary); font-size: 15px; margin: 8px 0 16px;">
+            This document is available through our Telegram bot.
+        </p>
+        <div style="background: var(--background); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 20px; font-size: 14px;">
+            <strong>PDF Code:</strong> <code style="background: var(--surface); padding: 4px 8px; border-radius: 4px;">{{ pdf.code }}</code>
+        </div>
+        <a href="{{ telegram_link }}" target="_blank" class="btn btn-primary" style="font-size: 18px; padding: 14px 32px;">
+            <i class="fab fa-telegram-plane"></i> Open in Telegram
+        </a>
+        <p style="margin-top: 12px; color: var(--text-muted); font-size: 13px;">
+            <i class="fas fa-info-circle"></i> You will be redirected to Telegram.<br>
+            If you don't have the bot, you can open the link and it will start the bot.
+        </p>
+        <a href="{{ url_for('pdfs.list_pdfs') }}" class="btn btn-secondary" style="margin-top: 12px;">
+            <i class="fas fa-arrow-left"></i> Back to PDFs
+        </a>
+    </div>
+</div>
+{% endblock %}

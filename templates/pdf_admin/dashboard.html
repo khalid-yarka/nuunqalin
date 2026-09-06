@@ -1,6 +1,6 @@
 {% extends "pdf_admin/base.html" %}
 
-{% block title %}Dashboard - PDF Admin{% endblock %}
+{% block title %}PDF Admin Dashboard{% endblock %}
 
 {% block content %}
 <div class="pdf-admin-dashboard">
@@ -16,22 +16,15 @@
         <div class="pdf-stat-card">
             <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
             <div class="stat-info">
-                <span class="stat-number">{{ processed_count }}</span>
-                <span class="stat-label">Processed PDFs</span>
+                <span class="stat-number">{{ bot_pdfs|length if is_super_admin else '—' }}</span>
+                <span class="stat-label">Fulfilled Bot PDFs</span>
             </div>
         </div>
         <div class="pdf-stat-card">
-            <div class="stat-icon"><i class="fas fa-upload"></i></div>
+            <div class="stat-icon"><i class="fas fa-globe"></i></div>
             <div class="stat-info">
-                <span class="stat-number">{{ today_uploads }}</span>
-                <span class="stat-label">Today's Uploads</span>
-            </div>
-        </div>
-        <div class="pdf-stat-card">
-            <div class="stat-icon"><i class="fas fa-check-double"></i></div>
-            <div class="stat-info">
-                <span class="stat-number">{{ today_processed }}</span>
-                <span class="stat-label">Today's Processed</span>
+                <span class="stat-number">{{ main_count if is_super_admin else '—' }}</span>
+                <span class="stat-label">Published to Main</span>
             </div>
         </div>
     </div>
@@ -76,5 +69,44 @@
             </div>
         {% endif %}
     </div>
+
+    <!-- Super Admin Extra Section -->
+    {% if is_super_admin %}
+    <hr style="margin: 40px 0; border: 1px solid var(--border);">
+    <div class="pdf-section-header">
+        <h2><i class="fas fa-check-circle"></i> Fulfilled Bot PDFs (Latest 20)</h2>
+        <a href="{{ url_for('pdf_admin.bot_pdf_list') }}" class="pdf-btn pdf-btn-primary pdf-btn-sm">View All</a>
+    </div>
+    <div class="pdf-table-wrap">
+        <table class="pdf-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Title</th>
+                    <th>Subject</th>
+                    <th>Curriculum</th>
+                    <th>Class</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pdf in bot_pdfs %}
+                <tr>
+                    <td><code>{{ pdf.code }}</code></td>
+                    <td>{{ pdf.title }}</td>
+                    <td>{{ pdf.subject }}</td>
+                    <td>{{ pdf.curriculum }}</td>
+                    <td>{{ pdf.class or '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('pdf_admin.edit_bot_pdf', pdf_id=pdf.id) }}" class="pdf-btn pdf-btn-secondary pdf-btn-sm">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

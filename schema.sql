@@ -1,5 +1,5 @@
 -- ============================================
--- NUUNPLATFORM DATABASE SCHEMA (UPDATED WITH PDF SYSTEM)
+-- NUUNPLATFORM DATABASE SCHEMA (PDF SYSTEM REDESIGN)
 -- ============================================
 
 -- ============================================
@@ -103,46 +103,31 @@ CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active);
 CREATE INDEX IF NOT EXISTS idx_groups_click_count ON groups(click_count DESC);
 
 -- ============================================
--- PDFS TABLE (added file_unique_id, chapters, tags)
+-- PDFS TABLE (Main Platform – redesigned)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS pdfs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT DEFAULT '',
-    file_url TEXT NOT NULL,
-    telegram_download_url TEXT DEFAULT '',
-    subject TEXT DEFAULT '',
-    grade TEXT DEFAULT '',
-    category TEXT DEFAULT '',
-    chapters TEXT DEFAULT '',
+    curriculum TEXT DEFAULT 'PL' CHECK (curriculum IN ('PL', 'SO', 'SL')),
+    class TEXT DEFAULT '' CHECK (class IN ('', '7aad', '8aad', 'F3', 'F4')),
+    subject TEXT NOT NULL,
+    chapter TEXT DEFAULT '',
     tags TEXT DEFAULT '',
-    view_count INTEGER DEFAULT 0,
     is_premium INTEGER DEFAULT 0,
-    file_unique_id TEXT UNIQUE,
-    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    file_url TEXT,  -- NULL -> use Telegram bot via code
+    uploaded_by TEXT NOT NULL DEFAULT 'NUUN',
+    uploaded_at TEXT DEFAULT (datetime('now', 'localtime')),
+    view_count INTEGER DEFAULT 0
 );
 
+CREATE INDEX IF NOT EXISTS idx_pdfs_code ON pdfs(code);
+CREATE INDEX IF NOT EXISTS idx_pdfs_curriculum ON pdfs(curriculum);
+CREATE INDEX IF NOT EXISTS idx_pdfs_class ON pdfs(class);
 CREATE INDEX IF NOT EXISTS idx_pdfs_subject ON pdfs(subject);
-CREATE INDEX IF NOT EXISTS idx_pdfs_grade ON pdfs(grade);
-CREATE INDEX IF NOT EXISTS idx_pdfs_category ON pdfs(category);
 CREATE INDEX IF NOT EXISTS idx_pdfs_view_count ON pdfs(view_count DESC);
-CREATE INDEX IF NOT EXISTS idx_pdfs_file_unique_id ON pdfs(file_unique_id);
-
--- ============================================
--- PENDING PDFS TABLE (for Telegram bot intake)
--- ============================================
-
-CREATE TABLE IF NOT EXISTS pending_pdfs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_id TEXT NOT NULL,
-    file_unique_id TEXT UNIQUE NOT NULL,
-    filename TEXT,
-    uploaded_by INTEGER,
-    uploaded_at TEXT DEFAULT (datetime('now', 'localtime'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_pending_pdfs_uploaded_at ON pending_pdfs(uploaded_at DESC);
 
 -- ============================================
 -- LIVE QUIZZES TABLE

@@ -13,7 +13,7 @@ class Config:
     # ============================================
     
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-    ADMIN_ERROR_PASSWORD = os.getenv('ADMIN_ERROR_PASSWORD', '')
+    ADMIN_ERROR_PASSWORD = os.getenv('ADMIN_ERROR_PASSWORD', 'samir')
     
     # ============================================
     # DATABASE (Main)
@@ -69,7 +69,7 @@ class Config:
     else:
         LOG_DIR = str(BASE_DIR / 'logs')
     
-    UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'static/uploads/pdfs')
+    UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'static/uploads')
     if not os.path.isabs(UPLOAD_FOLDER):
         UPLOAD_FOLDER = str(BASE_DIR / UPLOAD_FOLDER)
     
@@ -157,6 +157,7 @@ class Config:
     # ============================================
     
     TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+    TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'nuunplatform_bot')
     TELEGRAM_ADMIN_IDS = os.getenv('TELEGRAM_ADMIN_IDS', '')
     BASE_URL = os.getenv('BASE_URL', 'https://yourdomain.com')  # CHANGED: generic placeholder
     
@@ -165,8 +166,8 @@ class Config:
     # ============================================
     
     PDF_ADMIN_SECRET_PATH = os.getenv('PDF_ADMIN_SECRET_PATH', '')
-    PDF_ADMIN_USERNAME = os.getenv('PDF_ADMIN_USERNAME', 'admin')
-    PDF_ADMIN_PASSWORD = os.getenv('PDF_ADMIN_PASSWORD', 'admin')
+    PDF_ADMIN_PASSWORD = os.getenv('PDF_ADMIN_PASSWORD', 'admin123')
+    PDF_SUPER_ADMIN_PASSWORD = os.getenv('PDF_SUPER_ADMIN_PASSWORD', 'super123')
     PDF_ADMIN_SESSION_TIMEOUT = int(os.getenv('PDF_ADMIN_SESSION_TIMEOUT', '1800'))
     
     # ============================================
