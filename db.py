@@ -193,7 +193,7 @@ def execute_with_retry(query, params=(), max_retries=MAX_RETRIES, commit=True, o
         f"Database operation failed after {max_retries} retries: {operation_name}"
     )
 
-def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES, operation_name=None):
+def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES, commit=True, operation_name=None):
     if not params_list:
         return None
     if operation_name is None:
@@ -203,7 +203,8 @@ def execute_many_with_retry(query, params_list, max_retries=MAX_RETRIES, operati
             conn = get_db()
             cursor = conn.cursor()
             cursor.executemany(query, params_list)
-            conn.commit()
+            if commit:
+                conn.commit()
             return cursor
         except sqlite3.OperationalError as e:
             error_msg = str(e)
@@ -1921,7 +1922,7 @@ def get_live_quizzes_lobby(
                  WHERE quiz_id = lq.id AND student_id = ?) as user_rank
             FROM live_quizzes lq
             LEFT JOIN students creator ON lq.creator_id = creator.id
-            LEFT JOIN live_quiz_participants lqp ON lq.id = lqp.quiz_id
+            LEFT JOIN live_quiz_participants lqp ON lq.id = lqp.id
             WHERE lq.is_public = 1
         """
         count_query = """
@@ -2259,7 +2260,6 @@ def create_history_table():
     except Exception as e:
         logger.error(f"Failed to create history_entries table: {e}")
         return False
-
 
 def clean_history_entries():
     """

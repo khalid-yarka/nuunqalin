@@ -1,19 +1,21 @@
-# history_logger.py – Robust with explicit 6‑element tuple creation
+# history_logger.py – Fixed flush with safe rename and batch insert
 
 import os
 import json
 import fcntl
 import logging
+import shutil
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from pathlib import Path
 
-from db import execute_with_retry, get_somali_time_db
+from db import execute_many_with_retry, get_somali_time_db
 
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 QUEUE_FILE = os.getenv('HISTORY_QUEUE_FILE') or str(BASE_DIR / 'history_queue.jsonl')
+PROCESSING_FILE = QUEUE_FILE + '.processing'
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
 
@@ -24,6 +26,7 @@ def add_history_entry(
     entry_id: Optional[int] = None,
     metadata: Optional[Dict[str, Any]] = None
 ) -> None:
+    """Append a history entry to the queue file."""
     if not entry_type or not action:
         return
     entry = {
@@ -46,6 +49,10 @@ def add_history_entry(
 
 
 def flush_history_queue(limit: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Flush the queue file to the database using a safe rename-then-process approach.
+    Returns a dict with flush status.
+    """
     result = {
         'success': False,
         'flushed': 0,
@@ -55,21 +62,33 @@ def flush_history_queue(limit: Optional[int] = None) -> Dict[str, Any]:
         'file_size_after': 0
     }
 
+    # Check if queue file exists and has content
     if not os.path.exists(QUEUE_FILE):
         result['success'] = True
         return result
 
     result['file_size_before'] = os.path.getsize(QUEUE_FILE)
 
+    # Rename the queue file to a processing file atomically
     try:
         with open(QUEUE_FILE, 'r') as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            lines = f.readlines()
+            # Rename while locked to prevent new writes to the same file
+            os.rename(QUEUE_FILE, PROCESSING_FILE)
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except Exception as e:
+        result['errors'].append(f"Failed to rename queue file: {e}")
+        return result
+
+    # Now process the renamed file
+    try:
+        with open(PROCESSING_FILE, 'r') as f:
+            lines = f.readlines()
 
         if not lines:
+            os.remove(PROCESSING_FILE)
             result['success'] = True
-            result['file_size_after'] = result['file_size_before']
+            result['file_size_after'] = 0
             return result
 
         logger.info(f"Flushing {len(lines)} lines from queue file")
@@ -91,9 +110,8 @@ def flush_history_queue(limit: Optional[int] = None) -> Dict[str, Any]:
                 entry_id = entry.get('entry_id')
 
                 if user_id is not None and entry_type and action and metadata and created_at:
-                    # Build tuple with all 6 fields, even if entry_id is None
                     tup = (user_id, entry_type, action, entry_id, metadata, created_at)
-                    # Extra safety: if tuple length is not 6, force it
+                    # Ensure tuple length is exactly 6
                     if len(tup) != 6:
                         logger.error(f"Line {idx} tuple length {len(tup)}, forcing to 6")
                         tup = tup[:6] + (None,) * (6 - len(tup))
@@ -108,29 +126,29 @@ def flush_history_queue(limit: Optional[int] = None) -> Dict[str, Any]:
                 logger.warning(f"Line {idx} invalid JSON")
 
         if not entries:
-            with open(QUEUE_FILE, 'w') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                if malformed_lines:
-                    f.write('\n'.join(malformed_lines) + '\n')
-                else:
-                    f.truncate(0)
-                f.flush()
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            # No valid entries – keep malformed lines (if any) in a separate error file
+            if malformed_lines:
+                error_file = QUEUE_FILE + '.error'
+                with open(error_file, 'a') as ef:
+                    ef.write('\n'.join(malformed_lines) + '\n')
+                logger.warning(f"Saved {len(malformed_lines)} malformed lines to {error_file}")
+            os.remove(PROCESSING_FILE)
             result['success'] = True
-            result['file_size_after'] = os.path.getsize(QUEUE_FILE)
+            result['file_size_after'] = 0
             return result
 
         if limit and len(entries) > limit:
             entries = entries[:limit]
 
-        # Final check: all tuples must have length 6
+        # Final sanity check: all tuples must have length 6
         for i, t in enumerate(entries):
             if len(t) != 6:
                 logger.warning(f"Entry {i} length {len(t)}, padding")
                 entries[i] = t[:6] + (None,) * (6 - len(t))
 
+        # Bulk insert using executemany
         try:
-            execute_with_retry(
+            execute_many_with_retry(
                 """
                 INSERT INTO history_entries
                 (user_id, entry_type, action, entry_id, metadata, created_at)
@@ -148,24 +166,31 @@ def flush_history_queue(limit: Optional[int] = None) -> Dict[str, Any]:
             if entries:
                 logger.error(f"First tuple: {entries[0]} (length {len(entries[0])})")
             result['errors'].append(error_msg)
+            # Rename processing file back to queue file for retry
+            os.rename(PROCESSING_FILE, QUEUE_FILE)
             result['file_size_after'] = result['file_size_before']
             return result
 
-        with open(QUEUE_FILE, 'w') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            if malformed_lines:
-                f.write('\n'.join(malformed_lines) + '\n')
-            else:
-                f.truncate(0)
-            f.flush()
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # If we have malformed lines, save them to an error file
+        if malformed_lines:
+            error_file = QUEUE_FILE + '.error'
+            with open(error_file, 'a') as ef:
+                ef.write('\n'.join(malformed_lines) + '\n')
+            logger.warning(f"Saved {len(malformed_lines)} malformed lines to {error_file}")
 
+        # Remove the processing file (success)
+        os.remove(PROCESSING_FILE)
         result['success'] = True
-        result['file_size_after'] = os.path.getsize(QUEUE_FILE)
+        result['file_size_after'] = 0
 
     except Exception as e:
-        result['errors'].append(str(e))
-        logger.exception("Flush exception")
+        error_msg = str(e)
+        logger.error(f"Flush exception: {error_msg}")
+        result['errors'].append(error_msg)
+        # If something fails, try to restore the original queue file
+        if os.path.exists(PROCESSING_FILE) and not os.path.exists(QUEUE_FILE):
+            os.rename(PROCESSING_FILE, QUEUE_FILE)
+        result['file_size_after'] = result['file_size_before'] if os.path.exists(QUEUE_FILE) else 0
 
     return result
 
