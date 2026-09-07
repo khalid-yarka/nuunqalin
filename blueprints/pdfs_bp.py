@@ -1,340 +1,200 @@
-from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify
+# blueprints/pdfs_bp.py
+from flask import Blueprint, render_template, request, session, flash, redirect, url_for, abort, send_file, Response, jsonify
 from db import (
-    get_questions_by_subject, save_quiz_attempt,
-    get_user_quiz_history, update_student_points, get_student_by_id,
-    get_leaderboard, get_user_subject_list
+    get_all_pdfs, get_pdf_by_code, get_pdf_by_id, increment_pdf_view,
+    get_pdf_distinct_subjects, get_pdf_distinct_classes, get_pdf_distinct_curricula
 )
-from utils import validate_csrf
-from services.tier_service import (
-    get_quiz_questions_limit,
-    get_remaining_quota,
-    check_and_consume_quota,
-    get_answer_review_level,
-    get_explanation_level,
-    get_current_user_tier,
-    get_feature_level,
-    get_user_tier,
-    get_allowed_question_counts,
-    validate_question_count,
-    is_custom_question_count_allowed
-)
-from services.achievement_service import check_and_award_achievements
-from user_settings import get_user_settings
-import json
+from services.tier_service import can_access_premium_resources, get_user_tier, get_feature_level
+from bot.utils import get_bot
+from bot.db import get_bot_pdf_by_code
+import os
+from config import Config
+import requests
+import logging
 
-quiz_bp = Blueprint('quiz', __name__, url_prefix='/quiz')
+logger = logging.getLogger(__name__)
 
-@quiz_bp.route('/')
-def index():
-    """Unified setup page: choose subject and question count."""
-    if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    subjects = get_user_subject_list(user_id)
-    if not subjects:
-        flash('Please set your location and curriculum in your profile to access quizzes.', 'error')
-        return redirect(url_for('dashboard.profile'))
-
-    # Get allowed counts for this user
-    allowed_counts = get_allowed_question_counts(user_id)
-    tier = get_current_user_tier()
-    remaining_attempts = get_remaining_quota(user_id, 'quiz_attempt')
-
-    return render_template('dashboard/quiz/setup.html',
-                           subjects=subjects,
-                           allowed_counts=allowed_counts,
-                           tier=tier,
-                           remaining_attempts=remaining_attempts,
-                           is_custom_allowed=is_custom_question_count_allowed(user_id))
+# ============================================
+# BLUEPRINT DEFINITION – must be named `pdfs_bp`
+# ============================================
+pdfs_bp = Blueprint('pdfs', __name__, url_prefix='/pdfs')
 
 
-@quiz_bp.route('/start', methods=['POST'])
-def start_quiz():
-    if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
+# ============================================
+# ROUTES
+# ============================================
 
-    if not validate_csrf():
-        flash('Invalid CSRF token. Please try again.', 'error')
-        return redirect(url_for('quiz.index'))
+@pdfs_bp.route('/')
+def list_pdfs():
+    """Public PDF listing – no login required."""
+    subject_filter = request.args.get('subject', '')
+    class_filter = request.args.get('class', '')
+    curriculum_filter = request.args.get('curriculum', '')
+    search_query = request.args.get('search', '').strip()
 
-    user_id = session['user_id']
-    subject_code = request.form.get('subject_code', '').strip()
-    question_count_str = request.form.get('question_count', '').strip()
-    custom_count_str = request.form.get('custom_count', '').strip()
-
-    # Validate subject
-    user_subjects = get_user_subject_list(user_id)
-    if subject_code not in [s['code'] for s in user_subjects]:
-        flash('Invalid subject selected.', 'error')
-        return redirect(url_for('quiz.index'))
-
-    # Determine final question count
-    if question_count_str == 'custom' and custom_count_str:
-        try:
-            question_count = int(custom_count_str)
-        except ValueError:
-            flash('Please enter a valid number.', 'error')
-            return redirect(url_for('quiz.index'))
+    # Get user tier if logged in
+    user_id = session.get('user_id')
+    if user_id:
+        user_tier = get_user_tier(user_id)
+        search_level = get_feature_level("resource_search", user_id)
+        can_access_premium = can_access_premium_resources()
     else:
-        try:
-            question_count = int(question_count_str)
-        except ValueError:
-            flash('Invalid question count.', 'error')
-            return redirect(url_for('quiz.index'))
+        user_tier = 'danbe'
+        search_level = 0
+        can_access_premium = False
 
-    # Validate against tier rules
-    if not validate_question_count(user_id, question_count):
-        flash('Question count not allowed for your tier.', 'error')
-        return redirect(url_for('quiz.index'))
-
-    # Check quota
-    remaining = get_remaining_quota(user_id, 'quiz_attempt')
-    if remaining <= 0:
-        flash('You have used all your quiz attempts for today. Come back tomorrow!', 'error')
-        return redirect(url_for('quiz.index'))
-
-    # Fetch questions
-    max_limit = 100  # safety
-    questions = get_questions_by_subject(subject_code, question_count)
-    if not questions:
-        flash('No questions available for this subject yet.', 'error')
-        return redirect(url_for('quiz.index'))
-
-    # Consume one attempt
-    if not check_and_consume_quota(user_id, 'quiz_attempt'):
-        flash('Failed to start quiz. Try again.', 'error')
-        return redirect(url_for('quiz.index'))
-
-    # Initialise session quiz data
-    session['quiz'] = {
-        'subject_code': subject_code,
-        'question_count': len(questions),  # actual number (may be less if not enough questions)
-        'questions': questions,
-        'current_index': 0,
-        'score': 0,
-        'answers': [],
-        'ratings': [],
-        'reactions': {
-            'likes': [],
-            'saves': [],
-            'reports': {}
-        }
-    }
-
-    return redirect(url_for('quiz.play'))
-
-
-@quiz_bp.route('/play')
-def play():
-    if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
-
-    quiz_data = session.get('quiz')
-    if not quiz_data or not quiz_data.get('questions'):
-        flash('No quiz in progress. Start a new quiz.', 'error')
-        return redirect(url_for('quiz.index'))
-
-    questions = quiz_data['questions']
-    current_index = quiz_data['current_index']
-    if current_index >= len(questions):
-        return redirect(url_for('quiz.results'))
-
-    question = questions[current_index]
-    total = len(questions)
-    score = quiz_data['score']
-
-    user_settings = get_user_settings(session['user_id'])
-    user_tier = get_user_tier(session['user_id'])
-
-    return render_template('dashboard/quiz/play.html',
-                           question=question,
-                           current=current_index,
-                           total=total,
-                           score=score,
-                           user_settings=user_settings,
-                           user_tier=user_tier)
-
-
-@quiz_bp.route('/submit_answer', methods=['POST'])
-def submit_answer():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
-    if not validate_csrf():
-        return jsonify({'error': 'CSRF token missing or invalid'}), 403
-
-    quiz_data = session.get('quiz')
-    if not quiz_data:
-        return jsonify({'error': 'No quiz in progress'}), 400
-
-    questions = quiz_data['questions']
-    current_index = quiz_data['current_index']
-    if current_index >= len(questions):
-        return jsonify({'error': 'Quiz already completed'}), 400
-
-    answer = request.json.get('answer', '')
-    question = questions[current_index]
-    is_correct = answer == question['correct_answer']
-
-    # Append answer to session
-    answers = quiz_data['answers']
-    answers.append({
-        'question_id': question['id'],
-        'answer': answer,
-        'correct': is_correct
-    })
-    quiz_data['answers'] = answers
-
-    if is_correct:
-        quiz_data['score'] += 1
-
-    session['quiz'] = quiz_data
-    session.modified = True
-
-    user_id = session['user_id']
-    review_level = get_answer_review_level(user_id)
-    explanation_level = get_explanation_level(user_id)
-
-    response = {
-        'correct': is_correct,
-        'correct_answer': question['correct_answer'],
-        'current': current_index,
-        'total': len(questions),
-        'score': quiz_data['score']
-    }
-
-    if review_level > 0:
-        response['feedback'] = is_correct
-    else:
-        response['feedback'] = None
-
-    if explanation_level > 0:
-        response['explanation'] = question.get('explanation', '')
-        if explanation_level > 1:
-            response['extra_insight'] = None
-    else:
-        response['explanation'] = None
-
-    return jsonify(response)
-
-
-@quiz_bp.route('/submit_rating', methods=['POST'])
-def submit_rating():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
-    if not validate_csrf():
-        return jsonify({'error': 'CSRF token missing or invalid'}), 403
-
-    quiz_data = session.get('quiz')
-    if not quiz_data:
-        return jsonify({'error': 'No quiz in progress'}), 400
-
-    questions = quiz_data['questions']
-    current_index = quiz_data['current_index']
-    if current_index >= len(questions):
-        return jsonify({'error': 'Quiz already completed'}), 400
-
-    rating = request.json.get('rating', '')
-    ratings = quiz_data['ratings']
-    ratings.append({
-        'question_id': questions[current_index]['id'],
-        'rating': rating
-    })
-    quiz_data['ratings'] = ratings
-    quiz_data['current_index'] += 1
-    session['quiz'] = quiz_data
-    session.modified = True
-
-    if quiz_data['current_index'] >= len(questions):
-        # All questions answered
-        user_id = session['user_id']
-        score = quiz_data['score']
-        total = len(questions)
-        check_and_award_achievements(user_id, 'quiz_completed', {'score': score, 'total': total})
-        return jsonify({'complete': True})
-
-    return jsonify({'complete': False, 'next': quiz_data['current_index']})
-
-
-@quiz_bp.route('/results')
-def results():
-    if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
-
-    quiz_data = session.pop('quiz', None)
-    if not quiz_data or not quiz_data.get('questions'):
-        flash('No quiz completed.', 'error')
-        return redirect(url_for('quiz.index'))
-
-    questions = quiz_data['questions']
-    answers = quiz_data['answers']
-    score = quiz_data['score']
-    total = len(questions)
-    subject_code = quiz_data['subject_code']
-    ratings = quiz_data['ratings']
-    reactions = quiz_data['reactions']  # {'likes': [...], 'saves': [...], 'reports': {...}}
-
-    # Save to database
-    save_quiz_attempt(
-        session['user_id'],
-        subject_code,
-        score,
-        total,
-        answers,
-        ratings,
-        reactions  # new parameter – we need to update db.py to accept it
+    pdfs = get_all_pdfs(
+        limit=100,
+        offset=0,
+        search=search_query if search_level > 0 else '',
+        subject=subject_filter if search_level >= 1 else '',
+        curriculum=curriculum_filter if search_level >= 2 else '',
+        class_filter=class_filter if search_level >= 2 else ''
     )
 
-    # Update points
-    student = get_student_by_id(session['user_id'])
-    if student:
-        current_points = student.get('total_points', 0)
-        new_points = current_points + score
-        update_student_points(session['user_id'], new_points)
+    if not can_access_premium:
+        pdfs = [p for p in pdfs if not p.get('is_premium', 0)]
 
-    return render_template('dashboard/quiz/results.html',
-                         score=score,
-                         total=total,
-                         percentage=round((score/total)*100) if total > 0 else 0,
-                         answers=answers,
-                         ratings=ratings,
-                         reactions=reactions,
-                         questions=questions)
+    subjects = get_pdf_distinct_subjects() if search_level >= 1 else []
+    classes = get_pdf_distinct_classes() if search_level >= 2 else []
+    curricula = get_pdf_distinct_curricula() if search_level >= 2 else []
+
+    return render_template('dashboard/pdfs.html',
+                         pdfs=pdfs,
+                         subjects=subjects,
+                         classes=classes,
+                         curricula=curricula,
+                         subject_filter=subject_filter if search_level >= 1 else '',
+                         class_filter=class_filter if search_level >= 2 else '',
+                         curriculum_filter=curriculum_filter if search_level >= 2 else '',
+                         search_query=search_query if search_level > 0 else '',
+                         search_level=search_level,
+                         user_tier=user_tier,
+                         can_access_premium=can_access_premium,
+                         is_logged_in=bool(user_id))
 
 
-@quiz_bp.route('/history')
-def history():
+@pdfs_bp.route('/view/<pdf_id>')
+def view_pdf(pdf_id):
     if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
+        flash('Please login to view PDFs.', 'warning')
+        return redirect(url_for('login', next=request.url))
 
-    attempts = get_user_quiz_history(session['user_id'], 20)
-    return render_template('dashboard/quiz/history.html', attempts=attempts)
+    user_id = session['user_id']
+    pdf = get_pdf_by_id(pdf_id)
+    if not pdf:
+        flash('PDF not found.', 'error')
+        return redirect(url_for('pdfs.list_pdfs'))
+
+    if pdf.get('is_premium', 0) and not can_access_premium_resources():
+        flash('This is a premium resource. Upgrade to access it.', 'error')
+        return redirect(url_for('pdfs.list_pdfs'))
+
+    increment_pdf_view(pdf_id)
+    user_tier = get_user_tier(user_id)
+    return render_template('dashboard/pdf_view.html', pdf=pdf, user_tier=user_tier)
 
 
-@quiz_bp.route('/leaderboard')
-def leaderboard():
+@pdfs_bp.route('/download/<pdf_id>')
+def download_pdf(pdf_id):
     if 'user_id' not in session:
-        flash('Please login first.', 'error')
-        return redirect(url_for('login'))
+        flash('Please login to download PDFs.', 'warning')
+        return redirect(url_for('login', next=request.url))
 
-    leaders = get_leaderboard(50)
+    user_id = session['user_id']
+    user_tier = get_user_tier(user_id)
 
-    user_rank = None
-    for i, student in enumerate(leaders, 1):
-        if student.get('id') == session['user_id']:
-            user_rank = i
-            break
+    pdf = get_pdf_by_id(pdf_id)
+    if not pdf:
+        abort(404)
 
-    level = get_feature_level("detailed_ranking_stats", session['user_id'])
+    if pdf.get('is_premium', 0) and not can_access_premium_resources():
+        flash('This is a premium resource. Upgrade to access it.', 'error')
+        return redirect(url_for('pdfs.list_pdfs'))
 
-    return render_template('dashboard/quiz/leaderboard.html',
-                         leaders=leaders,
-                         user_rank=user_rank,
-                         ranking_level=level)
+    # Direct download only for Hore tier when file_url exists
+    if user_tier == 'hore' and pdf.get('file_url'):
+        file_path = pdf['file_url']
+        if os.path.exists(file_path):
+            return send_file(file_path, as_attachment=True, download_name=pdf.get('title', 'document.pdf'))
+        else:
+            return redirect(pdf['file_url'])
+
+    # For all other cases (Danbe, Dhexe, or no file_url), redirect to Telegram download
+    return redirect(url_for('pdfs.telegram_download', code=pdf['code']))
+
+
+@pdfs_bp.route('/telegram/<code>')
+def telegram_download(code):
+    """Direct Telegram link – no intermediate page."""
+    pdf = get_pdf_by_code(code)
+    if not pdf:
+        flash('PDF not found.', 'error')
+        return redirect(url_for('pdfs.list_pdfs'))
+
+    bot_username = Config.TELEGRAM_BOT_USERNAME or 'nuunplatform_bot'
+    telegram_link = f"https://t.me/{bot_username}?start={code}"
+    return redirect(telegram_link)
+
+
+@pdfs_bp.route('/stream/<code>')
+def stream_pdf(code):
+    """
+    Stream a PDF from Telegram using its code.
+    Used for Preview (Telegram view) – accessible to Dhexe and Hore tiers.
+    """
+    if 'user_id' not in session:
+        return jsonify({'error': 'Please login first.'}), 401
+
+    user_id = session['user_id']
+    user_tier = get_user_tier(user_id)
+
+    # Only Dhexe and Hore can preview via Telegram
+    if user_tier not in ['dhexe', 'hore']:
+        return jsonify({'error': 'Upgrade to access this feature.'}), 403
+
+    # Get main PDF to check premium
+    main_pdf = get_pdf_by_code(code)
+    if not main_pdf:
+        return jsonify({'error': 'PDF not found'}), 404
+
+    if main_pdf.get('is_premium', 0) and not can_access_premium_resources():
+        return jsonify({'error': 'Premium content. Upgrade to access.'}), 403
+
+    # Get bot PDF
+    bot_pdf = get_bot_pdf_by_code(code)
+    if not bot_pdf:
+        return jsonify({'error': 'PDF not available in Telegram storage.'}), 404
+
+    try:
+        bot = get_bot()
+        file_info = bot.get_file(bot_pdf['file_id'])
+        file_path = file_info.file_path
+        # Build the Telegram file URL
+        token = Config.TELEGRAM_BOT_TOKEN
+        url = f"https://api.telegram.org/file/bot{token}/{file_path}"
+
+        # Stream the file
+        response = requests.get(url, stream=True, timeout=30)
+        if response.status_code != 200:
+            logger.error(f"Telegram file download failed: {response.status_code}")
+            return jsonify({'error': 'Failed to retrieve PDF from Telegram.'}), 502
+
+        # Return the stream
+        return Response(
+            response.iter_content(chunk_size=65536),
+            content_type='application/pdf',
+            headers={
+                'Content-Disposition': f'inline; filename="{bot_pdf.get("title", "document.pdf")}"',
+                'Cache-Control': 'no-store'
+            }
+        )
+    except Exception as e:
+        logger.error(f"Stream error: {e}")
+        return jsonify({'error': 'Failed to stream PDF.'}), 500
+
+
+@pdfs_bp.route('/preview/<code>')
+def preview_telegram(code):
+    """Alias for /stream/<code> – used by the 'Preview' button."""
+    return stream_pdf(code)
