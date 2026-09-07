@@ -1,4 +1,5 @@
 # blueprints/interactions_bp.py
+
 from flask import Blueprint, request, session, jsonify
 from functools import wraps
 import logging
@@ -6,6 +7,7 @@ import traceback
 from db import get_question_by_id, create_notification_for_all_users, execute_with_retry
 from utils import validate_csrf, get_somali_time_db
 from services.tier_service import get_saved_content_limit
+from history_logger import add_history_entry   # NEW
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
-# Helper to ensure session quiz exists
 def ensure_quiz_session():
     if 'quiz' not in session:
         session['quiz'] = {
@@ -29,6 +30,7 @@ def ensure_quiz_session():
     elif 'reactions' not in session['quiz']:
         session['quiz']['reactions'] = {'likes': [], 'saves': [], 'reports': {}}
         session.modified = True
+
 
 @interactions_bp.route('/like', methods=['POST'])
 @login_required
@@ -46,7 +48,6 @@ def like():
         if not q:
             return jsonify({'error': 'Question not found'}), 404
 
-        # Ensure quiz session and reactions exist
         ensure_quiz_session()
 
         likes = session['quiz']['reactions']['likes']
@@ -58,6 +59,15 @@ def like():
             liked = True
         session['quiz']['reactions']['likes'] = likes
         session.modified = True
+
+        # ***** ADD HISTORY ENTRY *****
+        add_history_entry(
+            user_id=session['user_id'],
+            entry_type='like',
+            action='liked' if liked else 'unliked',
+            entry_id=question_id,
+            metadata={'question_id': question_id}
+        )
 
         return jsonify({'liked': liked})
     except Exception as e:
@@ -81,11 +91,8 @@ def save():
         if not q:
             return jsonify({'error': 'Question not found'}), 404
 
-        # Tier limit check for saves (global limit)
         limit = get_saved_content_limit(session['user_id'])
         if limit is not None:
-            # Count saves across all quizzes? For now, we don't enforce global limit per quiz.
-            # We'll just allow saving in the session.
             pass
 
         ensure_quiz_session()
@@ -127,23 +134,29 @@ def report():
 
         ensure_quiz_session()
 
-        # Deferred: store in session
         reports = session['quiz']['reactions']['reports']
         if str(question_id) in reports:
             return jsonify({'error': 'You have already reported this question.'}), 400
 
-        reports[question_id] = {'reason': reason, 'comment': comment}
-        session['quiz']['reactions']['reports'] = reports
-        session.modified = True
-
-        # Immediate: insert into question_interactions (global) and notify admins
         execute_with_retry("""
             INSERT INTO question_interactions
             (user_id, question_id, interaction_type, report_reason, report_comment, report_status)
             VALUES (?, ?, 'report', ?, ?, 'pending')
         """, (session['user_id'], question_id, reason, comment), commit=True)
 
-        # Notify all admins
+        reports[question_id] = {'reason': reason, 'comment': comment}
+        session['quiz']['reactions']['reports'] = reports
+        session.modified = True
+
+        # ***** ADD HISTORY ENTRY *****
+        add_history_entry(
+            user_id=session['user_id'],
+            entry_type='report',
+            action='reported',
+            entry_id=question_id,
+            metadata={'question_id': question_id, 'reason': reason}
+        )
+
         question_text = q.get('question_text', 'Unknown')[:50]
         create_notification_for_all_users(
             type='admin_report',
@@ -154,6 +167,7 @@ def report():
         )
 
         return jsonify({'success': True, 'message': 'Report submitted. We will review it shortly.'})
+
     except Exception as e:
         logger.error(f"Report endpoint error: {e}\n{traceback.format_exc()}")
         return jsonify({'error': 'Internal server error. Please try again later.'}), 500

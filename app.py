@@ -11,7 +11,7 @@ import atexit
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, g
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
 
 from config import Config
 from db import (
@@ -71,9 +71,15 @@ from bot.handlers import process_telegram_update
 from bot.db import init_bot_db
 
 # ============================================
-# INTERACTIONS BLUEPRINT (NEW)
+# INTERACTIONS BLUEPRINT
 # ============================================
 from blueprints.interactions_bp import interactions_bp
+
+# ============================================
+# HISTORY BLUEPRINT (NEW)
+# ============================================
+from blueprints.history_bp import history_bp
+from history_logger import _ensure_worker
 
 # Activity logger
 from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event, init_activity_logger
@@ -169,13 +175,12 @@ if not verify_startup():
     logger.critical("STARTUP VERIFICATION FAILED")
     logger.critical("Application cannot start. Please check the logs.")
     logger.critical("=" * 60)
-    #sys.exit(1)
 
 logger.info("Startup verification PASSED")
 logger.info("=" * 60)
 
 # ============================================
-# BACKUP INTEGRATION (uses Config for token and enabled flag)
+# BACKUP INTEGRATION
 # ============================================
 
 BACKUP_AVAILABLE = False
@@ -186,7 +191,6 @@ try:
 except ImportError as e:
     logger.warning(f"Backup module not available: {e}")
 
-# Use Config values (no direct os.getenv)
 BACKUP_TRIGGER_TOKEN = Config.BACKUP_TRIGGER_TOKEN
 BACKUP_ENABLED = Config.BACKUP_ENABLED
 
@@ -317,7 +321,6 @@ app.register_blueprint(admin_backup_bp)
 # ============================================
 PDF_ADMIN_SECRET = Config.PDF_ADMIN_SECRET_PATH
 if not PDF_ADMIN_SECRET:
-    # Fallback to a random path if not configured (still better than hardcoding)
     PDF_ADMIN_SECRET = '/pdf-admin-' + os.urandom(8).hex()
 elif not PDF_ADMIN_SECRET.startswith('/'):
     PDF_ADMIN_SECRET = '/' + PDF_ADMIN_SECRET
@@ -328,6 +331,11 @@ logger.info(f"PDF Admin panel mounted at {PDF_ADMIN_SECRET}")
 # REGISTER INTERACTIONS BLUEPRINT
 # ============================================
 app.register_blueprint(interactions_bp)
+
+# ============================================
+# REGISTER HISTORY BLUEPRINT (NEW)
+# ============================================
+app.register_blueprint(history_bp)
 
 # ============================================
 # REGISTER ERROR HANDLERS
@@ -362,12 +370,11 @@ except Exception as e:
     logger.error(f"Failed to initialize bot database: {e}")
 
 # ============================================
-# TELEGRAM WEBHOOK ROUTE (uses Config.TELEGRAM_BOT_TOKEN)
+# TELEGRAM WEBHOOK ROUTE
 # ============================================
 
 @app.route('/webhook/<token>', methods=['POST'])
 def telegram_webhook(token):
-    """Handle incoming Telegram updates via webhook."""
     expected_token = Config.TELEGRAM_BOT_TOKEN
     if not expected_token or token != expected_token:
         return jsonify({'error': 'Unauthorized'}), 403
@@ -392,6 +399,15 @@ try:
     logger.info("Bot webhook configured successfully.")
 except Exception as e:
     logger.error(f"Failed to configure bot webhook: {e}")
+
+# ============================================
+# START HISTORY WORKER (NEW)
+# ============================================
+try:
+    _ensure_worker()
+    logger.info("History worker started successfully.")
+except Exception as e:
+    logger.error(f"Failed to start history worker: {e}")
 
 # ============================================
 # ROUTES
@@ -516,7 +532,6 @@ def login():
 
                 log_activity('user.login', f"User {student['id']} logged in", 'info', user_id=student['id'])
 
-                # Redirect to original page if 'next' parameter exists
                 next_url = request.args.get('next')
                 if next_url:
                     return redirect(next_url)
@@ -611,7 +626,6 @@ def register():
             logger.info(f"New user registered: {phone}")
             log_activity('user.register', f"New user registered: {new_student['id']}", 'info', user_id=new_student['id'])
             flash('Registration successful! Please login.', 'success')
-            # Redirect to original page if 'next' parameter exists
             next_url = request.args.get('next')
             if next_url:
                 return redirect(next_url)
@@ -632,7 +646,7 @@ def logout():
     return redirect(url_for('login'))
 
 # ============================================
-# BACKUP TRIGGER ENDPOINTS (uses Config.BACKUP_TRIGGER_TOKEN, Config.BACKUP_ENABLED)
+# BACKUP TRIGGER ENDPOINTS
 # ============================================
 
 @app.route('/backup/trigger', methods=['GET'])
@@ -725,7 +739,7 @@ except Exception as e:
     logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
 
 # ============================================
-# RUN APP (uses Config.FLASK_DEBUG and Config.PORT)
+# RUN APP
 # ============================================
 
 if __name__ == '__main__':

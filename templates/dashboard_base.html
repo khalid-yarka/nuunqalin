@@ -58,10 +58,15 @@
                 Profile
             </a>
 
-            <!-- Settings Link -->
             <a href="{{ url_for('user_settings.index') }}" class="nav-item {% if request.endpoint.startswith('user_settings.') %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-sliders-h"></i></span>
                 Settings
+            </a>
+
+            <!-- HISTORY LINK – NEW -->
+            <a href="{{ url_for('history.index') }}" class="nav-item {% if request.endpoint.startswith('history.') %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-history"></i></span>
+                History
             </a>
 
             <a href="{{ url_for('quiz.index') }}" class="nav-item {% if request.endpoint.startswith('quiz.') %}active{% endif %}">
@@ -108,8 +113,6 @@
                 </a>
             {% endif %}
         </nav>
-
-        
     </aside>
 
     <!-- ============================================ -->

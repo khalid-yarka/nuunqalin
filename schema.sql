@@ -1,6 +1,5 @@
 -- ============================================
--- NUUNPLATFORM DATABASE SCHEMA
--- Complete schema with all tables
+-- NUUNPLATFORM DATABASE SCHEMA (COMPLETE)
 -- ============================================
 
 -- ============================================
@@ -62,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_questions_updated_at ON questions(updated_at DESC
 CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);
 
 -- ============================================
--- QUIZ ATTEMPTS TABLE
+-- QUIZ ATTEMPTS TABLE (FIXED - added reactions)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS quiz_attempts (
@@ -73,6 +72,7 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
     total_questions INTEGER DEFAULT 0,
     answers TEXT,
     ratings TEXT,
+    reactions TEXT,           -- <-- ADDED THIS COLUMN
     completed_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
 );
@@ -396,7 +396,6 @@ CREATE TABLE IF NOT EXISTS user_achievements (
 
 -- ============================================
 -- QUESTION INTERACTIONS (Likes, Saves, Reports)
--- Simplified for global user-question interactions
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS question_interactions (
@@ -422,6 +421,67 @@ CREATE INDEX IF NOT EXISTS idx_question_interactions_type ON question_interactio
 CREATE INDEX IF NOT EXISTS idx_question_interactions_report_status ON question_interactions(report_status);
 
 -- ============================================
+-- ERROR LOGS TABLE (for admin error dashboard)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS error_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('CRITICAL', 'ERROR', 'WARNING')),
+    status_code INTEGER,
+    url TEXT,
+    method TEXT,
+    user_id INTEGER,
+    ip_address TEXT,
+    error_type TEXT,
+    error_message TEXT,
+    stack_trace TEXT,
+    user_description TEXT,
+    occurrence_count INTEGER DEFAULT 1,
+    first_seen TEXT,
+    last_seen TEXT,
+    resolved INTEGER DEFAULT 0,
+    dismissed INTEGER DEFAULT 0,
+    resolution_note TEXT,
+    error_hash TEXT UNIQUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_error_logs_timestamp ON error_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_error_logs_severity ON error_logs(severity);
+CREATE INDEX IF NOT EXISTS idx_error_logs_resolved ON error_logs(resolved);
+CREATE INDEX IF NOT EXISTS idx_error_logs_error_hash ON error_logs(error_hash);
+CREATE INDEX IF NOT EXISTS idx_error_logs_request_id ON error_logs(request_id);
+
+-- ============================================
+-- LIVE QUIZ EVENTS (for state management)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS live_quiz_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quiz_id INTEGER NOT NULL,
+    user_id INTEGER,
+    event_type TEXT NOT NULL,
+    question_id INTEGER,
+    payload TEXT,
+    sequence INTEGER NOT NULL,
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_live_quiz_events_quiz_sequence ON live_quiz_events(quiz_id, sequence);
+
+-- ============================================
+-- LIVE QUIZ CHECKPOINTS (for state recovery)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS live_quiz_checkpoints (
+    quiz_id INTEGER PRIMARY KEY,
+    checkpoint_data TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ============================================
 -- ADDITIONAL PERFORMANCE INDEXES
 -- ============================================
 
@@ -430,3 +490,29 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id,
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student_completed ON quiz_attempts(student_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);
+
+-- ============================================
+-- HISTORY ENTRIES (Centralized user activity)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS history_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    entry_type TEXT NOT NULL CHECK (entry_type IN (
+        'quiz_attempt', 'live_quiz', 'pdf_view', 'pdf_download',
+        'save', 'achievement', 'like', 'report'
+    )),
+    action TEXT NOT NULL CHECK (action IN (
+        'completed', 'joined', 'viewed', 'downloaded',
+        'saved', 'unsaved', 'unlocked', 'liked', 'unliked', 'reported'
+    )),
+    entry_id INTEGER,                    -- Optional FK to source table
+    metadata TEXT NOT NULL DEFAULT '{}', -- JSON
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_history_user_created ON history_entries(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_history_type ON history_entries(entry_type);
+CREATE INDEX IF NOT EXISTS idx_history_user_type ON history_entries(user_id, entry_type);
+CREATE INDEX IF NOT EXISTS idx_history_created ON history_entries(created_at DESC);

@@ -2224,3 +2224,93 @@ def search_groups(search: str = '', platform: str = '', category: str = ''):
         except RuntimeError:
             logger.error(f"Error searching groups: {e}")
         return []
+
+# ============================================
+# HISTORY TABLE FUNCTIONS
+# ============================================
+
+def create_history_table():
+    """Create the history_entries table if it doesn't exist."""
+    try:
+        execute_with_retry("""
+            CREATE TABLE IF NOT EXISTS history_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                entry_type TEXT NOT NULL CHECK (entry_type IN (
+                    'quiz_attempt', 'live_quiz', 'pdf_view', 'pdf_download',
+                    'save', 'achievement', 'like', 'report'
+                )),
+                action TEXT NOT NULL CHECK (action IN (
+                    'completed', 'joined', 'viewed', 'downloaded',
+                    'saved', 'unsaved', 'unlocked', 'liked', 'unliked', 'reported'
+                )),
+                entry_id INTEGER,
+                metadata TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE
+            )
+        """, commit=True)
+        execute_with_retry("CREATE INDEX IF NOT EXISTS idx_history_user_created ON history_entries(user_id, created_at DESC)", commit=True)
+        execute_with_retry("CREATE INDEX IF NOT EXISTS idx_history_type ON history_entries(entry_type)", commit=True)
+        execute_with_retry("CREATE INDEX IF NOT EXISTS idx_history_user_type ON history_entries(user_id, entry_type)", commit=True)
+        execute_with_retry("CREATE INDEX IF NOT EXISTS idx_history_created ON history_entries(created_at DESC)", commit=True)
+        logger.info("History entries table verified/created.")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create history_entries table: {e}")
+        return False
+
+
+def clean_history_entries():
+    """
+    Delete entries older than retention and enforce max entries per user.
+    Called by the daily cleanup script.
+    """
+    from services.tier_service import get_history_retention_days, get_history_max_entries
+    from datetime import datetime, timedelta
+
+    try:
+        users_cursor = execute_with_retry("SELECT id FROM students")
+        users = users_cursor.fetchall()
+        deleted_total = 0
+        for user in users:
+            user_id = user['id']
+            retention_days = get_history_retention_days(user_id)
+            max_entries = get_history_max_entries(user_id)
+
+            # Delete old entries based on retention
+            if retention_days is not None and retention_days > 0:
+                cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
+                cursor = execute_with_retry(
+                    "DELETE FROM history_entries WHERE user_id = ? AND created_at < ?",
+                    (user_id, cutoff), commit=True
+                )
+                deleted_total += cursor.rowcount
+
+            # Enforce max entries count
+            if max_entries is not None and max_entries > 0:
+                # Keep only the most recent max_entries
+                cursor = execute_with_retry(
+                    "SELECT id FROM history_entries WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+                    (user_id, max_entries)
+                )
+                keep_ids = [row['id'] for row in cursor.fetchall()]
+                if keep_ids:
+                    placeholders = ','.join('?' for _ in keep_ids)
+                    cursor = execute_with_retry(
+                        f"DELETE FROM history_entries WHERE user_id = ? AND id NOT IN ({placeholders})",
+                        [user_id] + keep_ids, commit=True
+                    )
+                    deleted_total += cursor.rowcount
+                else:
+                    # If no entries to keep, delete all
+                    cursor = execute_with_retry(
+                        "DELETE FROM history_entries WHERE user_id = ?", (user_id,), commit=True
+                    )
+                    deleted_total += cursor.rowcount
+
+        logger.info(f"History cleanup complete: {deleted_total} entries deleted.")
+        return deleted_total
+    except Exception as e:
+        logger.error(f"Failed to clean history entries: {e}")
+        return 0

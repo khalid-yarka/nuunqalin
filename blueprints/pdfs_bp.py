@@ -1,4 +1,5 @@
 # blueprints/pdfs_bp.py
+
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, abort, send_file, Response, jsonify
 from db import (
     get_all_pdfs, get_pdf_by_code, get_pdf_by_id, increment_pdf_view,
@@ -7,22 +8,15 @@ from db import (
 from services.tier_service import can_access_premium_resources, get_user_tier, get_feature_level
 from bot.utils import get_bot
 from bot.db import get_bot_pdf_by_code
-import os
 from config import Config
+from history_logger import add_history_entry   # NEW
 import requests
 import logging
 
 logger = logging.getLogger(__name__)
 
-# ============================================
-# BLUEPRINT DEFINITION – must be named `pdfs_bp`
-# ============================================
 pdfs_bp = Blueprint('pdfs', __name__, url_prefix='/pdfs')
 
-
-# ============================================
-# ROUTES
-# ============================================
 
 @pdfs_bp.route('/')
 def list_pdfs():
@@ -32,7 +26,6 @@ def list_pdfs():
     curriculum_filter = request.args.get('curriculum', '')
     search_query = request.args.get('search', '').strip()
 
-    # Get user tier if logged in
     user_id = session.get('user_id')
     if user_id:
         user_tier = get_user_tier(user_id)
@@ -91,6 +84,19 @@ def view_pdf(pdf_id):
         return redirect(url_for('pdfs.list_pdfs'))
 
     increment_pdf_view(pdf_id)
+
+    # ***** ADD HISTORY ENTRY *****
+    add_history_entry(
+        user_id=user_id,
+        entry_type='pdf_view',
+        action='viewed',
+        metadata={
+            'title': pdf['title'],
+            'subject': pdf.get('subject'),
+            'code': pdf['code']
+        }
+    )
+
     user_tier = get_user_tier(user_id)
     return render_template('dashboard/pdf_view.html', pdf=pdf, user_tier=user_tier)
 
@@ -112,7 +118,18 @@ def download_pdf(pdf_id):
         flash('This is a premium resource. Upgrade to access it.', 'error')
         return redirect(url_for('pdfs.list_pdfs'))
 
-    # Direct download only for Hore tier when file_url exists
+    # ***** ADD HISTORY ENTRY *****
+    add_history_entry(
+        user_id=user_id,
+        entry_type='pdf_download',
+        action='downloaded',
+        metadata={
+            'title': pdf['title'],
+            'subject': pdf.get('subject'),
+            'code': pdf['code']
+        }
+    )
+
     if user_tier == 'hore' and pdf.get('file_url'):
         file_path = pdf['file_url']
         if os.path.exists(file_path):
@@ -120,7 +137,6 @@ def download_pdf(pdf_id):
         else:
             return redirect(pdf['file_url'])
 
-    # For all other cases (Danbe, Dhexe, or no file_url), redirect to Telegram download
     return redirect(url_for('pdfs.telegram_download', code=pdf['code']))
 
 
@@ -132,6 +148,19 @@ def telegram_download(code):
         flash('PDF not found.', 'error')
         return redirect(url_for('pdfs.list_pdfs'))
 
+    # ***** ADD HISTORY ENTRY *****
+    if 'user_id' in session:
+        add_history_entry(
+            user_id=session['user_id'],
+            entry_type='pdf_download',
+            action='downloaded',
+            metadata={
+                'title': pdf['title'],
+                'subject': pdf.get('subject'),
+                'code': pdf['code']
+            }
+        )
+
     bot_username = Config.TELEGRAM_BOT_USERNAME or 'nuunplatform_bot'
     telegram_link = f"https://t.me/{bot_username}?start={code}"
     return redirect(telegram_link)
@@ -139,21 +168,16 @@ def telegram_download(code):
 
 @pdfs_bp.route('/stream/<code>')
 def stream_pdf(code):
-    """
-    Stream a PDF from Telegram using its code.
-    Used for Preview (Telegram view) – accessible to Dhexe and Hore tiers.
-    """
+    """Stream a PDF from Telegram using its code."""
     if 'user_id' not in session:
         return jsonify({'error': 'Please login first.'}), 401
 
     user_id = session['user_id']
     user_tier = get_user_tier(user_id)
 
-    # Only Dhexe and Hore can preview via Telegram
     if user_tier not in ['dhexe', 'hore']:
         return jsonify({'error': 'Upgrade to access this feature.'}), 403
 
-    # Get main PDF to check premium
     main_pdf = get_pdf_by_code(code)
     if not main_pdf:
         return jsonify({'error': 'PDF not found'}), 404
@@ -161,7 +185,6 @@ def stream_pdf(code):
     if main_pdf.get('is_premium', 0) and not can_access_premium_resources():
         return jsonify({'error': 'Premium content. Upgrade to access.'}), 403
 
-    # Get bot PDF
     bot_pdf = get_bot_pdf_by_code(code)
     if not bot_pdf:
         return jsonify({'error': 'PDF not available in Telegram storage.'}), 404
@@ -170,17 +193,14 @@ def stream_pdf(code):
         bot = get_bot()
         file_info = bot.get_file(bot_pdf['file_id'])
         file_path = file_info.file_path
-        # Build the Telegram file URL
         token = Config.TELEGRAM_BOT_TOKEN
         url = f"https://api.telegram.org/file/bot{token}/{file_path}"
 
-        # Stream the file
         response = requests.get(url, stream=True, timeout=30)
         if response.status_code != 200:
             logger.error(f"Telegram file download failed: {response.status_code}")
             return jsonify({'error': 'Failed to retrieve PDF from Telegram.'}), 502
 
-        # Return the stream
         return Response(
             response.iter_content(chunk_size=65536),
             content_type='application/pdf',

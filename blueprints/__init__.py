@@ -15,3 +15,4 @@ from .admin_activity_bp import admin_activity_bp
 from .admin_backup_bp import admin_backup_bp
 from .pdf_admin_bp import pdf_admin_bp
 from .interactions_bp import interactions_bp
+from .history_bp import history_bp

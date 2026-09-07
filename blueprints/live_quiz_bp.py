@@ -1,7 +1,4 @@
 # blueprints/live_quiz_bp.py
-"""
-Live Quiz Blueprint – with tier enforcement.
-"""
 
 import json
 import random
@@ -66,11 +63,9 @@ from services.tier_service import (
     get_current_user_tier,
 )
 
-# Import the Redis‑free state manager
 from live_quiz_state import get_live_quiz_state_manager
-
-# Optional cache for non‑critical data (if Redis is available)
 from cache import get_cache_manager, InvalidationHelper, make_key
+from history_logger import add_history_entry   # NEW
 
 logger = logging.getLogger(__name__)
 
@@ -80,15 +75,11 @@ MAX_PARTICIPANTS = Config.LIVE_QUIZ_MAX_PARTICIPANTS
 TIME_PER_QUESTION = Config.LIVE_QUIZ_TIME_PER_QUESTION
 RATING_TIME = Config.RATING_TIME
 
-# Cache TTLs (optional, only if Redis is available)
 CACHE_TTL = getattr(Config, 'CACHE_TTL', {}).get('quiz', {})
 QUIZ_STATE_TTL = CACHE_TTL.get('state', 60)
 
-# ============================================
-# DEPLOYMENT CHECK: Ensure single worker
-# ============================================
+
 def check_single_worker():
-    """If running with Gunicorn, detect worker count and warn if >1."""
     try:
         if 'GUNICORN_WORKER' in os.environ:
             logger.warning("Multiple Gunicorn workers detected. Live Quiz state is per-process and will be inconsistent across workers. Please set --workers=1.")
@@ -97,12 +88,10 @@ def check_single_worker():
 
 check_single_worker()
 
-# ============================================
-# Helpers
-# ============================================
 
 def get_state_manager():
     return get_live_quiz_state_manager()
+
 
 def invalidate_quiz_cache(quiz_id: int):
     try:
@@ -112,9 +101,11 @@ def invalidate_quiz_cache(quiz_id: int):
     except Exception:
         pass
 
+
 def get_questions_for_subject(subject_code, limit):
     questions = get_questions_by_subject(subject_code, limit)
     return questions, len(questions)
+
 
 def finalize_live_quiz(quiz_id: int) -> dict:
     manager = get_state_manager()
@@ -146,6 +137,19 @@ def finalize_live_quiz(quiz_id: int) -> dict:
                     'status': pdata['status']
                 })
 
+            # ***** ADD HISTORY ENTRY FOR EACH PARTICIPANT *****
+            add_history_entry(
+                user_id=pdata['user_id'],
+                entry_type='live_quiz',
+                action='completed',
+                metadata={
+                    'subject': quiz_state.metadata.get('subject_code', 'Unknown'),
+                    'score': pdata['score'],
+                    'rank': pdata.get('rank'),
+                    'total_questions': len(quiz_state.question_ids)
+                }
+            )
+
         manager.enqueue_event({
             'quiz_id': quiz_id,
             'event_type': 'COMPLETE',
@@ -164,8 +168,9 @@ def finalize_live_quiz(quiz_id: int) -> dict:
         logger.error(f"Finalization error for quiz {quiz_id}: {e}", exc_info=True)
         return {'error': str(e)}
 
+
 # ============================================
-# Routes
+# ROUTES
 # ============================================
 
 @live_quiz_bp.route('/')
@@ -174,6 +179,7 @@ def index():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
     return redirect(url_for('live_quiz.lobby'))
+
 
 @live_quiz_bp.route('/lobby')
 def lobby():
@@ -216,17 +222,17 @@ def lobby():
         cache.set(stats_key, stats, ttl=30)
 
     total_pages = (total + per_page - 1) // per_page if total > 0 else 1
-    
-    # Tier info for UI
+
     user_tier = get_current_user_tier()
     can_create = can_create_live_quiz()
-    
+
     return render_template('dashboard/live_quiz/lobby.html',
                          quizzes=quizzes, stats=stats, subjects=subjects,
                          status_filter=status_filter, subject_filter=subject_filter,
                          search=search, page=page, per_page=per_page,
                          total=total, total_pages=total_pages,
                          user_tier=user_tier, can_create=can_create)
+
 
 @live_quiz_bp.route('/lobby/join/<quiz_id>', methods=['POST'])
 def lobby_join(quiz_id):
@@ -274,6 +280,7 @@ def lobby_join(quiz_id):
 
     return jsonify({'success': True, 'redirect': url_for('live_quiz.waiting_room', quiz_id=quiz_id)})
 
+
 @live_quiz_bp.route('/create', methods=['GET', 'POST'])
 def create():
     if 'user_id' not in session:
@@ -287,7 +294,6 @@ def create():
         flash('You need to set your location and curriculum in your profile before creating a quiz.', 'error')
         return redirect(url_for('dashboard.profile'))
 
-    # --- TIER CHECK: Create Live Quiz ---
     if not can_create_live_quiz():
         flash('Upgrade to Safka Dhexe or Safka Hore to create live quizzes.', 'error')
         return redirect(url_for('live_quiz.lobby'))
@@ -329,7 +335,6 @@ def create():
         if is_public not in (0, 1):
             is_public = 1
 
-        # --- TIER CHECK: Private Live Quiz ---
         if is_public == 0 and not can_create_private_live_quiz():
             flash('Upgrade to Safka Dhexe or Safka Hore to create private live quizzes.', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
@@ -342,7 +347,6 @@ def create():
         if schedule_minutes < 0:
             schedule_minutes = 0
 
-        # --- TIER CHECK: Scheduled Live Quiz ---
         if schedule_minutes > 0 and not can_schedule_live_quiz():
             flash('Upgrade to Safka Dhexe or Safka Hore to schedule live quizzes.', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
@@ -422,6 +426,7 @@ def create():
 
     return render_template('dashboard/live_quiz/create.html', subjects=user_subjects)
 
+
 @live_quiz_bp.route('/create-with-available', methods=['POST'])
 def create_with_available():
     if 'user_id' not in session:
@@ -432,7 +437,6 @@ def create_with_available():
         flash('Invalid CSRF token. Please try again.', 'error')
         return redirect(url_for('live_quiz.create'))
 
-    # --- TIER CHECK: Create Live Quiz ---
     if not can_create_live_quiz():
         flash('Upgrade to Safka Dhexe or Safka Hore to create live quizzes.', 'error')
         return redirect(url_for('live_quiz.lobby'))
@@ -459,7 +463,6 @@ def create_with_available():
     if is_public not in (0, 1):
         is_public = 1
 
-    # --- TIER CHECK: Private Live Quiz ---
     if is_public == 0 and not can_create_private_live_quiz():
         flash('Upgrade to Safka Dhexe or Safka Hore to create private live quizzes.', 'error')
         return redirect(url_for('live_quiz.create'))
@@ -513,6 +516,7 @@ def create_with_available():
 
     flash(f'Quiz created with {available} questions!', 'success')
     return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz['id']))
+
 
 @live_quiz_bp.route('/join', methods=['GET', 'POST'])
 def join():
@@ -595,6 +599,7 @@ def join():
 
     return render_template('dashboard/live_quiz/join.html')
 
+
 @live_quiz_bp.route('/waiting-room/<quiz_id>')
 def waiting_room(quiz_id):
     if 'user_id' not in session:
@@ -649,6 +654,7 @@ def waiting_room(quiz_id):
                          starts_in_seconds=starts_in_seconds,
                          scheduled_start_display=scheduled_start_display)
 
+
 @live_quiz_bp.route('/waiting-room/participants/<quiz_id>')
 def waiting_room_participants(quiz_id):
     if 'user_id' not in session:
@@ -673,6 +679,7 @@ def waiting_room_participants(quiz_id):
         })
     return jsonify({'participants': formatted, 'count': len(formatted)})
 
+
 @live_quiz_bp.route('/toggle-ready/<quiz_id>', methods=['POST'])
 def toggle_ready(quiz_id):
     if 'user_id' not in session:
@@ -694,6 +701,7 @@ def toggle_ready(quiz_id):
             return jsonify({'success': True, 'is_ready': is_ready})
 
     return jsonify({'error': 'Failed to update ready status'}), 500
+
 
 @live_quiz_bp.route('/start/<quiz_id>', methods=['POST'])
 def start_quiz(quiz_id):
@@ -739,6 +747,7 @@ def start_quiz(quiz_id):
     notify_live_quiz_start(quiz_id, quiz.get('title', 'Live Quiz'), participants)
 
     return jsonify({'success': True, 'quiz_id': quiz_id, 'redirect_url': url_for('live_quiz.play', quiz_id=quiz_id)})
+
 
 @live_quiz_bp.route('/quiz-state/<quiz_id>')
 def quiz_state(quiz_id):
@@ -825,6 +834,7 @@ def quiz_state(quiz_id):
 
     return jsonify(response)
 
+
 @live_quiz_bp.route('/get-question/<quiz_id>')
 def get_question(quiz_id):
     if 'user_id' not in session:
@@ -877,6 +887,7 @@ def get_question(quiz_id):
         'already_answered': False
     })
 
+
 @live_quiz_bp.route('/submit-answer', methods=['POST'])
 def submit_answer():
     if 'user_id' not in session:
@@ -920,6 +931,7 @@ def submit_answer():
         'new_score': result['new_score']
     })
 
+
 @live_quiz_bp.route('/skip-question', methods=['POST'])
 def skip_question():
     if 'user_id' not in session:
@@ -956,6 +968,7 @@ def skip_question():
     })
 
     return jsonify({'success': True})
+
 
 @live_quiz_bp.route('/submit-rating', methods=['POST'])
 def submit_rating():
@@ -1001,6 +1014,7 @@ def submit_rating():
 
     return jsonify({'success': True, 'completed': completed})
 
+
 @live_quiz_bp.route('/leaderboard/<quiz_id>')
 def get_leaderboard(quiz_id):
     if 'user_id' not in session:
@@ -1018,6 +1032,7 @@ def get_leaderboard(quiz_id):
     user_rank = quiz_state.get_user_rank(user_id)
 
     return jsonify({'leaderboard': leaderboard, 'user_rank': user_rank})
+
 
 @live_quiz_bp.route('/play/<quiz_id>')
 def play(quiz_id):
@@ -1041,6 +1056,7 @@ def play(quiz_id):
         return redirect(url_for('live_quiz.waiting_room', quiz_id=quiz_id))
 
     return render_template('dashboard/live_quiz/play.html', quiz=quiz)
+
 
 @live_quiz_bp.route('/leave/<quiz_id>', methods=['POST'])
 def leave_quiz(quiz_id):
@@ -1085,6 +1101,7 @@ def leave_quiz(quiz_id):
 
     return jsonify({'error': 'Failed to leave quiz'}), 500
 
+
 @live_quiz_bp.route('/rejoin/<quiz_id>', methods=['POST'])
 def rejoin_quiz(quiz_id):
     if 'user_id' not in session:
@@ -1125,6 +1142,7 @@ def rejoin_quiz(quiz_id):
 
     return jsonify({'error': 'Failed to rejoin quiz'}), 500
 
+
 @live_quiz_bp.route('/delete/<quiz_id>', methods=['POST'])
 def delete_quiz(quiz_id):
     if 'user_id' not in session:
@@ -1149,6 +1167,7 @@ def delete_quiz(quiz_id):
         return jsonify({'success': True, 'message': 'Quiz deleted'})
 
     return jsonify({'error': 'Failed to delete quiz'}), 500
+
 
 @live_quiz_bp.route('/results/<quiz_id>')
 def results(quiz_id):
@@ -1186,6 +1205,7 @@ def results(quiz_id):
                          participants=sorted_participants,
                          user_participant=user_participant)
 
+
 @live_quiz_bp.route('/analysis/<quiz_id>')
 def analysis(quiz_id):
     if 'user_id' not in session:
@@ -1199,7 +1219,6 @@ def analysis(quiz_id):
     if quiz['creator_id'] != user_id:
         return jsonify({'error': 'Only the creator can view analysis'}), 403
 
-    # --- TIER CHECK: Live Quiz Analytics ---
     if not has_feature("live_quiz_analytics"):
         return jsonify({'error': 'Upgrade to Safka Dhexe or Safka Hore to access host analytics.'}), 403
 
@@ -1232,6 +1251,7 @@ def analysis(quiz_id):
     most_wrong = sorted(analysis_data, key=lambda x: x['wrong_rate'], reverse=True)[:3]
 
     return jsonify({'most_correct': most_correct, 'most_wrong': most_wrong})
+
 
 @live_quiz_bp.route('/export/<quiz_id>')
 def export_results(quiz_id):
@@ -1277,6 +1297,7 @@ def export_results(quiz_id):
         headers={'Content-Disposition': f'attachment; filename=quiz_{quiz_id}_results.csv'}
     )
 
+
 @live_quiz_bp.route('/flush-cache', methods=['POST'])
 def flush_cache_endpoint():
     if 'user_id' not in session or not is_admin(session['user_id']):
@@ -1289,6 +1310,7 @@ def flush_cache_endpoint():
         return jsonify({'success': True, 'message': 'Quiz cache flushed'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @live_quiz_bp.route('/cache-stats')
 def cache_stats():
@@ -1303,6 +1325,7 @@ def cache_stats():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 # ============================================
 # Background cleanup thread

@@ -119,6 +119,27 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         Tier.DHEXE: 2,   # detailed
         Tier.HORE: 3,    # full trends
     },
+    # ----- HISTORY FEATURES (NEW) -----
+    "history_search": {
+        Tier.DANBE: False,
+        Tier.DHEXE: False,   # locked
+        Tier.HORE: True,
+    },
+    "history_export": {
+        Tier.DANBE: False,
+        Tier.DHEXE: True,    # limited (100 rows)
+        Tier.HORE: True,
+    },
+    "history_trends": {
+        Tier.DANBE: False,
+        Tier.DHEXE: False,
+        Tier.HORE: True,
+    },
+    "history_delete": {
+        Tier.DANBE: False,
+        Tier.DHEXE: False,
+        Tier.HORE: True,     # future
+    },
 }
 
 # -------------------------------------------------------------------
@@ -146,6 +167,17 @@ LIMITS: Dict[str, Dict[str, Optional[int]]] = {
         Tier.DANBE: 0,     # no access
         Tier.DHEXE: 50,
         Tier.HORE: None,
+    },
+    # ----- HISTORY LIMITS (NEW) -----
+    "history_retention_days": {
+        Tier.DANBE: 30,
+        Tier.DHEXE: 180,
+        Tier.HORE: None,   # unlimited
+    },
+    "history_max_entries": {
+        Tier.DANBE: 50,
+        Tier.DHEXE: 500,
+        Tier.HORE: None,   # unlimited
     },
 }
 

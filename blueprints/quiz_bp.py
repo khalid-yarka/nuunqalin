@@ -1,3 +1,5 @@
+# blueprints/quiz_bp.py
+
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify
 from db import (
     get_questions_by_subject, save_quiz_attempt,
@@ -20,6 +22,7 @@ from services.tier_service import (
 )
 from services.achievement_service import check_and_award_achievements
 from user_settings import get_user_settings
+from history_logger import add_history_entry
 import json
 
 quiz_bp = Blueprint('quiz', __name__, url_prefix='/quiz')
@@ -32,10 +35,8 @@ def index():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
 
-    # Check if user has an active quiz session
     quiz_data = session.get('quiz')
     if quiz_data and quiz_data.get('questions'):
-        # User has a quiz in progress – redirect to play
         flash('Resuming your quiz...', 'info')
         return redirect(url_for('quiz.play'))
 
@@ -45,7 +46,6 @@ def index():
         flash('Please set your location and curriculum in your profile to access quizzes.', 'error')
         return redirect(url_for('dashboard.profile'))
 
-    # Get allowed counts for this user
     allowed_counts = get_allowed_question_counts(user_id)
     tier = get_current_user_tier()
     remaining_attempts = get_remaining_quota(user_id, 'quiz_attempt')
@@ -73,13 +73,11 @@ def start_quiz():
     question_count_str = request.form.get('question_count', '').strip()
     custom_count_str = request.form.get('custom_count', '').strip()
 
-    # Validate subject
     user_subjects = get_user_subject_list(user_id)
     if subject_code not in [s['code'] for s in user_subjects]:
         flash('Invalid subject selected.', 'error')
         return redirect(url_for('quiz.index'))
 
-    # Determine final question count
     if question_count_str == 'custom' and custom_count_str:
         try:
             question_count = int(custom_count_str)
@@ -93,29 +91,24 @@ def start_quiz():
             flash('Invalid question count.', 'error')
             return redirect(url_for('quiz.index'))
 
-    # Validate against tier rules
     if not validate_question_count(user_id, question_count):
         flash('Question count not allowed for your tier.', 'error')
         return redirect(url_for('quiz.index'))
 
-    # Check quota
     remaining = get_remaining_quota(user_id, 'quiz_attempt')
     if remaining <= 0:
         flash('You have used all your quiz attempts for today. Come back tomorrow!', 'error')
         return redirect(url_for('quiz.index'))
 
-    # Fetch questions
     questions = get_questions_by_subject(subject_code, question_count)
     if not questions:
         flash('No questions available for this subject yet.', 'error')
         return redirect(url_for('quiz.index'))
 
-    # Consume one attempt
     if not check_and_consume_quota(user_id, 'quiz_attempt'):
         flash('Failed to start quiz. Try again.', 'error')
         return redirect(url_for('quiz.index'))
 
-    # Initialise session quiz data
     session['quiz'] = {
         'subject_code': subject_code,
         'question_count': len(questions),
@@ -187,7 +180,6 @@ def submit_answer():
     question = questions[current_index]
     is_correct = answer == question['correct_answer']
 
-    # Append answer to session
     answers = quiz_data['answers']
     answers.append({
         'question_id': question['id'],
@@ -269,7 +261,6 @@ def submit_rating():
 
 @quiz_bp.route('/skip_rating', methods=['POST'])
 def skip_rating():
-    """Skip rating and advance to next question."""
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
 
@@ -285,7 +276,6 @@ def skip_rating():
     if current_index >= len(questions):
         return jsonify({'error': 'Quiz already completed'}), 400
 
-    # Advance to next question without rating
     quiz_data['current_index'] += 1
     session['quiz'] = quiz_data
     session.modified = True
@@ -327,6 +317,19 @@ def results():
         answers,
         ratings,
         reactions
+    )
+
+    # ***** ADD HISTORY ENTRY *****
+    add_history_entry(
+        user_id=session['user_id'],
+        entry_type='quiz_attempt',
+        action='completed',
+        metadata={
+            'subject': subject_code,
+            'score': score,
+            'total': total,
+            'percentage': round((score/total)*100, 1) if total > 0 else 0
+        }
     )
 
     student = get_student_by_id(session['user_id'])

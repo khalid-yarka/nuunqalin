@@ -256,3 +256,36 @@ def validate_question_count(user_id: int, count: int) -> bool:
     if count > 0 and allowed['custom']:
         return True
     return False    
+
+# ============================================
+# HISTORY TIER HELPERS
+# ============================================
+
+def get_history_retention_days(user_id: int) -> Optional[int]:
+    """Get the retention period in days for a user's history."""
+    return get_feature_limit("history_retention_days", user_id)
+
+
+def get_history_max_entries(user_id: int) -> Optional[int]:
+    """Get the maximum number of history entries for a user."""
+    return get_feature_limit("history_max_entries", user_id)
+
+
+def can_search_history(user_id: int) -> bool:
+    """Check if a user can search their history."""
+    return has_feature("history_search", user_id)
+
+
+def can_export_history(user_id: int) -> bool:
+    """Check if a user can export their history."""
+    return has_feature("history_export", user_id)
+
+
+def can_see_trends(user_id: int) -> bool:
+    """Check if a user can see history trends/charts."""
+    return has_feature("history_trends", user_id)
+
+
+def can_delete_history(user_id: int) -> bool:
+    """Check if a user can delete history entries."""
+    return has_feature("history_delete", user_id)

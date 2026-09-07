@@ -1,10 +1,10 @@
 # services/achievement_service.py
-# Minimal achievement system.
 
 import logging
 from typing import List, Dict, Optional
 from db import execute_with_retry, get_student_by_id
 from services.tier_service import get_achievement_history_level, get_badge_showcase_level
+from history_logger import add_history_entry   # NEW
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +102,37 @@ def award_achievement(user_id: int, achievement_id: int) -> bool:
     )
     if cursor.fetchone():
         return False
+
     execute_with_retry(
         "INSERT INTO user_achievements (user_id, achievement_id) VALUES (?, ?)",
         (user_id, achievement_id), commit=True
     )
+
+    # ***** ADD HISTORY ENTRY *****
+    ach_cursor = execute_with_retry(
+        "SELECT name, icon FROM achievements WHERE id = ?", (achievement_id,)
+    )
+    ach = ach_cursor.fetchone()
+    if ach:
+        add_history_entry(
+            user_id=user_id,
+            entry_type='achievement',
+            action='unlocked',
+            entry_id=achievement_id,
+            metadata={
+                'name': ach['name'],
+                'icon': ach['icon'] or '🏆'
+            }
+        )
+    else:
+        add_history_entry(
+            user_id=user_id,
+            entry_type='achievement',
+            action='unlocked',
+            entry_id=achievement_id,
+            metadata={'name': 'Achievement'}
+        )
+
     return True
 
 def get_user_achievements(user_id: int) -> List[Dict]:
@@ -128,7 +155,7 @@ def evaluate_conditions(user_id: int, event: str, data: Dict) -> List[int]:
     return a list of achievement IDs that should be awarded.
     """
     from db import execute_with_retry
-    # Count quizzes completed
+
     cursor = execute_with_retry(
         "SELECT COUNT(*) as cnt FROM quiz_attempts WHERE student_id = ?",
         (user_id,)
@@ -136,7 +163,6 @@ def evaluate_conditions(user_id: int, event: str, data: Dict) -> List[int]:
     row = cursor.fetchone()
     quiz_count = row['cnt'] if row else 0
 
-    # Check for perfect quiz
     perfect = False
     if event == 'quiz_completed':
         score = data.get('score', 0)
@@ -144,26 +170,21 @@ def evaluate_conditions(user_id: int, event: str, data: Dict) -> List[int]:
         if total > 0 and score == total:
             perfect = True
 
-    # Live quiz joined
     live_joined = False
     if event == 'live_quiz_joined':
         live_joined = True
 
-    # Achievement count
     achievements = get_user_achievement_ids(user_id)
     ach_count = len(achievements)
 
-    # Premium resource access
     premium_access = False
 
-    # Now check all achievements
     to_award = []
     all_ach = get_all_achievements()
     for ach in all_ach:
         if ach['id'] in achievements:
             continue
         condition = ach['unlock_condition']
-        # Evaluate simple conditions
         if condition == 'complete_quiz_count >= 1' and quiz_count >= 1:
             to_award.append(ach['id'])
         elif condition == 'complete_quiz_count >= 10' and quiz_count >= 10:

@@ -1,0 +1,273 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}My History - NuunPlatform{% endblock %}
+
+{% block page_title %}My History{% endblock %}
+
+{% block extra_css %}
+{{ super() }}
+<style>
+    .history-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .history-stat-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 12px 16px;
+        text-align: center;
+        box-shadow: var(--shadow-sm);
+    }
+    .history-stat-card .number {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text);
+    }
+    .history-stat-card .label {
+        font-size: 11px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .history-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 20px;
+        align-items: center;
+        background: var(--surface);
+        padding: 12px 16px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+    }
+    .history-filters select, .history-filters input {
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--text);
+        font-size: 13px;
+    }
+    .history-filters .search-wrapper {
+        position: relative;
+        flex: 1;
+        min-width: 150px;
+    }
+    .history-filters .search-wrapper input {
+        width: 100%;
+        padding: 6px 12px 6px 30px;
+    }
+    .history-filters .search-wrapper i {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+    }
+    .history-filters .search-wrapper .lock-icon {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 14px;
+    }
+    .history-filters .btn-export {
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: 6px 14px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .history-filters .btn-export:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .history-timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .history-day-group {
+        margin-bottom: 16px;
+    }
+    .history-day-group .day-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border-light);
+        margin-bottom: 8px;
+    }
+    .history-entry {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border-light);
+    }
+    .history-entry .entry-icon {
+        font-size: 20px;
+        width: 30px;
+        text-align: center;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+    .history-entry .entry-content {
+        flex: 1;
+        font-size: 14px;
+        color: var(--text);
+    }
+    .history-entry .entry-content .entry-title {
+        font-weight: 500;
+    }
+    .history-entry .entry-content .entry-meta {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+    .history-entry .entry-time {
+        font-size: 12px;
+        color: var(--text-muted);
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .history-empty {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-secondary);
+    }
+    .history-empty .icon {
+        font-size: 48px;
+        opacity: 0.3;
+        margin-bottom: 12px;
+    }
+
+    .upgrade-banner {
+        background: linear-gradient(135deg, var(--primary), #B91C1C);
+        color: white;
+        border-radius: var(--radius-sm);
+        padding: 12px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .upgrade-banner .btn-upgrade {
+        background: white;
+        color: var(--primary);
+        border: none;
+        padding: 6px 18px;
+        border-radius: 30px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .load-more-container {
+        text-align: center;
+        margin-top: 20px;
+    }
+    .load-more-btn {
+        padding: 8px 24px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-weight: 500;
+        transition: var(--transition);
+    }
+    .load-more-btn:hover {
+        background: var(--primary-light);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+    .load-more-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .locked-feature {
+        opacity: 0.7;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+    .locked-feature::after {
+        content: ' 🔒';
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="history-container" id="historyApp">
+
+    <!-- Upgrade banner for Danbe -->
+    {% if tier == 'danbe' %}
+    <div class="upgrade-banner">
+        <span><strong>🔓 Upgrade to Dhexe</strong> to see more history and unlock advanced features.</span>
+        <button class="btn-upgrade" onclick="openSafkaPreview({ requiredTier: 'dhexe' })">Upgrade</button>
+    </div>
+    {% endif %}
+
+    <!-- Stats Cards -->
+    <div class="history-stats" id="statsContainer">
+        <div class="history-stat-card"><div class="number" id="statTotal">-</div><div class="label">Total Activities</div></div>
+        <div class="history-stat-card"><div class="number" id="statQuizzes">-</div><div class="label">Quizzes</div></div>
+        <div class="history-stat-card"><div class="number" id="statAchievements">-</div><div class="label">Achievements</div></div>
+        <div class="history-stat-card"><div class="number" id="statSaves">-</div><div class="label">Saves</div></div>
+        <div class="history-stat-card"><div class="number" id="statAvgScore">-%</div><div class="label">Avg Score</div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="history-filters" id="filterBar">
+        <select id="filterType" multiple size="1" style="min-width:140px;">
+            <option value="">All Types</option>
+            <option value="quiz_attempt">Quizzes</option>
+            <option value="live_quiz">Live Quizzes</option>
+            <option value="achievement">Achievements</option>
+            <option value="save">Saves</option>
+            <option value="pdf_view">PDF Views</option>
+            <option value="pdf_download">PDF Downloads</option>
+            <option value="like">Likes</option>
+            <option value="report">Reports</option>
+        </select>
+
+        <input type="date" id="filterStartDate" placeholder="Start">
+        <input type="date" id="filterEndDate" placeholder="End">
+
+        <div class="search-wrapper">
+            <i class="fas fa-search"></i>
+            <input type="text" id="filterSearch" placeholder="Search..." {% if not can_search %}disabled class="locked-feature"{% endif %}>
+            {% if not can_search %}
+            <span class="lock-icon" onclick="openSafkaPreview({ feature: 'history_search', requiredTier: 'hore' })">🔒</span>
+            {% endif %}
+        </div>
+
+        <button class="btn-export" id="exportBtn" {% if not can_export %}disabled{% endif %} onclick="exportHistory()">
+            <i class="fas fa-download"></i> Export
+        </button>
+    </div>
+
+    <!-- Timeline -->
+    <div id="timelineContainer">
+        <div class="history-timeline" id="timelineList">
+            <!-- Rendered by JS -->
+        </div>
+        <div class="load-more-container">
+            <button class="load-more-btn" id="loadMoreBtn" style="display:none;" onclick="loadMore()">Load More</button>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/history.js') }}"></script>
+{% endblock %}
