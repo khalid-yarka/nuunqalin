@@ -1,8 +1,7 @@
-# blueprints/history_bp.py – Complete with flush on every read
+# blueprints/history_bp.py – Complete with flush on every read, plus admin flush endpoint
 
 import csv
 import json
-import logging          # <-- ADDED
 from io import StringIO
 from flask import Blueprint, request, session, jsonify, Response, abort, render_template
 from functools import wraps
@@ -23,9 +22,6 @@ from services.tier_service import (
     get_feature_level
 )
 
-# <-- ADDED logger definition
-logger = logging.getLogger(__name__)
-
 history_bp = Blueprint('history', __name__, url_prefix='/history')
 
 
@@ -34,6 +30,15 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
             abort(401)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session or not session.get('is_admin'):
+            abort(403)
         return f(*args, **kwargs)
     return decorated
 
@@ -56,10 +61,8 @@ def validate_date(date_str: str) -> Optional[str]:
 @login_required
 def index():
     """Render the history page – flush pending entries first."""
-    # Force flush before rendering
-    flushed = flush_history_queue()
-    if flushed > 0:
-        logger.info(f"Flushed {flushed} entries before rendering history page")
+    flush_result = flush_history_queue()
+    logger.info(f"History page flush: {flush_result}")
 
     user_id = session['user_id']
     tier = get_current_user_tier()
@@ -321,15 +324,31 @@ def trends():
 
 
 # -------------------------------------------------------------------
-# Admin: Debug endpoint to check queue status
+# ADMIN: Flush queue manually and return status
 # -------------------------------------------------------------------
 
+@history_bp.route('/admin/flush', methods=['POST'])
+@admin_required
+def admin_flush():
+    """
+    Force flush the history queue and return detailed status.
+    Useful for debugging.
+    """
+    result = force_flush_queue()
+    return jsonify({
+        'success': result['success'],
+        'flushed': result['flushed'],
+        'errors': result['errors'],
+        'skipped': result['skipped'],
+        'file_size_before': result['file_size_before'],
+        'file_size_after': result['file_size_after']
+    })
+
+
 @history_bp.route('/admin/queue-status')
-@login_required
+@admin_required
 def queue_status():
-    """Return queue file stats (admin only)."""
-    if not session.get('is_admin'):
-        abort(403)
+    """Return queue file stats."""
     stats = get_queue_stats()
     return jsonify(stats)
 
