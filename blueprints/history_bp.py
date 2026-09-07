@@ -1,4 +1,4 @@
-# blueprints/history_bp.py – Fixed date handling and tier retention
+# blueprints/history_bp.py – Fixed date handling with Somali timezone
 
 import csv
 import json
@@ -51,9 +51,7 @@ def validate_date(date_str: str) -> Optional[str]:
     if not date_str:
         return None
     try:
-        # Parse date only (e.g., "2026-09-01")
         dt = datetime.fromisoformat(date_str)
-        # Assume midnight in Somali time
         dt = dt.replace(tzinfo=SOMALI_TIMEZONE)
         return dt.isoformat()
     except ValueError:
@@ -114,7 +112,6 @@ def get_entries():
     else:
         types = None
 
-    # User‑provided dates (already validated and converted to Somali timezone)
     start_date = validate_date(request.args.get('start_date'))
     end_date = validate_date(request.args.get('end_date'))
     search = request.args.get('search', '').strip()
@@ -129,14 +126,13 @@ def get_entries():
     if per_page > max_per_page:
         per_page = max_per_page
 
-    # --- DATE RANGE: Use Somali timezone consistently ---
+    # Date range: use Somali timezone consistently
     somali_now = get_somali_time()
     if tier == 'danbe':
         if not start_date or not end_date:
             end_date = somali_now.isoformat()
             start_date = (somali_now - timedelta(days=7)).isoformat()
         else:
-            # Ensure user range does not exceed 7 days
             start_dt = datetime.fromisoformat(start_date)
             end_dt = datetime.fromisoformat(end_date)
             if (end_dt - start_dt).days > 7:
@@ -152,7 +148,6 @@ def get_entries():
                 start_date = (end_dt - timedelta(days=30)).isoformat()
     # Hore: no automatic date restriction; use user dates if provided
 
-    # Search only allowed for Hore
     if search and not can_search_history(user_id):
         return jsonify({'error': 'Search not available for your tier.'}), 403
 
@@ -192,11 +187,9 @@ def get_entries():
         params.append(like)
         count_params.append(like)
 
-    # Order and pagination
     query += f" ORDER BY created_at {order} LIMIT ? OFFSET ?"
     params.extend([per_page, (page - 1) * per_page])
 
-    # Log parameters for debugging
     logger.debug(f"History API params: user={user_id}, tier={tier}, start={start_date}, end={end_date}, types={types}, search={search}, page={page}, per_page={per_page}")
 
     entries_cursor = execute_with_retry(query, params)
@@ -219,7 +212,7 @@ def get_entries():
 
 
 # -------------------------------------------------------------------
-# API: Statistics (unchanged)
+# API: Statistics
 # -------------------------------------------------------------------
 
 @history_bp.route('/api/stats')
@@ -246,7 +239,6 @@ def export():
     if not can_export_history(user_id):
         return jsonify({'error': 'Export not available for your tier.'}), 403
 
-    # Similar date handling as above (but we can simplify for export)
     types_param = request.args.get('types', '')
     types = [t.strip() for t in types_param.split(',') if t.strip()] if types_param else None
     start_date = validate_date(request.args.get('start_date'))
@@ -255,7 +247,6 @@ def export():
     order = request.args.get('order', 'desc').lower()
 
     tier = get_current_user_tier()
-    # For Dhexe, limit to 100 rows; Hore unlimited
     limit = 100 if tier == 'dhexe' else None
 
     query = """
@@ -349,16 +340,13 @@ def trends():
 
 
 # -------------------------------------------------------------------
-# ADMIN: Flush queue manually and return status
+# ADMIN: Flush queue manually
 # -------------------------------------------------------------------
 
 @history_bp.route('/admin/flush', methods=['POST'])
 @admin_required
 def admin_flush():
-    """
-    Force flush the history queue and return detailed status.
-    Useful for debugging.
-    """
+    """Force flush and return detailed status."""
     result = force_flush_queue()
     return jsonify({
         'success': result['success'],
@@ -373,7 +361,6 @@ def admin_flush():
 @history_bp.route('/admin/queue-status')
 @admin_required
 def queue_status():
-    """Return queue file stats."""
     stats = get_queue_stats()
     return jsonify(stats)
 

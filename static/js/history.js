@@ -1,4 +1,6 @@
 // static/js/history.js
+// Complete history page JavaScript with defensive rendering and debugging logs
+
 document.addEventListener('DOMContentLoaded', function() {
     let currentPage = 1;
     let perPage = 20;
@@ -26,15 +28,17 @@ document.addEventListener('DOMContentLoaded', function() {
         debounceTimer = setTimeout(() => {
             currentPage = 1;
             hasMore = true;
-            timelineList.innerHTML = '';
+            if (timelineList) {
+                timelineList.innerHTML = '';
+            }
             loadEntries(true);
         }, 400);
     }
 
-    filterType.addEventListener('change', applyFilters);
-    filterStartDate.addEventListener('change', applyFilters);
-    filterEndDate.addEventListener('change', applyFilters);
-    filterSearch.addEventListener('input', applyFilters);
+    if (filterType) filterType.addEventListener('change', applyFilters);
+    if (filterStartDate) filterStartDate.addEventListener('change', applyFilters);
+    if (filterEndDate) filterEndDate.addEventListener('change', applyFilters);
+    if (filterSearch) filterSearch.addEventListener('input', applyFilters);
 
     // Load more
     window.loadMore = function() {
@@ -51,11 +55,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function buildParams() {
         const params = new URLSearchParams();
-        const types = Array.from(filterType.selectedOptions).map(opt => opt.value).filter(v => v);
-        if (types.length) params.set('types', types.join(','));
-        if (filterStartDate.value) params.set('start_date', filterStartDate.value);
-        if (filterEndDate.value) params.set('end_date', filterEndDate.value);
-        if (filterSearch.value) params.set('search', filterSearch.value);
+        if (filterType && filterType.value) {
+            params.set('types', filterType.value);
+        }
+        if (filterStartDate && filterStartDate.value) {
+            params.set('start_date', filterStartDate.value);
+        }
+        if (filterEndDate && filterEndDate.value) {
+            params.set('end_date', filterEndDate.value);
+        }
+        if (filterSearch && filterSearch.value) {
+            params.set('search', filterSearch.value);
+        }
         return params.toString();
     }
 
@@ -68,31 +79,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const params = buildParams();
-        params.set('page', currentPage);
-        params.set('per_page', perPage);
+        // Add pagination parameters
+        const url = '/history/api/entries?' + params + '&page=' + currentPage + '&per_page=' + perPage;
+        console.log('History API request URL:', url);
 
-        fetch('/history/api/entries?' + params.toString())
-            .then(res => res.json())
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('HTTP error ' + response.status);
+                }
+                return response.json();
+            })
             .then(data => {
                 loading = false;
+                console.log('History API response:', data);
+
                 if (data.error) {
-                    console.error(data.error);
+                    console.error('API error:', data.error);
+                    showEmptyState('Error loading history: ' + data.error);
                     return;
                 }
 
-                const entries = data.entries;
+                const entries = data.entries || [];
+                const total = data.pagination ? data.pagination.total : 0;
+
                 if (reset) {
-                    timelineList.innerHTML = '';
+                    if (timelineList) timelineList.innerHTML = '';
                 }
 
                 if (entries.length === 0 && reset) {
-                    timelineList.innerHTML = `
-                        <div class="history-empty">
-                            <div class="icon">📭</div>
-                            <p>No history entries found.</p>
-                        </div>
-                    `;
-                    loadMoreBtn.style.display = 'none';
+                    showEmptyState('No history entries found.');
+                    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
                     hasMore = false;
                     return;
                 }
@@ -100,14 +117,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Group by date
                 const groups = {};
                 entries.forEach(entry => {
-                    const date = entry.created_at.split('T')[0];
-                    if (!groups[date]) groups[date] = [];
-                    groups[date].push(entry);
+                    // Safely extract date
+                    let dateStr = 'Unknown';
+                    if (entry.created_at) {
+                        try {
+                            dateStr = entry.created_at.split('T')[0];
+                        } catch (e) {
+                            dateStr = 'Unknown';
+                        }
+                    }
+                    if (!groups[dateStr]) groups[dateStr] = [];
+                    groups[dateStr].push(entry);
                 });
 
                 let html = '';
                 for (const [date, items] of Object.entries(groups)) {
-                    html += `<div class="history-day-group"><div class="day-label">${formatDate(date)}</div>`;
+                    const label = formatDate(date);
+                    html += `<div class="history-day-group"><div class="day-label">${label}</div>`;
                     items.forEach(item => {
                         html += renderEntry(item);
                     });
@@ -115,30 +141,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 if (reset) {
-                    timelineList.innerHTML = html;
+                    if (timelineList) timelineList.innerHTML = html;
                 } else {
-                    timelineList.insertAdjacentHTML('beforeend', html);
+                    if (timelineList) timelineList.insertAdjacentHTML('beforeend', html);
                 }
 
-                // Pagination
-                const total = data.pagination.total;
-                const pages = data.pagination.pages;
-                if (currentPage < pages) {
-                    loadMoreBtn.style.display = 'block';
+                // Update pagination state
+                const totalPages = data.pagination ? data.pagination.pages : 0;
+                if (currentPage < totalPages) {
+                    if (loadMoreBtn) loadMoreBtn.style.display = 'block';
                     hasMore = true;
                 } else {
-                    loadMoreBtn.style.display = 'none';
+                    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
                     hasMore = false;
                 }
                 currentPage++;
             })
             .catch(err => {
-                console.error(err);
+                console.error('History fetch error:', err);
                 loading = false;
+                showEmptyState('Failed to load history. Please try again.');
             });
     }
 
     function renderEntry(entry) {
+        // Defensive: ensure entry exists and has minimal fields
+        if (!entry) return '';
+
         const iconMap = {
             'quiz_attempt': '✅',
             'live_quiz': '⚡',
@@ -151,71 +180,73 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         const icon = iconMap[entry.entry_type] || '📌';
 
-        let title = entry.entry_type.replace('_', ' ');
+        let title = entry.entry_type ? entry.entry_type.replace('_', ' ') : 'Unknown';
         let meta = '';
-        let timeAgo = getTimeAgo(entry.created_at);
+        let timeAgo = '';
 
-        if (entry.entry_type === 'quiz_attempt') {
+        // Safe time formatting
+        if (entry.created_at) {
             try {
-                const metaData = JSON.parse(entry.metadata);
+                timeAgo = getTimeAgo(entry.created_at);
+            } catch (e) {
+                timeAgo = 'Invalid date';
+            }
+        } else {
+            timeAgo = 'Unknown date';
+        }
+
+        // Parse metadata safely
+        let metaData = {};
+        try {
+            if (entry.metadata) {
+                metaData = typeof entry.metadata === 'string' ? JSON.parse(entry.metadata) : entry.metadata;
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        // Build title and meta based on entry_type
+        switch (entry.entry_type) {
+            case 'quiz_attempt':
                 const subject = metaData.subject || 'Unknown';
                 const score = metaData.score || 0;
                 const total = metaData.total || 0;
                 const pct = metaData.percentage || 0;
                 title = `${subject} Quiz`;
                 meta = `Score: ${score}/${total} (${pct}%)`;
-            } catch(e) {
-                title = 'Quiz Attempt';
-            }
-        } else if (entry.entry_type === 'live_quiz') {
-            try {
-                const metaData = JSON.parse(entry.metadata);
-                const subject = metaData.subject || 'Unknown';
+                break;
+            case 'live_quiz':
+                const lqSubject = metaData.subject || 'Unknown';
                 const rank = metaData.rank || '-';
-                title = `Live Quiz: ${subject}`;
+                title = `Live Quiz: ${lqSubject}`;
                 meta = `Rank: #${rank}`;
-            } catch(e) {
-                title = 'Live Quiz';
-            }
-        } else if (entry.entry_type === 'achievement') {
-            try {
-                const metaData = JSON.parse(entry.metadata);
-                const name = metaData.name || 'Achievement';
-                title = `Unlocked: ${name}`;
+                break;
+            case 'achievement':
+                const achName = metaData.name || 'Achievement';
+                title = `Unlocked: ${achName}`;
                 meta = metaData.icon || '';
-            } catch(e) {
-                title = 'Achievement Unlocked';
-            }
-        } else if (entry.entry_type === 'save') {
-            try {
-                const metaData = JSON.parse(entry.metadata);
-                const content = metaData.content_type || 'item';
-                title = `Saved ${content}`;
-            } catch(e) {
-                title = 'Saved item';
-            }
-        } else if (entry.entry_type === 'pdf_view') {
-            try {
-                const metaData = JSON.parse(entry.metadata);
+                break;
+            case 'save':
+                const contentType = metaData.content_type || 'item';
+                title = `Saved ${contentType}`;
+                break;
+            case 'pdf_view':
+            case 'pdf_download':
                 const pdfTitle = metaData.title || 'PDF';
-                title = `Viewed: ${pdfTitle}`;
-            } catch(e) {
-                title = 'Viewed PDF';
-            }
-        } else if (entry.entry_type === 'pdf_download') {
-            try {
-                const metaData = JSON.parse(entry.metadata);
-                const pdfTitle = metaData.title || 'PDF';
-                title = `Downloaded: ${pdfTitle}`;
-            } catch(e) {
-                title = 'Downloaded PDF';
-            }
-        } else if (entry.entry_type === 'like') {
-            title = entry.action === 'liked' ? '❤️ Liked a question' : '💔 Unliked a question';
-        } else if (entry.entry_type === 'report') {
-            title = '⚠️ Reported a question';
-        } else {
-            title = entry.action.charAt(0).toUpperCase() + entry.action.slice(1) + ' ' + entry.entry_type;
+                title = `${entry.entry_type === 'pdf_view' ? 'Viewed' : 'Downloaded'}: ${pdfTitle}`;
+                break;
+            case 'like':
+                title = entry.action === 'liked' ? '❤️ Liked a question' : '💔 Unliked a question';
+                break;
+            case 'report':
+                title = '⚠️ Reported a question';
+                break;
+            default:
+                if (entry.action) {
+                    title = entry.action.charAt(0).toUpperCase() + entry.action.slice(1) + ' ' + (entry.entry_type || 'item');
+                } else {
+                    title = entry.entry_type || 'Unknown event';
+                }
         }
 
         return `
@@ -230,7 +261,21 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
     }
 
+    function showEmptyState(message) {
+        if (!timelineList) return;
+        timelineList.innerHTML = `
+            <div class="history-empty">
+                <span class="icon">📭</span>
+                <h3>No history entries</h3>
+                <p>${message || 'Start learning to build your history!'}</p>
+            </div>
+        `;
+        if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+        hasMore = false;
+    }
+
     function formatDate(dateStr) {
+        if (!dateStr || dateStr === 'Unknown') return 'Unknown date';
         const today = new Date().toISOString().split('T')[0];
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
         if (dateStr === today) return 'Today';
@@ -239,24 +284,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function getTimeAgo(isoDate) {
-        const diff = (Date.now() - new Date(isoDate).getTime()) / 1000;
-        if (diff < 60) return 'Just now';
-        if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-        if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-        if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
-        return new Date(isoDate).toLocaleDateString();
+        if (!isoDate) return 'Unknown';
+        try {
+            const diff = (Date.now() - new Date(isoDate).getTime()) / 1000;
+            if (diff < 60) return 'Just now';
+            if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+            if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
+            return new Date(isoDate).toLocaleDateString();
+        } catch (e) {
+            return 'Unknown date';
+        }
     }
 
     function fetchStats() {
         fetch('/history/api/stats')
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById('statTotal').textContent = data.total || 0;
-                document.getElementById('statQuizzes').textContent = data.quizzes || 0;
-                document.getElementById('statAchievements').textContent = data.achievements || 0;
-                document.getElementById('statSaves').textContent = data.saves || 0;
-                document.getElementById('statAvgScore').textContent = (data.avg_score || 0) + '%';
+            .then(response => {
+                if (!response.ok) throw new Error('Stats HTTP error');
+                return response.json();
             })
-            .catch(err => console.error(err));
+            .then(data => {
+                const statTotal = document.getElementById('statTotal');
+                const statQuizzes = document.getElementById('statQuizzes');
+                const statAchievements = document.getElementById('statAchievements');
+                const statSaves = document.getElementById('statSaves');
+                const statAvgScore = document.getElementById('statAvgScore');
+
+                if (statTotal) statTotal.textContent = data.total || 0;
+                if (statQuizzes) statQuizzes.textContent = data.quizzes || 0;
+                if (statAchievements) statAchievements.textContent = data.achievements || 0;
+                if (statSaves) statSaves.textContent = data.saves || 0;
+                if (statAvgScore) statAvgScore.textContent = (data.avg_score || 0) + '%';
+            })
+            .catch(err => console.error('Stats fetch error:', err));
     }
 });
