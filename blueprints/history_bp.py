@@ -1,8 +1,8 @@
-# blueprints/history_bp.py
-# History blueprint – now flushes the queue before any read operation.
+# blueprints/history_bp.py – Complete with flush on every read
 
 import csv
 import json
+import logging          # <-- ADDED
 from io import StringIO
 from flask import Blueprint, request, session, jsonify, Response, abort, render_template
 from functools import wraps
@@ -11,7 +11,7 @@ from typing import Optional, List, Dict
 
 from db import execute_with_retry
 from utils import get_somali_time_db
-from history_logger import flush_history_queue, force_flush_queue
+from history_logger import flush_history_queue, force_flush_queue, get_queue_stats
 from services.tier_service import (
     get_history_retention_days,
     get_history_max_entries,
@@ -22,6 +22,9 @@ from services.tier_service import (
     get_current_user_tier,
     get_feature_level
 )
+
+# <-- ADDED logger definition
+logger = logging.getLogger(__name__)
 
 history_bp = Blueprint('history', __name__, url_prefix='/history')
 
@@ -53,7 +56,10 @@ def validate_date(date_str: str) -> Optional[str]:
 @login_required
 def index():
     """Render the history page – flush pending entries first."""
-    flush_history_queue()  # <-- ADDED
+    # Force flush before rendering
+    flushed = flush_history_queue()
+    if flushed > 0:
+        logger.info(f"Flushed {flushed} entries before rendering history page")
 
     user_id = session['user_id']
     tier = get_current_user_tier()
@@ -83,12 +89,11 @@ def index():
 @login_required
 def get_entries():
     """Return paginated history entries – flush first."""
-    flush_history_queue()  # <-- ADDED
+    flush_history_queue()  # ensure latest data
 
     user_id = session['user_id']
     tier = get_current_user_tier()
 
-    # Parse parameters
     types_param = request.args.get('types', '')
     if types_param:
         types = [t.strip() for t in types_param.split(',') if t.strip()]
@@ -104,12 +109,11 @@ def get_entries():
     if order not in ('asc', 'desc'):
         order = 'desc'
 
-    # Apply tier restrictions
+    # Tier restrictions
     max_per_page = 20 if tier == 'danbe' else 50 if tier == 'dhexe' else 100
     if per_page > max_per_page:
         per_page = max_per_page
 
-    # Date range restrictions
     if tier == 'danbe':
         if not start_date or not end_date:
             end_date = get_somali_time_db()
@@ -129,9 +133,8 @@ def get_entries():
             if (end_dt - start_dt).days > 30:
                 start_date = (end_dt - timedelta(days=30)).isoformat()
 
-    # Search only allowed for Hore
     if search and not can_search_history(user_id):
-        return jsonify({'error': 'Search is not available for your tier.'}), 403
+        return jsonify({'error': 'Search not available for your tier.'}), 403
 
     # Build query
     query = """
@@ -169,11 +172,9 @@ def get_entries():
         params.append(like)
         count_params.append(like)
 
-    # Order and pagination
     query += f" ORDER BY created_at {order} LIMIT ? OFFSET ?"
     params.extend([per_page, (page - 1) * per_page])
 
-    # Execute queries
     entries_cursor = execute_with_retry(query, params)
     entries = [dict(row) for row in entries_cursor.fetchall()]
 
@@ -199,22 +200,21 @@ def get_entries():
 @login_required
 def get_stats():
     """Return summary statistics – flush first."""
-    flush_history_queue()  # <-- ADDED
-
+    flush_history_queue()
     user_id = session['user_id']
     stats = get_history_stats(user_id)
     return jsonify(stats)
 
 
 # -------------------------------------------------------------------
-# API: Export as CSV
+# API: Export
 # -------------------------------------------------------------------
 
 @history_bp.route('/api/export')
 @login_required
 def export():
     """Export filtered history as CSV – flush first."""
-    flush_history_queue()  # <-- ADDED
+    flush_history_queue()
 
     user_id = session['user_id']
     if not can_export_history(user_id):
@@ -290,7 +290,7 @@ def export():
 @login_required
 def trends():
     """Return trend data for charts – flush first."""
-    flush_history_queue()  # <-- ADDED
+    flush_history_queue()
 
     user_id = session['user_id']
     if not can_see_trends(user_id):
@@ -318,6 +318,20 @@ def trends():
     ]
     trend_data.reverse()
     return jsonify(trend_data)
+
+
+# -------------------------------------------------------------------
+# Admin: Debug endpoint to check queue status
+# -------------------------------------------------------------------
+
+@history_bp.route('/admin/queue-status')
+@login_required
+def queue_status():
+    """Return queue file stats (admin only)."""
+    if not session.get('is_admin'):
+        abort(403)
+    stats = get_queue_stats()
+    return jsonify(stats)
 
 
 # -------------------------------------------------------------------

@@ -1,6 +1,4 @@
-# history_logger.py
-# Asynchronous history logger using a persistent file-based queue (JSONL).
-# Works on PythonAnywhere Free – no threads, no Redis.
+# history_logger.py – Robust file-based queue with absolute path and logging
 
 import os
 import json
@@ -15,10 +13,10 @@ from db import execute_with_retry, get_somali_time_db
 
 logger = logging.getLogger(__name__)
 
-# Configuration – you can override these via environment variables
-QUEUE_FILE = os.getenv('HISTORY_QUEUE_FILE', 'history_queue.jsonl')
-MAX_BATCH_SIZE = 100          # Maximum entries to flush in one go
-MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB – rotate if exceeded
+# Absolute path: always inside the project root (safe)
+BASE_DIR = Path(__file__).resolve().parent
+QUEUE_FILE = os.getenv('HISTORY_QUEUE_FILE') or str(BASE_DIR / 'history_queue.jsonl')
+MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 # -------------------------------------------------------------------
@@ -34,8 +32,6 @@ def add_history_entry(
 ) -> None:
     """
     Append a history entry to the local JSONL queue file.
-    This is called synchronously inside the request – it's very fast
-    and does not touch the main database.
     """
     if not entry_type or not action:
         logger.warning("Skipping history entry: missing entry_type or action")
@@ -50,17 +46,19 @@ def add_history_entry(
         'created_at': get_somali_time_db()
     }
 
-    # Write atomically with lock
     try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(QUEUE_FILE), exist_ok=True)
         with open(QUEUE_FILE, 'a') as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             f.write(json.dumps(entry) + '\n')
             f.flush()
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        logger.debug(f"History entry written: {entry_type} for user {user_id}")
     except Exception as e:
-        logger.error(f"Failed to write history entry to queue: {e}")
+        logger.error(f"Failed to write history entry: {e}")
 
-    # Rotate file if it grows too large (avoid disk full)
+    # Rotate if too large
     try:
         if os.path.exists(QUEUE_FILE) and os.path.getsize(QUEUE_FILE) > MAX_FILE_SIZE_BYTES:
             _rotate_queue_file()
@@ -69,39 +67,41 @@ def add_history_entry(
 
 
 # -------------------------------------------------------------------
-# Flush queue: read all lines, insert into DB, then truncate
+# Flush queue
 # -------------------------------------------------------------------
 
 def flush_history_queue(limit: Optional[int] = None) -> int:
     """
-    Read all entries from the queue file, bulk‑insert them into
-    the history_entries table, and then clear the file.
-    Returns number of entries flushed.
+    Read all entries from the queue file, bulk‑insert them into history_entries,
+    then clear the file. Returns number of entries flushed.
     """
     if not os.path.exists(QUEUE_FILE):
+        logger.debug("Queue file does not exist, nothing to flush")
         return 0
 
     entries = []
-    lines_to_keep = []  # in case of partial failure
+    lines_to_keep = []
 
     try:
-        # Read the file with lock
+        # Read with lock
         with open(QUEUE_FILE, 'r') as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             lines = f.readlines()
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
         if not lines:
+            logger.debug("Queue file is empty")
             return 0
 
-        # Parse JSON lines
+        logger.info(f"Flushing {len(lines)} lines from history queue")
+
+        # Parse lines
         for line in lines:
             line = line.strip()
             if not line:
                 continue
             try:
                 entry = json.loads(line)
-                # Ensure we have all required fields
                 if all(k in entry for k in ('user_id', 'entry_type', 'action', 'metadata', 'created_at')):
                     entries.append((
                         entry['user_id'],
@@ -112,22 +112,21 @@ def flush_history_queue(limit: Optional[int] = None) -> int:
                         entry['created_at']
                     ))
                 else:
-                    # Keep malformed lines for manual inspection
                     lines_to_keep.append(line)
-                    logger.warning(f"Skipping malformed history entry: missing fields")
-            except json.JSONDecodeError as e:
+                    logger.warning("Skipping malformed entry: missing fields")
+            except json.JSONDecodeError:
                 lines_to_keep.append(line)
-                logger.warning(f"Invalid JSON in history queue: {e}")
+                logger.warning("Skipping invalid JSON line")
 
         if not entries:
+            logger.info("No valid entries to flush")
             return 0
 
-        # Apply optional limit (for cron or manual flush)
         if limit and len(entries) > limit:
             entries = entries[:limit]
 
         # Bulk insert
-        if entries:
+        try:
             execute_with_retry(
                 """
                 INSERT INTO history_entries
@@ -138,8 +137,12 @@ def flush_history_queue(limit: Optional[int] = None) -> int:
                 commit=True,
                 operation_name='history_flush'
             )
+        except Exception as e:
+            logger.error(f"DB insert failed during flush: {e}")
+            # Do not clear the file – we'll retry later
+            return 0
 
-        # After successful insert, clear the file (keep only malformed lines)
+        # Clear the file (keep malformed lines)
         with open(QUEUE_FILE, 'w') as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             if lines_to_keep:
@@ -149,51 +152,50 @@ def flush_history_queue(limit: Optional[int] = None) -> int:
             f.flush()
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
-        logger.info(f"Flushed {len(entries)} history entries to DB")
+        logger.info(f"Successfully flushed {len(entries)} entries to DB")
         return len(entries)
 
     except Exception as e:
-        logger.error(f"Error flushing history queue: {e}")
-        # Do not delete the file; it will be retried next time
+        logger.error(f"Flush failed: {e}")
         return 0
 
 
 # -------------------------------------------------------------------
-# Rotate queue file (rename and create empty)
+# Rotate file
 # -------------------------------------------------------------------
 
 def _rotate_queue_file():
-    """Rename the queue file to a timestamped backup and create a new empty one."""
     try:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_name = f"{QUEUE_FILE}.{timestamp}.bak"
         os.rename(QUEUE_FILE, backup_name)
-        logger.info(f"Rotated history queue to {backup_name}")
+        logger.info(f"Rotated queue to {backup_name}")
     except Exception as e:
-        logger.error(f"Failed to rotate history queue: {e}")
+        logger.error(f"Rotation failed: {e}")
 
 
 # -------------------------------------------------------------------
-# Force flush (for cron or manual invocation)
+# Manual flush functions
 # -------------------------------------------------------------------
 
 def force_flush_queue() -> int:
-    """Public function to flush the entire queue (used by cron or endpoint)."""
+    """Public wrapper to flush all pending entries."""
     return flush_history_queue()
 
 
-# -------------------------------------------------------------------
-# Recover pending entries on application startup
-# -------------------------------------------------------------------
-
 def recover_pending_entries() -> int:
-    """
-    Called during app startup to flush any leftover entries from the queue.
-    Returns number of entries flushed.
-    """
+    """Called at startup to flush any leftover entries."""
+    if os.path.exists(QUEUE_FILE) and os.path.getsize(QUEUE_FILE) > 0:
+        logger.info("Recovering pending history entries on startup")
+        return flush_history_queue()
+    return 0
+
+
+# Optional: provide a way to get queue stats for debugging
+def get_queue_stats() -> dict:
     if os.path.exists(QUEUE_FILE):
         size = os.path.getsize(QUEUE_FILE)
-        if size > 0:
-            logger.info(f"Found pending history entries ({size} bytes). Flushing...")
-            return flush_history_queue()
-    return 0
+        with open(QUEUE_FILE, 'r') as f:
+            line_count = sum(1 for _ in f)
+        return {'exists': True, 'size_bytes': size, 'line_count': line_count}
+    return {'exists': False, 'size_bytes': 0, 'line_count': 0}
