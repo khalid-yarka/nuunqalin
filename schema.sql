@@ -396,14 +396,13 @@ CREATE TABLE IF NOT EXISTS user_achievements (
 
 -- ============================================
 -- QUESTION INTERACTIONS (Likes, Saves, Reports)
+-- Simplified for global user-question interactions
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS question_interactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     question_id INTEGER NOT NULL,
-    quiz_attempt_id INTEGER,
-    live_quiz_id INTEGER,
     interaction_type TEXT NOT NULL CHECK (interaction_type IN ('like', 'save', 'report')),
     report_reason TEXT,
     report_comment TEXT,
@@ -414,8 +413,7 @@ CREATE TABLE IF NOT EXISTS question_interactions (
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
-    FOREIGN KEY (quiz_attempt_id) REFERENCES quiz_attempts(id) ON DELETE SET NULL,
-    FOREIGN KEY (live_quiz_id) REFERENCES live_quizzes(id) ON DELETE SET NULL
+    UNIQUE(user_id, question_id, interaction_type)
 );
 
 CREATE INDEX IF NOT EXISTS idx_question_interactions_user ON question_interactions(user_id);

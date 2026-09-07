@@ -1,10 +1,9 @@
 # services/interaction_service.py
-# Quiz interaction service: likes, saves, reports
-# Simplified for normal quiz (global per user per question)
+# Quiz interaction service: likes, saves, reports (simplified for normal quiz)
 
 import logging
 import traceback
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 from db import execute_with_retry, get_db, get_question_by_id
 from services.tier_service import get_saved_content_limit
 
