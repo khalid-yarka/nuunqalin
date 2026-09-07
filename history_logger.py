@@ -1,4 +1,4 @@
-# history_logger.py – Robust file‑based queue with logging and detailed status
+# history_logger.py – Robust file-based queue with logging and detailed status
 
 import os
 import json
@@ -108,20 +108,21 @@ def flush_history_queue(limit: Optional[int] = None) -> Dict[str, Any]:
                 continue
             try:
                 entry = json.loads(line)
-                # Ensure all required fields exist; missing entry_id becomes None
+                # Safely extract all fields, providing defaults for missing ones
                 user_id = entry.get('user_id')
                 entry_type = entry.get('entry_type')
                 action = entry.get('action')
                 metadata = entry.get('metadata', '{}')
                 created_at = entry.get('created_at')
-                entry_id = entry.get('entry_id')  # may be missing
+                entry_id = entry.get('entry_id')  # may be missing, will be None
 
                 if user_id is not None and entry_type and action and metadata and created_at:
+                    # Explicitly build a tuple of length 6
                     entries.append((
                         user_id,
                         entry_type,
                         action,
-                        entry_id,  # None if missing
+                        entry_id,   # None if missing, that's fine
                         metadata,
                         created_at
                     ))
@@ -152,14 +153,16 @@ def flush_history_queue(limit: Optional[int] = None) -> Dict[str, Any]:
         if limit and len(entries) > limit:
             entries = entries[:limit]
 
-        # Verify all tuples have length 6
+        # Double-check that all tuples have length 6
         for i, t in enumerate(entries):
             if len(t) != 6:
                 logger.error(f"Entry {i} has length {len(t)}: {t}")
-                # Try to pad with None if missing
+                # Pad with None if shorter, truncate if longer (shouldn't happen)
                 if len(t) < 6:
                     t = t + (None,) * (6 - len(t))
-                    entries[i] = t
+                else:
+                    t = t[:6]
+                entries[i] = t
 
         # Bulk insert
         try:
