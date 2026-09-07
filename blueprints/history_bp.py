@@ -1,4 +1,5 @@
 # blueprints/history_bp.py
+# History blueprint – now flushes the queue before any read operation.
 
 import csv
 import json
@@ -10,6 +11,7 @@ from typing import Optional, List, Dict
 
 from db import execute_with_retry
 from utils import get_somali_time_db
+from history_logger import flush_history_queue, force_flush_queue
 from services.tier_service import (
     get_history_retention_days,
     get_history_max_entries,
@@ -43,10 +45,16 @@ def validate_date(date_str: str) -> Optional[str]:
         return None
 
 
+# -------------------------------------------------------------------
+# PAGE: History Dashboard
+# -------------------------------------------------------------------
+
 @history_bp.route('')
 @login_required
 def index():
-    """Render the history page."""
+    """Render the history page – flush pending entries first."""
+    flush_history_queue()  # <-- ADDED
+
     user_id = session['user_id']
     tier = get_current_user_tier()
     can_search = can_search_history(user_id)
@@ -54,7 +62,6 @@ def index():
     can_trend = can_see_trends(user_id)
     can_delete = can_delete_history(user_id)
 
-    # Basic stats for the UI
     stats = get_history_stats(user_id)
 
     return render_template(
@@ -68,13 +75,16 @@ def index():
     )
 
 
+# -------------------------------------------------------------------
+# API: Get paginated entries
+# -------------------------------------------------------------------
+
 @history_bp.route('/api/entries')
 @login_required
 def get_entries():
-    """
-    GET /history/api/entries?types=quiz_attempt,live_quiz&start_date=...&end_date=...&search=...&page=1&per_page=20&order=desc
-    Returns paginated history entries.
-    """
+    """Return paginated history entries – flush first."""
+    flush_history_queue()  # <-- ADDED
+
     user_id = session['user_id']
     tier = get_current_user_tier()
 
@@ -101,18 +111,15 @@ def get_entries():
 
     # Date range restrictions
     if tier == 'danbe':
-        # Last 7 days
         if not start_date or not end_date:
             end_date = get_somali_time_db()
             start_date = (datetime.now() - timedelta(days=7)).isoformat()
         else:
-            # Ensure range does not exceed 7 days
             start_dt = datetime.fromisoformat(start_date)
             end_dt = datetime.fromisoformat(end_date)
             if (end_dt - start_dt).days > 7:
                 start_date = (end_dt - timedelta(days=7)).isoformat()
     elif tier == 'dhexe':
-        # Last 30 days
         if not start_date or not end_date:
             end_date = get_somali_time_db()
             start_date = (datetime.now() - timedelta(days=30)).isoformat()
@@ -156,7 +163,6 @@ def get_entries():
         count_params.append(end_date)
 
     if search and can_search_history(user_id):
-        # Search in metadata JSON (subject, title, etc.)
         query += " AND (metadata LIKE ?)"
         count_query += " AND (metadata LIKE ?)"
         like = f'%{search}%'
@@ -185,27 +191,35 @@ def get_entries():
     })
 
 
+# -------------------------------------------------------------------
+# API: Statistics
+# -------------------------------------------------------------------
+
 @history_bp.route('/api/stats')
 @login_required
 def get_stats():
-    """Return summary statistics for the user's history."""
+    """Return summary statistics – flush first."""
+    flush_history_queue()  # <-- ADDED
+
     user_id = session['user_id']
     stats = get_history_stats(user_id)
     return jsonify(stats)
 
 
+# -------------------------------------------------------------------
+# API: Export as CSV
+# -------------------------------------------------------------------
+
 @history_bp.route('/api/export')
 @login_required
 def export():
-    """
-    Export filtered history as CSV.
-    Tier: Dhexe limited to 100 rows, Hore unlimited.
-    """
+    """Export filtered history as CSV – flush first."""
+    flush_history_queue()  # <-- ADDED
+
     user_id = session['user_id']
     if not can_export_history(user_id):
         return jsonify({'error': 'Export not available for your tier.'}), 403
 
-    # Same filters as get_entries, but we want all rows (or limited)
     types_param = request.args.get('types', '')
     types = [t.strip() for t in types_param.split(',') if t.strip()] if types_param else None
     start_date = validate_date(request.args.get('start_date'))
@@ -213,9 +227,8 @@ def export():
     search = request.args.get('search', '').strip()
     order = request.args.get('order', 'desc').lower()
 
-    # Tier limits
     tier = get_current_user_tier()
-    limit = 100 if tier == 'dhexe' else None  # None = unlimited
+    limit = 100 if tier == 'dhexe' else None
 
     query = """
         SELECT id, entry_type, action, metadata, created_at
@@ -249,7 +262,6 @@ def export():
     cursor = execute_with_retry(query, params)
     entries = cursor.fetchall()
 
-    # Build CSV
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(['ID', 'Type', 'Action', 'Metadata', 'Created At'])
@@ -270,17 +282,20 @@ def export():
     )
 
 
+# -------------------------------------------------------------------
+# API: Trends (Hore only)
+# -------------------------------------------------------------------
+
 @history_bp.route('/api/trends')
 @login_required
 def trends():
-    """
-    Return trend data for charts (Hore only).
-    """
+    """Return trend data for charts – flush first."""
+    flush_history_queue()  # <-- ADDED
+
     user_id = session['user_id']
     if not can_see_trends(user_id):
         return jsonify({'error': 'Trends not available for your tier.'}), 403
 
-    # Get quiz attempt scores over time (last 30 entries)
     query = """
         SELECT
             strftime('%Y-%m-%d', created_at) as date,
@@ -301,13 +316,15 @@ def trends():
         }
         for row in rows
     ]
-    # Reverse to chronological order
     trend_data.reverse()
     return jsonify(trend_data)
 
 
+# -------------------------------------------------------------------
+# Helper: get_history_stats
+# -------------------------------------------------------------------
+
 def get_history_stats(user_id: int) -> Dict:
-    """Helper to compute stats."""
     cursor = execute_with_retry("""
         SELECT
             COUNT(*) as total,

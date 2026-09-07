@@ -738,6 +738,15 @@ try:
 except Exception as e:
     logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
 
+# In app.py, after register_blueprint and before running the app
+
+try:
+    from history_logger import recover_pending_entries
+    recover_pending_entries()
+    logger.info("History queue recovery checked.")
+except Exception as e:
+    logger.error(f"History recovery error: {e}")
+
 # ============================================
 # RUN APP
 # ============================================
