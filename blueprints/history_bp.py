@@ -1,4 +1,4 @@
-# blueprints/history_bp.py – Complete with flush on every read, plus admin flush endpoint
+# blueprints/history_bp.py – Fixed date handling and tier retention
 
 import csv
 import json
@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 
 from db import execute_with_retry
-from utils import get_somali_time_db
+from utils import get_somali_time_db, get_somali_time, SOMALI_TIMEZONE
 from history_logger import flush_history_queue, force_flush_queue, get_queue_stats
 from services.tier_service import (
     get_history_retention_days,
@@ -47,10 +47,14 @@ def admin_required(f):
 
 
 def validate_date(date_str: str) -> Optional[str]:
+    """Convert user date string to ISO format with Somali timezone (UTC+3)."""
     if not date_str:
         return None
     try:
+        # Parse date only (e.g., "2026-09-01")
         dt = datetime.fromisoformat(date_str)
+        # Assume midnight in Somali time
+        dt = dt.replace(tzinfo=SOMALI_TIMEZONE)
         return dt.isoformat()
     except ValueError:
         return None
@@ -65,7 +69,10 @@ def validate_date(date_str: str) -> Optional[str]:
 def index():
     """Render the history page – flush pending entries first."""
     flush_result = flush_history_queue()
-    logger.info(f"History page flush result: {flush_result}")
+    if flush_result.get('flushed', 0) > 0:
+        logger.info(f"Flushed {flush_result['flushed']} entries before rendering")
+    elif flush_result.get('errors'):
+        logger.error(f"Flush errors: {flush_result['errors']}")
 
     user_id = session['user_id']
     tier = get_current_user_tier()
@@ -94,18 +101,20 @@ def index():
 @history_bp.route('/api/entries')
 @login_required
 def get_entries():
-    """Return paginated history entries – flush first."""
+    """Return paginated history entries – flush first, then apply tier dates."""
     flush_history_queue()  # ensure latest data
 
     user_id = session['user_id']
     tier = get_current_user_tier()
 
+    # Parse parameters
     types_param = request.args.get('types', '')
     if types_param:
         types = [t.strip() for t in types_param.split(',') if t.strip()]
     else:
         types = None
 
+    # User‑provided dates (already validated and converted to Somali timezone)
     start_date = validate_date(request.args.get('start_date'))
     end_date = validate_date(request.args.get('end_date'))
     search = request.args.get('search', '').strip()
@@ -115,34 +124,39 @@ def get_entries():
     if order not in ('asc', 'desc'):
         order = 'desc'
 
-    # Tier restrictions
+    # Tier restrictions on pagination size
     max_per_page = 20 if tier == 'danbe' else 50 if tier == 'dhexe' else 100
     if per_page > max_per_page:
         per_page = max_per_page
 
+    # --- DATE RANGE: Use Somali timezone consistently ---
+    somali_now = get_somali_time()
     if tier == 'danbe':
         if not start_date or not end_date:
-            end_date = get_somali_time_db()
-            start_date = (datetime.now() - timedelta(days=7)).isoformat()
+            end_date = somali_now.isoformat()
+            start_date = (somali_now - timedelta(days=7)).isoformat()
         else:
+            # Ensure user range does not exceed 7 days
             start_dt = datetime.fromisoformat(start_date)
             end_dt = datetime.fromisoformat(end_date)
             if (end_dt - start_dt).days > 7:
                 start_date = (end_dt - timedelta(days=7)).isoformat()
     elif tier == 'dhexe':
         if not start_date or not end_date:
-            end_date = get_somali_time_db()
-            start_date = (datetime.now() - timedelta(days=30)).isoformat()
+            end_date = somali_now.isoformat()
+            start_date = (somali_now - timedelta(days=30)).isoformat()
         else:
             start_dt = datetime.fromisoformat(start_date)
             end_dt = datetime.fromisoformat(end_date)
             if (end_dt - start_dt).days > 30:
                 start_date = (end_dt - timedelta(days=30)).isoformat()
+    # Hore: no automatic date restriction; use user dates if provided
 
+    # Search only allowed for Hore
     if search and not can_search_history(user_id):
         return jsonify({'error': 'Search not available for your tier.'}), 403
 
-    # Build query
+    # Build queries
     query = """
         SELECT id, user_id, entry_type, action, entry_id, metadata, created_at
         FROM history_entries
@@ -178,14 +192,20 @@ def get_entries():
         params.append(like)
         count_params.append(like)
 
+    # Order and pagination
     query += f" ORDER BY created_at {order} LIMIT ? OFFSET ?"
     params.extend([per_page, (page - 1) * per_page])
+
+    # Log parameters for debugging
+    logger.debug(f"History API params: user={user_id}, tier={tier}, start={start_date}, end={end_date}, types={types}, search={search}, page={page}, per_page={per_page}")
 
     entries_cursor = execute_with_retry(query, params)
     entries = [dict(row) for row in entries_cursor.fetchall()]
 
     count_cursor = execute_with_retry(count_query, count_params)
     total = count_cursor.fetchone()['total']
+
+    logger.info(f"History API: returned {len(entries)} of {total} entries for user {user_id}")
 
     return jsonify({
         'entries': entries,
@@ -199,7 +219,7 @@ def get_entries():
 
 
 # -------------------------------------------------------------------
-# API: Statistics
+# API: Statistics (unchanged)
 # -------------------------------------------------------------------
 
 @history_bp.route('/api/stats')
@@ -226,6 +246,7 @@ def export():
     if not can_export_history(user_id):
         return jsonify({'error': 'Export not available for your tier.'}), 403
 
+    # Similar date handling as above (but we can simplify for export)
     types_param = request.args.get('types', '')
     types = [t.strip() for t in types_param.split(',') if t.strip()] if types_param else None
     start_date = validate_date(request.args.get('start_date'))
@@ -234,6 +255,7 @@ def export():
     order = request.args.get('order', 'desc').lower()
 
     tier = get_current_user_tier()
+    # For Dhexe, limit to 100 rows; Hore unlimited
     limit = 100 if tier == 'dhexe' else None
 
     query = """

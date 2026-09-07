@@ -1,3 +1,4 @@
+# utils.py
 from datetime import datetime, timezone, timedelta
 import re
 from flask import request, session
@@ -173,4 +174,4 @@ def time_ago(dt_str: str) -> str:
         years = int(days // 365)
         return f"{years} year{'s' if years > 1 else ''} ago"
     except Exception:
-        return dt_str        
+        return dt_str
