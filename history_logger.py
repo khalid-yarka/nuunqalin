@@ -108,14 +108,22 @@ def flush_history_queue(limit: Optional[int] = None) -> Dict[str, Any]:
                 continue
             try:
                 entry = json.loads(line)
-                if all(k in entry for k in ('user_id', 'entry_type', 'action', 'metadata', 'created_at')):
+                # Ensure all required fields exist; missing entry_id becomes None
+                user_id = entry.get('user_id')
+                entry_type = entry.get('entry_type')
+                action = entry.get('action')
+                metadata = entry.get('metadata', '{}')
+                created_at = entry.get('created_at')
+                entry_id = entry.get('entry_id')  # may be missing
+
+                if user_id is not None and entry_type and action and metadata and created_at:
                     entries.append((
-                        entry['user_id'],
-                        entry['entry_type'],
-                        entry['action'],
-                        entry.get('entry_id'),
-                        entry['metadata'],
-                        entry['created_at']
+                        user_id,
+                        entry_type,
+                        action,
+                        entry_id,  # None if missing
+                        metadata,
+                        created_at
                     ))
                 else:
                     malformed_lines.append(line)
@@ -143,6 +151,15 @@ def flush_history_queue(limit: Optional[int] = None) -> Dict[str, Any]:
 
         if limit and len(entries) > limit:
             entries = entries[:limit]
+
+        # Verify all tuples have length 6
+        for i, t in enumerate(entries):
+            if len(t) != 6:
+                logger.error(f"Entry {i} has length {len(t)}: {t}")
+                # Try to pad with None if missing
+                if len(t) < 6:
+                    t = t + (None,) * (6 - len(t))
+                    entries[i] = t
 
         # Bulk insert
         try:

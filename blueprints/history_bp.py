@@ -2,6 +2,7 @@
 
 import csv
 import json
+import logging
 from io import StringIO
 from flask import Blueprint, request, session, jsonify, Response, abort, render_template
 from functools import wraps
@@ -21,6 +22,8 @@ from services.tier_service import (
     get_current_user_tier,
     get_feature_level
 )
+
+logger = logging.getLogger(__name__)
 
 history_bp = Blueprint('history', __name__, url_prefix='/history')
 
@@ -62,7 +65,7 @@ def validate_date(date_str: str) -> Optional[str]:
 def index():
     """Render the history page – flush pending entries first."""
     flush_result = flush_history_queue()
-    logger.info(f"History page flush: {flush_result}")
+    logger.info(f"History page flush result: {flush_result}")
 
     user_id = session['user_id']
     tier = get_current_user_tier()
