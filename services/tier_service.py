@@ -215,3 +215,44 @@ def can_save_content(user_id: int) -> bool:
 def is_tier_at_least(tier: str, required_tier: str) -> bool:
     """Check if a tier is at least the required tier."""
     return get_tier_level(tier) >= get_tier_level(required_tier)
+    
+# ============================================
+# QUESTION COUNT TIER HELPERS
+# ============================================
+
+def get_allowed_question_counts(user_id: Optional[int] = None) -> Dict[str, bool]:
+    """
+    Returns dict: { '10': True/False, '20': True/False, '30': True/False, 'custom': True/False }
+    based on user's tier.
+    """
+    if user_id is None:
+        user_id = session.get('user_id')
+    tier = get_user_tier(user_id) if user_id else Tier.DANBE
+
+    if tier == Tier.DANBE:
+        return {'10': True, '20': False, '30': False, 'custom': False}
+    elif tier == Tier.DHEXE:
+        return {'10': True, '20': True, '30': True, 'custom': False}
+    else:  # Hore
+        return {'10': True, '20': True, '30': True, 'custom': True}
+
+
+def is_custom_question_count_allowed(user_id: Optional[int] = None) -> bool:
+    if user_id is None:
+        user_id = session.get('user_id')
+    tier = get_user_tier(user_id) if user_id else Tier.DANBE
+    return tier == Tier.HORE
+
+
+def validate_question_count(user_id: int, count: int) -> bool:
+    """Check if the requested count is allowed for the user's tier."""
+    allowed = get_allowed_question_counts(user_id)
+    if count == 10 and allowed['10']:
+        return True
+    if count == 20 and allowed['20']:
+        return True
+    if count == 30 and allowed['30']:
+        return True
+    if count > 0 and allowed['custom']:
+        return True
+    return False    

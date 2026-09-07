@@ -739,13 +739,13 @@ def check_question_exists(question_text: str, subject_code: str):
 # QUIZ ATTEMPT FUNCTIONS
 # ============================================
 
-def save_quiz_attempt(student_id: int, subject_code: str, score: int, total: int, answers: list, ratings: list):
+def save_quiz_attempt(student_id: int, subject_code: str, score: int, total: int, answers: list, ratings: list, reactions: dict = None):
     try:
         execute_with_retry("""
             INSERT INTO quiz_attempts (
                 student_id, subject_code, score, total_questions,
-                answers, ratings, completed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                answers, ratings, reactions, completed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             student_id,
             subject_code,
@@ -753,14 +753,12 @@ def save_quiz_attempt(student_id: int, subject_code: str, score: int, total: int
             total,
             to_json(answers),
             to_json(ratings),
+            to_json(reactions) if reactions else None,
             now()
         ), commit=True)
         return True
     except Exception as e:
-        try:
-            current_app.logger.error(f"Error saving quiz attempt: {e}")
-        except RuntimeError:
-            logger.error(f"Error saving quiz attempt: {e}")
+        current_app.logger.error(f"Error saving quiz attempt: {e}")
         return None
 
 def get_user_quiz_history(student_id: int, limit: int = 10):

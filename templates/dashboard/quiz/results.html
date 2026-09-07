@@ -5,7 +5,7 @@
 {% block page_title %}Results{% endblock %}
 
 {% block dashboard_content %}
-<div style="max-width: 480px; margin: 0 auto; text-align: center;">
+<div style="max-width: 640px; margin: 0 auto; text-align: center;">
     <!-- Result Icon -->
     <div style="font-size: 80px; margin-bottom: 16px;">
         {% if percentage >= 70 %}🎉{% elif percentage >= 50 %}😊{% else %}💪{% endif %}
@@ -37,6 +37,26 @@
             Don't give up! Practice makes perfect. 💪
         {% endif %}
     </p>
+
+    <!-- Reactions Summary -->
+    {% if reactions %}
+    <div style="background: var(--background); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 20px; text-align: left; border: 1px solid var(--border);">
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Your Reactions</h4>
+        {% if reactions.likes %}
+            <div style="font-size: 14px; color: var(--text-secondary);">❤️ Liked questions: {{ reactions.likes|join(', ') }}</div>
+        {% endif %}
+        {% if reactions.saves %}
+            <div style="font-size: 14px; color: var(--text-secondary);">📑 Saved questions: {{ reactions.saves|join(', ') }}</div>
+        {% endif %}
+        {% if reactions.reports %}
+            <div style="font-size: 14px; color: var(--text-secondary);">⚠️ Reported questions: 
+                {% for qid, details in reactions.reports.items() %}
+                    <span>#{{ qid }} ({{ details.reason }})</span>{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <!-- Actions -->
     <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">

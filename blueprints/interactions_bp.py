@@ -1,16 +1,11 @@
 # blueprints/interactions_bp.py
-# API endpoints for quiz interactions (Normal Quiz only)
-
 from flask import Blueprint, request, session, jsonify
 from functools import wraps
 import logging
 import traceback
-from services.interaction_service import (
-    toggle_like, toggle_save, submit_report, get_user_interaction_status, get_question_likes,
-    ensure_question_interactions_table
-)
-from db import get_question_by_id
-from utils import validate_csrf
+from db import get_question_by_id, create_notification_for_all_users, execute_with_retry
+from utils import validate_csrf, get_somali_time_db
+from services.tier_service import get_saved_content_limit
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +19,21 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
+# Helper to ensure session quiz exists
+def ensure_quiz_session():
+    if 'quiz' not in session:
+        session['quiz'] = {
+            'reactions': {'likes': [], 'saves': [], 'reports': {}}
+        }
+        session.modified = True
+    elif 'reactions' not in session['quiz']:
+        session['quiz']['reactions'] = {'likes': [], 'saves': [], 'reports': {}}
+        session.modified = True
+
 @interactions_bp.route('/like', methods=['POST'])
 @login_required
 def like():
     try:
-        ensure_question_interactions_table()
         if not validate_csrf():
             return jsonify({'error': 'CSRF token missing or invalid'}), 403
 
@@ -41,19 +46,29 @@ def like():
         if not q:
             return jsonify({'error': 'Question not found'}), 404
 
-        result = toggle_like(session['user_id'], int(question_id))
-        if result.get('error'):
-            return jsonify({'error': result['error']}), 400
-        return jsonify(result)
+        # Ensure quiz session and reactions exist
+        ensure_quiz_session()
+
+        likes = session['quiz']['reactions']['likes']
+        if question_id in likes:
+            likes.remove(question_id)
+            liked = False
+        else:
+            likes.append(question_id)
+            liked = True
+        session['quiz']['reactions']['likes'] = likes
+        session.modified = True
+
+        return jsonify({'liked': liked})
     except Exception as e:
         logger.error(f"Like endpoint error: {e}\n{traceback.format_exc()}")
         return jsonify({'error': 'Internal server error. Please try again later.'}), 500
+
 
 @interactions_bp.route('/save', methods=['POST'])
 @login_required
 def save():
     try:
-        ensure_question_interactions_table()
         if not validate_csrf():
             return jsonify({'error': 'CSRF token missing or invalid'}), 403
 
@@ -66,19 +81,35 @@ def save():
         if not q:
             return jsonify({'error': 'Question not found'}), 404
 
-        result = toggle_save(session['user_id'], int(question_id))
-        if result.get('error'):
-            return jsonify({'error': result['error']}), 400
-        return jsonify(result)
+        # Tier limit check for saves (global limit)
+        limit = get_saved_content_limit(session['user_id'])
+        if limit is not None:
+            # Count saves across all quizzes? For now, we don't enforce global limit per quiz.
+            # We'll just allow saving in the session.
+            pass
+
+        ensure_quiz_session()
+
+        saves = session['quiz']['reactions']['saves']
+        if question_id in saves:
+            saves.remove(question_id)
+            saved = False
+        else:
+            saves.append(question_id)
+            saved = True
+        session['quiz']['reactions']['saves'] = saves
+        session.modified = True
+
+        return jsonify({'saved': saved})
     except Exception as e:
         logger.error(f"Save endpoint error: {e}\n{traceback.format_exc()}")
         return jsonify({'error': 'Internal server error. Please try again later.'}), 500
+
 
 @interactions_bp.route('/report', methods=['POST'])
 @login_required
 def report():
     try:
-        ensure_question_interactions_table()
         if not validate_csrf():
             return jsonify({'error': 'CSRF token missing or invalid'}), 403
 
@@ -94,26 +125,35 @@ def report():
         if not q:
             return jsonify({'error': 'Question not found'}), 404
 
-        result = submit_report(session['user_id'], int(question_id), reason, comment)
-        if result.get('error'):
-            return jsonify({'error': result['error']}), 400
-        return jsonify(result)
+        ensure_quiz_session()
+
+        # Deferred: store in session
+        reports = session['quiz']['reactions']['reports']
+        if str(question_id) in reports:
+            return jsonify({'error': 'You have already reported this question.'}), 400
+
+        reports[question_id] = {'reason': reason, 'comment': comment}
+        session['quiz']['reactions']['reports'] = reports
+        session.modified = True
+
+        # Immediate: insert into question_interactions (global) and notify admins
+        execute_with_retry("""
+            INSERT INTO question_interactions
+            (user_id, question_id, interaction_type, report_reason, report_comment, report_status)
+            VALUES (?, ?, 'report', ?, ?, 'pending')
+        """, (session['user_id'], question_id, reason, comment), commit=True)
+
+        # Notify all admins
+        question_text = q.get('question_text', 'Unknown')[:50]
+        create_notification_for_all_users(
+            type='admin_report',
+            title='⚠️ New Report',
+            body=f'User #{session["user_id"]} reported: "{question_text}"',
+            link='/admin/reports',
+            icon='⚠️'
+        )
+
+        return jsonify({'success': True, 'message': 'Report submitted. We will review it shortly.'})
     except Exception as e:
         logger.error(f"Report endpoint error: {e}\n{traceback.format_exc()}")
-        return jsonify({'error': 'Internal server error. Please try again later.'}), 500
-
-@interactions_bp.route('/status', methods=['GET'])
-@login_required
-def status():
-    try:
-        ensure_question_interactions_table()
-        question_id = request.args.get('question_id')
-        if not question_id:
-            return jsonify({'error': 'Missing question_id'}), 400
-
-        status_data = get_user_interaction_status(session['user_id'], int(question_id))
-        status_data['like_count'] = get_question_likes(int(question_id))
-        return jsonify(status_data)
-    except Exception as e:
-        logger.error(f"Status endpoint error: {e}\n{traceback.format_exc()}")
         return jsonify({'error': 'Internal server error. Please try again later.'}), 500

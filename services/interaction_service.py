@@ -3,7 +3,7 @@
 
 import logging
 import traceback
-from typing import Dict, Any, List
+from typing import Optional, Dict, Any, List
 from db import execute_with_retry, get_db, get_question_by_id
 from services.tier_service import get_saved_content_limit
 
@@ -196,7 +196,7 @@ def submit_report(user_id: int, question_id: int, reason: str, comment: str = ''
     return {'success': True, 'message': 'Report submitted. We will review it shortly.'}
 
 # ============================================
-# Admin report management (unchanged)
+# Admin report management
 # ============================================
 
 def get_pending_reports(limit: int = 50, offset: int = 0) -> List[Dict]:
@@ -212,7 +212,7 @@ def get_pending_reports(limit: int = 50, offset: int = 0) -> List[Dict]:
     rows = cursor.fetchall()
     return [dict(row) for row in rows]
 
-def get_all_reports(limit: int = 50, offset: int = 0, status: str = None) -> List[Dict]:
+def get_all_reports(limit: int = 50, offset: int = 0, status: Optional[str] = None) -> List[Dict]:
     query = """
         SELECT qi.*, q.question_text, s.first_name, s.last_name, s.public_id,
                adm.first_name as admin_first_name, adm.last_name as admin_last_name
@@ -232,7 +232,7 @@ def get_all_reports(limit: int = 50, offset: int = 0, status: str = None) -> Lis
     rows = cursor.fetchall()
     return [dict(row) for row in rows]
 
-def count_reports(status: str = None) -> int:
+def count_reports(status: Optional[str] = None) -> int:
     query = "SELECT COUNT(*) as count FROM question_interactions WHERE interaction_type = 'report'"
     params = []
     if status:
