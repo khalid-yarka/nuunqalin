@@ -7,36 +7,106 @@
 {% block extra_css %}
 {{ super() }}
 <style>
+    /* ============================================
+       QUIZ PLAY STYLES
+       ============================================ */
+
+    .option-btn {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 18px;
+        background: var(--surface);
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 16px;
+        color: var(--text);
+        width: 100%;
+        text-align: left;
+    }
+    .option-btn:hover:not(:disabled) {
+        border-color: var(--primary);
+        background: var(--primary-light);
+    }
+    .option-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    .option-btn .letter {
+        font-weight: 700;
+        color: var(--text-secondary);
+        min-width: 28px;
+    }
+    .option-btn.correct {
+        border-color: #10B981;
+        background: #ECFDF5;
+    }
+    .option-btn.correct .letter {
+        color: #10B981;
+    }
+    .option-btn.wrong {
+        border-color: #EF4444;
+        background: #FEF2F2;
+    }
+    .option-btn.wrong .letter {
+        color: #EF4444;
+    }
+
+    .feedback-area {
+        margin-top: 16px;
+        padding: 16px 20px;
+        border-radius: var(--radius-sm);
+    }
+    .feedback-area.success {
+        background: #ECFDF5;
+        border: 1px solid #A7F3D0;
+    }
+    .feedback-area.error {
+        background: #FEF2F2;
+        border: 1px solid #FCA5A5;
+    }
+    .feedback-title {
+        font-weight: 600;
+        font-size: 16px;
+    }
+    .feedback-explanation {
+        font-size: 14px;
+        margin-top: 6px;
+        color: var(--text-secondary);
+    }
+
+    /* ============================================
+       INTERACTION ROW
+       ============================================ */
     .interaction-row {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 10px;
         margin-top: 16px;
         align-items: center;
         justify-content: center;
     }
     .interaction-btn {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 6px 14px;
-        font-size: 20px;
+        background: transparent;
+        border: none;
+        font-size: 26px;
         cursor: pointer;
-        transition: var(--transition);
-        color: var(--text-secondary);
+        transition: all 0.2s ease;
+        color: var(--text-muted);
+        padding: 6px 10px;
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        background: transparent;
-        border: none;
-        font-size: 24px;
         position: relative;
     }
     .interaction-btn:hover:not(.locked):not(:disabled) {
-        transform: scale(1.1);
+        transform: scale(1.15);
+        background: var(--primary-light);
         color: var(--primary);
     }
     .interaction-btn.active-like {
@@ -46,27 +116,69 @@
         color: var(--primary);
     }
     .interaction-btn.locked {
-        opacity: 0.5;
+        opacity: 0.4;
         cursor: not-allowed;
     }
     .interaction-btn:disabled {
         opacity: 0.3;
         cursor: not-allowed;
     }
+
+    /* Next button – appears after answering */
+    .btn-next {
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: 10px 24px;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25);
+        margin-top: 4px;
+    }
+    .btn-next:hover:not(:disabled) {
+        background: var(--primary-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 49, 56, 0.35);
+    }
+    .btn-next:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none !important;
+    }
+    .btn-next .icon {
+        font-size: 18px;
+    }
+
+    .action-divider {
+        width: 1px;
+        height: 30px;
+        background: var(--border);
+        margin: 0 4px;
+    }
+
     .help-icon {
-        font-size: 16px;
+        font-size: 18px;
         color: var(--text-muted);
         cursor: pointer;
         transition: var(--transition);
         background: none;
         border: none;
-        padding: 4px 8px;
+        padding: 6px 8px;
         border-radius: 50%;
-        margin-left: 4px;
     }
     .help-icon:hover {
         color: var(--primary);
         background: var(--primary-light);
+    }
+    .interaction-wrapper {
+        position: relative;
+        display: inline-block;
     }
     .help-popup {
         display: none;
@@ -107,12 +219,33 @@
         color: var(--text-muted);
         font-style: italic;
     }
-    .interaction-wrapper {
-        position: relative;
+
+    .auto-skip-indicator {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 8px;
+        text-align: center;
+        opacity: 0.7;
+    }
+    .auto-skip-indicator .spinner {
         display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid var(--border);
+        border-top: 2px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        vertical-align: middle;
+        margin-right: 6px;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
     }
 
-    /* Report Modal */
+    /* ============================================
+       REPORT MODAL
+       ============================================ */
     .report-modal {
         display: none;
         position: fixed;
@@ -129,7 +262,7 @@
     .report-modal .modal-content {
         background: var(--surface);
         border-radius: var(--radius);
-        padding: 24px;
+        padding: 28px 24px;
         max-width: 460px;
         width: 100%;
         box-shadow: var(--shadow-lg);
@@ -191,17 +324,49 @@
         cursor: pointer;
         transition: var(--transition);
     }
+    .btn-secondary {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+        background: var(--background);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+    .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+    .btn-primary:hover {
+        background: var(--primary-hover);
+    }
+
+    /* ============================================
+       RESPONSIVE
+       ============================================ */
     @media (max-width: 480px) {
+        .option-btn {
+            font-size: 14px;
+            padding: 10px 14px;
+        }
         .interaction-btn {
             font-size: 20px;
-            min-width: 40px;
+            width: 40px;
             height: 40px;
         }
-        .help-icon {
-            font-size: 14px;
+        .btn-next {
+            font-size: 13px;
+            padding: 8px 16px;
         }
         .report-modal .modal-content {
             padding: 16px;
+        }
+        .interaction-row {
+            gap: 6px;
+        }
+        .action-divider {
+            height: 24px;
         }
     }
 </style>
@@ -209,10 +374,15 @@
 
 {% block dashboard_content %}
 <div id="quiz-container" style="max-width: 680px; margin: 0 auto;">
+
     <!-- Progress -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <span style="color: var(--text-secondary); font-size: 14px;">Question <span id="current-num">{{ current + 1 }}</span>/<span id="total-num">{{ total }}</span></span>
-        <span style="color: var(--primary); font-weight: 600; font-size: 14px;">⭐ <span id="score-display">{{ score }}</span> points</span>
+        <span style="color: var(--text-secondary); font-size: 14px;">
+            Question <span id="current-num">{{ current + 1 }}</span>/<span id="total-num">{{ total }}</span>
+        </span>
+        <span style="color: var(--primary); font-weight: 600; font-size: 14px;">
+            ⭐ <span id="score-display">{{ score }}</span> points
+        </span>
     </div>
 
     <!-- Progress Bar -->
@@ -221,52 +391,65 @@
     </div>
 
     <!-- Question Card -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm);">
-        <div id="question-text" style="font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 20px; line-height: 1.4;">
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; box-shadow: var(--shadow-sm);">
+        <div id="question-text" style="font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 20px; line-height: 1.5;">
             {{ question.question_text }}
         </div>
 
         <!-- Options -->
         <div id="options-container" style="display: flex; flex-direction: column; gap: 10px;">
-            <button class="option-btn" data-value="A" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.3s ease; font-size: 16px; color: var(--text); width: 100%; text-align: left;">
-                <span style="font-weight: 700; color: var(--text-secondary); min-width: 28px;">A.</span>
+            <button class="option-btn" data-value="A">
+                <span class="letter">A.</span>
                 <span>{{ question.options.A }}</span>
             </button>
-            <button class="option-btn" data-value="B" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.3s ease; font-size: 16px; color: var(--text); width: 100%; text-align: left;">
-                <span style="font-weight: 700; color: var(--text-secondary); min-width: 28px;">B.</span>
+            <button class="option-btn" data-value="B">
+                <span class="letter">B.</span>
                 <span>{{ question.options.B }}</span>
             </button>
-            <button class="option-btn" data-value="C" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.3s ease; font-size: 16px; color: var(--text); width: 100%; text-align: left;">
-                <span style="font-weight: 700; color: var(--text-secondary); min-width: 28px;">C.</span>
+            <button class="option-btn" data-value="C">
+                <span class="letter">C.</span>
                 <span>{{ question.options.C }}</span>
             </button>
             {% if question.options.D %}
-            <button class="option-btn" data-value="D" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.3s ease; font-size: 16px; color: var(--text); width: 100%; text-align: left;">
-                <span style="font-weight: 700; color: var(--text-secondary); min-width: 28px;">D.</span>
+            <button class="option-btn" data-value="D">
+                <span class="letter">D.</span>
                 <span>{{ question.options.D }}</span>
             </button>
             {% endif %}
         </div>
 
-        <!-- Feedback Area -->
-        <div id="feedback-area" style="display: none; margin-top: 20px; padding: 16px 20px; border-radius: var(--radius-sm); background: var(--background); border: 1px solid var(--border);">
-            <div id="feedback-message" style="font-weight: 600;"></div>
-            <div id="feedback-explanation" style="font-size: 14px; margin-top: 6px; color: var(--text-secondary);"></div>
+        <!-- Feedback & Interaction Area -->
+        <div id="feedback-area" style="display: none; margin-top: 20px;">
+            <!-- Feedback Message -->
+            <div id="feedback-message" class="feedback-area">
+                <div class="feedback-title" id="feedback-title"></div>
+                <div class="feedback-explanation" id="feedback-explanation"></div>
+            </div>
 
             <!-- Interaction Row -->
             <div class="interaction-row" id="interactionRow">
                 <!-- Like -->
-                <button class="interaction-btn" id="likeBtn" data-question-id="{{ question.id }}" data-action="like">
+                <button class="interaction-btn" id="likeBtn" data-question-id="{{ question.id }}" title="Like this question">
                     ♡
                 </button>
+
                 <!-- Save -->
-                <button class="interaction-btn" id="saveBtn" data-question-id="{{ question.id }}" data-action="save">
+                <button class="interaction-btn" id="saveBtn" data-question-id="{{ question.id }}" title="Save this question">
                     ☐
                 </button>
+
                 <!-- Report -->
-                <button class="interaction-btn" id="reportBtn" data-question-id="{{ question.id }}" data-action="report">
+                <button class="interaction-btn" id="reportBtn" data-question-id="{{ question.id }}" title="Report an issue">
                     ⚑
                 </button>
+
+                <span class="action-divider"></span>
+
+                <!-- Next Button (appears after answering) -->
+                <button class="btn-next" id="nextBtn" style="display:none;">
+                    <span class="icon">⏭️</span> Next Question
+                </button>
+
                 <!-- Help -->
                 <div class="interaction-wrapper">
                     <button class="help-icon" id="helpBtn" title="Help">❓</button>
@@ -274,6 +457,7 @@
                         <div class="item"><span class="icon">♡</span> Like this question</div>
                         <div class="item"><span class="icon">☐</span> Save to bookmarks</div>
                         <div class="item"><span class="icon">⚑</span> Report an issue</div>
+                        <div class="item"><span class="icon">⏭️</span> Go to next question</div>
                         {% if user_tier in ['dhexe', 'hore'] %}
                         <div class="note">💡 Auto-advance enabled in Settings → Quiz Preferences.</div>
                         {% else %}
@@ -322,17 +506,23 @@
 </div>
 
 <script>
-// CSRF token
+// ============================================
+// CSRF TOKEN
+// ============================================
 const csrfToken = '{{ session.get("csrf_token", "") }}';
 const questionId = {{ question.id }};
 const totalQuestions = {{ total }};
 const userTier = '{{ user_tier|default("danbe") }}';
 const autoSkipEnabled = {{ user_settings.auto_skip_enabled|default(0)|int }};
 
+// ============================================
+// MAIN QUIZ LOGIC
+// ============================================
 document.addEventListener('DOMContentLoaded', function() {
+    // DOM refs
     const optionsContainer = document.getElementById('options-container');
     const feedbackArea = document.getElementById('feedback-area');
-    const feedbackMessage = document.getElementById('feedback-message');
+    const feedbackTitle = document.getElementById('feedback-title');
     const feedbackExplanation = document.getElementById('feedback-explanation');
     const progressBar = document.getElementById('progress-bar');
     const scoreDisplay = document.getElementById('score-display');
@@ -341,6 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const likeBtn = document.getElementById('likeBtn');
     const saveBtn = document.getElementById('saveBtn');
     const reportBtn = document.getElementById('reportBtn');
+    const nextBtn = document.getElementById('nextBtn');
     const helpBtn = document.getElementById('helpBtn');
     const helpPopup = document.getElementById('helpPopup');
     const autoSkipIndicator = document.getElementById('autoSkipIndicator');
@@ -354,24 +545,29 @@ document.addEventListener('DOMContentLoaded', function() {
     let answered = false;
     let isSubmitting = false;
     let autoSkipTimer = null;
+    let interactionStatus = {};
 
-    // Load initial reaction states from session (passed via template or we fetch via AJAX)
-    // We'll use AJAX to get the current state, but since we have the session, we can embed the state directly.
-    // For simplicity, we'll fetch via AJAX.
+    // ============================================
+    // FETCH INTERACTION STATUS
+    // ============================================
     function fetchInteractionStatus() {
         fetch('/api/interaction/status?question_id=' + questionId)
             .then(res => res.json())
             .then(data => {
                 if (!data.error) {
-                    updateButtons(data);
+                    interactionStatus = data;
+                    updateButtons();
                 }
             })
             .catch(err => console.warn('Error fetching interaction status:', err));
     }
 
-    function updateButtons(status) {
+    // ============================================
+    // UPDATE BUTTON STATES
+    // ============================================
+    function updateButtons() {
         // Like
-        if (status.liked) {
+        if (interactionStatus.liked) {
             likeBtn.classList.add('active-like');
             likeBtn.textContent = '♥';
         } else {
@@ -380,7 +576,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Save
-        if (status.saved) {
+        if (interactionStatus.saved) {
             saveBtn.classList.add('active-save');
             saveBtn.textContent = '☑';
         } else {
@@ -389,7 +585,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Report
-        if (status.reported) {
+        if (interactionStatus.reported) {
             reportBtn.disabled = true;
             reportBtn.classList.add('locked');
             reportBtn.textContent = '⚠';
@@ -399,14 +595,16 @@ document.addEventListener('DOMContentLoaded', function() {
             reportBtn.textContent = '⚑';
         }
 
-        // Tier lock for save (if Danbe, show lock)
+        // Tier lock for save (Danbe)
         if (userTier === 'danbe') {
             saveBtn.classList.add('locked');
             saveBtn.title = 'Upgrade to save questions';
         }
     }
 
-    // Help toggle
+    // ============================================
+    // HELP TOGGLE
+    // ============================================
     helpBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         helpPopup.classList.toggle('show');
@@ -417,15 +615,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Like
+    // ============================================
+    // LIKE
+    // ============================================
     likeBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         if (isSubmitting || !answered) return;
         const btn = this;
         const qid = btn.dataset.questionId;
-        const wasLiked = btn.classList.contains('active-like');
 
-        // Optimistic
+        const wasLiked = btn.classList.contains('active-like');
         if (wasLiked) {
             btn.classList.remove('active-like');
             btn.textContent = '♡';
@@ -442,7 +641,6 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(res => res.json())
         .then(data => {
             if (data.error) { showToast('Error: ' + data.error, 'error'); fetchInteractionStatus(); return; }
-            // Update button based on server response (in case optimistic was wrong)
             if (data.liked) {
                 btn.classList.add('active-like');
                 btn.textContent = '♥';
@@ -454,7 +652,9 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(() => { showToast('Network error', 'error'); fetchInteractionStatus(); });
     });
 
-    // Save
+    // ============================================
+    // SAVE
+    // ============================================
     saveBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         if (this.classList.contains('locked')) {
@@ -466,9 +666,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isSubmitting || !answered) return;
         const btn = this;
         const qid = btn.dataset.questionId;
-        const wasSaved = btn.classList.contains('active-save');
 
-        // Optimistic
+        const wasSaved = btn.classList.contains('active-save');
         if (wasSaved) {
             btn.classList.remove('active-save');
             btn.textContent = '☐';
@@ -496,7 +695,9 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(() => { showToast('Network error', 'error'); fetchInteractionStatus(); });
     });
 
-    // Report
+    // ============================================
+    // REPORT
+    // ============================================
     reportBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         if (this.disabled || !answered) return;
@@ -539,7 +740,40 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeReportModal = closeReportModal;
     reportModal.addEventListener('click', function(e) { if (e.target === this) closeReportModal(); });
 
-    // Option selection
+    // ============================================
+    // NEXT BUTTON (skip rating)
+    // ============================================
+    nextBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (isSubmitting) return;
+        if (!answered) return;
+
+        nextBtn.disabled = true;
+        nextBtn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:6px;"></span> Loading...';
+
+        fetch('/quiz/skip_rating', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            body: JSON.stringify({})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.complete) {
+                window.location.href = '{{ url_for("quiz.results") }}';
+            } else {
+                window.location.href = window.location.pathname + '?next=1';
+            }
+        })
+        .catch(() => {
+            showToast('Error advancing. Please try again.', 'error');
+            nextBtn.disabled = false;
+            nextBtn.innerHTML = '<span class="icon">⏭️</span> Next Question';
+        });
+    });
+
+    // ============================================
+    // OPTION SELECTION
+    // ============================================
     document.querySelectorAll('.option-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             if (answered || isSubmitting) return;
@@ -547,7 +781,7 @@ document.addEventListener('DOMContentLoaded', function() {
             isSubmitting = true;
             const answer = this.dataset.value;
             const allBtns = document.querySelectorAll('.option-btn');
-            allBtns.forEach(b => b.style.pointerEvents = 'none');
+            allBtns.forEach(b => b.disabled = true);
 
             fetch('{{ url_for("quiz.submit_answer") }}', {
                 method: 'POST',
@@ -558,51 +792,60 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 allBtns.forEach(b => {
                     if (b.dataset.value === data.correct_answer) {
-                        b.style.borderColor = '#10B981';
-                        b.style.background = '#ECFDF5';
+                        b.classList.add('correct');
                     }
                     if (b.dataset.value === answer && !data.correct) {
-                        b.style.borderColor = '#EF4444';
-                        b.style.background = '#FEF2F2';
+                        b.classList.add('wrong');
                     }
                 });
-                if (data.correct) { score++; scoreDisplay.textContent = score; }
+
+                if (data.correct) {
+                    score++;
+                    scoreDisplay.textContent = score;
+                }
+
+                // Show feedback
                 feedbackArea.style.display = 'block';
-                feedbackMessage.innerHTML = data.correct ?
-                    '✅ <span style="color: #10B981;">CORRECT! +1 point</span>' :
-                    '❌ <span style="color: #EF4444;">WRONG! Correct answer was: ' + data.correct_answer + '</span>';
+                feedbackTitle.textContent = data.correct ? '✅ CORRECT! +1 point' : '❌ WRONG!';
+                feedbackTitle.style.color = data.correct ? '#10B981' : '#EF4444';
+
                 if (data.explanation) {
                     feedbackExplanation.textContent = '💡 ' + data.explanation;
+                } else {
+                    feedbackExplanation.textContent = 'Correct answer was: ' + data.correct_answer;
                 }
-                // Fetch interaction status after answer (to show buttons)
+
+                // Show next button
+                nextBtn.style.display = 'inline-flex';
+
+                // Fetch interaction status
                 fetchInteractionStatus();
 
+                // Auto-skip if enabled
                 if (autoSkipEnabled && (userTier === 'dhexe' || userTier === 'hore')) {
                     autoSkipIndicator.style.display = 'block';
                     autoSkipTimer = setTimeout(function() {
                         autoSkipIndicator.style.display = 'none';
-                        advanceQuestion();
+                        if (!nextBtn.disabled) {
+                            nextBtn.click();
+                        }
                     }, 3000);
                 }
+
                 isSubmitting = false;
             })
             .catch(err => {
                 console.error('Error submitting answer:', err);
                 showToast('Error submitting answer.', 'error');
+                allBtns.forEach(b => b.disabled = false);
                 isSubmitting = false;
             });
         });
     });
 
-    function advanceQuestion() {
-        if (isSubmitting) return;
-        if (current + 1 < total) {
-            window.location.href = window.location.pathname + '?next=1';
-        } else {
-            window.location.href = '{{ url_for("quiz.results") }}';
-        }
-    }
-
+    // ============================================
+    // TOAST HELPER
+    // ============================================
     function showToast(message, type) {
         if (typeof window.showToast === 'function') {
             window.showToast(message, type || 'info', 3000);
@@ -611,7 +854,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Initial load: fetch interaction status
+    // ============================================
+    // INIT
+    // ============================================
     fetchInteractionStatus();
 });
 </script>

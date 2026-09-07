@@ -24,12 +24,20 @@ import json
 
 quiz_bp = Blueprint('quiz', __name__, url_prefix='/quiz')
 
+
 @quiz_bp.route('/')
 def index():
     """Unified setup page: choose subject and question count."""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
+
+    # Check if user has an active quiz session
+    quiz_data = session.get('quiz')
+    if quiz_data and quiz_data.get('questions'):
+        # User has a quiz in progress – redirect to play
+        flash('Resuming your quiz...', 'info')
+        return redirect(url_for('quiz.play'))
 
     user_id = session['user_id']
     subjects = get_user_subject_list(user_id)
@@ -97,7 +105,6 @@ def start_quiz():
         return redirect(url_for('quiz.index'))
 
     # Fetch questions
-    max_limit = 100  # safety
     questions = get_questions_by_subject(subject_code, question_count)
     if not questions:
         flash('No questions available for this subject yet.', 'error')
@@ -111,7 +118,7 @@ def start_quiz():
     # Initialise session quiz data
     session['quiz'] = {
         'subject_code': subject_code,
-        'question_count': len(questions),  # actual number (may be less if not enough questions)
+        'question_count': len(questions),
         'questions': questions,
         'current_index': 0,
         'score': 0,
@@ -251,7 +258,39 @@ def submit_rating():
     session.modified = True
 
     if quiz_data['current_index'] >= len(questions):
-        # All questions answered
+        user_id = session['user_id']
+        score = quiz_data['score']
+        total = len(questions)
+        check_and_award_achievements(user_id, 'quiz_completed', {'score': score, 'total': total})
+        return jsonify({'complete': True})
+
+    return jsonify({'complete': False, 'next': quiz_data['current_index']})
+
+
+@quiz_bp.route('/skip_rating', methods=['POST'])
+def skip_rating():
+    """Skip rating and advance to next question."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    if not validate_csrf():
+        return jsonify({'error': 'CSRF token missing or invalid'}), 403
+
+    quiz_data = session.get('quiz')
+    if not quiz_data:
+        return jsonify({'error': 'No quiz in progress'}), 400
+
+    questions = quiz_data['questions']
+    current_index = quiz_data['current_index']
+    if current_index >= len(questions):
+        return jsonify({'error': 'Quiz already completed'}), 400
+
+    # Advance to next question without rating
+    quiz_data['current_index'] += 1
+    session['quiz'] = quiz_data
+    session.modified = True
+
+    if quiz_data['current_index'] >= len(questions):
         user_id = session['user_id']
         score = quiz_data['score']
         total = len(questions)
@@ -278,9 +317,8 @@ def results():
     total = len(questions)
     subject_code = quiz_data['subject_code']
     ratings = quiz_data['ratings']
-    reactions = quiz_data['reactions']  # {'likes': [...], 'saves': [...], 'reports': {...}}
+    reactions = quiz_data['reactions']
 
-    # Save to database
     save_quiz_attempt(
         session['user_id'],
         subject_code,
@@ -288,10 +326,9 @@ def results():
         total,
         answers,
         ratings,
-        reactions  # new parameter – we need to update db.py to accept it
+        reactions
     )
 
-    # Update points
     student = get_student_by_id(session['user_id'])
     if student:
         current_points = student.get('total_points', 0)
