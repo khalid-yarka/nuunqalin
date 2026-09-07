@@ -76,10 +76,10 @@ from bot.db import init_bot_db
 from blueprints.interactions_bp import interactions_bp
 
 # ============================================
-# HISTORY BLUEPRINT (NEW)
+# HISTORY BLUEPRINT (NEW) – now file‑based, no worker
 # ============================================
 from blueprints.history_bp import history_bp
-from history_logger import _ensure_worker
+from history_logger import recover_pending_entries   # new: flush leftovers on startup
 
 # Activity logger
 from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event, init_activity_logger
@@ -333,7 +333,7 @@ logger.info(f"PDF Admin panel mounted at {PDF_ADMIN_SECRET}")
 app.register_blueprint(interactions_bp)
 
 # ============================================
-# REGISTER HISTORY BLUEPRINT (NEW)
+# REGISTER HISTORY BLUEPRINT (NEW – file‑based)
 # ============================================
 app.register_blueprint(history_bp)
 
@@ -377,6 +377,7 @@ except Exception as e:
 def telegram_webhook(token):
     expected_token = Config.TELEGRAM_BOT_TOKEN
     if not expected_token or token != expected_token:
+        logger.warning(f"Webhook token mismatch. Expected {expected_token[:4]}... got {token[:4]}...")
         return jsonify({'error': 'Unauthorized'}), 403
 
     try:
@@ -401,13 +402,13 @@ except Exception as e:
     logger.error(f"Failed to configure bot webhook: {e}")
 
 # ============================================
-# START HISTORY WORKER (NEW)
+# HISTORY SYSTEM – RECOVER PENDING ENTRIES (NEW)
 # ============================================
 try:
-    _ensure_worker()
-    logger.info("History worker started successfully.")
+    recover_pending_entries()
+    logger.info("History queue recovery checked.")
 except Exception as e:
-    logger.error(f"Failed to start history worker: {e}")
+    logger.error(f"History recovery error: {e}")
 
 # ============================================
 # ROUTES
@@ -737,15 +738,6 @@ try:
     logger.info("Live Quiz State Manager initialized and recovered active quizzes.")
 except Exception as e:
     logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
-
-# In app.py, after register_blueprint and before running the app
-
-try:
-    from history_logger import recover_pending_entries
-    recover_pending_entries()
-    logger.info("History queue recovery checked.")
-except Exception as e:
-    logger.error(f"History recovery error: {e}")
 
 # ============================================
 # RUN APP

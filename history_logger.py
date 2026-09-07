@@ -15,10 +15,11 @@ from db import execute_with_retry, get_somali_time_db
 
 logger = logging.getLogger(__name__)
 
-# Configuration
+# Configuration – you can override these via environment variables
 QUEUE_FILE = os.getenv('HISTORY_QUEUE_FILE', 'history_queue.jsonl')
 MAX_BATCH_SIZE = 100          # Maximum entries to flush in one go
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB – rotate if exceeded
+
 
 # -------------------------------------------------------------------
 # Write to queue (append one JSON line)
@@ -65,6 +66,7 @@ def add_history_entry(
             _rotate_queue_file()
     except Exception:
         pass
+
 
 # -------------------------------------------------------------------
 # Flush queue: read all lines, insert into DB, then truncate
@@ -155,6 +157,7 @@ def flush_history_queue(limit: Optional[int] = None) -> int:
         # Do not delete the file; it will be retried next time
         return 0
 
+
 # -------------------------------------------------------------------
 # Rotate queue file (rename and create empty)
 # -------------------------------------------------------------------
@@ -169,19 +172,28 @@ def _rotate_queue_file():
     except Exception as e:
         logger.error(f"Failed to rotate history queue: {e}")
 
+
 # -------------------------------------------------------------------
 # Force flush (for cron or manual invocation)
 # -------------------------------------------------------------------
 
-def force_flush_queue():
+def force_flush_queue() -> int:
     """Public function to flush the entire queue (used by cron or endpoint)."""
     return flush_history_queue()
 
-# Optionally, you can call this on application startup to recover any leftover
-# entries from a previous run.
-def recover_pending_entries():
+
+# -------------------------------------------------------------------
+# Recover pending entries on application startup
+# -------------------------------------------------------------------
+
+def recover_pending_entries() -> int:
+    """
+    Called during app startup to flush any leftover entries from the queue.
+    Returns number of entries flushed.
+    """
     if os.path.exists(QUEUE_FILE):
         size = os.path.getsize(QUEUE_FILE)
         if size > 0:
             logger.info(f"Found pending history entries ({size} bytes). Flushing...")
-            flush_history_queue()
+            return flush_history_queue()
+    return 0
