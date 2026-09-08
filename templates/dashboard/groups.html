@@ -4,159 +4,438 @@
 
 {% block page_title %}Groups{% endblock %}
 
-{% block dashboard_content %}
-<div style="max-width: 100%;">
-    <!-- Breadcrumb -->
-    <div class="breadcrumb">
-        <a href="{{ url_for('dashboard.home') }}">Dashboard</a>
-        <span class="separator">/</span>
-        <span class="current">Groups</span>
-    </div>
+{% block extra_css %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/groups.css') }}" />
+{% endblock %}
 
-    <!-- Header -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
-        <div>
-            <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
-                <i class="fas fa-users" style="color: var(--primary);"></i> Study Groups
-            </h2>
-            <p style="color: var(--text-secondary); font-size: 14px;">Join our community groups to learn together</p>
+{% block dashboard_content %}
+<div class="groups-container">
+
+    <!-- ============================================ -->
+    <!-- HEADER                                        -->
+    <!-- ============================================ -->
+    <div class="groups-header">
+        <div class="title-section">
+            <h2><i class="fas fa-users" style="color: var(--primary);"></i> Study Groups</h2>
+            <p>Join community groups based on your curriculum and subjects</p>
         </div>
     </div>
 
-    <!-- Search & Filters -->
-    <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
-        <form method="GET" id="searchForm" style="flex: 1; min-width: 200px;">
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 150px;">
-                    <input type="text" name="search" id="searchInput" placeholder="🔍 Search groups..." 
-                           value="{{ search_query }}" 
-                           style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface);">
-                </div>
-                <select name="platform" id="platformFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
-                    <option value="">All Platforms</option>
-                    <option value="whatsapp" {% if platform_filter == 'whatsapp' %}selected{% endif %}>💬 WhatsApp</option>
-                    <option value="telegram" {% if platform_filter == 'telegram' %}selected{% endif %}>✈️ Telegram</option>
-                </select>
-                <select name="category" id="categoryFilter" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); min-width: 120px;">
-                    <option value="">All Categories</option>
-                    {% for cat in categories %}
-                        <option value="{{ cat }}" {% if category_filter == cat %}selected{% endif %}>{{ cat }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" style="padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">
-                    <i class="fas fa-search"></i> Search
-                </button>
-                {% if search_query or platform_filter or category_filter %}
-                    <a href="{{ url_for('groups.list_groups') }}" style="padding: 10px 16px; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-sm); text-decoration: none; color: var(--text-secondary); font-weight: 500; transition: var(--transition);">
-                        <i class="fas fa-times"></i> Clear
-                    </a>
-                {% endif %}
-            </div>
-        </form>
+    <!-- ============================================ -->
+    <!-- CURRICULUM TABS                               -->
+    <!-- ============================================ -->
+    <div class="curriculum-tabs" id="curriculumTabs">
+        <button class="curriculum-tab active" data-curriculum="all">
+            All
+            <span class="badge">{{ total_groups }}</span>
+        </button>
+        {% for curriculum in curricula %}
+            <button class="curriculum-tab" data-curriculum="{{ curriculum.code }}">
+                {{ curriculum.icon }} {{ curriculum.name }}
+                <span class="badge">{{ curriculum.count }}</span>
+            </button>
+        {% endfor %}
     </div>
 
-    <!-- Groups Grid -->
-    {% if groups %}
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+    <!-- ============================================ -->
+    <!-- FILTER BAR (No search, only platform & category) -->
+    <!-- ============================================ -->
+    <div class="filter-bar" id="filterBar">
+        <select id="platformFilter">
+            <option value="">All Platforms</option>
+            {% for platform in platforms %}
+                <option value="{{ platform.platform }}">{{ platform.platform|capitalize }} ({{ platform.count }})</option>
+            {% endfor %}
+        </select>
+
+        <select id="categoryFilter">
+            <option value="">All Categories</option>
+            {% for category in categories %}
+                <option value="{{ category.category }}">{{ category.category }} ({{ category.count }})</option>
+            {% endfor %}
+        </select>
+
+        <button class="btn-clear" id="clearFilters" style="display:none;">
+            <i class="fas fa-times"></i> Clear Filters
+        </button>
+
+        <div class="active-filters" id="activeFilters"></div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- FEATURED GROUPS                              -->
+    <!-- ============================================ -->
+    {% if featured_groups %}
+    <div class="featured-section">
+        <div class="section-title">
+            ⭐ Featured Groups
+            <span class="badge">Top picks</span>
+        </div>
+        <div class="featured-grid" id="featuredGrid">
+            {% for group in featured_groups %}
+                <div class="featured-card {% if not group.can_join %}locked{% endif %}"
+                     data-group="{{ group.id }}"
+                     onclick="handleGroupClick({{ group.id }}, '{{ group.name }}', '{{ group.invite_link }}', {{ group.can_join|lower }}, '{{ group.tier_required|default('danbe') }}')">
+                    <span class="featured-icon">{{ group.icon or '📚' }}</span>
+                    <div class="featured-name">{{ group.name }}</div>
+                    <div class="featured-meta">
+                        👥 <span class="count">{{ group.click_count or 0 }}</span> joins
+                    </div>
+                    {% if not group.can_join %}
+                        <div class="upgrade-hint">🔒 Requires {{ group.required_tier|capitalize }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================ -->
+    <!-- ALL GROUPS                                   -->
+    <!-- ============================================ -->
+    <div class="groups-grid" id="groupsGrid">
+        {% if groups %}
             {% for group in groups %}
-                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); transition: var(--transition);">
-                    <!-- Platform Icon & Name -->
-                    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
-                        <div style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; 
-                            {% if group.platform == 'whatsapp' %}
-                                background: #ECFDF5; color: #25D366;
-                            {% else %}
-                                background: #EFF6FF; color: #0088CC;
-                            {% endif %}">
-                            <i class="fab fa-{% if group.platform == 'whatsapp' %}whatsapp{% else %}telegram-plane{% endif %}"></i>
-                        </div>
-                        <div style="flex: 1;">
-                            <h3 style="font-size: 16px; font-weight: 600; color: var(--text);">{{ group.name }}</h3>
-                            {% if group.category %}
-                                <span style="font-size: 11px; color: var(--text-secondary); background: var(--background); padding: 2px 10px; border-radius: 10px;">{{ group.category }}</span>
-                            {% endif %}
+                <div class="group-card {% if not group.can_join %}locked-card{% endif %}"
+                     data-group="{{ group.id }}"
+                     data-curriculum="{{ group.curriculum or 'all' }}"
+                     data-platform="{{ group.platform }}"
+                     data-category="{{ group.category or 'Uncategorized' }}">
+
+                    <div class="card-top">
+                        <span class="icon">{{ group.icon or '📚' }}</span>
+                        <div class="info">
+                            <div class="name">
+                                {{ group.name }}
+                                {% if group.is_featured %}
+                                    <span class="featured-tag">⭐ Featured</span>
+                                {% endif %}
+                                {% if not group.can_join %}
+                                    <span class="locked-tag">🔒 {{ group.required_tier|capitalize }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="meta">
+                                <span>
+                                    <span class="platform-icon {% if group.platform == 'whatsapp' %}whatsapp{% else %}telegram{% endif %}">
+                                        <i class="fab fa-{% if group.platform == 'whatsapp' %}whatsapp{% else %}telegram-plane{% endif %}"></i>
+                                    </span>
+                                    {{ group.platform|capitalize }}
+                                </span>
+                                {% if group.category %}
+                                    <span>📂 {{ group.category }}</span>
+                                {% endif %}
+                                {% if group.curriculum %}
+                                    <span>📚 {{ group.curriculum|upper }}</span>
+                                {% endif %}
+                                <span>👥 <strong>{{ group.click_count or 0 }}</strong> joins</span>
+                                <span class="popular">🔥 Popular</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Description -->
                     {% if group.description %}
-                        <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; line-height: 1.5;">{{ group.description }}</p>
+                        <div class="card-description">{{ group.description }}</div>
                     {% endif %}
 
-                    <!-- Platform Badge -->
-                    <div style="margin-bottom: 16px;">
-                        <span style="font-size: 12px; color: {% if group.platform == 'whatsapp' %}#25D366{% else %}#0088CC{% endif %}; background: {% if group.platform == 'whatsapp' %}#ECFDF5{% else %}#EFF6FF{% endif %}; padding: 2px 12px; border-radius: 10px; font-weight: 600;">
+                    <div class="card-actions">
+                        <button class="btn-join {% if not group.can_join %}locked{% endif %}"
+                                onclick="handleGroupClick({{ group.id }}, '{{ group.name }}', '{{ group.invite_link }}', {{ group.can_join|lower }}, '{{ group.tier_required|default('danbe') }}')"
+                                {% if not group.can_join %}disabled{% endif %}>
+                            {% if group.can_join %}
+                                <i class="fas fa-arrow-right"></i> Join Group
+                            {% else %}
+                                <span class="lock-icon">🔒</span> Upgrade to Join
+                            {% endif %}
+                        </button>
+                        <span class="platform-tag {{ group.platform }}">
                             <i class="fab fa-{% if group.platform == 'whatsapp' %}whatsapp{% else %}telegram-plane{% endif %}"></i>
                             {{ group.platform|capitalize }}
                         </span>
                     </div>
-
-                    <!-- Join Button with Click Tracking -->
-                    <a href="{{ group.invite_link }}" target="_blank" 
-                       onclick="trackGroupClick('{{ group.id }}')"
-                       style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; 
-                              background: {% if group.platform == 'whatsapp' %}#25D366{% else %}#0088CC{% endif %}; 
-                              color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; 
-                              text-decoration: none; transition: var(--transition); width: 100%; justify-content: center;">
-                        <i class="fab fa-{% if group.platform == 'whatsapp' %}whatsapp{% else %}telegram-plane{% endif %}"></i>
-                        Join {{ group.platform|capitalize }} Group
-                    </a>
                 </div>
             {% endfor %}
-        </div>
-    {% else %}
-        <!-- Empty State -->
-        <div style="text-align: center; padding: 60px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-            <div style="font-size: 64px; opacity: 0.3; margin-bottom: 16px;">👥</div>
-            <h3 style="font-size: 18px; font-weight: 600; color: var(--text);">No groups available</h3>
-            <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">Check back later for new study groups!</p>
+        {% else %}
+            <div class="groups-empty">
+                <span class="empty-icon">👥</span>
+                <h3>No groups available</h3>
+                <p>Check back later for new study groups in your curriculum.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- ============================================ -->
+    <!-- PAGINATION                                   -->
+    <!-- ============================================ -->
+    {% if total_pages > 1 %}
+        <div class="pagination">
+            <a href="?page=1" class="page-link {% if page == 1 %}disabled{% endif %}">First</a>
+            <a href="?page={{ page - 1 }}" class="page-link {% if page == 1 %}disabled{% endif %}">Previous</a>
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                    <span class="page-link active">{{ p }}</span>
+                {% elif p <= page + 2 and p >= page - 2 %}
+                    <a href="?page={{ p }}" class="page-link">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+            <a href="?page={{ page + 1 }}" class="page-link {% if page == total_pages %}disabled{% endif %}">Next</a>
+            <a href="?page={{ total_pages }}" class="page-link {% if page == total_pages %}disabled{% endif %}">Last</a>
         </div>
     {% endif %}
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('searchInput');
-    const platformFilter = document.getElementById('platformFilter');
-    const categoryFilter = document.getElementById('categoryFilter');
-    const searchForm = document.getElementById('searchForm');
-    
-    let debounceTimer;
-    
-    function autoSubmit() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(function() {
-            searchForm.submit();
-        }, 500);
-    }
-    
-    if (searchInput) {
-        searchInput.addEventListener('input', autoSubmit);
-    }
-    
-    if (platformFilter) {
-        platformFilter.addEventListener('change', function() {
-            searchForm.submit();
-        });
-    }
-    
-    if (categoryFilter) {
-        categoryFilter.addEventListener('change', function() {
-            searchForm.submit();
-        });
-    }
-});
+<!-- ============================================ -->
+<!-- JOIN CONFIRMATION MODAL                      -->
+<!-- ============================================ -->
+<div class="modal-overlay join-modal" id="joinModal">
+    <div class="modal-content">
+        <span class="modal-icon">🔗</span>
+        <h3 class="modal-title">Join Group</h3>
+        <p class="modal-body">
+            You are about to join <span class="group-name" id="modalGroupName"></span>.
+            You will be redirected to the group platform.
+        </p>
+        <div class="modal-details">
+            <div class="detail-row">
+                <span class="label">Platform</span>
+                <span class="value" id="modalPlatform">-</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Category</span>
+                <span class="value" id="modalCategory">-</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Total Joins</span>
+                <span class="value" id="modalClicks">-</span>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button onclick="closeJoinModal()" class="btn btn-secondary">Cancel</button>
+            <a href="#" id="modalJoinLink" target="_blank" class="btn btn-primary">
+                <i class="fas fa-arrow-right"></i> Join Now
+            </a>
+        </div>
+    </div>
+</div>
 
-// Track group click
-function trackGroupClick(groupId) {
-    fetch('/groups/track-click/' + groupId, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
+<!-- ============================================ -->
+<!-- UPGRADE SHEET TRIGGER (for tier-locked groups) -->
+<!-- ============================================ -->
+<script>
+    // ============================================
+    // CURRICULUM TABS
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const tabs = document.querySelectorAll('.curriculum-tab');
+        const groups = document.querySelectorAll('.group-card');
+        const featuredGrid = document.getElementById('featuredGrid');
+
+        function filterGroups(curriculum) {
+            let visibleCount = 0;
+            groups.forEach(group => {
+                const groupCurriculum = group.dataset.curriculum || 'all';
+                if (curriculum === 'all' || groupCurriculum === curriculum || groupCurriculum === 'all') {
+                    group.style.display = '';
+                    visibleCount++;
+                } else {
+                    group.style.display = 'none';
+                }
+            });
+
+            // Also filter featured groups (simplified: show/hide based on curriculum)
+            if (featuredGrid) {
+                const featuredCards = featuredGrid.querySelectorAll('.featured-card');
+                featuredCards.forEach(card => {
+                    // For featured, we just check if the group exists in the filtered list
+                    const groupId = card.dataset.group;
+                    const matchingGroup = document.querySelector(`.group-card[data-group="${groupId}"]`);
+                    if (matchingGroup && matchingGroup.style.display !== 'none') {
+                        card.style.display = '';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            }
         }
-    }).catch(function(err) {
-        console.log('Error tracking group click:', err);
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                tabs.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                const curriculum = this.dataset.curriculum;
+                filterGroups(curriculum);
+            });
+        });
+
+        // ============================================
+        // FILTERS (Platform + Category)
+        // ============================================
+        const platformFilter = document.getElementById('platformFilter');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const clearFiltersBtn = document.getElementById('clearFilters');
+        const activeFilters = document.getElementById('activeFilters');
+
+        function applyFilters() {
+            const platform = platformFilter.value;
+            const category = categoryFilter.value;
+            const activeTab = document.querySelector('.curriculum-tab.active');
+            const curriculum = activeTab ? activeTab.dataset.curriculum : 'all';
+
+            let hasFilters = false;
+            let filterTexts = [];
+
+            groups.forEach(group => {
+                const groupPlatform = group.dataset.platform;
+                const groupCategory = group.dataset.category || 'Uncategorized';
+                const groupCurriculum = group.dataset.curriculum || 'all';
+
+                let show = true;
+                if (curriculum !== 'all' && groupCurriculum !== curriculum && groupCurriculum !== 'all') {
+                    show = false;
+                }
+                if (platform && groupPlatform !== platform) {
+                    show = false;
+                }
+                if (category && groupCategory !== category) {
+                    show = false;
+                }
+
+                group.style.display = show ? '' : 'none';
+                if (show) {
+                    // Count for featured
+                }
+            });
+
+            // Also filter featured cards
+            if (featuredGrid) {
+                const featuredCards = featuredGrid.querySelectorAll('.featured-card');
+                featuredCards.forEach(card => {
+                    const groupId = card.dataset.group;
+                    const matchingGroup = document.querySelector(`.group-card[data-group="${groupId}"]`);
+                    if (matchingGroup && matchingGroup.style.display !== 'none') {
+                        card.style.display = '';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            }
+
+            // Update active filters display
+            activeFilters.innerHTML = '';
+            if (platform) {
+                hasFilters = true;
+                filterTexts.push(`Platform: ${platform.charAt(0).toUpperCase() + platform.slice(1)}`);
+            }
+            if (category) {
+                hasFilters = true;
+                filterTexts.push(`Category: ${category}`);
+            }
+
+            if (hasFilters) {
+                clearFiltersBtn.style.display = 'inline-block';
+                filterTexts.forEach(text => {
+                    const tag = document.createElement('span');
+                    tag.className = 'filter-tag';
+                    tag.innerHTML = `${text} <span class="remove" onclick="this.parentElement.remove(); applyFilters();">&times;</span>`;
+                    activeFilters.appendChild(tag);
+                });
+            } else {
+                clearFiltersBtn.style.display = 'none';
+            }
+        }
+
+        platformFilter.addEventListener('change', applyFilters);
+        categoryFilter.addEventListener('change', applyFilters);
+
+        clearFiltersBtn.addEventListener('click', function() {
+            platformFilter.value = '';
+            categoryFilter.value = '';
+            applyFilters();
+        });
+
+        // Initial filter application
+        applyFilters();
+
+        // ============================================
+        // GROUP CLICK HANDLER
+        // ============================================
+        window.handleGroupClick = function(groupId, name, link, canJoin, requiredTier) {
+            if (!canJoin) {
+                // Show upgrade sheet
+                if (typeof window.openSafkaPreview === 'function') {
+                    window.openSafkaPreview({
+                        feature: 'group_access',
+                        requiredTier: requiredTier || 'dhexe'
+                    });
+                } else {
+                    showToast('🔒 This group requires ' + (requiredTier || 'higher') + ' tier.', 'warning');
+                }
+                return;
+            }
+
+            // Show join modal
+            document.getElementById('modalGroupName').textContent = name;
+            document.getElementById('modalJoinLink').href = link;
+
+            // Fetch additional group details
+            fetch('/groups/details/' + groupId)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('modalPlatform').textContent = data.platform || '-';
+                    document.getElementById('modalCategory').textContent = data.category || 'Uncategorized';
+                    document.getElementById('modalClicks').textContent = data.clicks || 0;
+                })
+                .catch(() => {
+                    document.getElementById('modalPlatform').textContent = '-';
+                    document.getElementById('modalCategory').textContent = '-';
+                    document.getElementById('modalClicks').textContent = '0';
+                });
+
+            document.getElementById('joinModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+
+            // Track click
+            trackGroupClick(groupId);
+        };
+
+        // ============================================
+        // CLOSE MODAL
+        // ============================================
+        window.closeJoinModal = function() {
+            document.getElementById('joinModal').classList.remove('active');
+            document.body.style.overflow = '';
+        };
+
+        document.getElementById('joinModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeJoinModal();
+            }
+        });
+
+        // ============================================
+        // TRACK GROUP CLICK
+        // ============================================
+        function trackGroupClick(groupId) {
+            fetch('/groups/track-click/' + groupId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            }).catch(function(err) {
+                console.log('Error tracking group click:', err);
+            });
+        }
+
+        // ============================================
+        // TOAST HELPER
+        // ============================================
+        function showToast(message, type) {
+            if (typeof window.showToast === 'function') {
+                window.showToast(message, type);
+            } else {
+                alert(message);
+            }
+        }
     });
-}
 </script>
 {% endblock %}

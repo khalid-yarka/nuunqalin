@@ -2323,3 +2323,344 @@ def clean_history_entries():
     except Exception as e:
         logger.error(f"Failed to clean history entries: {e}")
         return 0
+
+# ============================================
+# GROUP FUNCTIONS – Enhanced with curriculum support
+# ============================================
+
+# Add these functions to your existing db.py file
+
+def get_all_groups_advanced(limit=50, offset=0, curriculum=None, platform=None, category=None, status=None):
+    """
+    Get groups with advanced filtering for admin panel.
+    """
+    try:
+        query = "SELECT * FROM groups WHERE 1=1"
+        params = []
+        if curriculum:
+            query += " AND curriculum = ?"
+            params.append(curriculum)
+        if platform:
+            query += " AND platform = ?"
+            params.append(platform)
+        if category:
+            query += " AND category = ?"
+            params.append(category)
+        if status == 'active':
+            query += " AND is_active = 1"
+        elif status == 'inactive':
+            query += " AND is_active = 0"
+        query += " ORDER BY display_order ASC, created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        cursor = execute_with_retry(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error fetching groups: {e}")
+        return []
+
+def get_group_by_id(group_id):
+    """Get a single group by ID."""
+    try:
+        cursor = execute_with_retry("SELECT * FROM groups WHERE id = ?", (group_id,))
+        result = cursor.fetchone()
+        return dict(result) if result else None
+    except Exception as e:
+        logger.error(f"Error fetching group: {e}")
+        return None
+
+def create_group_advanced(data):
+    """
+    Create a group with all new fields.
+    data keys: name, platform, invite_link, description, category,
+               curriculum, subjects, tier_required, is_active,
+               is_featured, display_order, group_type, icon, created_by
+    """
+    try:
+        cursor = execute_with_retry("""
+            INSERT INTO groups (
+                name, platform, invite_link, description, category,
+                curriculum, subjects, tier_required, is_active,
+                is_featured, display_order, group_type, icon,
+                click_count, created_by, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data['name'],
+            data['platform'],
+            data['invite_link'],
+            data.get('description', ''),
+            data.get('category', ''),
+            data.get('curriculum', ''),
+            data.get('subjects', ''),
+            data.get('tier_required', 'danbe'),
+            data.get('is_active', 1),
+            data.get('is_featured', 0),
+            data.get('display_order', 0),
+            data.get('group_type', 'community'),
+            data.get('icon', '📚'),
+            0,
+            data.get('created_by'),
+            now(),
+            now()
+        ), commit=True)
+        return True
+    except Exception as e:
+        logger.error(f"Error creating group: {e}")
+        return False
+
+def update_group_advanced(group_id, data):
+    """
+    Update a group with all fields.
+    """
+    try:
+        fields = []
+        params = []
+        allowed = [
+            'name', 'platform', 'invite_link', 'description', 'category',
+            'curriculum', 'subjects', 'tier_required', 'is_active',
+            'is_featured', 'display_order', 'group_type', 'icon'
+        ]
+        for key in allowed:
+            if key in data:
+                fields.append(f"{key} = ?")
+                params.append(data[key])
+        if not fields:
+            return False
+        fields.append("updated_at = ?")
+        params.append(now())
+        params.append(group_id)
+        query = f"UPDATE groups SET {', '.join(fields)} WHERE id = ?"
+        execute_with_retry(query, params, commit=True)
+        return True
+    except Exception as e:
+        logger.error(f"Error updating group: {e}")
+        return False
+
+def delete_group_advanced(group_id):
+    """Delete a group and its audit log entries."""
+    try:
+        execute_with_retry("DELETE FROM group_audit_log WHERE group_id = ?", (group_id,), commit=True)
+        execute_with_retry("DELETE FROM groups WHERE id = ?", (group_id,), commit=True)
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting group: {e}")
+        return False
+
+def toggle_group_active(group_id):
+    """Toggle group active status."""
+    try:
+        cursor = execute_with_retry(
+            "SELECT is_active FROM groups WHERE id = ?", (group_id,)
+        )
+        result = cursor.fetchone()
+        if not result:
+            return False
+        new_status = 0 if result['is_active'] else 1
+        execute_with_retry(
+            "UPDATE groups SET is_active = ?, updated_at = ? WHERE id = ?",
+            (new_status, now(), group_id), commit=True
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error toggling group active: {e}")
+        return False
+
+def toggle_group_featured(group_id):
+    """Toggle group featured status."""
+    try:
+        cursor = execute_with_retry(
+            "SELECT is_featured FROM groups WHERE id = ?", (group_id,)
+        )
+        result = cursor.fetchone()
+        if not result:
+            return False
+        new_status = 0 if result['is_featured'] else 1
+        execute_with_retry(
+            "UPDATE groups SET is_featured = ?, updated_at = ? WHERE id = ?",
+            (new_status, now(), group_id), commit=True
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error toggling group featured: {e}")
+        return False
+
+def log_group_audit(group_id, admin_id, action, changes=None):
+    """Log group audit entry."""
+    try:
+        execute_with_retry("""
+            INSERT INTO group_audit_log (group_id, admin_id, action, changes, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (group_id, admin_id, action, changes, now()), commit=True)
+        return True
+    except Exception as e:
+        logger.error(f"Error logging group audit: {e}")
+        return False
+
+def get_group_audit_log(group_id=None, admin_id=None, limit=50):
+    """Get group audit log entries."""
+    try:
+        query = """
+            SELECT gal.*, s.first_name, s.last_name, s.public_id
+            FROM group_audit_log gal
+            LEFT JOIN students s ON gal.admin_id = s.id
+            WHERE 1=1
+        """
+        params = []
+        if group_id:
+            query += " AND gal.group_id = ?"
+            params.append(group_id)
+        if admin_id:
+            query += " AND gal.admin_id = ?"
+            params.append(admin_id)
+        query += " ORDER BY gal.created_at DESC LIMIT ?"
+        params.append(limit)
+        cursor = execute_with_retry(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error fetching group audit log: {e}")
+        return []
+
+def get_group_stats():
+    """Get group statistics for admin dashboard."""
+    try:
+        cursor = execute_with_retry("""
+            SELECT 
+                COUNT(*) as total_groups,
+                SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active_groups,
+                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_groups,
+                SUM(CASE WHEN is_featured = 1 THEN 1 ELSE 0 END) as featured_groups,
+                SUM(click_count) as total_clicks,
+                AVG(click_count) as avg_clicks
+            FROM groups
+        """)
+        result = cursor.fetchone()
+        return dict(result) if result else {}
+    except Exception as e:
+        logger.error(f"Error getting group stats: {e}")
+        return {}
+
+def get_featured_groups(limit=5):
+    """Get featured groups for user page."""
+    try:
+        cursor = execute_with_retry("""
+            SELECT * FROM groups
+            WHERE is_active = 1 AND is_featured = 1
+            ORDER BY display_order ASC, click_count DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error fetching featured groups: {e}")
+        return []
+
+def get_groups_by_curriculum(user_curriculum=None):
+    """
+    Get groups filtered by user's curriculum.
+    If user_curriculum is None, show all.
+    """
+    try:
+        if user_curriculum:
+            query = """
+                SELECT * FROM groups
+                WHERE is_active = 1
+                AND (curriculum = ? OR curriculum = '' OR curriculum IS NULL)
+                ORDER BY is_featured DESC, display_order ASC, click_count DESC
+            """
+            cursor = execute_with_retry(query, (user_curriculum,))
+        else:
+            query = """
+                SELECT * FROM groups
+                WHERE is_active = 1
+                ORDER BY is_featured DESC, display_order ASC, click_count DESC
+            """
+            cursor = execute_with_retry(query)
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error fetching groups by curriculum: {e}")
+        return []
+
+def get_groups_by_platform(platform, user_curriculum=None):
+    """Get groups filtered by platform and curriculum."""
+    try:
+        query = """
+            SELECT * FROM groups
+            WHERE is_active = 1 AND platform = ?
+        """
+        params = [platform]
+        if user_curriculum:
+            query += " AND (curriculum = ? OR curriculum = '' OR curriculum IS NULL)"
+            params.append(user_curriculum)
+        query += " ORDER BY is_featured DESC, display_order ASC, click_count DESC"
+        cursor = execute_with_retry(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error fetching groups by platform: {e}")
+        return []
+
+def get_groups_by_category(category, user_curriculum=None):
+    """Get groups filtered by category and curriculum."""
+    try:
+        query = """
+            SELECT * FROM groups
+            WHERE is_active = 1 AND category = ?
+        """
+        params = [category]
+        if user_curriculum:
+            query += " AND (curriculum = ? OR curriculum = '' OR curriculum IS NULL)"
+            params.append(user_curriculum)
+        query += " ORDER BY is_featured DESC, display_order ASC, click_count DESC"
+        cursor = execute_with_retry(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error fetching groups by category: {e}")
+        return []
+
+def get_group_categories_with_count(user_curriculum=None):
+    """Get categories with group counts for filtering."""
+    try:
+        query = """
+            SELECT category, COUNT(*) as count
+            FROM groups
+            WHERE is_active = 1 AND category IS NOT NULL AND category != ''
+        """
+        params = []
+        if user_curriculum:
+            query += " AND (curriculum = ? OR curriculum = '' OR curriculum IS NULL)"
+            params.append(user_curriculum)
+        query += " GROUP BY category ORDER BY count DESC"
+        cursor = execute_with_retry(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error getting group categories: {e}")
+        return []
+
+def get_group_platforms_with_count(user_curriculum=None):
+    """Get platforms with group counts for filtering."""
+    try:
+        query = """
+            SELECT platform, COUNT(*) as count
+            FROM groups
+            WHERE is_active = 1
+        """
+        params = []
+        if user_curriculum:
+            query += " AND (curriculum = ? OR curriculum = '' OR curriculum IS NULL)"
+            params.append(user_curriculum)
+        query += " GROUP BY platform ORDER BY count DESC"
+        cursor = execute_with_retry(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error getting group platforms: {e}")
+        return []
+
+def get_available_curricula():
+    """Get distinct curricula from groups."""
+    try:
+        cursor = execute_with_retry("""
+            SELECT DISTINCT curriculum FROM groups
+            WHERE curriculum IS NOT NULL AND curriculum != ''
+            ORDER BY curriculum
+        """)
+        return [row['curriculum'] for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error fetching curricula: {e}")
+        return []

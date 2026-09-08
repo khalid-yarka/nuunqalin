@@ -1,5 +1,5 @@
 # blueprints/admin_bp.py
-# Updated announcement to use notification service
+# Complete admin blueprint with group management API
 
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, abort
 from db import (
@@ -12,6 +12,8 @@ from db import (
     execute_with_retry,
     get_user_subject_list,
     get_student_by_id,
+    get_group_by_id,
+    get_group_categories_with_count,
 )
 from error_models import get_error_stats
 from functools import wraps
@@ -20,6 +22,11 @@ import secrets
 from subjects_config import get_all_subjects
 from services.tier_service import get_user_tier, set_user_tier, get_current_user_tier
 from services.notification_service import send_notification_to_all
+from services.group_service import (
+    get_admin_group_list, create_group, update_group, delete_group,
+    toggle_active, toggle_featured, get_group_stats, get_group_audit_log,
+    get_curriculum_subjects
+)
 from activity_logger import log_admin_action
 
 from db import (
@@ -373,66 +380,204 @@ def restore_deleted_user(deleted_id):
 
 
 # ============================================
-# GROUPS ADMIN
+# GROUPS ADMIN – New API and pages
 # ============================================
+
+@admin_bp.route('/groups/api', methods=['POST'])
+@admin_required
+def api_create_group():
+    """API endpoint to create a group."""
+    validate_csrf()
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    required = ['name', 'platform', 'invite_link']
+    for field in required:
+        if not data.get(field):
+            return jsonify({'error': f'{field} is required'}), 400
+
+    data['created_by'] = session['user_id']
+
+    success, group_id = create_group(session['user_id'], data)
+    if success:
+        return jsonify({'success': True, 'message': 'Group created successfully', 'group_id': group_id})
+    return jsonify({'error': 'Failed to create group'}), 500
+
+
+@admin_bp.route('/groups/api/<int:group_id>', methods=['PUT'])
+@admin_required
+def api_update_group(group_id):
+    """API endpoint to update a group."""
+    validate_csrf()
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    success = update_group(session['user_id'], group_id, data)
+    if success:
+        return jsonify({'success': True, 'message': 'Group updated successfully'})
+    return jsonify({'error': 'Failed to update group'}), 500
+
+
+@admin_bp.route('/groups/api/<int:group_id>', methods=['DELETE'])
+@admin_required
+def api_delete_group(group_id):
+    """API endpoint to delete a group."""
+    validate_csrf()
+    success = delete_group(session['user_id'], group_id)
+    if success:
+        return jsonify({'success': True, 'message': 'Group deleted successfully'})
+    return jsonify({'error': 'Failed to delete group'}), 500
+
+
+@admin_bp.route('/groups/api/<int:group_id>', methods=['GET'])
+@admin_required
+def api_get_group(group_id):
+    """API endpoint to get a single group."""
+    group = get_group_by_id(group_id)
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    return jsonify(group)
+
+
+@admin_bp.route('/groups/api/<int:group_id>/toggle-active', methods=['POST'])
+@admin_required
+def api_toggle_active(group_id):
+    """API endpoint to toggle group active status."""
+    validate_csrf()
+    success = toggle_active(session['user_id'], group_id)
+    if success:
+        return jsonify({'success': True, 'message': 'Status toggled'})
+    return jsonify({'error': 'Failed to toggle status'}), 500
+
+
+@admin_bp.route('/groups/api/<int:group_id>/toggle-featured', methods=['POST'])
+@admin_required
+def api_toggle_featured(group_id):
+    """API endpoint to toggle group featured status."""
+    validate_csrf()
+    success = toggle_featured(session['user_id'], group_id)
+    if success:
+        return jsonify({'success': True, 'message': 'Featured status toggled'})
+    return jsonify({'error': 'Failed to toggle featured'}), 500
+
+
+@admin_bp.route('/groups/api/bulk', methods=['POST'])
+@admin_required
+def api_bulk_action():
+    """API endpoint for bulk actions on groups."""
+    validate_csrf()
+    data = request.get_json()
+    action = data.get('action')
+    group_ids = data.get('group_ids', [])
+
+    if not action or not group_ids:
+        return jsonify({'error': 'Missing action or group IDs'}), 400
+
+    results = {'success': 0, 'failed': 0}
+    for group_id in group_ids:
+        try:
+            if action == 'activate':
+                success = update_group(session['user_id'], group_id, {'is_active': 1})
+            elif action == 'deactivate':
+                success = update_group(session['user_id'], group_id, {'is_active': 0})
+            elif action == 'feature':
+                success = update_group(session['user_id'], group_id, {'is_featured': 1})
+            elif action == 'delete':
+                success = delete_group(session['user_id'], group_id)
+            else:
+                return jsonify({'error': 'Invalid action'}), 400
+
+            if success:
+                results['success'] += 1
+            else:
+                results['failed'] += 1
+        except Exception as e:
+            results['failed'] += 1
+            import logging
+            logging.getLogger(__name__).error(f"Bulk action error: {e}")
+
+    return jsonify({
+        'success': True,
+        'message': f'Completed: {results["success"]} succeeded, {results["failed"]} failed'
+    })
+
 
 @admin_bp.route('/groups')
 @admin_required
 def admin_groups():
-    groups = get_all_groups()
-    return render_template('dashboard/admin/groups.html', groups=groups)
+    """Admin group management page."""
+    search = request.args.get('search', '')
+    platform = request.args.get('platform', '')
+    category = request.args.get('category', '')
+    status = request.args.get('status', '')
+    page = int(request.args.get('page', 1))
+
+    groups, total = get_admin_group_list(
+        search=search,
+        platform=platform,
+        category=category,
+        status=status,
+        page=page,
+        per_page=20
+    )
+
+    stats = get_group_stats()
+    categories = get_group_categories_with_count()
+
+    total_pages = (total + 20 - 1) // 20 if total > 0 else 1
+
+    return render_template('dashboard/admin/groups.html',
+                         groups=groups,
+                         stats=stats,
+                         categories=categories,
+                         search=search,
+                         platform=platform,
+                         category=category,
+                         status=status,
+                         page=page,
+                         total_pages=total_pages)
 
 
-@admin_bp.route('/groups/add', methods=['POST'])
+@admin_bp.route('/groups/analytics')
 @admin_required
-def add_group():
-    validate_csrf()
-    name = request.form.get('name', '').strip()
-    platform = request.form.get('platform', '')
-    invite_link = request.form.get('invite_link', '').strip()
-    description = request.form.get('description', '').strip()
-    category = request.form.get('category', '').strip()
+def groups_analytics():
+    """Group analytics dashboard."""
+    stats = get_group_stats()
+    groups, _ = get_admin_group_list(per_page=10)
+    top_groups = sorted(groups, key=lambda x: x.get('click_count', 0), reverse=True)[:10]
+    from db import get_group_platforms_with_count
+    platforms = get_group_platforms_with_count()
 
-    if not name or not platform or not invite_link:
-        flash('Name, platform, and invite link are required.', 'error')
-        return redirect(url_for('admin.admin_groups'))
-
-    data = {
-        'name': name,
-        'platform': platform,
-        'invite_link': invite_link,
-        'description': description,
-        'category': category if category else ''
-    }
-
-    if create_group(data):
-        flash('Group added successfully!', 'success')
-        log_admin_action('group.create', f"Added group {name}", 'info')
-    else:
-        flash('Error adding group.', 'error')
-    return redirect(url_for('admin.admin_groups'))
+    return render_template('dashboard/admin/groups_analytics.html',
+                         stats=stats,
+                         top_groups=top_groups,
+                         platforms=platforms)
 
 
-@admin_bp.route('/groups/delete/<group_id>', methods=['POST'])
+@admin_bp.route('/groups/audit')
 @admin_required
-def delete_group(group_id):
-    validate_csrf()
-    if delete_group(group_id):
-        flash('Group deleted successfully!', 'success')
-        log_admin_action('group.delete', f"Deleted group {group_id}", 'info')
-    else:
-        flash('Error deleting group.', 'error')
-    return redirect(url_for('admin.admin_groups'))
+def groups_audit():
+    """Group audit log page."""
+    group_id = request.args.get('group_id', type=int)
+    admin_id = request.args.get('admin_id', type=int)
+    logs = get_group_audit_log(group_id=group_id, admin_id=admin_id, limit=100)
+
+    return render_template('dashboard/admin/groups_audit.html',
+                         logs=logs,
+                         group_id=group_id,
+                         admin_id=admin_id)
 
 
 # ============================================
-# PDFS ADMIN (Updated to new schema)
+# PDFS ADMIN
 # ============================================
 
 @admin_bp.route('/pdfs')
 @admin_required
 def admin_pdfs():
-    """List all PDFs (main platform) – using new schema."""
+    """List all PDFs (main platform)."""
     pdfs = get_all_pdfs()
     return render_template('dashboard/admin/pdfs.html', pdfs=pdfs)
 
@@ -440,7 +585,7 @@ def admin_pdfs():
 @admin_bp.route('/pdfs/add', methods=['POST'])
 @admin_required
 def add_pdf():
-    """Add a new PDF to the main platform (for super admin)."""
+    """Add a new PDF to the main platform."""
     validate_csrf()
     code = request.form.get('code', '').strip()
     if not code:
@@ -572,7 +717,7 @@ def delete_question(question_id):
     validate_csrf()
     if delete_question(question_id):
         flash('Question archived successfully!', 'success')
-        log_admin_action('question.archive', f"Archived question {question_id}",'info')
+        log_admin_action('question.archive', f"Archived question {question_id}", 'info')
     else:
         flash('Error archiving question.', 'error')
     return redirect(url_for('admin.admin_questions'))
@@ -645,7 +790,7 @@ def manage_user_tier(user_id):
 
 
 # ============================================
-# ADMIN ANNOUNCEMENT (UPDATED with notification service)
+# ADMIN ANNOUNCEMENT
 # ============================================
 
 @admin_bp.route('/announcement', methods=['GET', 'POST'])
@@ -662,7 +807,6 @@ def admin_announcement():
             flash('Title and body are required.', 'error')
             return render_template('dashboard/admin/announcement.html')
 
-        # Use the new notification service with force=True to bypass preferences
         send_notification_to_all(
             notification_type='admin',
             title=title,
