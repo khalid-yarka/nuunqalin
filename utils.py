@@ -175,3 +175,21 @@ def time_ago(dt_str: str) -> str:
         return f"{years} year{'s' if years > 1 else ''} ago"
     except Exception:
         return dt_str
+        
+
+
+# ============================================
+# ACCENT COLOUR HELPERS
+# ============================================
+
+ACCENT_MAP = {
+    'red': {'hex': '#FF3138', 'hover': '#E62B32', 'light': '#FFF0EC'},
+    'blue': {'hex': '#3B82F6', 'hover': '#2563EB', 'light': '#EFF6FF'},
+    'green': {'hex': '#10B981', 'hover': '#059669', 'light': '#ECFDF5'},
+    'purple': {'hex': '#8B5CF6', 'hover': '#7C3AED', 'light': '#F3E8FF'},
+    'orange': {'hex': '#F59E0B', 'hover': '#D97706', 'light': '#FFFBEB'},
+}
+
+def get_accent_colours(accent_name='red'):
+    """Return hex colours for a given accent name."""
+    return ACCENT_MAP.get(accent_name, ACCENT_MAP['red'])        

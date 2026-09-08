@@ -1,6 +1,4 @@
-# ============================================
-# NUUNPLATFORM - MAIN APPLICATION
-# ============================================
+# app.py – Full file with accent context processor
 
 import os
 import sys
@@ -18,7 +16,10 @@ from db import (
     get_student_by_phone, get_student_by_id, create_student, is_admin,
     close_db_connections, close_db,
 )
-from utils import get_somali_time_display, validate_csrf, ensure_csrf_token, time_ago
+from utils import (
+    get_somali_time_display, validate_csrf, ensure_csrf_token, time_ago,
+    get_accent_colours, ACCENT_MAP
+)
 from startup import verify_startup, get_startup_health
 from database import get_database_health
 from errors import register_error_handlers
@@ -56,7 +57,6 @@ from blueprints.admin_errors_bp import admin_errors_bp
 from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
 from blueprints.notifications_bp import notifications_bp
-# from blueprints.user_settings_bp import user_settings_bp  # OLD – replaced by settings_bp
 from blueprints.saved_content_bp import saved_content_bp
 from blueprints.achievements_bp import achievements_bp
 from blueprints.admin_activity_bp import admin_activity_bp
@@ -318,7 +318,6 @@ app.register_blueprint(admin_errors_bp)
 app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
 app.register_blueprint(notifications_bp)
-# app.register_blueprint(user_settings_bp)  # OLD – replaced by settings_bp
 app.register_blueprint(saved_content_bp)
 app.register_blueprint(achievements_bp)
 app.register_blueprint(admin_activity_bp)
@@ -564,7 +563,7 @@ def login():
                 return redirect(url_for('dashboard.home'))
             else:
                 flash('Invalid password. Please try again.', 'error')
-                log_activity('user.login', f"Failed login attempt for {phone}", 'warning')
+                log_activity('user.login', f"Failed login attempt for {phone}', 'warning')
         else:
             flash('No account found with this phone number.', 'error')
             log_activity('user.login', f"Unknown phone {phone} tried to login", 'warning')
@@ -662,7 +661,7 @@ def register():
     return render_template('register.html')
 
 # ============================================
-# LOGOUT ROUTE – FIXED with proper flash import and order
+# LOGOUT ROUTE – FIXED
 # ============================================
 
 @app.route('/logout')
@@ -676,12 +675,8 @@ def logout():
         except Exception as e:
             logger.warning(f"Failed to log logout: {e}")
     
-    # Set flash message BEFORE clearing session (it will persist via cookie)
     flash('You have been logged out.', 'info')
-    
-    # Clear session
     session.clear()
-    
     return redirect(url_for('login'))
 
 # ============================================
@@ -746,13 +741,14 @@ def backup_status():
         return jsonify({'error': str(e)}), 500
 
 # ============================================
-# CONTEXT PROCESSOR (UPDATED – session caching)
+# CONTEXT PROCESSOR – WITH SERVER-SIDE ACCENT
 # ============================================
 
 @app.context_processor
 def utility_processor():
     token = ensure_csrf_token() if 'user_id' in session else ''
     settings = {}
+    accent_colours = ACCENT_MAP['red']  # Default fallback
     
     if 'user_id' in session:
         if 'settings' in session:
@@ -766,13 +762,18 @@ def utility_processor():
             except Exception as e:
                 logging.getLogger(__name__).warning(f"Failed to load settings for user {session['user_id']}: {e}")
                 settings = {}
+        
+        # Get accent from settings (server-side rendering)
+        accent = settings.get('appearance.accent', 'red')
+        accent_colours = ACCENT_MAP.get(accent, ACCENT_MAP['red'])
     
     return {
         'session': session,
         'is_admin': session.get('is_admin', False),
         'somali_time': get_somali_time_display,
         'csrf_token': token,
-        'settings': settings
+        'settings': settings,
+        'accent_colours': accent_colours,  # ← Server-side accent for templates
     }
 
 # ============================================
