@@ -67,7 +67,6 @@
             <p>Customize the look and feel of the platform.</p>
         </div>
         <form id="appearance-form" class="settings-form">
-            <!-- Theme – always editable -->
             <div class="form-row">
                 <div class="form-group">
                     <label>Theme</label>
@@ -78,8 +77,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Accent Colour – locked for Danbe -->
             <div class="form-row two-col">
                 <div class="form-group">
                     <label>Accent Colour</label>
@@ -90,49 +87,28 @@
                         <button type="button" class="accent-option purple" data-accent="purple" style="background:#8B5CF6;"></button>
                         <button type="button" class="accent-option orange" data-accent="orange" style="background:#F59E0B;"></button>
                     </div>
-                    {% if tier == 'danbe' %}
-                        <div class="locked-indicator">
-                            <i class="fas fa-lock"></i> <span>Upgrade to customize</span>
-                            <button class="btn btn-sm btn-secondary upgrade-btn" data-feature="accent_color" data-required-tier="dhexe">Upgrade</button>
-                        </div>
-                    {% endif %}
                 </div>
                 <div class="form-group">
                     <label>Font Size</label>
-                    <select id="font_size" name="font_size" {% if tier == 'danbe' %}disabled{% endif %}>
+                    <select id="font_size" name="font_size">
                         <option value="small" {% if settings['appearance.font_size'] == 'small' %}selected{% endif %}>Small</option>
                         <option value="medium" {% if settings['appearance.font_size'] == 'medium' or not settings['appearance.font_size'] %}selected{% endif %}>Medium</option>
                         <option value="large" {% if settings['appearance.font_size'] == 'large' %}selected{% endif %}>Large</option>
                     </select>
-                    {% if tier == 'danbe' %}
-                        <div class="locked-indicator">
-                            <i class="fas fa-lock"></i> <span>Upgrade to customize</span>
-                            <button class="btn btn-sm btn-secondary upgrade-btn" data-feature="font_size" data-required-tier="dhexe">Upgrade</button>
-                        </div>
-                    {% endif %}
                 </div>
             </div>
-
-            <!-- Compact Mode – locked for Danbe -->
             <div class="form-row toggle-group">
-                <div class="toggle-item {% if tier == 'danbe' %}locked{% endif %}">
+                <div class="toggle-item">
                     <label class="toggle-label">
                         <span class="toggle-text">Compact Mode</span>
                         <span class="toggle-switch">
-                            <input type="checkbox" id="compact_mode" {% if settings['appearance.compact_mode'] %}checked{% endif %} {% if tier == 'danbe' %}disabled{% endif %}>
+                            <input type="checkbox" id="compact_mode" {% if settings['appearance.compact_mode'] %}checked{% endif %}>
                             <span class="slider"></span>
                         </span>
                     </label>
                     <p class="toggle-desc">Reduce padding and margins for a denser layout.</p>
-                    {% if tier == 'danbe' %}
-                        <div class="locked-indicator">
-                            <i class="fas fa-lock"></i> <span>Upgrade to customize</span>
-                            <button class="btn btn-sm btn-secondary upgrade-btn" data-feature="compact_mode" data-required-tier="dhexe">Upgrade</button>
-                        </div>
-                    {% endif %}
                 </div>
             </div>
-
             <div class="form-row">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Appearance</button>
             </div>
@@ -141,7 +117,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- QUIZ SECTION                                -->
+<!-- QUIZ SECTION (keep as is)                    -->
 <!-- ============================================ -->
 <section id="quiz" class="settings-section">
     <div class="settings-card">
@@ -150,7 +126,6 @@
             <p>Customise your default quiz settings.</p>
         </div>
         <form id="quiz-prefs-form" class="settings-form">
-            <!-- same as before, no back link -->
             <div class="form-row two-col">
                 <div class="form-group">
                     <label>Default Question Count</label>
@@ -233,7 +208,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- NOTIFICATIONS SECTION                        -->
+<!-- NOTIFICATIONS SECTION (keep as is)           -->
 <!-- ============================================ -->
 <section id="notifications" class="settings-section">
     <div class="settings-card">
@@ -242,7 +217,6 @@
             <p>Choose which notifications you want to receive.</p>
         </div>
         <form id="notif-form" class="settings-form">
-            <!-- same as before, no back link -->
             <div class="form-row toggle-group">
                 <div class="toggle-item">
                     <label class="toggle-label">
@@ -345,7 +319,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- PRIVACY SECTION                             -->
+<!-- PRIVACY SECTION (keep as is)                 -->
 <!-- ============================================ -->
 <section id="privacy" class="settings-section">
     <div class="settings-card">
@@ -430,7 +404,7 @@
 {% endif %}
 
 <!-- ============================================ -->
-<!-- SECURITY SECTION                            -->
+<!-- SECURITY SECTION (keep as is)                -->
 <!-- ============================================ -->
 <section id="security" class="settings-section">
     <div class="settings-card">
@@ -465,7 +439,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- TIER SECTION                                -->
+<!-- TIER SECTION (keep as is)                    -->
 <!-- ============================================ -->
 <section id="tier" class="settings-section">
     <div class="settings-card">
@@ -526,7 +500,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- DATA SECTION                                -->
+<!-- DATA SECTION (keep as is)                    -->
 <!-- ============================================ -->
 <section id="data" class="settings-section">
     <div class="settings-card">
@@ -544,7 +518,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- ACCESSIBILITY SECTION                        -->
+<!-- ACCESSIBILITY SECTION (keep as is)           -->
 <!-- ============================================ -->
 <section id="accessibility" class="settings-section">
     <div class="settings-card">
@@ -573,7 +547,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- STYLES & SCRIPTS                            -->
+<!-- STYLES & SCRIPTS (FIXED)                    -->
 <!-- ============================================ -->
 <style>
     /* Landing page styles */
@@ -651,15 +625,29 @@
         color: var(--primary);
     }
 
-    /* Card header – no back link now */
+    /* Card header */
     .settings-card .card-header {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 8px;
     }
+    .settings-card .card-header h3 {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .settings-card .card-header p {
+        color: var(--text-secondary);
+        font-size: 14px;
+        margin: 0;
+    }
 
-    /* Breadcrumb – clickable */
+    /* Breadcrumb */
     .settings-breadcrumb {
         display: flex;
         align-items: center;
@@ -674,7 +662,6 @@
         text-decoration: none;
         font-weight: 500;
         transition: all 0.3s ease;
-        cursor: pointer;
     }
     .settings-breadcrumb .breadcrumb-link:hover {
         text-decoration: underline;
@@ -687,7 +674,7 @@
         font-weight: 600;
     }
 
-    /* Tier summary */
+    /* Tier */
     .tier-summary {
         display: flex;
         justify-content: space-between;
@@ -742,7 +729,6 @@
         color: white;
         border: none;
     }
-
     .upgrade-prompt .btn {
         white-space: nowrap;
     }
@@ -785,8 +771,8 @@
             45deg,
             transparent,
             transparent 8px,
-            rgba(0,0,0,0.03) 8px,
-            rgba(0,0,0,0.03) 16px
+            rgba(0, 0, 0, 0.03) 8px,
+            rgba(0, 0, 0, 0.03) 16px
         );
         pointer-events: none;
         border-radius: var(--radius-sm);
@@ -796,8 +782,8 @@
             45deg,
             transparent,
             transparent 8px,
-            rgba(255,255,255,0.03) 8px,
-            rgba(255,255,255,0.03) 16px
+            rgba(255, 255, 255, 0.03) 8px,
+            rgba(255, 255, 255, 0.03) 16px
         );
     }
     .feature-card.locked .feature-status .status-badge.locked {
@@ -829,7 +815,6 @@
         font-size: 18px;
     }
 
-    /* Feature popup */
     .feature-popup {
         display: none;
         position: absolute;
@@ -848,8 +833,6 @@
         text-align: left;
         line-height: 1.5;
         pointer-events: none;
-        background-color: var(--surface);
-        color: var(--text);
     }
     .feature-popup .popup-content {
         pointer-events: none;
@@ -884,11 +867,11 @@
         z-index: 10;
     }
 
-    /* Dark mode popup */
+    /* Dark mode */
     [data-theme="dark"] .feature-popup {
         background: var(--surface);
         border-color: var(--border);
-        box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
     }
     [data-theme="dark"] .feature-popup .popup-content strong {
         color: #f1f1f1;
@@ -898,29 +881,6 @@
     }
     [data-theme="dark"] .feature-popup .popup-content .upgrade-hint {
         color: #ff6b70;
-    }
-
-    /* Locked indicators for appearance controls */
-    .locked-indicator {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin-top: 6px;
-        flex-wrap: wrap;
-    }
-    .locked-indicator .upgrade-btn {
-        pointer-events: auto;
-    }
-    .locked-indicator i {
-        color: var(--text-muted);
-    }
-
-    /* Disabled select for Danbe */
-    select:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
     }
 
     /* Responsive */
@@ -936,11 +896,11 @@
             align-items: stretch;
             text-align: center;
         }
-        .upgrade-prompt {
-            text-align: center;
-        }
         .tier-info-box {
             flex-direction: column;
+        }
+        .upgrade-prompt {
+            text-align: center;
         }
     }
     @media (max-width: 480px) {
@@ -964,8 +924,92 @@
 </style>
 
 <script>
+    // ============================================
+    // CSRF TOKEN HELPER
+    // ============================================
+    function getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta) return meta.content;
+        const input = document.querySelector('input[name="csrf_token"]');
+        if (input) return input.value;
+        console.warn('⚠️ CSRF token not found!');
+        return '';
+    }
+
+    // ============================================
+    // TOAST HELPER
+    // ============================================
+    function showToast(message, type) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(message, type);
+        } else {
+            alert(message);
+        }
+    }
+
+    // ============================================
+    // SUBMIT FORM – Fixed with better error handling
+    // ============================================
+    function submitForm(url, data, successMsg) {
+        console.log('📤 Submitting to:', url, data);
+        
+        const csrfToken = getCsrfToken();
+        if (!csrfToken) {
+            showToast('❌ CSRF token missing. Please refresh the page.', 'error');
+            return Promise.reject('No CSRF token');
+        }
+
+        return fetch(url, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            console.log('📥 Response status:', response.status);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('❌ Server error response:', text);
+                    let errorMsg = `Server error (${response.status})`;
+                    try {
+                        const json = JSON.parse(text);
+                        if (json.error) errorMsg = json.error;
+                    } catch (e) {
+                        if (text.length < 200) errorMsg = text;
+                    }
+                    throw new Error(errorMsg);
+                });
+            }
+            return response.json();
+        })
+        .then(result => {
+            console.log('✅ Server response:', result);
+            if (result.success) {
+                showToast(result.message || successMsg || '✅ Saved!', 'success');
+                if (result.settings) {
+                    if (typeof NuunSettings !== 'undefined') {
+                        NuunSettings.settings = result.settings;
+                        NuunSettings.applyAll();
+                    }
+                }
+                return result;
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+        })
+        .catch(err => {
+            console.error('❌ Submit error:', err);
+            showToast('❌ ' + err.message, 'error');
+            throw err;
+        });
+    }
+
+    // ============================================
+    // NAVIGATION (Landing <-> Sections)
+    // ============================================
     document.addEventListener('DOMContentLoaded', function() {
-        // ---- Landing vs Section toggle ----
         const landing = document.getElementById('landing');
         const sections = document.querySelectorAll('.settings-section');
         const navItems = document.querySelectorAll('.settings-nav-item');
@@ -975,16 +1019,13 @@
         function showLanding() {
             landing.style.display = 'block';
             sections.forEach(sec => sec.classList.remove('active'));
-            // Hide sidebar
             sidebar.style.display = 'none';
-            // Update breadcrumb
-            breadcrumb.innerHTML = `<a href="#" class="breadcrumb-link" id="breadcrumbHome">Settings</a>`;
-            // Update page title
+            if (breadcrumb) {
+                breadcrumb.innerHTML = `<a href="#" class="breadcrumb-link" id="breadcrumbHome">Settings</a>`;
+            }
             const title = document.querySelector('.settings-page-title');
             if (title) title.textContent = 'Settings';
-            // Remove active from nav items
             navItems.forEach(item => item.classList.remove('active'));
-            // Clear hash
             history.pushState(null, '', '#');
         }
 
@@ -993,38 +1034,35 @@
             sections.forEach(sec => sec.classList.remove('active'));
             const target = document.getElementById(id);
             if (target) target.classList.add('active');
-            // Show sidebar
             sidebar.style.display = 'block';
-            // Update breadcrumb
             const label = document.querySelector(`.settings-nav-item[data-section="${id}"]`)?.textContent.trim() || id;
-            breadcrumb.innerHTML = `
-                <a href="#" class="breadcrumb-link" id="breadcrumbHome">Settings</a>
-                <span class="separator">/</span>
-                <span class="current">${label}</span>
-            `;
-            // Update page title
+            if (breadcrumb) {
+                breadcrumb.innerHTML = `
+                    <a href="#" class="breadcrumb-link" id="breadcrumbHome">Settings</a>
+                    <span class="separator">/</span>
+                    <span class="current">${label}</span>
+                `;
+            }
             const title = document.querySelector('.settings-page-title');
             if (title) {
                 const nav = document.querySelector(`.settings-nav-item[data-section="${id}"]`);
                 title.textContent = nav ? nav.textContent.trim() : 'Settings';
             }
-            // Update nav items – only the selected one gets active
             navItems.forEach(item => item.classList.remove('active'));
             const nav = document.querySelector(`.settings-nav-item[data-section="${id}"]`);
             if (nav) nav.classList.add('active');
             history.pushState(null, '', '#' + id);
         }
 
-        // Breadcrumb click handler (delegated)
-        breadcrumb.addEventListener('click', function(e) {
-            if (e.target.id === 'breadcrumbHome' || e.target.closest('#breadcrumbHome')) {
-                e.preventDefault();
-                showLanding();
-            }
-        });
-
-        // Expose showLanding globally
-        window.showLanding = showLanding;
+        // Breadcrumb click handler
+        if (breadcrumb) {
+            breadcrumb.addEventListener('click', function(e) {
+                if (e.target.id === 'breadcrumbHome' || e.target.closest('#breadcrumbHome')) {
+                    e.preventDefault();
+                    showLanding();
+                }
+            });
+        }
 
         // Category cards
         document.querySelectorAll('.settings-category-card').forEach(card => {
@@ -1048,116 +1086,47 @@
             });
         });
 
-        // ---- Feature card popup toggle ----
-        window.toggleFeatureInfo = function(card) {
-            document.querySelectorAll('.feature-card.active').forEach(c => {
-                if (c !== card) c.classList.remove('active');
-            });
-            card.classList.toggle('active');
-        };
-
-        // ---- Upgrade buttons inside popups ----
-        document.querySelectorAll('.feature-card .upgrade-btn').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const feature = this.dataset.feature;
-                const requiredTier = this.dataset.requiredTier || 'dhexe';
-                if (typeof window.openSafkaPreview === 'function') {
-                    window.openSafkaPreview({ feature: feature, requiredTier: requiredTier });
-                }
-                const card = this.closest('.feature-card');
-                if (card) card.classList.remove('active');
-            });
-        });
-
-        // ---- Global upgrade buttons (including appearance) ----
-        document.querySelectorAll('.upgrade-btn:not(.feature-card .upgrade-btn)').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const feature = this.dataset.feature;
-                const requiredTier = this.dataset.requiredTier || 'dhexe';
-                if (typeof window.openSafkaPreview === 'function') {
-                    window.openSafkaPreview({ feature: feature, requiredTier: requiredTier });
-                }
-            });
-        });
-
-        // ---- Locked toggles ----
-        document.querySelectorAll('.toggle-item.locked input[type="checkbox"]').forEach(cb => {
-            cb.disabled = true;
-            cb.closest('.toggle-item').addEventListener('click', function(e) {
-                if (e.target.tagName !== 'INPUT') {
-                    const upgradeBtn = this.querySelector('.upgrade-btn');
-                    if (upgradeBtn) upgradeBtn.click();
-                }
-            });
-        });
-
-        // ---- Initial view ----
+        // Initial view
         let initialHash = window.location.hash.replace('#', '');
         if (initialHash && document.getElementById(initialHash)) {
             showSection(initialHash);
         } else {
             showLanding();
         }
+    });
 
-        // ---- Forms (Appearance, Quiz, Notifications, Privacy, Live Quiz, Security, Accessibility) ----
-        // (All form submission code remains the same; we include it for completeness)
-        function showToast(msg, type) {
-            if (typeof window.showToast === 'function') {
-                window.showToast(msg, type);
-            } else {
-                alert(msg);
-            }
-        }
-
-        function submitForm(url, data, successMsg) {
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    showToast(result.message || successMsg || 'Saved!', 'success');
-                    if (result.settings) {
-                        NuunSettings.settings = result.settings;
-                        NuunSettings.applyAll();
-                    }
-                } else {
-                    let msg = result.error || 'Error saving.';
-                    if (result.errors) {
-                        msg = Object.values(result.errors).join(' ');
-                    }
-                    showToast(msg, 'error');
-                }
-            })
-            .catch(() => showToast('Network error.', 'error'));
-        }
-
-        // Appearance form
+    // ============================================
+    // APPEARANCE FORM – Fixed submission
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function() {
         const appearanceForm = document.getElementById('appearance-form');
         if (appearanceForm) {
             appearanceForm.addEventListener('submit', function(e) {
                 e.preventDefault();
+                
+                const activeTheme = document.querySelector('.theme-option.active');
+                const theme = activeTheme ? activeTheme.dataset.theme : 'system';
+                
+                const activeAccent = document.querySelector('.accent-option.active');
+                const accent = activeAccent ? activeAccent.dataset.accent : 'red';
+                
+                const fontSize = document.getElementById('font_size')?.value || 'medium';
+                const compactMode = document.getElementById('compact_mode')?.checked || false;
+                
                 const data = {
-                    'appearance.theme': document.querySelector('.theme-option.active')?.dataset.theme || 'system'
+                    'appearance.theme': theme,
+                    'appearance.accent': accent,
+                    'appearance.font_size': fontSize,
+                    'appearance.compact_mode': compactMode
                 };
-                // Only include other appearance settings if not Danbe
-                {% if tier != 'danbe' %}
-                    data['appearance.accent'] = document.querySelector('.accent-option.active')?.dataset.accent || 'red';
-                    data['appearance.font_size'] = document.getElementById('font_size')?.value || 'medium';
-                    data['appearance.compact_mode'] = document.getElementById('compact_mode')?.checked || false;
-                {% endif %}
+                
+                console.log('📤 Saving appearance:', data);
+                
                 submitForm('/settings/api', data, 'Appearance updated!');
             });
         }
 
-        // Quiz form
+        // ---- QUIZ PREFERENCES FORM ----
         const quizForm = document.getElementById('quiz-prefs-form');
         if (quizForm) {
             quizForm.addEventListener('submit', function(e) {
@@ -1174,7 +1143,7 @@
             });
         }
 
-        // Notifications form
+        // ---- NOTIFICATIONS FORM ----
         const notifForm = document.getElementById('notif-form');
         if (notifForm) {
             notifForm.addEventListener('submit', function(e) {
@@ -1188,7 +1157,7 @@
             });
         }
 
-        // Privacy form
+        // ---- PRIVACY FORM ----
         const privacyForm = document.getElementById('privacy-form');
         if (privacyForm) {
             privacyForm.addEventListener('submit', function(e) {
@@ -1201,7 +1170,7 @@
             });
         }
 
-        // Live Quiz form
+        // ---- LIVE QUIZ FORM ----
         const liveQuizForm = document.getElementById('livequiz-form');
         if (liveQuizForm) {
             liveQuizForm.addEventListener('submit', function(e) {
@@ -1215,7 +1184,7 @@
             });
         }
 
-        // Accessibility form
+        // ---- ACCESSIBILITY FORM ----
         const accessibilityForm = document.getElementById('accessibility-form');
         if (accessibilityForm) {
             accessibilityForm.addEventListener('submit', function(e) {
@@ -1227,7 +1196,7 @@
             });
         }
 
-        // Password form
+        // ---- PASSWORD FORM ----
         const passwordForm = document.getElementById('password-form');
         if (passwordForm) {
             passwordForm.addEventListener('submit', function(e) {
@@ -1248,7 +1217,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        'X-CSRF-Token': getCsrfToken()
                     },
                     body: JSON.stringify({ current_password: current, new_password: newPw, confirm_password: confirm })
                 })
@@ -1265,7 +1234,7 @@
             });
         }
 
-        // Theme selector preview
+        // ---- Theme selector preview ----
         const themeOptions = document.querySelectorAll('.theme-option');
         themeOptions.forEach(opt => {
             opt.addEventListener('click', function() {
@@ -1278,32 +1247,30 @@
             });
         });
 
-        // Accent selector preview (only if not Danbe)
-        {% if tier != 'danbe' %}
-            const accentOptions = document.querySelectorAll('.accent-option');
-            accentOptions.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    accentOptions.forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    const accent = this.dataset.accent;
-                    if (typeof NuunSettings !== 'undefined') {
-                        NuunSettings.applyAccent(accent);
-                    }
-                });
+        // ---- Accent selector preview ----
+        const accentOptions = document.querySelectorAll('.accent-option');
+        accentOptions.forEach(btn => {
+            btn.addEventListener('click', function() {
+                accentOptions.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                const accent = this.dataset.accent;
+                if (typeof NuunSettings !== 'undefined') {
+                    NuunSettings.applyAccent(accent);
+                }
             });
+        });
 
-            // Compact mode preview
-            const compactToggle = document.getElementById('compact_mode');
-            if (compactToggle) {
-                compactToggle.addEventListener('change', function() {
-                    if (typeof NuunSettings !== 'undefined') {
-                        NuunSettings.applyCompactMode(this.checked);
-                    }
-                });
-            }
-        {% endif %}
+        // ---- Compact mode preview ----
+        const compactToggle = document.getElementById('compact_mode');
+        if (compactToggle) {
+            compactToggle.addEventListener('change', function() {
+                if (typeof NuunSettings !== 'undefined') {
+                    NuunSettings.applyCompactMode(this.checked);
+                }
+            });
+        }
 
-        // Reduced motion preview
+        // ---- Reduced motion preview ----
         const reducedMotionToggle = document.getElementById('reduced_motion');
         if (reducedMotionToggle) {
             reducedMotionToggle.addEventListener('change', function() {
@@ -1313,7 +1280,7 @@
             });
         }
 
-        // Password strength
+        // ---- Password strength ----
         document.getElementById('new_password').addEventListener('input', function() {
             const val = this.value;
             let strength = 'weak';
@@ -1349,7 +1316,30 @@
             }
         }
 
-        // Export/Delete buttons (placeholders)
+        // ---- Upgrade buttons ----
+        document.querySelectorAll('.upgrade-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const feature = this.dataset.feature;
+                const requiredTier = this.dataset.requiredTier || 'dhexe';
+                if (typeof window.openSafkaPreview === 'function') {
+                    window.openSafkaPreview({ feature: feature, requiredTier: requiredTier });
+                }
+            });
+        });
+
+        // ---- Locked toggles ----
+        document.querySelectorAll('.toggle-item.locked input[type="checkbox"]').forEach(cb => {
+            cb.disabled = true;
+            cb.closest('.toggle-item').addEventListener('click', function(e) {
+                if (e.target.tagName !== 'INPUT') {
+                    const upgradeBtn = this.querySelector('.upgrade-btn');
+                    if (upgradeBtn) upgradeBtn.click();
+                }
+            });
+        });
+
+        // ---- Export/Delete buttons ----
         document.getElementById('exportDataBtn')?.addEventListener('click', function() {
             showToast('Data export will be available soon.', 'info');
         });

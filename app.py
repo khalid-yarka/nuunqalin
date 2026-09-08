@@ -742,18 +742,16 @@ def utility_processor():
     settings = {}
     
     if 'user_id' in session:
-        # Try to get settings from session first
         if 'settings' in session:
             settings = session['settings']
         else:
-            # Load from database and store in session
             try:
                 from services.settings_service import SettingsService
                 settings = SettingsService.get_all(session['user_id'])
                 session['settings'] = settings
                 session.modified = True
             except Exception as e:
-                # Using global logger instead of app.logger
+                # Use module-level logger, not app.logger
                 logging.getLogger(__name__).warning(f"Failed to load settings for user {session['user_id']}: {e}")
                 settings = {}
     

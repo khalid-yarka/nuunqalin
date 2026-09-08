@@ -26,7 +26,6 @@ MIGRATION_VERSION = 1
 
 
 def get_raw_settings(user_id: int) -> Dict[str, Any]:
-    """Get the raw settings JSON from the database without merging defaults."""
     cursor = execute_with_retry(
         "SELECT settings FROM user_settings WHERE user_id = ?", (user_id,)
     )
@@ -51,9 +50,6 @@ def set_migration_version(user_id: int, version: int) -> None:
 
 
 def get_user_settings(user_id: int) -> Dict[str, Any]:
-    """
-    Retrieve effective settings: defaults + stored settings.
-    """
     stored = get_raw_settings(user_id)
     merged = DEFAULT_SETTINGS.copy()
     stored_without_version = {k: v for k, v in stored.items() if k != 'migration_version'}
@@ -62,17 +58,11 @@ def get_user_settings(user_id: int) -> Dict[str, Any]:
 
 
 def get_user_setting(user_id: int, key: str, default: Any = None) -> Any:
-    """Get a single user setting."""
     settings = get_user_settings(user_id)
     return settings.get(key, default)
 
 
 def update_user_settings(user_id: int, updates: Dict[str, Any]) -> bool:
-    """
-    Update the stored settings with the given dict.
-    This does NOT merge defaults; it writes exactly the provided keys.
-    The migration_version field is preserved if not explicitly overwritten.
-    """
     try:
         raw = get_raw_settings(user_id)
         if 'migration_version' not in raw:
@@ -99,5 +89,4 @@ def update_user_settings(user_id: int, updates: Dict[str, Any]) -> bool:
 
 
 def apply_user_theme(user_id: int) -> str:
-    """Get the user's theme preference, or 'system' as fallback."""
     return get_user_settings(user_id).get('theme', 'system')

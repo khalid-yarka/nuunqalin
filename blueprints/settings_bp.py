@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, session, jsonify
 from functools import wraps
 from services.settings_service import SettingsService
 from services.settings_registry import SETTINGS_REGISTRY, get_all_categories
-from services.tier_service import get_current_user_tier, can_create_live_quiz, get_user_tier, is_tier_at_least
+from services.tier_service import get_current_user_tier, can_create_live_quiz, is_tier_at_least
 from utils import validate_csrf
 from db import get_user_subject_list
 import logging
@@ -24,16 +24,13 @@ def login_required(f):
 @login_required
 def index():
     user_id = session['user_id']
-    # Ensure migration is done (idempotent)
     SettingsService.ensure_migrated(user_id)
-
     tier = get_current_user_tier()
     settings = SettingsService.get_all(user_id)
     categories = get_all_categories()
     can_create = can_create_live_quiz()
     user_subjects = get_user_subject_list(user_id)
 
-    # Build features list for the tier section
     tier_features = []
     for key, definition in SETTINGS_REGISTRY.items():
         tier_required = definition.get('tier_required')
@@ -70,24 +67,36 @@ def api_get():
 @settings_bp.route('/api', methods=['PATCH'])
 @login_required
 def api_patch():
+    logger.info(f"Settings PATCH request from user {session['user_id']}")
+    
     if not validate_csrf():
-        return jsonify({'error': 'CSRF validation failed'}), 403
+        logger.warning(f"CSRF validation failed for user {session['user_id']}")
+        return jsonify({'error': 'CSRF validation failed. Please refresh the page and try again.'}), 403
+    
     user_id = session['user_id']
     data = request.get_json()
+    
     if not data:
+        logger.warning(f"Empty data from user {user_id}")
         return jsonify({'error': 'No data provided'}), 400
+    
+    logger.info(f"User {user_id} updating settings: {data}")
+    
     try:
         updated = SettingsService.update(user_id, data)
+        logger.info(f"Settings updated successfully for user {user_id}")
         return jsonify({'success': True, 'settings': updated})
     except ValueError as e:
+        logger.warning(f"Validation error for user {user_id}: {e}")
         return jsonify({'error': str(e)}), 400
     except PermissionError as e:
+        logger.warning(f"Permission error for user {user_id}: {e}")
         return jsonify({'error': str(e)}), 403
     except RuntimeError as e:
-        logger.error(f"Runtime error updating settings: {e}")
+        logger.error(f"Runtime error for user {user_id}: {e}", exc_info=True)
         return jsonify({'error': 'Internal error: ' + str(e)}), 500
     except Exception as e:
-        logger.error(f"Unexpected error in settings update: {e}", exc_info=True)
+        logger.error(f"Unexpected error for user {user_id}: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 @settings_bp.route('/api/reset', methods=['POST'])
@@ -137,3 +146,18 @@ def api_password():
         commit=True
     )
     return jsonify({'success': True, 'message': 'Password changed. Please log in again.'})
+
+# ============================================
+# TEST ENDPOINT (for debugging)
+# ============================================
+@settings_bp.route('/test-save', methods=['GET'])
+@login_required
+def test_save():
+    user_id = session['user_id']
+    try:
+        from services.settings_service import SettingsService
+        result = SettingsService.update(user_id, {'appearance.theme': 'dark'})
+        return jsonify({'status': 'ok', 'result': result})
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
