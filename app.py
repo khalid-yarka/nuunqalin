@@ -753,7 +753,8 @@ def utility_processor():
                 session['settings'] = settings
                 session.modified = True
             except Exception as e:
-                app.logger.warning(f"Failed to load settings for user {session['user_id']}: {e}")
+                # Using global logger instead of app.logger
+                logging.getLogger(__name__).warning(f"Failed to load settings for user {session['user_id']}: {e}")
                 settings = {}
     
     return {

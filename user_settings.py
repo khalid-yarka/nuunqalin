@@ -1,7 +1,10 @@
 # user_settings.py
 import json
+import logging
 from typing import Any, Dict, Optional
 from db import execute_with_retry
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SETTINGS = {
     "theme": "system",
