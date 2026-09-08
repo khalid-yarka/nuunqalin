@@ -58,16 +58,15 @@
 </div>
 
 <!-- ============================================ -->
-<!-- ALL SETTINGS SECTIONS                       -->
+<!-- ALL SETTINGS SECTIONS (hidden by default)    -->
 <!-- ============================================ -->
 
-<!-- Appearance -->
 <section id="appearance" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
             <h3><i class="fas fa-palette"></i> Appearance</h3>
             <p>Customize the look and feel of the platform.</p>
-            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back to Settings</a>
         </div>
         <form id="appearance-form" class="settings-form">
             <div class="form-row">
@@ -119,13 +118,12 @@
     </div>
 </section>
 
-<!-- Quiz -->
 <section id="quiz" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
             <h3><i class="fas fa-pencil-alt"></i> Quiz Preferences</h3>
             <p>Customise your default quiz settings.</p>
-            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back to Settings</a>
         </div>
         <form id="quiz-prefs-form" class="settings-form">
             <div class="form-row two-col">
@@ -209,13 +207,12 @@
     </div>
 </section>
 
-<!-- Notifications -->
 <section id="notifications" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
             <h3><i class="fas fa-bell"></i> Notification Preferences</h3>
             <p>Choose which notifications you want to receive.</p>
-            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back to Settings</a>
         </div>
         <form id="notif-form" class="settings-form">
             <div class="form-row toggle-group">
@@ -278,7 +275,6 @@
                     </label>
                 </div>
             </div>
-            <!-- Expanded toggles (Dhexe+) -->
             <div class="form-row toggle-group tier-locked" data-tier="dhexe">
                 <div class="toggle-item">
                     <label class="toggle-label">
@@ -320,13 +316,12 @@
     </div>
 </section>
 
-<!-- Privacy -->
 <section id="privacy" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
             <h3><i class="fas fa-lock"></i> Privacy</h3>
             <p>Control your visibility and data sharing.</p>
-            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back to Settings</a>
         </div>
         <form id="privacy-form" class="settings-form">
             <div class="form-row toggle-group">
@@ -358,14 +353,13 @@
     </div>
 </section>
 
-<!-- Live Quiz -->
 {% if can_create_live %}
 <section id="live_quiz" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
             <h3><i class="fas fa-bolt"></i> Live Quiz Defaults</h3>
             <p>Preset values for creating new live quizzes.</p>
-            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back to Settings</a>
         </div>
         <form id="livequiz-form" class="settings-form">
             <div class="form-row two-col">
@@ -403,13 +397,12 @@
 </section>
 {% endif %}
 
-<!-- Security -->
 <section id="security" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
             <h3><i class="fas fa-shield-alt"></i> Security</h3>
             <p>Change your password.</p>
-            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back to Settings</a>
         </div>
         <form id="password-form" class="settings-form">
             <div class="form-row">
@@ -438,14 +431,14 @@
 </section>
 
 <!-- ============================================ -->
-<!-- TIER SECTION – Enhanced UI with popups      -->
+<!-- TIER SECTION – Enhanced UI                   -->
 <!-- ============================================ -->
 <section id="tier" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
             <h3><i class="fas fa-crown"></i> Your Plan & Features</h3>
             <p>Current tier: <strong class="tier-badge {{ tier }}">{{ tier|capitalize }}</strong></p>
-            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back to Settings</a>
         </div>
 
         <div class="tier-summary">
@@ -499,13 +492,12 @@
     </div>
 </section>
 
-<!-- Data -->
 <section id="data" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
             <h3><i class="fas fa-database"></i> Data Management</h3>
             <p>Manage your history and personal data.</p>
-            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back to Settings</a>
         </div>
         <div class="data-actions">
             <p><a href="{{ url_for('history.index') }}" class="btn btn-secondary"><i class="fas fa-history"></i> View Full History</a></p>
@@ -516,13 +508,12 @@
     </div>
 </section>
 
-<!-- Accessibility -->
 <section id="accessibility" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
             <h3><i class="fas fa-universal-access"></i> Accessibility</h3>
             <p>Adjust settings for a better experience.</p>
-            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="#" class="back-to-settings" data-section="landing"><i class="fas fa-arrow-left"></i> Back to Settings</a>
         </div>
         <form id="accessibility-form" class="settings-form">
             <div class="form-row toggle-group">
@@ -545,9 +536,10 @@
 </section>
 
 <!-- ============================================ -->
-<!-- INLINE STYLES                               -->
+<!-- STYLES (local)                              -->
 <!-- ============================================ -->
 <style>
+    /* Landing page styles */
     .settings-landing {
         padding: 20px 0;
     }
@@ -622,7 +614,7 @@
         color: var(--primary);
     }
 
-    /* Back link in card header */
+    /* Card header back link */
     .settings-card .card-header {
         display: flex;
         flex-wrap: wrap;
@@ -641,6 +633,33 @@
     .settings-card .card-header .back-to-settings:hover {
         background: var(--primary-light);
         color: var(--primary);
+    }
+
+    /* Breadcrumb */
+    .settings-breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+        flex-wrap: wrap;
+    }
+    .settings-breadcrumb .breadcrumb-link {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    .settings-breadcrumb .breadcrumb-link:hover {
+        text-decoration: underline;
+    }
+    .settings-breadcrumb .separator {
+        color: var(--text-muted);
+    }
+    .settings-breadcrumb .current {
+        color: var(--text);
+        font-weight: 600;
     }
 
     /* Tier section */
@@ -698,6 +717,7 @@
         color: white;
         border: none;
     }
+
     .upgrade-prompt .btn {
         white-space: nowrap;
     }
@@ -726,7 +746,7 @@
         transform: translateY(-2px);
     }
     .feature-card.locked {
-        opacity: 0.7;
+        opacity: 0.75;
         border-color: var(--border-light);
     }
     .feature-card.locked .feature-status .status-badge.locked {
@@ -758,7 +778,7 @@
         font-size: 18px;
     }
 
-    /* Popup for feature explanation */
+    /* Feature popup – improved readability */
     .feature-popup {
         display: none;
         position: absolute;
@@ -768,24 +788,40 @@
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
-        padding: 14px 18px;
+        padding: 16px 20px;
         box-shadow: var(--shadow-lg);
-        width: 260px;
+        width: 280px;
         z-index: 100;
-        font-size: 13px;
+        font-size: 14px;
         color: var(--text);
         text-align: left;
         line-height: 1.5;
         pointer-events: none;
+        background-color: var(--surface);
+        color: var(--text);
     }
-    .feature-popup .upgrade-hint {
-        margin-top: 6px;
-        font-size: 12px;
-        color: var(--text-muted);
+    .feature-popup .popup-content {
+        pointer-events: none;
     }
-    .feature-popup .upgrade-btn {
-        pointer-events: auto;
+    .feature-popup .popup-content strong {
+        display: block;
+        font-size: 15px;
+        margin-bottom: 4px;
+        color: var(--text);
+    }
+    .feature-popup .popup-content p {
+        margin: 4px 0;
+        color: var(--text-secondary);
+    }
+    .feature-popup .popup-content .upgrade-hint {
         margin-top: 8px;
+        font-size: 13px;
+        color: var(--primary);
+        font-weight: 500;
+    }
+    .feature-popup .popup-content .upgrade-btn {
+        pointer-events: auto;
+        margin-top: 10px;
         width: 100%;
         justify-content: center;
     }
@@ -797,26 +833,26 @@
         z-index: 10;
     }
 
-    /* Dark mode adjustments */
-    [data-theme="dark"] .feature-card {
-        background: var(--surface-alt);
-        border-color: var(--border);
-    }
-    [data-theme="dark"] .feature-card:hover {
-        border-color: var(--primary);
-    }
+    /* Dark mode specific popup improvements */
     [data-theme="dark"] .feature-popup {
         background: var(--surface);
         border-color: var(--border);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.6);
     }
-    [data-theme="dark"] .tier-summary {
-        background: var(--surface-alt);
-        border-color: var(--border);
+    [data-theme="dark"] .feature-popup .popup-content strong {
+        color: #f1f1f1;
+    }
+    [data-theme="dark"] .feature-popup .popup-content p {
+        color: #b0b0c8;
+    }
+    [data-theme="dark"] .feature-popup .popup-content .upgrade-hint {
+        color: #ff6b70;
     }
 
-    @media (max-width: 480px) {
+    /* Responsive */
+    @media (max-width: 768px) {
         .settings-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: 1fr 1fr;
         }
         .features-grid {
             grid-template-columns: 1fr;
@@ -832,10 +868,23 @@
         .tier-info-box {
             flex-direction: column;
         }
-        .settings-card .card-header .back-to-settings {
-            margin-left: 0;
-            width: 100%;
-            text-align: right;
+    }
+    @media (max-width: 480px) {
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+        .settings-category-card .card-icon {
+            font-size: 22px;
+            width: 40px;
+        }
+        .settings-category-card .card-content h3 {
+            font-size: 15px;
+        }
+        .feature-popup {
+            width: 220px;
+            left: 0;
+            transform: none;
+            bottom: calc(100% + 4px);
         }
     }
 </style>
@@ -846,20 +895,25 @@
         const landing = document.getElementById('landing');
         const sections = document.querySelectorAll('.settings-section');
         const backLinks = document.querySelectorAll('.back-to-settings');
+        const navItems = document.querySelectorAll('.settings-nav-item');
+        const breadcrumb = document.getElementById('settingsBreadcrumb');
 
         function showLanding() {
             landing.style.display = 'block';
             sections.forEach(sec => sec.classList.remove('active'));
             // Update breadcrumb
-            const breadcrumb = document.getElementById('settingsBreadcrumb');
             if (breadcrumb) {
-                breadcrumb.innerHTML = `<a href="{{ url_for('dashboard.home') }}" class="breadcrumb-link"><i class="fas fa-home"></i> Dashboard</a><span class="separator">/</span><span class="current">Settings</span>`;
+                breadcrumb.innerHTML = `
+                    <a href="{{ url_for('dashboard.home') }}" class="breadcrumb-link"><i class="fas fa-home"></i> Dashboard</a>
+                    <span class="separator">/</span>
+                    <span class="current">Settings</span>
+                `;
             }
             // Update page title
             const title = document.querySelector('.settings-page-title');
             if (title) title.textContent = 'Settings';
-            // Update nav items active state
-            document.querySelectorAll('.settings-nav-item').forEach(item => item.classList.remove('active'));
+            // Remove active from nav items
+            navItems.forEach(item => item.classList.remove('active'));
             // Clear hash
             history.pushState(null, '', '#');
         }
@@ -870,7 +924,6 @@
             const target = document.getElementById(id);
             if (target) target.classList.add('active');
             // Update breadcrumb
-            const breadcrumb = document.getElementById('settingsBreadcrumb');
             if (breadcrumb) {
                 const label = document.querySelector(`.settings-nav-item[data-section="${id}"]`)?.textContent.trim() || id;
                 breadcrumb.innerHTML = `
@@ -887,8 +940,8 @@
                 const nav = document.querySelector(`.settings-nav-item[data-section="${id}"]`);
                 title.textContent = nav ? nav.textContent.trim() : 'Settings';
             }
-            // Update nav items
-            document.querySelectorAll('.settings-nav-item').forEach(item => item.classList.remove('active'));
+            // Update nav items – only the selected one gets active
+            navItems.forEach(item => item.classList.remove('active'));
             const nav = document.querySelector(`.settings-nav-item[data-section="${id}"]`);
             if (nav) nav.classList.add('active');
             history.pushState(null, '', '#' + id);
@@ -915,10 +968,10 @@
         });
 
         // Sidebar navigation
-        document.querySelectorAll('.settings-nav-item').forEach(item => {
+        navItems.forEach(item => {
             item.addEventListener('click', function(e) {
                 const section = this.dataset.section;
-                if (section === 'back') return; // handled by href
+                if (section === 'dashboard') return; // handled by href
                 e.preventDefault();
                 if (section === 'landing') {
                     showLanding();
@@ -934,6 +987,7 @@
             document.querySelectorAll('.feature-card.active').forEach(c => {
                 if (c !== card) c.classList.remove('active');
             });
+            // Toggle this one
             card.classList.toggle('active');
         };
 
@@ -952,7 +1006,7 @@
             });
         });
 
-        // ---- Global upgrade buttons (outside popups) ----
+        // ---- Global upgrade buttons ----
         document.querySelectorAll('.upgrade-btn:not(.feature-card .upgrade-btn)').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -964,7 +1018,7 @@
             });
         });
 
-        // ---- Locked toggles (quiz auto-advance, etc.) ----
+        // ---- Locked toggles ----
         document.querySelectorAll('.toggle-item.locked input[type="checkbox"]').forEach(cb => {
             cb.disabled = true;
             cb.closest('.toggle-item').addEventListener('click', function(e) {
@@ -983,7 +1037,10 @@
             showLanding();
         }
 
-        // ---- Form submissions (AJAX) ----
+        // ---- Forms (Appearance, Quiz, Notifications, Privacy, Live Quiz, Security, Accessibility) ----
+        // These are identical to the previous version; we'll keep them concise.
+        // (All form submission code is already present in the previous response; we'll include it here for completeness, but we'll use a compact version to save space.)
+        // We'll copy the same logic from the previous answer.
         function showToast(msg, type) {
             if (typeof window.showToast === 'function') {
                 window.showToast(msg, type);
@@ -1225,12 +1282,10 @@
             }
         }
 
-        // Export Data (placeholder)
+        // Export/Delete buttons (placeholders)
         document.getElementById('exportDataBtn')?.addEventListener('click', function() {
             showToast('Data export will be available soon.', 'info');
         });
-
-        // Delete Account (placeholder)
         document.getElementById('deleteAccountBtn')?.addEventListener('click', function() {
             if (confirm('Are you sure you want to delete your account? This action is permanent.')) {
                 showToast('Account deletion is not implemented yet.', 'error');
