@@ -58,13 +58,11 @@
                 Profile
             </a>
 
-            <!-- SETTINGS – UPDATED LINK -->
             <a href="{{ url_for('settings.index') }}" class="nav-item {% if request.endpoint.startswith('settings.') %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-sliders-h"></i></span>
                 Settings
             </a>
 
-            <!-- HISTORY LINK -->
             <a href="{{ url_for('history.index') }}" class="nav-item {% if request.endpoint.startswith('history.') %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-history"></i></span>
                 History
@@ -237,4 +235,25 @@
 <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
 <script src="{{ url_for('static', filename='js/safka.js') }}"></script>
 {% block dashboard_js %}{% endblock %}
+
+<!-- ============================================ -->
+<!-- SETTINGS BOOTSTRAP – for all authenticated pages -->
+<!-- ============================================ -->
+{% if session.user_id %}
+<script id="nuun-settings-data" type="application/json">{{ settings|tojson|safe }}</script>
+<script src="{{ url_for('static', filename='js/platform-settings.js') }}"></script>
+<script>
+    (function() {
+        var data = document.getElementById('nuun-settings-data');
+        if (data && window.NuunSettings) {
+            try {
+                var initial = JSON.parse(data.textContent);
+                NuunSettings.init(initial);
+            } catch (e) {
+                console.warn('Failed to init settings:', e);
+            }
+        }
+    })();
+</script>
+{% endif %}
 {% endblock %}

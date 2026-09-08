@@ -1,18 +1,28 @@
 // static/js/platform-settings.js
+/**
+ * NuunPlatform Global Settings Runtime
+ * Single source of truth for user preferences.
+ * Enhanced with error handling and read-back verification.
+ */
 (function() {
     'use strict';
 
     const NuunSettings = {
         settings: {},
         initialized: false,
+        pendingRequests: {},
+        listeners: [],
 
+        // Initialize with server-provided settings
         init(initialSettings) {
             if (this.initialized) return;
             this.settings = initialSettings || {};
             this.applyAll();
             this.initialized = true;
+            console.log('✅ NuunSettings initialized with', Object.keys(this.settings).length, 'settings');
         },
 
+        // Apply all settings to the DOM
         applyAll() {
             this.applyTheme(this.settings['appearance.theme']);
             this.applyAccent(this.settings['appearance.accent']);
@@ -21,6 +31,7 @@
             this.applyReducedMotion(this.settings['appearance.reduced_motion']);
         },
 
+        // --- Individual apply methods ---
         applyTheme(theme) {
             if (!theme) return;
             const html = document.documentElement;
@@ -30,11 +41,13 @@
             } else {
                 html.setAttribute('data-theme', theme);
             }
+            // Update toggle icons if present
             document.querySelectorAll('.theme-toggle-icon').forEach(el => {
                 if (theme === 'dark') el.className = 'fas fa-moon';
                 else if (theme === 'light') el.className = 'fas fa-sun';
                 else el.className = 'fas fa-desktop';
             });
+            // Store preference in localStorage as a cache only
             localStorage.setItem('preferred-theme', theme);
         },
 
@@ -72,6 +85,7 @@
             localStorage.setItem('preferred-reduced-motion', enabled ? '1' : '0');
         },
 
+        // --- Utility ---
         _darken(hex, amount) {
             let r = parseInt(hex.slice(1,3), 16);
             let g = parseInt(hex.slice(3,5), 16);
@@ -92,15 +106,24 @@
             return `#${Math.round(r).toString(16).padStart(2,'0')}${Math.round(g).toString(16).padStart(2,'0')}${Math.round(b).toString(16).padStart(2,'0')}`;
         },
 
+        // --- API methods with error handling and read-back ---
         get(key) {
             return this.settings[key];
         },
 
         set(key, value) {
+            // Save old value for rollback
             const old = this.settings[key];
+
+            // Optimistic update
             this.settings[key] = value;
             this.applyAll();
-            fetch('/settings/api', {
+
+            // Send to server
+            const requestId = Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            this.pendingRequests[requestId] = { key, old, value };
+
+            return fetch('/settings/api', {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -108,36 +131,75 @@
                 },
                 body: JSON.stringify({ [key]: value })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) {
-                    this.settings[key] = old;
-                    this.applyAll();
-                    if (typeof window.showToast === 'function') {
-                        window.showToast(data.error || 'Failed to update.', 'error');
-                    }
-                } else {
-                    this.settings = data.settings || this.settings;
-                    this.applyAll();
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Server error');
+                    });
                 }
+                return response.json();
             })
-            .catch(() => {
-                this.settings[key] = old;
+            .then(data => {
+                delete this.pendingRequests[requestId];
+                if (!data.success) {
+                    throw new Error(data.error || 'Update failed');
+                }
+                // Update settings with server response (read-back)
+                if (data.settings) {
+                    this.settings = data.settings;
+                } else {
+                    // If no settings returned, re-fetch
+                    return this.refresh();
+                }
                 this.applyAll();
                 if (typeof window.showToast === 'function') {
-                    window.showToast('Network error.', 'error');
+                    window.showToast('Setting updated', 'success');
                 }
+                return data;
+            })
+            .catch(err => {
+                // Rollback
+                this.settings[key] = old;
+                this.applyAll();
+                delete this.pendingRequests[requestId];
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Failed to update: ' + err.message, 'error');
+                } else {
+                    console.error('Settings update failed:', err);
+                }
+                throw err;
+            });
+        },
+
+        refresh() {
+            return fetch('/settings/api', {
+                method: 'GET',
+                headers: {
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.settings = data;
+                this.applyAll();
+                return data;
+            })
+            .catch(err => {
+                console.error('Failed to refresh settings:', err);
+                throw err;
             });
         }
     };
 
+    // Expose globally
     window.NuunSettings = NuunSettings;
 
+    // Auto‑init if server injected settings
     document.addEventListener('DOMContentLoaded', function() {
-        const script = document.getElementById('nuun-settings-data');
-        if (script) {
+        const settingsScript = document.getElementById('nuun-settings-data');
+        if (settingsScript) {
             try {
-                const initial = JSON.parse(script.textContent);
+                const initial = JSON.parse(settingsScript.textContent);
                 NuunSettings.init(initial);
             } catch (e) {
                 console.warn('Failed to parse settings data', e);
@@ -145,6 +207,7 @@
         }
     });
 
+    // Listen for system theme changes when in 'system' mode
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
         if (NuunSettings.settings['appearance.theme'] === 'system') {
             document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');

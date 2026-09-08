@@ -21,7 +21,9 @@ def login_required(f):
 @login_required
 def index():
     user_id = session['user_id']
-    SettingsService.migrate_old_settings(user_id)
+    # Ensure migration is done (idempotent)
+    SettingsService.ensure_migrated(user_id)
+
     tier = get_current_user_tier()
     settings = SettingsService.get_all(user_id)
     categories = get_all_categories()
@@ -78,7 +80,10 @@ def api_patch():
         return jsonify({'error': str(e)}), 400
     except PermissionError as e:
         return jsonify({'error': str(e)}), 403
+    except RuntimeError as e:
+        return jsonify({'error': 'Internal error: ' + str(e)}), 500
     except Exception as e:
+        logger.error(f"Unexpected error in settings update: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 @settings_bp.route('/api/reset', methods=['POST'])
@@ -99,9 +104,10 @@ def api_reset():
     except PermissionError as e:
         return jsonify({'error': str(e)}), 403
     except Exception as e:
+        logger.error(f"Unexpected error in settings reset: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
-# Password change endpoint (kept separate for security)
+# Password change endpoint remains separate
 @settings_bp.route('/api/password', methods=['POST'])
 @login_required
 def api_password():

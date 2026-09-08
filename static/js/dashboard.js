@@ -1,3 +1,4 @@
+// static/js/dashboard.js
 // ============================================
 // DASHBOARD JAVASCRIPT
 // ============================================
@@ -66,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ============================================
-    // THEME TOGGLE (cycling)
+    // THEME TOGGLE – Updated to use NuunSettings API
     // ============================================
     (function() {
         const toggleBtn = document.getElementById('themeToggle');
@@ -81,15 +82,15 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         function getCurrentTheme() {
-            const saved = localStorage.getItem('preferred-theme') || 'system';
-            return saved;
+            return document.documentElement.getAttribute('data-theme') || 'system';
         }
 
         function applyTheme(theme) {
-            if (typeof window.applyTheme === 'function') {
-                window.applyTheme(theme);
+            // Delegate to NuunSettings for persistence
+            if (typeof NuunSettings !== 'undefined' && NuunSettings.initialized) {
+                NuunSettings.set('appearance.theme', theme);
             } else {
-                // Fallback
+                // Fallback (should not happen in normal flow)
                 if (theme === 'system') {
                     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                     document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
@@ -97,9 +98,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.documentElement.setAttribute('data-theme', theme);
                 }
                 localStorage.setItem('preferred-theme', theme);
+                // Update icon
+                icon.className = 'fas ' + (themeIcons[theme] || 'fa-sun');
             }
-            // Update icon
-            icon.className = 'fas ' + themeIcons[theme];
+            // Optimistically update icon
+            icon.className = 'fas ' + (themeIcons[theme] || 'fa-sun');
         }
 
         function cycleTheme() {
@@ -110,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function() {
             applyTheme(next);
         }
 
-        // Set initial icon
+        // Set initial icon based on current theme
         const initial = getCurrentTheme();
         icon.className = 'fas ' + (themeIcons[initial] || 'fa-sun');
 
@@ -121,11 +124,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Listen for system preference changes when in 'system' mode
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-            const current = localStorage.getItem('preferred-theme') || 'system';
+            const current = document.documentElement.getAttribute('data-theme');
             if (current === 'system') {
                 document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
-                // Update icon (if we want to show system state)
-                icon.className = 'fas fa-desktop';
             }
         });
     })();

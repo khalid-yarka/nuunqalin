@@ -61,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_questions_updated_at ON questions(updated_at DESC
 CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);
 
 -- ============================================
--- QUIZ ATTEMPTS TABLE (FIXED - added reactions)
+-- QUIZ ATTEMPTS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS quiz_attempts (
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
     total_questions INTEGER DEFAULT 0,
     answers TEXT,
     ratings TEXT,
-    reactions TEXT,           -- <-- ADDED THIS COLUMN
+    reactions TEXT,
     completed_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
 );
@@ -338,12 +338,12 @@ CREATE TABLE IF NOT EXISTS backup_operations (
 CREATE INDEX IF NOT EXISTS idx_backup_ops_started ON backup_operations(started_at DESC);
 
 -- ============================================
--- USER SETTINGS
+-- USER SETTINGS (Authoritative persistence)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS user_settings (
     user_id INTEGER PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
-    settings JSON NOT NULL DEFAULT '{}',
+    settings TEXT NOT NULL DEFAULT '{}',
     updated_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -395,7 +395,7 @@ CREATE TABLE IF NOT EXISTS user_achievements (
 );
 
 -- ============================================
--- QUESTION INTERACTIONS (Likes, Saves, Reports)
+-- QUESTION INTERACTIONS
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS question_interactions (
@@ -421,7 +421,7 @@ CREATE INDEX IF NOT EXISTS idx_question_interactions_type ON question_interactio
 CREATE INDEX IF NOT EXISTS idx_question_interactions_report_status ON question_interactions(report_status);
 
 -- ============================================
--- ERROR LOGS TABLE (for admin error dashboard)
+-- ERROR LOGS TABLE
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS error_logs (
@@ -454,7 +454,7 @@ CREATE INDEX IF NOT EXISTS idx_error_logs_error_hash ON error_logs(error_hash);
 CREATE INDEX IF NOT EXISTS idx_error_logs_request_id ON error_logs(request_id);
 
 -- ============================================
--- LIVE QUIZ EVENTS (for state management)
+-- LIVE QUIZ EVENTS
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS live_quiz_events (
@@ -471,7 +471,7 @@ CREATE TABLE IF NOT EXISTS live_quiz_events (
 CREATE INDEX IF NOT EXISTS idx_live_quiz_events_quiz_sequence ON live_quiz_events(quiz_id, sequence);
 
 -- ============================================
--- LIVE QUIZ CHECKPOINTS (for state recovery)
+-- LIVE QUIZ CHECKPOINTS
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS live_quiz_checkpoints (
@@ -492,7 +492,7 @@ CREATE INDEX IF NOT EXISTS idx_live_quizzes_status_created ON live_quizzes(statu
 CREATE INDEX IF NOT EXISTS idx_questions_subject_status ON questions(subject_code, status);
 
 -- ============================================
--- HISTORY ENTRIES (Centralized user activity)
+-- HISTORY ENTRIES
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS history_entries (
@@ -506,8 +506,8 @@ CREATE TABLE IF NOT EXISTS history_entries (
         'completed', 'joined', 'viewed', 'downloaded',
         'saved', 'unsaved', 'unlocked', 'liked', 'unliked', 'reported'
     )),
-    entry_id INTEGER,                    -- Optional FK to source table
-    metadata TEXT NOT NULL DEFAULT '{}', -- JSON
+    entry_id INTEGER,
+    metadata TEXT NOT NULL DEFAULT '{}',
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE
 );

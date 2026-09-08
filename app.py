@@ -56,7 +56,7 @@ from blueprints.admin_errors_bp import admin_errors_bp
 from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
 from blueprints.notifications_bp import notifications_bp
-from blueprints.user_settings_bp import user_settings_bp  # OLD – will be replaced by settings_bp
+# from blueprints.user_settings_bp import user_settings_bp  # OLD – replaced by settings_bp
 from blueprints.saved_content_bp import saved_content_bp
 from blueprints.achievements_bp import achievements_bp
 from blueprints.admin_activity_bp import admin_activity_bp
@@ -722,17 +722,26 @@ def backup_status():
         return jsonify({'error': str(e)}), 500
 
 # ============================================
-# CONTEXT PROCESSOR
+# CONTEXT PROCESSOR (UPDATED – includes settings)
 # ============================================
 
 @app.context_processor
 def utility_processor():
     token = ensure_csrf_token() if 'user_id' in session else ''
+    settings = {}
+    if 'user_id' in session:
+        try:
+            from services.settings_service import SettingsService
+            settings = SettingsService.get_all(session['user_id'])
+        except Exception as e:
+            logger.warning(f"Failed to load settings for user {session['user_id']}: {e}")
+            settings = {}
     return {
         'session': session,
         'is_admin': session.get('is_admin', False),
         'somali_time': get_somali_time_display,
-        'csrf_token': token
+        'csrf_token': token,
+        'settings': settings
     }
 
 # ============================================
