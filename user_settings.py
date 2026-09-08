@@ -68,6 +68,7 @@ def update_user_settings(user_id: int, updates: Dict[str, Any]) -> bool:
     """
     Update the stored settings with the given dict.
     This does NOT merge defaults; it writes exactly the provided keys.
+    The migration_version field is preserved if not explicitly overwritten.
     """
     try:
         raw = get_raw_settings(user_id)
@@ -89,7 +90,8 @@ def update_user_settings(user_id: int, updates: Dict[str, Any]) -> bool:
             commit=True
         )
         return True
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to update settings for user {user_id}: {e}")
         return False
 
 

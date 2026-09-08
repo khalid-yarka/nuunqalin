@@ -2,7 +2,7 @@
 /**
  * NuunPlatform Global Settings Runtime
  * Single source of truth for user preferences.
- * Enhanced with error handling and read-back verification.
+ * Enhanced with error handling, read-back verification, and session sync.
  */
 (function() {
     'use strict';
@@ -11,7 +11,6 @@
         settings: {},
         initialized: false,
         pendingRequests: {},
-        listeners: [],
 
         // Initialize with server-provided settings
         init(initialSettings) {
@@ -47,7 +46,7 @@
                 else if (theme === 'light') el.className = 'fas fa-sun';
                 else el.className = 'fas fa-desktop';
             });
-            // Store preference in localStorage as a cache only
+            // Store as cache only
             localStorage.setItem('preferred-theme', theme);
         },
 
@@ -120,9 +119,6 @@
             this.applyAll();
 
             // Send to server
-            const requestId = Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-            this.pendingRequests[requestId] = { key, old, value };
-
             return fetch('/settings/api', {
                 method: 'PATCH',
                 headers: {
@@ -140,7 +136,6 @@
                 return response.json();
             })
             .then(data => {
-                delete this.pendingRequests[requestId];
                 if (!data.success) {
                     throw new Error(data.error || 'Update failed');
                 }
@@ -161,7 +156,6 @@
                 // Rollback
                 this.settings[key] = old;
                 this.applyAll();
-                delete this.pendingRequests[requestId];
                 if (typeof window.showToast === 'function') {
                     window.showToast('Failed to update: ' + err.message, 'error');
                 } else {

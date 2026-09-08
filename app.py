@@ -542,6 +542,17 @@ def login():
                 session['tier'] = student.get('tier', 'danbe')
                 session.permanent = True
                 session['csrf_token'] = secrets.token_hex(32)
+
+                # Load settings into session
+                try:
+                    from services.settings_service import SettingsService
+                    settings = SettingsService.get_all(student['id'])
+                    session['settings'] = settings
+                    session.modified = True
+                except Exception as e:
+                    logger.error(f"Failed to load settings on login for user {student['id']}: {e}")
+                    session['settings'] = {}
+
                 logger.info(f"User logged in: user_id={student['id']}")
                 flash('Welcome back!', 'success')
 
@@ -722,20 +733,29 @@ def backup_status():
         return jsonify({'error': str(e)}), 500
 
 # ============================================
-# CONTEXT PROCESSOR (UPDATED – includes settings)
+# CONTEXT PROCESSOR (UPDATED – session caching)
 # ============================================
 
 @app.context_processor
 def utility_processor():
     token = ensure_csrf_token() if 'user_id' in session else ''
     settings = {}
+    
     if 'user_id' in session:
-        try:
-            from services.settings_service import SettingsService
-            settings = SettingsService.get_all(session['user_id'])
-        except Exception as e:
-            app.logger.warning(f"Failed to load settings for user {session['user_id']}: {e}")
-            settings = {}
+        # Try to get settings from session first
+        if 'settings' in session:
+            settings = session['settings']
+        else:
+            # Load from database and store in session
+            try:
+                from services.settings_service import SettingsService
+                settings = SettingsService.get_all(session['user_id'])
+                session['settings'] = settings
+                session.modified = True
+            except Exception as e:
+                app.logger.warning(f"Failed to load settings for user {session['user_id']}: {e}")
+                settings = {}
+    
     return {
         'session': session,
         'is_admin': session.get('is_admin', False),

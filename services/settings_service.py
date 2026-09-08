@@ -1,6 +1,7 @@
 # services/settings_service.py
 import logging
 from typing import Dict, Any, Optional, Tuple
+from flask import session
 from user_settings import (
     get_raw_settings, get_user_settings, update_user_settings,
     get_migration_version, set_migration_version, MIGRATION_VERSION
@@ -12,6 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 class SettingsService:
+    
+    @staticmethod
+    def _update_session(user_id: int) -> None:
+        """Update the session with the latest settings from the database."""
+        try:
+            settings = SettingsService.get_all(user_id)
+            session['settings'] = settings
+            session.modified = True
+        except Exception as e:
+            logger.error(f"Failed to update session settings for user {user_id}: {e}")
+    
     @staticmethod
     def ensure_migrated(user_id: int) -> None:
         """Run the one‑time migration if needed."""
@@ -19,7 +31,6 @@ class SettingsService:
             return
 
         raw = get_raw_settings(user_id)
-        # Legacy key mapping (old → new)
         mapping = {
             "theme": "appearance.theme",
             "accent": "appearance.accent",
@@ -51,7 +62,6 @@ class SettingsService:
 
         migrated = {}
         for old_key, new_key in mapping.items():
-            # Only migrate if old key exists in raw, and new key is absent
             if old_key in raw and new_key not in raw:
                 migrated[new_key] = raw[old_key]
 
@@ -61,25 +71,26 @@ class SettingsService:
             for old_key in mapping.keys():
                 if old_key in raw:
                     del raw[old_key]
-            # Set migration version
             raw['migration_version'] = MIGRATION_VERSION
             update_user_settings(user_id, raw)
             logger.info(f"Migrated settings for user {user_id}: {migrated}")
         else:
-            # If no migration needed, just set version
             raw['migration_version'] = MIGRATION_VERSION
             update_user_settings(user_id, raw)
-
+        
+        # After migration, update session
+        SettingsService._update_session(user_id)
+    
     @staticmethod
     def get_all(user_id: int) -> Dict[str, Any]:
         """Get effective settings for the user (merged with defaults)."""
         SettingsService.ensure_migrated(user_id)
         return get_user_settings(user_id)
-
+    
     @staticmethod
     def get_value(user_id: int, key: str) -> Any:
         return SettingsService.get_all(user_id).get(key)
-
+    
     @staticmethod
     def validate(key: str, value: Any) -> Tuple[bool, Optional[str]]:
         definition = get_setting(key)
@@ -107,7 +118,7 @@ class SettingsService:
         else:
             return False, f"Unsupported type: {vtype}"
         return True, None
-
+    
     @staticmethod
     def can_modify(user_id: int, key: str) -> bool:
         definition = get_setting(key)
@@ -118,12 +129,13 @@ class SettingsService:
             return True
         user_tier = get_current_user_tier()
         return is_tier_at_least(user_tier, tier_required)
-
+    
     @staticmethod
     def update(user_id: int, updates: Dict[str, Any]) -> Dict[str, Any]:
         """
         Batch update settings.
         Validates, enforces tier, persists, then reads back to confirm.
+        After successful persistence, updates the session.
         """
         normalized = {}
         for key, value in updates.items():
@@ -135,12 +147,12 @@ class SettingsService:
             if get_setting(key).get("type") == "boolean":
                 value = value in (True, 1, "true", "1")
             normalized[key] = value
-
+        
         # Write to DB
         success = update_user_settings(user_id, normalized)
         if not success:
             raise RuntimeError("Database update failed")
-
+        
         # Read back to verify
         raw = get_raw_settings(user_id)
         for key, expected in normalized.items():
@@ -148,9 +160,12 @@ class SettingsService:
             if actual != expected:
                 logger.error(f"Read-back mismatch for user {user_id}, key {key}: expected {expected}, got {actual}")
                 raise RuntimeError(f"Persistence verification failed for key {key}")
-
+        
+        # Update session with new settings
+        SettingsService._update_session(user_id)
+        
         return SettingsService.get_all(user_id)
-
+    
     @staticmethod
     def reset(user_id: int, key: str) -> Dict[str, Any]:
         definition = get_setting(key)
