@@ -596,3 +596,35 @@
         flex: 1;
     }
 }
+
+/* ============================================
+   PUBLIC ID VISIBILITY ON SIDEBAR
+   ============================================ */
+.sidebar-user .user-id {
+    /* Override any accent colour issues */
+    background: var(--primary-light) !important;
+    color: var(--primary) !important;
+    border: 1px solid var(--primary) !important;
+    padding: 2px 12px !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+    letter-spacing: 0.5px !important;
+    display: inline-block !important;
+}
+
+[data-theme="dark"] .sidebar-user .user-id {
+    background: var(--primary) !important;
+    color: white !important;
+    border-color: var(--primary) !important;
+}
+
+/* ============================================
+   TIER SECTION – Additional styles
+   ============================================ */
+.feature-card .feature-popup {
+    /* Already defined in index.html, but we keep here for consistency */
+}
+.feature-card .feature-popup .upgrade-btn {
+    pointer-events: auto;
+}

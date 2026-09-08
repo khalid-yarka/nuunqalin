@@ -2,9 +2,10 @@
 from flask import Blueprint, render_template, request, session, jsonify
 from functools import wraps
 from services.settings_service import SettingsService
-from services.settings_registry import get_all_categories
-from services.tier_service import get_current_user_tier, can_create_live_quiz
+from services.settings_registry import SETTINGS_REGISTRY, get_all_categories
+from services.tier_service import get_current_user_tier, can_create_live_quiz, get_user_tier, is_tier_at_least
 from utils import validate_csrf
+from db import get_user_subject_list
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
@@ -25,11 +26,30 @@ def index():
     settings = SettingsService.get_all(user_id)
     categories = get_all_categories()
     can_create = can_create_live_quiz()
+    user_subjects = get_user_subject_list(user_id)
+
+    # Build features list for the tier section
+    tier_features = []
+    for key, definition in SETTINGS_REGISTRY.items():
+        tier_required = definition.get('tier_required')
+        available = tier_required is None or is_tier_at_least(tier, tier_required)
+        tier_features.append({
+            'key': key,
+            'label': definition.get('label', key),
+            'description': definition.get('description', ''),
+            'icon': definition.get('icon', '⚙️'),
+            'available': available,
+            'tier_required': tier_required,
+            'category': definition.get('category', '')
+        })
+
     return render_template('settings/index.html',
                            tier=tier,
                            settings=settings,
                            categories=categories,
-                           can_create_live=can_create)
+                           can_create_live=can_create,
+                           user_subjects=user_subjects,
+                           tier_features=tier_features)
 
 @settings_bp.route('/api', methods=['GET'])
 @login_required
