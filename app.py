@@ -11,7 +11,7 @@ import atexit
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g, flash
 
 from config import Config
 from db import (
@@ -661,9 +661,14 @@ def register():
 
     return render_template('register.html')
 
+# ============================================
+# LOGOUT ROUTE – FIXED with proper flash import and order
+# ============================================
+
 @app.route('/logout')
 def logout():
     user_id = session.get('user_id')
+    
     # Log activity BEFORE clearing session
     if user_id:
         try:
@@ -671,7 +676,7 @@ def logout():
         except Exception as e:
             logger.warning(f"Failed to log logout: {e}")
     
-    # Store flash message before clearing session (it survives via cookie)
+    # Set flash message BEFORE clearing session (it will persist via cookie)
     flash('You have been logged out.', 'info')
     
     # Clear session
@@ -759,7 +764,6 @@ def utility_processor():
                 session['settings'] = settings
                 session.modified = True
             except Exception as e:
-                # Use module-level logger, not app.logger
                 logging.getLogger(__name__).warning(f"Failed to load settings for user {session['user_id']}: {e}")
                 settings = {}
     

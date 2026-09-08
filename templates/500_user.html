@@ -23,11 +23,29 @@
         border: 1px solid var(--border);
         box-shadow: var(--shadow-lg);
         animation: fadeInUp 0.6s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .error-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--primary), #B91C1C);
     }
 
     @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(30px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .error-icon {
@@ -47,12 +65,6 @@
         font-weight: 700;
         color: var(--text);
         margin-bottom: 8px;
-        cursor: pointer;
-        transition: color 0.3s ease;
-    }
-
-    .error-title:hover {
-        color: var(--primary);
     }
 
     .error-description {
@@ -86,6 +98,7 @@
         gap: 12px;
         flex-wrap: wrap;
         justify-content: center;
+        margin-bottom: 16px;
     }
 
     .btn-primary {
@@ -146,7 +159,7 @@
         text-decoration: none;
         cursor: pointer;
         transition: all 0.3s ease;
-        margin-top: 8px;
+        margin-top: 4px;
     }
 
     .btn-report:hover {
@@ -155,78 +168,48 @@
         background: var(--primary-light);
     }
 
-    /* Hidden password section */
-    #password-section {
-        margin-top: 20px;
-        display: none;
-        border-top: 1px solid var(--border);
-        padding-top: 20px;
-    }
-
-    #password-section input {
-        padding: 8px 14px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        font-size: 14px;
-        background: var(--surface);
-        color: var(--text);
-        width: 200px;
-    }
-
-    #password-section .btn-submit {
-        padding: 8px 20px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: var(--radius-sm);
-        font-weight: 600;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-
-    #password-section .btn-submit:hover {
-        background: var(--primary-hover);
-    }
-
-    #password-error {
-        color: #EF4444;
-        font-size: 13px;
-        margin-top: 6px;
-    }
-
-    /* Error details box */
+    /* Error Details Section (hidden by default) */
     #error-details-section {
-        margin-top: 20px;
+        display: none;
+        margin-top: 24px;
         text-align: left;
         background: var(--surface-alt);
-        padding: 16px;
+        padding: 16px 20px;
         border-radius: var(--radius-sm);
         border: 1px solid var(--border);
-        display: none;
         max-height: 400px;
         overflow-y: auto;
+    }
+
+    #error-details-section.visible {
+        display: block;
     }
 
     #error-details-section h4 {
         font-size: 16px;
         font-weight: 600;
         color: var(--text);
-        margin-bottom: 10px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
     #error-details-section .detail-row {
         margin-bottom: 6px;
         font-size: 14px;
+        color: var(--text-secondary);
     }
 
     #error-details-section .detail-row strong {
-        color: var(--text-secondary);
+        color: var(--text);
+        font-weight: 600;
     }
 
     #error-details-section pre {
         background: #1e1e1e;
         color: #d4d4d4;
-        padding: 10px;
+        padding: 12px;
         border-radius: 4px;
         overflow-x: auto;
         font-size: 12px;
@@ -234,8 +217,162 @@
         max-height: 200px;
         overflow-y: auto;
         margin-top: 8px;
+        font-family: 'Courier New', monospace;
+        white-space: pre-wrap;
+        word-break: break-all;
     }
 
+    /* Admin auto‑show section */
+    .admin-toggle-area {
+        margin-top: 16px;
+        display: none;
+    }
+
+    .admin-toggle-area.visible {
+        display: block;
+    }
+
+    .btn-toggle-details {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 24px;
+        background: #EFF6FF;
+        color: #1E40AF;
+        border: 1px solid #BFDBFE;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-toggle-details:hover {
+        background: #DBEAFE;
+        color: #1E3A8A;
+        transform: translateY(-2px);
+    }
+
+    [data-theme="dark"] .btn-toggle-details {
+        background: #1A2A4A;
+        border-color: #3B82F6;
+        color: #93C5FD;
+    }
+
+    [data-theme="dark"] .btn-toggle-details:hover {
+        background: #1E3A5F;
+        color: #BFDBFE;
+    }
+
+    /* Secret reveal section (non‑admin) */
+    #secret-section {
+        display: none;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+    }
+
+    #secret-section.visible {
+        display: block;
+    }
+
+    #secret-section .secret-form {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    #secret-section .secret-form input {
+        padding: 10px 16px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        background: var(--surface);
+        color: var(--text);
+        width: 220px;
+        transition: border-color 0.3s ease;
+        font-family: 'Courier New', monospace;
+        letter-spacing: 1px;
+    }
+
+    #secret-section .secret-form input:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
+    }
+
+    #secret-section .secret-form .btn-submit {
+        padding: 10px 24px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+    #secret-section .secret-form .btn-submit:hover {
+        background: var(--primary-hover);
+        transform: translateY(-2px);
+    }
+
+    #secret-section .secret-error {
+        color: #EF4444;
+        font-size: 13px;
+        margin-top: 8px;
+        text-align: center;
+        display: none;
+    }
+
+    #secret-section .secret-error.visible {
+        display: block;
+        animation: shake 0.3s ease;
+    }
+
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-6px); }
+        75% { transform: translateX(6px); }
+    }
+
+    .btn-reveal-secret {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 24px;
+        background: #FEF3C7;
+        color: #92400E;
+        border: 1px solid #FDE68A;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 8px;
+    }
+
+    .btn-reveal-secret:hover {
+        background: #FDE68A;
+        color: #78350F;
+        transform: translateY(-2px);
+    }
+
+    [data-theme="dark"] .btn-reveal-secret {
+        background: #3A2E1A;
+        border-color: #92400E;
+        color: #FCD34D;
+    }
+
+    [data-theme="dark"] .btn-reveal-secret:hover {
+        background: #92400E;
+        color: #FEF3C7;
+    }
+
+    /* Suggestions */
     .error-suggestions {
         margin-top: 24px;
         padding-top: 20px;
@@ -261,6 +398,7 @@
         color: var(--text-muted);
     }
 
+    /* Responsive */
     @media (max-width: 480px) {
         .error-card {
             padding: 28px 16px;
@@ -278,19 +416,12 @@
         .btn-secondary {
             justify-content: center;
         }
-        #password-section input {
+        #secret-section .secret-form input {
             width: 100%;
         }
-        #password-section .btn-submit {
+        #secret-section .secret-form .btn-submit {
             width: 100%;
-            margin-top: 6px;
         }
-    }
-
-    /* Dark mode */
-    [data-theme="dark"] .error-card {
-        background: var(--surface);
-        border-color: var(--border);
     }
 
     [data-theme="dark"] #error-details-section {
@@ -298,10 +429,20 @@
         border-color: var(--border);
     }
 
-    [data-theme="dark"] #password-section input {
+    [data-theme="dark"] #error-details-section pre {
+        background: #0A0A1A;
+        color: #D4D4D4;
+    }
+
+    [data-theme="dark"] #secret-section .secret-form input {
         background: var(--surface-alt);
         border-color: var(--border);
         color: var(--text);
+    }
+
+    [data-theme="dark"] #secret-section .secret-form input:focus {
+        border-color: #FF6B70;
+        box-shadow: 0 0 0 3px rgba(255, 107, 112, 0.15);
     }
 </style>
 {% endblock %}
@@ -310,7 +451,7 @@
 <div class="error-container">
     <div class="error-card">
         <span class="error-icon">😅</span>
-        <h1 class="error-title" id="pageTitle">Something Went Wrong</h1>
+        <h1 class="error-title">Something Went Wrong</h1>
         <p class="error-description">
             We're experiencing technical difficulties on our end.
         </p>
@@ -332,27 +473,46 @@
             </button>
         </div>
 
-        <button onclick="goHome()" class="btn-report">
-            <i class="fas fa-home"></i> Go to Dashboard
-        </button>
-
-        <!-- Hidden password section (shown on double‑click on title) -->
-        <div id="password-section">
-            <form id="reveal-form" onsubmit="return revealError(event);">
-                <input type="hidden" name="request_id" value="{{ request_id or 'no-req' }}">
-                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                    <input type="password" id="error-password" placeholder="Enter admin password" autocomplete="off">
-                    <button type="submit" class="btn-submit">Show Error Details</button>
+        <!-- Admin auto‑show toggle (visible only if session.is_admin) -->
+        {% if session.is_admin %}
+            <div class="admin-toggle-area visible">
+                <button class="btn-toggle-details" id="adminToggleBtn" onclick="toggleAdminDetails()">
+                    <i class="fas fa-eye"></i> <span id="adminToggleText">Show Error Details</span>
+                </button>
+                <div id="adminDetailsContainer" style="margin-top: 12px; display: none;">
+                    <!-- Fetched via JavaScript -->
+                    <div id="adminDetailsContent" style="background: var(--surface-alt); border-radius: var(--radius-sm); padding: 12px; border: 1px solid var(--border);">
+                        <div style="text-align: center; color: var(--text-muted); padding: 10px 0;">
+                            <i class="fas fa-spinner fa-spin"></i> Loading details...
+                        </div>
+                    </div>
                 </div>
-                <div id="password-error"></div>
-            </form>
-        </div>
+            </div>
+        {% else %}
+            <!-- Non‑admin: secret key reveal -->
+            <button class="btn-reveal-secret" onclick="toggleSecretSection()">
+                <i class="fas fa-lock"></i> Reveal Error Details (Admin)
+            </button>
 
-        <!-- Error details container (hidden until password is correct) -->
+            <div id="secret-section">
+                <form id="reveal-form" onsubmit="return revealError(event);">
+                    <input type="hidden" name="request_id" value="{{ request_id or 'no-req' }}">
+                    <div class="secret-form">
+                        <input type="password" id="error-secret" placeholder="Enter admin secret" autocomplete="off" required>
+                        <button type="submit" class="btn-submit">Show Details</button>
+                    </div>
+                    <div id="secret-error" class="secret-error">Invalid secret. Please try again.</div>
+                </form>
+            </div>
+        {% endif %}
+
+        <!-- Error details container (shared by both admin and secret) -->
         <div id="error-details-section">
-            <h4>🔧 Error Details</h4>
+            <h4><i class="fas fa-tools"></i> Error Details</h4>
             <div id="error-details-content">
-                <div style="text-align: center; color: var(--text-muted);">Loading...</div>
+                <div style="text-align: center; color: var(--text-muted); padding: 10px 0;">
+                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                </div>
             </div>
         </div>
 
@@ -368,34 +528,30 @@
     </div>
 </div>
 
-<!-- Report Modal (same as before) -->
-<div class="report-modal" id="reportModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px);">
-    <div style="background: var(--surface); border-radius: var(--radius); padding: 32px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);">
-        <h3 style="font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px;">📋 Report This Problem</h3>
-        <p class="subtitle" style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">Help us fix this issue by telling us what happened.</p>
+<!-- Report Modal -->
+<div class="modal-overlay" id="reportModal">
+    <div class="modal-content">
+        <h3 class="modal-title">📋 Report This Problem</h3>
+        <p class="modal-body">Help us fix this issue by telling us what happened.</p>
 
         <form id="reportForm" method="POST" action="{{ url_for('admin_errors.report') }}">
             <input type="hidden" name="request_id" value="{{ request_id or 'no-req' }}">
             <input type="hidden" name="url" value="{{ request.url }}">
 
-            <div style="margin-bottom: 14px;">
-                <label style="font-size: 13px; font-weight: 600; color: var(--text); display: block; margin-bottom: 4px;">
-                    What were you doing when this happened? <span style="color: var(--primary);">*</span>
-                </label>
-                <textarea id="description" name="description" required placeholder="e.g., I was trying to submit my quiz answer and the page froze..." style="width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); color: var(--text); transition: var(--transition); min-height: 100px; resize: vertical;"></textarea>
+            <div class="form-group">
+                <label class="form-label">What were you doing when this happened? <span class="required">*</span></label>
+                <textarea id="description" name="description" required placeholder="e.g., I was trying to submit my quiz answer and the page froze..." rows="4" class="form-control"></textarea>
             </div>
 
-            <div style="margin-bottom: 14px;">
-                <label style="font-size: 13px; font-weight: 600; color: var(--text); display: block; margin-bottom: 4px;">Email (optional)</label>
-                <input type="email" id="email" name="email" placeholder="your@email.com" style="width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); color: var(--text); transition: var(--transition);">
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">We'll only use this to follow up if we need more information.</div>
+            <div class="form-group">
+                <label class="form-label">Email (optional)</label>
+                <input type="email" id="email" name="email" placeholder="your@email.com" class="form-control">
+                <div class="form-hint">We'll only use this to follow up if we need more information.</div>
             </div>
 
-            <div style="display: flex; gap: 10px;">
-                <button type="button" onclick="closeReportModal()" style="flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: var(--transition);">Cancel</button>
-                <button type="submit" style="flex: 1; padding: 12px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 15px; cursor: pointer; transition: var(--transition);">
-                    <i class="fas fa-paper-plane"></i> Send Report
-                </button>
+            <div class="modal-actions">
+                <button type="button" onclick="closeReportModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send Report</button>
             </div>
         </form>
     </div>
@@ -403,88 +559,157 @@
 
 <script>
     // ============================================
-    // Double‑click on title shows password field
+    // ADMIN AUTO‑SHOW TOGGLE
     // ============================================
-    document.getElementById('pageTitle').addEventListener('dblclick', function() {
-        var section = document.getElementById('password-section');
-        section.style.display = section.style.display === 'none' ? 'block' : 'none';
-        if (section.style.display === 'block') {
-            document.getElementById('error-password').focus();
+    var adminDetailsVisible = false;
+
+    function toggleAdminDetails() {
+        var container = document.getElementById('adminDetailsContainer');
+        var text = document.getElementById('adminToggleText');
+        if (adminDetailsVisible) {
+            container.style.display = 'none';
+            text.textContent = 'Show Error Details';
+            adminDetailsVisible = false;
+        } else {
+            container.style.display = 'block';
+            text.textContent = 'Hide Error Details';
+            adminDetailsVisible = true;
+            // Fetch details immediately if not loaded
+            var content = document.getElementById('adminDetailsContent');
+            if (content.innerHTML.includes('Loading')) {
+                fetchAdminDetails();
+            }
         }
-    });
+    }
+
+    function fetchAdminDetails() {
+        var content = document.getElementById('adminDetailsContent');
+        var requestId = document.getElementById('errorRequestId').textContent.trim();
+
+        fetch('/admin/errors/reveal-error', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'request_id=' + encodeURIComponent(requestId) + '&admin_bypass=1'
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Failed to load details');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                content.innerHTML = '<div style="color: #EF4444; padding: 8px;">❌ ' + data.error + '</div>';
+                return;
+            }
+            content.innerHTML = `
+                <div class="detail-row"><strong>Type:</strong> ${data.error_type || 'Unknown'}</div>
+                <div class="detail-row"><strong>Message:</strong> ${data.error_message || 'No message'}</div>
+                <div class="detail-row"><strong>URL:</strong> ${data.url || 'N/A'}</div>
+                <div class="detail-row"><strong>Method:</strong> ${data.method || 'N/A'}</div>
+                <div class="detail-row"><strong>User ID:</strong> ${data.user_id || 'Not logged in'}</div>
+                <div class="detail-row"><strong>Time:</strong> ${data.timestamp || 'Unknown'}</div>
+                <div style="margin-top: 8px;"><strong>Stack Trace:</strong></div>
+                <pre>${data.stack_trace || 'No stack trace available'}</pre>
+            `;
+            // Also populate the main details section (for consistency)
+            document.getElementById('error-details-content').innerHTML = content.innerHTML;
+            document.getElementById('error-details-section').classList.add('visible');
+        })
+        .catch(err => {
+            content.innerHTML = '<div style="color: #EF4444; padding: 8px;">❌ ' + err.message + '</div>';
+        });
+    }
 
     // ============================================
-    // Reveal error details
+    // SECRET REVEAL (non‑admin)
     // ============================================
+    function toggleSecretSection() {
+        var section = document.getElementById('secret-section');
+        section.classList.toggle('visible');
+        if (section.classList.contains('visible')) {
+            document.getElementById('error-secret').focus();
+        }
+        document.getElementById('secret-error').classList.remove('visible');
+    }
+
     function revealError(e) {
         e.preventDefault();
         var form = document.getElementById('reveal-form');
         var formData = new FormData(form);
-        var password = document.getElementById('error-password').value;
+        var secret = document.getElementById('error-secret').value;
 
-        if (!password) {
-            document.getElementById('password-error').textContent = 'Please enter the admin password.';
-            return;
+        if (!secret) {
+            document.getElementById('secret-error').textContent = 'Please enter the admin secret.';
+            document.getElementById('secret-error').classList.add('visible');
+            return false;
         }
 
-        document.getElementById('password-error').textContent = '';
+        document.getElementById('secret-error').classList.remove('visible');
 
         fetch('/admin/errors/reveal-error', {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Authentication failed');
+                });
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.error) {
-                document.getElementById('password-error').textContent = data.error;
+                document.getElementById('secret-error').textContent = data.error;
+                document.getElementById('secret-error').classList.add('visible');
                 return;
             }
 
-            // Populate error details
+            // Populate main details
             var content = document.getElementById('error-details-content');
             content.innerHTML = `
-                <div class="detail-row"><strong>Type:</strong> ${data.error_type}</div>
-                <div class="detail-row"><strong>Message:</strong> ${data.error_message}</div>
-                <div class="detail-row"><strong>URL:</strong> ${data.url}</div>
-                <div class="detail-row"><strong>Method:</strong> ${data.method}</div>
-                <div class="detail-row"><strong>User ID:</strong> ${data.user_id}</div>
-                <div class="detail-row"><strong>Time:</strong> ${data.timestamp}</div>
+                <div class="detail-row"><strong>Type:</strong> ${data.error_type || 'Unknown'}</div>
+                <div class="detail-row"><strong>Message:</strong> ${data.error_message || 'No message'}</div>
+                <div class="detail-row"><strong>URL:</strong> ${data.url || 'N/A'}</div>
+                <div class="detail-row"><strong>Method:</strong> ${data.method || 'N/A'}</div>
+                <div class="detail-row"><strong>User ID:</strong> ${data.user_id || 'Not logged in'}</div>
+                <div class="detail-row"><strong>Time:</strong> ${data.timestamp || 'Unknown'}</div>
                 <div style="margin-top: 8px;"><strong>Stack Trace:</strong></div>
-                <pre>${data.stack_trace}</pre>
+                <pre>${data.stack_trace || 'No stack trace available'}</pre>
             `;
-            document.getElementById('error-details-section').style.display = 'block';
-            document.getElementById('password-section').style.display = 'none';
+            document.getElementById('error-details-section').classList.add('visible');
+            document.getElementById('secret-section').classList.remove('visible');
         })
         .catch(err => {
-            document.getElementById('password-error').textContent = 'Network error. Please try again.';
+            document.getElementById('secret-error').textContent = err.message || 'Network error. Please try again.';
+            document.getElementById('secret-error').classList.add('visible');
         });
     }
 
     // ============================================
-    // Report modal functions
+    // REPORT MODAL
     // ============================================
     function openReportModal() {
-        document.getElementById('reportModal').style.display = 'flex';
+        document.getElementById('reportModal').classList.add('active');
         document.body.style.overflow = 'hidden';
     }
 
     function closeReportModal() {
-        document.getElementById('reportModal').style.display = 'none';
+        document.getElementById('reportModal').classList.remove('active');
         document.body.style.overflow = '';
     }
 
-    function goHome() {
-        window.location.href = "{{ url_for('dashboard.home') if session.get('user_id') else url_for('login') }}";
-    }
-
-    // Close modal on click outside
     document.getElementById('reportModal').addEventListener('click', function(e) {
         if (e.target === this) {
             closeReportModal();
         }
     });
 
-    // Auto-focus description in report modal
     document.addEventListener('DOMContentLoaded', function() {
         var desc = document.getElementById('description');
         if (desc) {
