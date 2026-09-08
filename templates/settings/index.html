@@ -54,6 +54,11 @@
             <div class="card-content"><h3>Accessibility</h3><p>Motion, contrast, and readability</p></div>
             <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
         </a>
+        <a href="#logout" class="settings-category-card" data-section="logout" style="border-color: #FCA5A5;">
+            <div class="card-icon"><i class="fas fa-sign-out-alt" style="color: #DC2626;"></i></div>
+            <div class="card-content"><h3 style="color: #DC2626;">Logout</h3><p>Sign out of your account</p></div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
     </div>
 </div>
 
@@ -289,7 +294,6 @@
                     <p class="toggle-desc">Get notified when you earn a new badge.</p>
                 </div>
             </div>
-            <!-- NEW: Live Quiz Reminder toggle -->
             <div class="form-row toggle-group tier-locked" data-tier="dhexe">
                 <div class="toggle-item">
                     <label class="toggle-label">
@@ -548,6 +552,39 @@
         </form>
     </div>
 </section>
+
+<!-- ============================================ -->
+<!-- LOGOUT SECTION (NEW)                         -->
+<!-- ============================================ -->
+<section id="logout" class="settings-section">
+    <div class="settings-card">
+        <div class="card-header">
+            <h3><i class="fas fa-sign-out-alt" style="color: #DC2626;"></i> Logout</h3>
+            <p>Sign out of your account securely.</p>
+        </div>
+        <div class="logout-section">
+            <div class="logout-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                    <strong>Logging out</strong> will end your current session. You will need to log in again to access your account.
+                </div>
+            </div>
+            <a href="{{ url_for('logout') }}" id="logoutBtn" class="btn btn-danger btn-block">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- UNSAVED CHANGES INDICATOR                    -->
+<!-- ============================================ -->
+<div id="unsavedIndicator" class="unsaved-indicator">
+    <span class="indicator-icon">⚠️</span>
+    <span class="indicator-text">You have unsaved changes in your settings.</span>
+    <button id="unsavedSaveNow" class="btn-save-now"><i class="fas fa-save"></i> Save Now</button>
+    <button id="unsavedDiscard" class="btn-discard"><i class="fas fa-times"></i> Discard</button>
+</div>
 
 <!-- ============================================ -->
 <!-- STYLES & SCRIPTS                             -->
@@ -886,6 +923,11 @@
         color: #ff6b70;
     }
 
+    /* Logout card style override */
+    .settings-category-card[data-section="logout"]:hover {
+        border-color: #DC2626;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
         .settings-grid {
@@ -996,6 +1038,10 @@
                         NuunSettings.settings = result.settings;
                         NuunSettings.applyAll();
                     }
+                }
+                // Update session settings for other pages
+                if (typeof window.updateSessionSettings === 'function') {
+                    window.updateSessionSettings(result.settings);
                 }
                 return result;
             } else {
@@ -1249,10 +1295,14 @@
             });
         });
 
-        // ---- Accent selector preview ----
+        // ---- Accent selector preview with tier locking ----
         const accentOptions = document.querySelectorAll('.accent-option');
         accentOptions.forEach(btn => {
             btn.addEventListener('click', function() {
+                if (this.classList.contains('locked')) {
+                    // Already handled by the lock click handler
+                    return;
+                }
                 accentOptions.forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 const accent = this.dataset.accent;
@@ -1340,6 +1390,8 @@
                 }
             });
         });
+
+        // ---- Locked accent click handler (already in settings.js) ----
 
         // ---- Export/Delete buttons ----
         document.getElementById('exportDataBtn')?.addEventListener('click', function() {

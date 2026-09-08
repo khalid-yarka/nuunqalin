@@ -29,7 +29,9 @@
     --error: #FF3138;
     --warning: #F59E0B;
     --info: #3B82F6;
-    --base-font-size: 16px; /* global font size */
+    --base-font-size: 16px;
+    --modal-overlay: rgba(0, 0, 0, 0.5);
+    --modal-overlay-dark: rgba(0, 0, 0, 0.75);
 }
 
 [data-theme="dark"] {
@@ -48,6 +50,7 @@
     --highlight-bg: #4A2A40;
     --highlight-text: #FFE0E0;
     --highlight-border: #8B4A6A;
+    --modal-overlay: rgba(0, 0, 0, 0.75);
 }
 
 /* ============================================
@@ -62,7 +65,7 @@
 
 html {
     scroll-behavior: smooth;
-    font-size: var(--base-font-size, 16px); /* global base */
+    font-size: var(--base-font-size, 16px);
 }
 
 body {
@@ -495,18 +498,19 @@ textarea.form-control {
 }
 
 /* ============================================
-   MODAL – Shared Component
+   MODAL – Shared Component (FIXED for dark mode)
    ============================================ */
 
 .modal-overlay {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--modal-overlay);
     z-index: 9999;
     align-items: center;
     justify-content: center;
     backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     padding: 20px;
 }
 
@@ -523,6 +527,7 @@ textarea.form-control {
     box-shadow: var(--shadow-lg);
     max-height: 90vh;
     overflow-y: auto;
+    border: 1px solid var(--border);
 }
 
 .modal-title {
@@ -536,6 +541,7 @@ textarea.form-control {
     color: var(--text-secondary);
     font-size: 14px;
     margin-bottom: 16px;
+    line-height: 1.6;
 }
 
 .modal-actions {

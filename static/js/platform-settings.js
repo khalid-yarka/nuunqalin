@@ -46,7 +46,6 @@
                 else if (theme === 'light') el.className = 'fas fa-sun';
                 else el.className = 'fas fa-desktop';
             });
-            // Store as cache only
             localStorage.setItem('preferred-theme', theme);
         },
 
@@ -62,8 +61,9 @@
             const hex = accentMap[color] || '#FF3138';
             const root = document.documentElement;
             root.style.setProperty('--primary', hex);
-            root.style.setProperty('--primary-hover', this._darken(hex, 0.1));
-            root.style.setProperty('--primary-light', this._lighten(hex, 0.85));
+            root.style.setProperty('--primary-hover', this._darken(hex, 0.15));
+            // Improved lighten: use a more sophisticated method that works on dark backgrounds
+            root.style.setProperty('--primary-light', this._lighten(hex, 0.88));
             localStorage.setItem('preferred-accent', color);
         },
 
@@ -84,25 +84,29 @@
             localStorage.setItem('preferred-reduced-motion', enabled ? '1' : '0');
         },
 
-        // --- Utility ---
+        // --- Utility with improved contrast ---
         _darken(hex, amount) {
             let r = parseInt(hex.slice(1,3), 16);
             let g = parseInt(hex.slice(3,5), 16);
             let b = parseInt(hex.slice(5,7), 16);
-            r = Math.max(0, r - r * amount);
-            g = Math.max(0, g - g * amount);
-            b = Math.max(0, b - b * amount);
-            return `#${Math.round(r).toString(16).padStart(2,'0')}${Math.round(g).toString(16).padStart(2,'0')}${Math.round(b).toString(16).padStart(2,'0')}`;
+            r = Math.max(0, Math.round(r - r * amount));
+            g = Math.max(0, Math.round(g - g * amount));
+            b = Math.max(0, Math.round(b - b * amount));
+            return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
         },
 
         _lighten(hex, amount) {
             let r = parseInt(hex.slice(1,3), 16);
             let g = parseInt(hex.slice(3,5), 16);
             let b = parseInt(hex.slice(5,7), 16);
-            r = Math.min(255, r + (255 - r) * (1 - amount));
-            g = Math.min(255, g + (255 - g) * (1 - amount));
-            b = Math.min(255, b + (255 - b) * (1 - amount));
-            return `#${Math.round(r).toString(16).padStart(2,'0')}${Math.round(g).toString(16).padStart(2,'0')}${Math.round(b).toString(16).padStart(2,'0')}`;
+            // Calculate luminance to adjust the lightening amount for better contrast
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            // For dark colors, lighten more; for light colors, lighten less
+            const adjustedAmount = luminance < 0.3 ? Math.min(amount + 0.1, 0.95) : amount;
+            r = Math.min(255, Math.round(r + (255 - r) * (1 - adjustedAmount)));
+            g = Math.min(255, Math.round(g + (255 - g) * (1 - adjustedAmount)));
+            b = Math.min(255, Math.round(b + (255 - b) * (1 - adjustedAmount)));
+            return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
         },
 
         // --- API methods with error handling and read-back ---
@@ -111,14 +115,10 @@
         },
 
         set(key, value) {
-            // Save old value for rollback
             const old = this.settings[key];
-
-            // Optimistic update
             this.settings[key] = value;
             this.applyAll();
 
-            // Send to server
             return fetch('/settings/api', {
                 method: 'PATCH',
                 headers: {
@@ -139,11 +139,9 @@
                 if (!data.success) {
                     throw new Error(data.error || 'Update failed');
                 }
-                // Update settings with server response (read-back)
                 if (data.settings) {
                     this.settings = data.settings;
                 } else {
-                    // If no settings returned, re-fetch
                     return this.refresh();
                 }
                 this.applyAll();
@@ -153,7 +151,6 @@
                 return data;
             })
             .catch(err => {
-                // Rollback
                 this.settings[key] = old;
                 this.applyAll();
                 if (typeof window.showToast === 'function') {
@@ -185,10 +182,8 @@
         }
     };
 
-    // Expose globally
     window.NuunSettings = NuunSettings;
 
-    // Auto‑init if server injected settings
     document.addEventListener('DOMContentLoaded', function() {
         const settingsScript = document.getElementById('nuun-settings-data');
         if (settingsScript) {
@@ -201,7 +196,6 @@
         }
     });
 
-    // Listen for system theme changes when in 'system' mode
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
         if (NuunSettings.settings['appearance.theme'] === 'system') {
             document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');

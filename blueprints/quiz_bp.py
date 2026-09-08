@@ -1,5 +1,5 @@
 # blueprints/quiz_bp.py
-# Complete updated file
+# Complete updated file with fixed leaderboard
 
 import json
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify
@@ -370,10 +370,9 @@ def leaderboard():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
 
-    # Filter users who have privacy.show_on_leaderboard = True (default True if not set)
-    # Query with JSON extraction: we need to join with user_settings and check the JSON value.
+    # Get top 50 users with privacy filter, including middle_name
     query = """
-        SELECT s.public_id, s.first_name, s.last_name, s.total_points, s.school
+        SELECT s.public_id, s.first_name, s.middle_name, s.last_name, s.total_points, s.school
         FROM students s
         LEFT JOIN user_settings us ON s.id = us.user_id
         WHERE (

@@ -1,5 +1,5 @@
 # blueprints/live_quiz_bp.py
-# Full updated file with settings defaults and notification service
+# Complete file with default privacy fix
 
 import json
 import random
@@ -156,7 +156,6 @@ def finalize_live_quiz(quiz_id: int) -> dict:
         quiz_state.mark_finalized()
 
         participants = quiz_state.get_all_participants()
-        # Send result notifications via the new service
         for p in participants:
             send_notification(
                 user_id=p['student_id'],
@@ -280,7 +279,6 @@ def lobby_join(quiz_id):
     else:
         return jsonify({'error': 'Quiz state not available'}), 500
 
-    # Notify creator using the new service
     creator_id = quiz.get('creator_id')
     if creator_id:
         user = get_student_by_id(user_id)
@@ -351,7 +349,7 @@ def create():
             flash('Number of questions must be between 5 and 30.', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
                                    subject_code=subject_code, title=request.form.get('title', '').strip(),
-                                   is_public=request.form.get('is_public', 1),
+                                   is_public=request.form.get('is_public', default_privacy),
                                    default_time=default_time, default_max_participants=default_max_participants,
                                    default_privacy=default_privacy)
 
@@ -359,11 +357,11 @@ def create():
         if len(title) > 100:
             flash('Title is too long (max 100 characters).', 'error')
             return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
-                                   subject_code=subject_code, title=title, is_public=request.form.get('is_public', 1),
+                                   subject_code=subject_code, title=title, is_public=request.form.get('is_public', default_privacy),
                                    default_time=default_time, default_max_participants=default_max_participants,
                                    default_privacy=default_privacy)
 
-        # Use form values, fallback to defaults
+        # Use form value, fallback to default
         time_per_question = request.form.get('time_per_question')
         if time_per_question is None:
             time_per_question = default_time
@@ -382,6 +380,7 @@ def create():
             except ValueError:
                 max_participants = default_max_participants
 
+        # Use form value, fallback to default
         privacy = request.form.get('is_public')
         if privacy is None:
             privacy = default_privacy
@@ -813,7 +812,6 @@ def start_quiz(quiz_id):
         'payload': {}
     })
 
-    # Notify all participants
     participants = quiz_state.get_all_participants()
     for p in participants:
         send_notification(

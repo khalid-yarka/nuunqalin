@@ -212,15 +212,15 @@
                     🔒 Privacy Settings
                 </label>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    <label class="privacy-option selected" id="publicLabel">
-                        <input type="radio" name="is_public" value="1" checked style="position: absolute; opacity: 0; width: 0; height: 0;">
+                    <label class="privacy-option {% if default_privacy != 0 %}selected{% endif %}" id="publicLabel">
+                        <input type="radio" name="is_public" value="1" {% if default_privacy != 0 %}checked{% endif %}>
                         <span class="privacy-icon">🌐</span>
                         <span class="privacy-label">Public</span>
                         <span class="privacy-desc">Visible in lobby, anyone can join</span>
                         <span class="privacy-badge recommended">✓ Recommended</span>
                     </label>
-                    <label class="privacy-option" id="privateLabel">
-                        <input type="radio" name="is_public" value="0" style="position: absolute; opacity: 0; width: 0; height: 0;">
+                    <label class="privacy-option {% if default_privacy == 0 %}selected{% endif %}" id="privateLabel">
+                        <input type="radio" name="is_public" value="0" {% if default_privacy == 0 %}checked{% endif %}>
                         <span class="privacy-icon">🔒</span>
                         <span class="privacy-label">Private</span>
                         <span class="privacy-desc">Only accessible via join code</span>

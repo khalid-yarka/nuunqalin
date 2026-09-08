@@ -134,18 +134,22 @@
     </div>
 </div>
 
-<!-- Delete Modal -->
-<div id="deleteModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
-    <div style="background: var(--surface); border-radius: var(--radius); padding: 32px; max-width: 450px; width: 90%; box-shadow: var(--shadow-lg);">
+<!-- Delete Modal - FIXED: using modal-overlay class for dark mode support -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal-content">
         <div style="text-align: center; margin-bottom: 16px;">
             <div style="font-size: 48px; margin-bottom: 8px;">⚠️</div>
-            <h3 style="font-size: 20px; font-weight: 700; color: var(--text);">Delete Quiz</h3>
-            <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">Are you sure you want to delete <strong id="deleteQuizTitle">{{ quiz.title or 'this quiz' }}</strong>?</p>
-            <p style="color: var(--text-muted); font-size: 13px; margin-top: 8px;">This action <strong style="color: #EF4444;">cannot be undone</strong>.</p>
+            <h3 class="modal-title">Delete Quiz</h3>
+            <p class="modal-body">
+                Are you sure you want to delete <strong id="deleteQuizTitle">{{ quiz.title or 'this quiz' }}</strong>?
+            </p>
+            <p style="color: var(--text-muted); font-size: 13px; margin-top: 8px;">
+                This action <strong style="color: #EF4444;">cannot be undone</strong>.
+            </p>
         </div>
-        <div style="display: flex; gap: 10px;">
-            <button onclick="closeDeleteModal()" style="flex:1; padding:10px; background: var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-weight:500; cursor:pointer;">Cancel</button>
-            <button id="confirmDeleteBtn" style="flex:1; padding:10px; background:#EF4444; color:white; border:none; border-radius:var(--radius-sm); font-size:14px; font-weight:600; cursor:pointer;"><i class="fas fa-trash"></i> Delete</button>
+        <div class="modal-actions">
+            <button onclick="closeDeleteModal()" class="btn btn-secondary">Cancel</button>
+            <button id="confirmDeleteBtn" class="btn btn-danger"><i class="fas fa-trash"></i> Delete</button>
         </div>
     </div>
 </div>
@@ -487,7 +491,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (typeof window.showToast === 'function') {
                     window.showToast('🎯 Quiz started! Redirecting...', 'success');
                 }
-                // Use replace to ensure we don't keep the waiting room in history
                 window.location.replace('/live-quiz/play/' + quizId);
             } else {
                 if (typeof window.showToast === 'function') {
@@ -598,11 +601,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // DELETE QUIZ (Creator only)
     // ============================================
     function showDeleteModal() {
-        document.getElementById('deleteModal').style.display = 'flex';
+        document.getElementById('deleteModal').classList.add('active');
     }
 
     function closeDeleteModal() {
-        document.getElementById('deleteModal').style.display = 'none';
+        document.getElementById('deleteModal').classList.remove('active');
     }
     window.closeDeleteModal = closeDeleteModal;
 
@@ -692,16 +695,14 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/live-quiz/quiz-state/' + quizId + '?t=' + Date.now())
             .then(response => response.json())
             .then(data => {
-                console.log('Poll state:', data); // Debug log
+                console.log('Poll state:', data);
 
-                // Redirect if finished
                 if (data.redirect_url && !isRedirecting) {
                     isRedirecting = true;
                     window.location.replace(data.redirect_url);
                     return;
                 }
 
-                // Redirect if active
                 if (data.status === 'active' && !isRedirecting) {
                     isRedirecting = true;
                     document.getElementById('quizStartedAlert').classList.add('show');
@@ -709,12 +710,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         window.showToast('🚀 Quiz has started!', 'success');
                     }
                     console.log('Redirecting to /live-quiz/play/' + quizId);
-                    // Use replace to avoid history issues
                     window.location.replace('/live-quiz/play/' + quizId);
                     return;
                 }
 
-                // Update countdown if scheduled
                 if (data.status === 'scheduled' && data.starts_in_seconds !== undefined) {
                     if (data.starts_in_seconds > 0 && data.starts_in_seconds !== initialStartsIn) {
                         initialStartsIn = data.starts_in_seconds;
@@ -722,7 +721,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
 
-                // If we are still scheduled but the countdown is not running, start it.
                 if (data.status === 'scheduled' && initialStartsIn > 0 && !countdownInterval) {
                     startCountdown(initialStartsIn);
                 }
@@ -735,12 +733,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // Fallback: if the redirect doesn't happen within 2 seconds, force it.
-    // This is a safety net.
+    // Safety net: force redirect if quiz started but no redirect
     let redirectTimeout = null;
     function forceRedirectIfNeeded() {
         if (isRedirecting) return;
-        // Check if the quiz started alert is visible but we are still here
         const alert = document.getElementById('quizStartedAlert');
         if (alert && alert.classList.contains('show') && !isRedirecting) {
             console.warn('Quiz started alert shown but no redirect; forcing redirect.');

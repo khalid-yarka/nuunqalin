@@ -244,17 +244,18 @@
     }
 
     /* ============================================
-       REPORT MODAL
+       REPORT MODAL - FIXED for dark mode
        ============================================ */
     .report-modal {
         display: none;
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,0.5);
+        background: var(--modal-overlay);
         z-index: 9999;
         align-items: center;
         justify-content: center;
         padding: 20px;
+        backdrop-filter: blur(4px);
     }
     .report-modal.show {
         display: flex;
@@ -268,6 +269,7 @@
         box-shadow: var(--shadow-lg);
         max-height: 90vh;
         overflow-y: auto;
+        border: 1px solid var(--border);
     }
     .report-modal .modal-title {
         font-size: 18px;
@@ -307,7 +309,7 @@
     .report-modal .form-group textarea:focus {
         border-color: var(--primary);
         outline: none;
-        box-shadow: 0 0 0 3px rgba(255,49,56,0.1);
+        box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.1);
     }
     .report-modal .modal-actions {
         display: flex;
@@ -324,21 +326,21 @@
         cursor: pointer;
         transition: var(--transition);
     }
-    .btn-secondary {
+    .report-modal .modal-actions .btn-secondary {
         background: var(--surface);
         color: var(--text);
         border: 1px solid var(--border);
     }
-    .btn-secondary:hover {
+    .report-modal .modal-actions .btn-secondary:hover {
         background: var(--background);
         border-color: var(--primary);
         color: var(--primary);
     }
-    .btn-primary {
+    .report-modal .modal-actions .btn-primary {
         background: var(--primary);
         color: white;
     }
-    .btn-primary:hover {
+    .report-modal .modal-actions .btn-primary:hover {
         background: var(--primary-hover);
     }
 
@@ -475,7 +477,7 @@
     </div>
 </div>
 
-<!-- Report Modal -->
+<!-- Report Modal - FIXED: using modal-overlay class for dark mode support -->
 <div class="report-modal" id="reportModal">
     <div class="modal-content">
         <div class="modal-title">⚠️ Report Question</div>

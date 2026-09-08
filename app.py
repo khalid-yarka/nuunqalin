@@ -1,4 +1,6 @@
-# app.py – Full file (unchanged, already correct)
+# ============================================
+# NUUNPLATFORM - MAIN APPLICATION
+# ============================================
 
 import os
 import sys
@@ -662,11 +664,19 @@ def register():
 @app.route('/logout')
 def logout():
     user_id = session.get('user_id')
-    logger.info(f"User logged out: user_id={user_id}")
+    # Log activity BEFORE clearing session
     if user_id:
-        log_activity('user.logout', f"User {user_id} logged out", 'info', user_id=user_id)
-    session.clear()
+        try:
+            log_activity('user.logout', f"User {user_id} logged out", 'info', user_id=user_id)
+        except Exception as e:
+            logger.warning(f"Failed to log logout: {e}")
+    
+    # Store flash message before clearing session (it survives via cookie)
     flash('You have been logged out.', 'info')
+    
+    # Clear session
+    session.clear()
+    
     return redirect(url_for('login'))
 
 # ============================================
@@ -749,6 +759,7 @@ def utility_processor():
                 session['settings'] = settings
                 session.modified = True
             except Exception as e:
+                # Use module-level logger, not app.logger
                 logging.getLogger(__name__).warning(f"Failed to load settings for user {session['user_id']}: {e}")
                 settings = {}
     

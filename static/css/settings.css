@@ -112,6 +112,98 @@
     margin: 4px 0 0;
 }
 
+/* ---------- Unsaved Changes Indicator ---------- */
+.unsaved-indicator {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: #FEF3C7;
+    border: 1px solid #FDE68A;
+    border-radius: var(--radius-sm);
+    color: #92400E;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    animation: slideDown 0.3s ease;
+}
+
+.unsaved-indicator.show {
+    display: flex;
+}
+
+.unsaved-indicator .indicator-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.unsaved-indicator .indicator-text {
+    flex: 1;
+}
+
+.unsaved-indicator .btn-save-now {
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 4px 16px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.unsaved-indicator .btn-save-now:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.unsaved-indicator .btn-discard {
+    background: transparent;
+    color: #92400E;
+    border: 1px solid #FDE68A;
+    border-radius: var(--radius-sm);
+    padding: 4px 12px;
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.unsaved-indicator .btn-discard:hover {
+    background: #FDE68A;
+    color: #78350F;
+}
+
+[data-theme="dark"] .unsaved-indicator {
+    background: #3A2E1A;
+    border-color: #92400E;
+    color: #FCD34D;
+}
+
+[data-theme="dark"] .unsaved-indicator .btn-discard {
+    color: #FCD34D;
+    border-color: #92400E;
+}
+
+[data-theme="dark"] .unsaved-indicator .btn-discard:hover {
+    background: #92400E;
+    color: #FEF3C7;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* ---------- Breadcrumb ---------- */
 .settings-breadcrumb {
     display: flex;
@@ -614,7 +706,7 @@
     opacity: 0.7;
 }
 
-/* ---------- Accent Selector ---------- */
+/* ---------- Accent Selector – FIXED contrast ---------- */
 .accent-selector {
     display: flex;
     gap: 10px;
@@ -622,12 +714,13 @@
 }
 
 .accent-option {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     border: 3px solid transparent;
     cursor: pointer;
     transition: var(--transition);
+    position: relative;
 }
 
 .accent-option:hover {
@@ -637,6 +730,29 @@
 .accent-option.active {
     border-color: var(--text);
     box-shadow: 0 0 0 2px var(--text);
+}
+
+.accent-option.locked {
+    cursor: pointer;
+    opacity: 0.6;
+    position: relative;
+}
+
+.accent-option.locked::after {
+    content: '🔒';
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    font-size: 12px;
+    background: var(--surface);
+    border-radius: 50%;
+    padding: 2px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.accent-option.locked:hover {
+    opacity: 0.8;
+    transform: scale(1.05);
 }
 
 /* ---------- Password ---------- */
@@ -922,6 +1038,41 @@
     color: var(--text-muted);
 }
 
+/* ---------- Logout Section ---------- */
+.logout-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+}
+
+.logout-section .logout-warning {
+    background: #FEF2F2;
+    border: 1px solid #FCA5A5;
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    color: #991B1B;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logout-section .logout-warning i {
+    font-size: 20px;
+    color: #EF4444;
+}
+
+[data-theme="dark"] .logout-section .logout-warning {
+    background: #3A1A1A;
+    border-color: #EF4444;
+    color: #FECACA;
+}
+
+[data-theme="dark"] .logout-section .logout-warning i {
+    color: #F87171;
+}
+
 /* ---------- Utilities ---------- */
 .settings-divider {
     border: none;
@@ -1171,7 +1322,7 @@
     }
 
     .settings-nav-wrapper {
-        display: block !important; /* Show on mobile as fallback */
+        display: block !important;
     }
 }
 

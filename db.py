@@ -788,12 +788,21 @@ def get_user_quiz_history(student_id: int, limit: int = 10):
             logger.error(f"Error fetching quiz history: {e}")
         return []
 
-def get_leaderboard(limit: int = 20):
+def get_leaderboard(limit: int = 50):
+    """
+    Get leaderboard with privacy filter and full name including middle name.
+    """
     try:
         cursor = execute_with_retry("""
-            SELECT public_id, first_name, last_name, total_points, school
-            FROM students
-            ORDER BY total_points DESC
+            SELECT s.public_id, s.first_name, s.middle_name, s.last_name, s.total_points, s.school
+            FROM students s
+            LEFT JOIN user_settings us ON s.id = us.user_id
+            WHERE (
+                us.settings IS NULL
+                OR json_extract(us.settings, '$.privacy.show_on_leaderboard') IS NULL
+                OR json_extract(us.settings, '$.privacy.show_on_leaderboard') = 1
+            )
+            ORDER BY s.total_points DESC
             LIMIT ?
         """, (limit,))
         results = cursor.fetchall()
