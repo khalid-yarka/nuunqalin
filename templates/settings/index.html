@@ -58,9 +58,8 @@
 </div>
 
 <!-- ============================================ -->
-<!-- ALL SETTINGS SECTIONS (hidden by default)    -->
+<!-- APPEARANCE SECTION                           -->
 <!-- ============================================ -->
-
 <section id="appearance" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
@@ -79,37 +78,47 @@
                     </div>
                 </div>
             </div>
-            <div class="form-row two-col">
-                <div class="form-group">
-                    <label>Accent Colour</label>
-                    <div class="accent-selector">
-                        <button type="button" class="accent-option red" data-accent="red" style="background:#FF3138;"></button>
-                        <button type="button" class="accent-option blue" data-accent="blue" style="background:#3B82F6;"></button>
-                        <button type="button" class="accent-option green" data-accent="green" style="background:#10B981;"></button>
-                        <button type="button" class="accent-option purple" data-accent="purple" style="background:#8B5CF6;"></button>
-                        <button type="button" class="accent-option orange" data-accent="orange" style="background:#F59E0B;"></button>
+            <!-- Locked for Danbe: accent, font size, compact mode -->
+            <div class="appearance-locked-section {% if tier == 'danbe' %}locked{% endif %}">
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label>Accent Colour</label>
+                        <div class="accent-selector">
+                            <button type="button" class="accent-option red" data-accent="red" style="background:#FF3138;"></button>
+                            <button type="button" class="accent-option blue" data-accent="blue" style="background:#3B82F6;"></button>
+                            <button type="button" class="accent-option green" data-accent="green" style="background:#10B981;"></button>
+                            <button type="button" class="accent-option purple" data-accent="purple" style="background:#8B5CF6;"></button>
+                            <button type="button" class="accent-option orange" data-accent="orange" style="background:#F59E0B;"></button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Font Size</label>
+                        <select id="font_size" name="font_size">
+                            <option value="small" {% if settings['appearance.font_size'] == 'small' %}selected{% endif %}>Small</option>
+                            <option value="medium" {% if settings['appearance.font_size'] == 'medium' or not settings['appearance.font_size'] %}selected{% endif %}>Medium</option>
+                            <option value="large" {% if settings['appearance.font_size'] == 'large' %}selected{% endif %}>Large</option>
+                        </select>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>Font Size</label>
-                    <select id="font_size" name="font_size">
-                        <option value="small" {% if settings['appearance.font_size'] == 'small' %}selected{% endif %}>Small</option>
-                        <option value="medium" {% if settings['appearance.font_size'] == 'medium' or not settings['appearance.font_size'] %}selected{% endif %}>Medium</option>
-                        <option value="large" {% if settings['appearance.font_size'] == 'large' %}selected{% endif %}>Large</option>
-                    </select>
+                <div class="form-row toggle-group">
+                    <div class="toggle-item">
+                        <label class="toggle-label">
+                            <span class="toggle-text">Compact Mode</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="compact_mode" {% if settings['appearance.compact_mode'] %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </span>
+                        </label>
+                        <p class="toggle-desc">Reduce padding and margins for a denser layout.</p>
+                    </div>
                 </div>
-            </div>
-            <div class="form-row toggle-group">
-                <div class="toggle-item">
-                    <label class="toggle-label">
-                        <span class="toggle-text">Compact Mode</span>
-                        <span class="toggle-switch">
-                            <input type="checkbox" id="compact_mode" {% if settings['appearance.compact_mode'] %}checked{% endif %}>
-                            <span class="slider"></span>
-                        </span>
-                    </label>
-                    <p class="toggle-desc">Reduce padding and margins for a denser layout.</p>
-                </div>
+                {% if tier == 'danbe' %}
+                    <div class="locked-overlay">
+                        <span class="lock-icon">🔒</span>
+                        <span>Upgrade to customize accent, font size, and compact mode.</span>
+                        <button class="btn btn-sm btn-primary upgrade-btn" data-feature="appearance_customization" data-required-tier="dhexe">Upgrade</button>
+                    </div>
+                {% endif %}
             </div>
             <div class="form-row">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Appearance</button>
@@ -118,6 +127,9 @@
     </div>
 </section>
 
+<!-- ============================================ -->
+<!-- QUIZ SECTION                                -->
+<!-- ============================================ -->
 <section id="quiz" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
@@ -207,6 +219,9 @@
     </div>
 </section>
 
+<!-- ============================================ -->
+<!-- NOTIFICATIONS SECTION                        -->
+<!-- ============================================ -->
 <section id="notifications" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
@@ -316,6 +331,9 @@
     </div>
 </section>
 
+<!-- ============================================ -->
+<!-- PRIVACY SECTION                             -->
+<!-- ============================================ -->
 <section id="privacy" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
@@ -353,6 +371,9 @@
     </div>
 </section>
 
+<!-- ============================================ -->
+<!-- LIVE QUIZ SECTION (conditional)              -->
+<!-- ============================================ -->
 {% if can_create_live %}
 <section id="live_quiz" class="settings-section">
     <div class="settings-card">
@@ -397,6 +418,9 @@
 </section>
 {% endif %}
 
+<!-- ============================================ -->
+<!-- SECURITY SECTION                            -->
+<!-- ============================================ -->
 <section id="security" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
@@ -431,7 +455,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- TIER SECTION – Enhanced UI                   -->
+<!-- TIER SECTION                                -->
 <!-- ============================================ -->
 <section id="tier" class="settings-section">
     <div class="settings-card">
@@ -492,6 +516,9 @@
     </div>
 </section>
 
+<!-- ============================================ -->
+<!-- DATA SECTION                                -->
+<!-- ============================================ -->
 <section id="data" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
@@ -508,6 +535,9 @@
     </div>
 </section>
 
+<!-- ============================================ -->
+<!-- ACCESSIBILITY SECTION                        -->
+<!-- ============================================ -->
 <section id="accessibility" class="settings-section">
     <div class="settings-card">
         <div class="card-header">
@@ -536,10 +566,10 @@
 </section>
 
 <!-- ============================================ -->
-<!-- STYLES (local)                              -->
+<!-- STYLES & SCRIPTS                            -->
 <!-- ============================================ -->
 <style>
-    /* Landing page styles */
+    /* Landing page styles (same as before) */
     .settings-landing {
         padding: 20px 0;
     }
@@ -635,7 +665,7 @@
         color: var(--primary);
     }
 
-    /* Breadcrumb */
+    /* Breadcrumb – uses var(--primary) for accent */
     .settings-breadcrumb {
         display: flex;
         align-items: center;
@@ -722,6 +752,7 @@
         white-space: nowrap;
     }
 
+    /* Features grid */
     .features-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -745,9 +776,35 @@
         box-shadow: var(--shadow-sm);
         transform: translateY(-2px);
     }
+    /* Locked feature: distinct background */
     .feature-card.locked {
-        opacity: 0.75;
+        background: var(--surface-alt);
         border-color: var(--border-light);
+        opacity: 0.9;
+        position: relative;
+    }
+    .feature-card.locked::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 8px,
+            rgba(0,0,0,0.03) 8px,
+            rgba(0,0,0,0.03) 16px
+        );
+        pointer-events: none;
+        border-radius: var(--radius-sm);
+    }
+    [data-theme="dark"] .feature-card.locked::after {
+        background: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 8px,
+            rgba(255,255,255,0.03) 8px,
+            rgba(255,255,255,0.03) 16px
+        );
     }
     .feature-card.locked .feature-status .status-badge.locked {
         color: var(--text-muted);
@@ -778,7 +835,7 @@
         font-size: 18px;
     }
 
-    /* Feature popup – improved readability */
+    /* Feature popup – high contrast, readable */
     .feature-popup {
         display: none;
         position: absolute;
@@ -833,7 +890,7 @@
         z-index: 10;
     }
 
-    /* Dark mode specific popup improvements */
+    /* Dark mode popup */
     [data-theme="dark"] .feature-popup {
         background: var(--surface);
         border-color: var(--border);
@@ -847,6 +904,46 @@
     }
     [data-theme="dark"] .feature-popup .popup-content .upgrade-hint {
         color: #ff6b70;
+    }
+
+    /* Appearance locked section for Danbe */
+    .appearance-locked-section {
+        position: relative;
+        transition: opacity 0.3s ease;
+    }
+    .appearance-locked-section.locked {
+        opacity: 0.7;
+        pointer-events: none;
+        user-select: none;
+    }
+    .appearance-locked-section.locked .locked-overlay {
+        display: flex;
+    }
+    .locked-overlay {
+        display: none;
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,0.05);
+        backdrop-filter: blur(2px);
+        border-radius: var(--radius-sm);
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 8px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        z-index: 5;
+        text-align: center;
+        padding: 20px;
+    }
+    [data-theme="dark"] .locked-overlay {
+        background: rgba(0,0,0,0.2);
+    }
+    .locked-overlay .lock-icon {
+        font-size: 28px;
+    }
+    .locked-overlay .upgrade-btn {
+        pointer-events: auto;
     }
 
     /* Responsive */
@@ -896,19 +993,16 @@
         const sections = document.querySelectorAll('.settings-section');
         const backLinks = document.querySelectorAll('.back-to-settings');
         const navItems = document.querySelectorAll('.settings-nav-item');
+        const navWrapper = document.getElementById('settingsNavWrapper');
         const breadcrumb = document.getElementById('settingsBreadcrumb');
 
         function showLanding() {
             landing.style.display = 'block';
             sections.forEach(sec => sec.classList.remove('active'));
+            // Hide sidebar nav
+            navWrapper.style.display = 'none';
             // Update breadcrumb
-            if (breadcrumb) {
-                breadcrumb.innerHTML = `
-                    <a href="{{ url_for('dashboard.home') }}" class="breadcrumb-link"><i class="fas fa-home"></i> Dashboard</a>
-                    <span class="separator">/</span>
-                    <span class="current">Settings</span>
-                `;
-            }
+            breadcrumb.innerHTML = `<span class="current">Settings</span>`;
             // Update page title
             const title = document.querySelector('.settings-page-title');
             if (title) title.textContent = 'Settings';
@@ -923,17 +1017,15 @@
             sections.forEach(sec => sec.classList.remove('active'));
             const target = document.getElementById(id);
             if (target) target.classList.add('active');
+            // Show sidebar nav
+            navWrapper.style.display = 'block';
             // Update breadcrumb
-            if (breadcrumb) {
-                const label = document.querySelector(`.settings-nav-item[data-section="${id}"]`)?.textContent.trim() || id;
-                breadcrumb.innerHTML = `
-                    <a href="{{ url_for('dashboard.home') }}" class="breadcrumb-link"><i class="fas fa-home"></i> Dashboard</a>
-                    <span class="separator">/</span>
-                    <a href="#" class="breadcrumb-link" onclick="event.preventDefault(); showLanding();">Settings</a>
-                    <span class="separator">/</span>
-                    <span class="current">${label}</span>
-                `;
-            }
+            const label = document.querySelector(`.settings-nav-item[data-section="${id}"]`)?.textContent.trim() || id;
+            breadcrumb.innerHTML = `
+                <span class="current">Settings</span>
+                <span class="separator">/</span>
+                <span class="current">${label}</span>
+            `;
             // Update page title
             const title = document.querySelector('.settings-page-title');
             if (title) {
@@ -971,7 +1063,6 @@
         navItems.forEach(item => {
             item.addEventListener('click', function(e) {
                 const section = this.dataset.section;
-                if (section === 'dashboard') return; // handled by href
                 e.preventDefault();
                 if (section === 'landing') {
                     showLanding();
@@ -983,11 +1074,9 @@
 
         // ---- Feature card popup toggle ----
         window.toggleFeatureInfo = function(card) {
-            // Close others
             document.querySelectorAll('.feature-card.active').forEach(c => {
                 if (c !== card) c.classList.remove('active');
             });
-            // Toggle this one
             card.classList.toggle('active');
         };
 
@@ -1000,7 +1089,6 @@
                 if (typeof window.openSafkaPreview === 'function') {
                     window.openSafkaPreview({ feature: feature, requiredTier: requiredTier });
                 }
-                // Close the popup
                 const card = this.closest('.feature-card');
                 if (card) card.classList.remove('active');
             });
@@ -1038,9 +1126,7 @@
         }
 
         // ---- Forms (Appearance, Quiz, Notifications, Privacy, Live Quiz, Security, Accessibility) ----
-        // These are identical to the previous version; we'll keep them concise.
-        // (All form submission code is already present in the previous response; we'll include it here for completeness, but we'll use a compact version to save space.)
-        // We'll copy the same logic from the previous answer.
+        // (All form submission code remains the same; we include it for completeness)
         function showToast(msg, type) {
             if (typeof window.showToast === 'function') {
                 window.showToast(msg, type);
@@ -1082,12 +1168,15 @@
         if (appearanceForm) {
             appearanceForm.addEventListener('submit', function(e) {
                 e.preventDefault();
+                // Only collect theme if Danbe, else all fields
                 const data = {
-                    'appearance.theme': document.querySelector('.theme-option.active')?.dataset.theme || 'system',
-                    'appearance.accent': document.querySelector('.accent-option.active')?.dataset.accent || 'red',
-                    'appearance.font_size': document.getElementById('font_size')?.value || 'medium',
-                    'appearance.compact_mode': document.getElementById('compact_mode')?.checked || false
+                    'appearance.theme': document.querySelector('.theme-option.active')?.dataset.theme || 'system'
                 };
+                {% if tier != 'danbe' %}
+                    data['appearance.accent'] = document.querySelector('.accent-option.active')?.dataset.accent || 'red';
+                    data['appearance.font_size'] = document.getElementById('font_size')?.value || 'medium';
+                    data['appearance.compact_mode'] = document.getElementById('compact_mode')?.checked || false;
+                {% endif %}
                 submitForm('/settings/api', data, 'Appearance updated!');
             });
         }
@@ -1213,28 +1302,30 @@
             });
         });
 
-        // Accent selector preview
-        const accentOptions = document.querySelectorAll('.accent-option');
-        accentOptions.forEach(btn => {
-            btn.addEventListener('click', function() {
-                accentOptions.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                const accent = this.dataset.accent;
-                if (typeof NuunSettings !== 'undefined') {
-                    NuunSettings.applyAccent(accent);
-                }
+        // Accent selector preview (only if not Danbe)
+        {% if tier != 'danbe' %}
+            const accentOptions = document.querySelectorAll('.accent-option');
+            accentOptions.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    accentOptions.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    const accent = this.dataset.accent;
+                    if (typeof NuunSettings !== 'undefined') {
+                        NuunSettings.applyAccent(accent);
+                    }
+                });
             });
-        });
 
-        // Compact mode preview
-        const compactToggle = document.getElementById('compact_mode');
-        if (compactToggle) {
-            compactToggle.addEventListener('change', function() {
-                if (typeof NuunSettings !== 'undefined') {
-                    NuunSettings.applyCompactMode(this.checked);
-                }
-            });
-        }
+            // Compact mode preview
+            const compactToggle = document.getElementById('compact_mode');
+            if (compactToggle) {
+                compactToggle.addEventListener('change', function() {
+                    if (typeof NuunSettings !== 'undefined') {
+                        NuunSettings.applyCompactMode(this.checked);
+                    }
+                });
+            }
+        {% endif %}
 
         // Reduced motion preview
         const reducedMotionToggle = document.getElementById('reduced_motion');
