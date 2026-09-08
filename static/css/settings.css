@@ -1,59 +1,72 @@
 /* ============================================
-   USER SETTINGS – Complete Styling
+   USER SETTINGS – COMPLETE STYLING
    ============================================ */
 
-.settings-container {
-    max-width: 820px;
+.settings-wrapper {
+    display: flex;
+    gap: 32px;
+    max-width: 1200px;
     margin: 0 auto;
 }
 
-/* ---------- Tabs ---------- */
-.settings-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 28px;
-    border-bottom: 2px solid var(--border);
-    padding-bottom: 4px;
+/* ---------- Sidebar ---------- */
+.settings-sidebar {
+    flex: 0 0 220px;
+    position: sticky;
+    top: 90px;
+    align-self: flex-start;
+    height: calc(100vh - 120px);
+    overflow-y: auto;
+    padding-right: 12px;
+    border-right: 1px solid var(--border);
 }
 
-.settings-tabs .tab-btn {
-    background: none;
-    border: none;
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    cursor: pointer;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    transition: var(--transition);
+.settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-nav-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 14px;
+    transition: var(--transition);
 }
 
-.settings-tabs .tab-btn:hover {
+.settings-nav-item:hover {
     background: var(--primary-light);
     color: var(--primary);
 }
 
-.settings-tabs .tab-btn.active {
+.settings-nav-item.active {
     background: var(--primary);
     color: white;
-    box-shadow: 0 4px 12px rgba(255, 49, 56, 0.25);
 }
 
-.settings-tabs .tab-btn i {
-    font-size: 16px;
+.settings-nav-item i {
+    width: 20px;
+    text-align: center;
 }
 
-/* ---------- Panels ---------- */
-.tab-panel {
+/* ---------- Content ---------- */
+.settings-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.settings-section {
     display: none;
     animation: fadeSlide 0.3s ease;
 }
 
-.tab-panel.active {
+.settings-section.active {
     display: block;
 }
 
@@ -144,20 +157,14 @@
     box-shadow: 0 0 0 3px rgba(255, 49, 56, 0.08);
 }
 
-.settings-form .validation-hint {
+.validation-hint {
     font-size: 12px;
     margin-top: 4px;
     min-height: 18px;
-}
-
-.validation-hint.valid {
-    color: #10B981;
-}
-.validation-hint.invalid {
     color: #EF4444;
 }
 
-/* ---------- Toggles (iOS style) ---------- */
+/* ---------- Toggles ---------- */
 .toggle-group {
     display: flex;
     flex-direction: column;
@@ -236,6 +243,57 @@
     font-size: 12px;
     color: var(--text-muted);
     margin: 2px 0 0 0;
+}
+
+.toggle-item.locked {
+    opacity: 0.6;
+}
+.toggle-item.locked .toggle-label {
+    cursor: not-allowed;
+}
+.locked-hint {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+.locked-hint i {
+    margin-right: 4px;
+}
+
+/* ---------- Public ID ---------- */
+.public-id-display {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.current-id {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 4px 16px;
+    border-radius: 8px;
+    font-family: monospace;
+}
+
+.public-id-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.public-id-actions .hint {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+#editIdInput {
+    width: 80px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 1px;
 }
 
 /* ---------- Theme Selector ---------- */
@@ -330,6 +388,31 @@
     opacity: 0.7;
 }
 
+/* ---------- Accent Selector ---------- */
+.accent-selector {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.accent-option {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.accent-option:hover {
+    transform: scale(1.1);
+}
+
+.accent-option.active {
+    border-color: var(--text);
+    box-shadow: 0 0 0 2px var(--text);
+}
+
 /* ---------- Password Strength ---------- */
 .password-strength {
     height: 4px;
@@ -347,17 +430,30 @@
     transition: width 0.3s ease;
 }
 
-.password-strength .fill.weak { background: #EF4444; width: 25%; }
-.password-strength .fill.medium { background: #F59E0B; width: 50%; }
-.password-strength .fill.strong { background: #10B981; width: 100%; }
+.password-strength .fill.weak {
+    background: #EF4444;
+    width: 25%;
+}
+.password-strength .fill.medium {
+    background: #F59E0B;
+    width: 50%;
+}
+.password-strength .fill.strong {
+    background: #10B981;
+    width: 100%;
+}
 
 .password-match {
     font-size: 12px;
     margin-top: 4px;
     min-height: 18px;
 }
-.password-match.match { color: #10B981; }
-.password-match.no-match { color: #EF4444; }
+.password-match.match {
+    color: #10B981;
+}
+.password-match.no-match {
+    color: #EF4444;
+}
 
 /* ---------- Misc ---------- */
 .settings-divider {
@@ -402,18 +498,62 @@
     box-shadow: 0 4px 14px rgba(220, 38, 38, 0.25);
 }
 
+.btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.btn-secondary:hover {
+    background: var(--background);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 12px;
+}
+
+.upgrade-btn {
+    margin-top: 4px;
+    align-self: flex-start;
+}
+
 /* ---------- Responsive ---------- */
-@media (max-width: 768px) {
-    .settings-tabs .tab-btn {
-        padding: 8px 14px;
+@media (max-width: 992px) {
+    .settings-wrapper {
+        flex-direction: column;
+        gap: 16px;
+    }
+    .settings-sidebar {
+        flex: none;
+        position: static;
+        height: auto;
+        border-right: none;
+        padding-right: 0;
+        overflow-y: visible;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 12px;
+    }
+    .settings-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    .settings-nav-item {
+        padding: 6px 12px;
         font-size: 13px;
     }
-    .settings-tabs .tab-btn span {
-        display: none;
-    }
-    .settings-tabs .tab-btn i {
-        font-size: 18px;
-    }
+}
+
+@media (max-width: 768px) {
     .settings-form .form-row.two-col {
         grid-template-columns: 1fr;
         gap: 12px;
@@ -428,20 +568,25 @@
     .toggle-text {
         font-size: 14px;
     }
+    .public-id-display {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .current-id {
+        font-size: 20px;
+    }
 }
 
 @media (max-width: 480px) {
-    .settings-tabs {
-        gap: 2px;
-    }
-    .settings-tabs .tab-btn {
-        padding: 6px 10px;
-        font-size: 12px;
-        flex: 1;
-        justify-content: center;
-    }
     .settings-card {
         padding: 12px;
+    }
+    .settings-nav-item {
+        font-size: 12px;
+        padding: 4px 10px;
+    }
+    .settings-nav-item i {
+        display: none;
     }
     .toggle-label {
         flex-wrap: wrap;
