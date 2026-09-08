@@ -36,7 +36,8 @@
             </div>
             <div class="user-details">
                 <span class="user-name">{{ session.user_name or 'User' }}</span>
-                {% if session.public_id and session.public_id != '----' %}
+                {% set show_public_id = settings.get('privacy.show_public_id', True) %}
+                {% if show_public_id and session.public_id and session.public_id != '----' %}
                     <span class="user-id">#{{ session.public_id }}</span>
                 {% else %}
                     <span class="user-id" style="background:#FEF3C7;color:#92400E;">⏳ PENDING</span>

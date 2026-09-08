@@ -1,10 +1,12 @@
 # blueprints/quiz_bp.py
+# Complete updated file
 
+import json
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify
 from db import (
     get_questions_by_subject, save_quiz_attempt,
     get_user_quiz_history, update_student_points, get_student_by_id,
-    get_leaderboard, get_user_subject_list
+    get_leaderboard, get_user_subject_list, execute_with_retry
 )
 from utils import validate_csrf
 from services.tier_service import (
@@ -21,9 +23,8 @@ from services.tier_service import (
     is_custom_question_count_allowed
 )
 from services.achievement_service import check_and_award_achievements
-from user_settings import get_user_settings
+from services.settings_service import SettingsService
 from history_logger import add_history_entry
-import json
 
 quiz_bp = Blueprint('quiz', __name__, url_prefix='/quiz')
 
@@ -46,6 +47,12 @@ def index():
         flash('Please set your location and curriculum in your profile to access quizzes.', 'error')
         return redirect(url_for('dashboard.profile'))
 
+    # Load user settings
+    settings = session.get('settings', {})
+    default_subject = settings.get('quiz.default_subject', '')
+    default_question_count = settings.get('quiz.default_question_count', 10)
+    default_difficulty = settings.get('quiz.default_difficulty', 1)
+
     allowed_counts = get_allowed_question_counts(user_id)
     tier = get_current_user_tier()
     remaining_attempts = get_remaining_quota(user_id, 'quiz_attempt')
@@ -55,7 +62,10 @@ def index():
                            allowed_counts=allowed_counts,
                            tier=tier,
                            remaining_attempts=remaining_attempts,
-                           is_custom_allowed=is_custom_question_count_allowed(user_id))
+                           is_custom_allowed=is_custom_question_count_allowed(user_id),
+                           default_subject=default_subject,
+                           default_question_count=default_question_count,
+                           default_difficulty=default_difficulty)
 
 
 @quiz_bp.route('/start', methods=['POST'])
@@ -147,16 +157,18 @@ def play():
     total = len(questions)
     score = quiz_data['score']
 
-    user_settings = get_user_settings(session['user_id'])
-    user_tier = get_user_tier(session['user_id'])
+    user_id = session['user_id']
+    settings = session.get('settings', {})
+    auto_skip_enabled = settings.get('quiz.auto_skip_enabled', False)
+    show_correct_immediately = settings.get('quiz.show_correct_immediately', True)
 
     return render_template('dashboard/quiz/play.html',
                            question=question,
                            current=current_index,
                            total=total,
                            score=score,
-                           user_settings=user_settings,
-                           user_tier=user_tier)
+                           user_settings={'auto_skip_enabled': auto_skip_enabled, 'show_correct_immediately': show_correct_immediately},
+                           user_tier=get_user_tier(user_id))
 
 
 @quiz_bp.route('/submit_answer', methods=['POST'])
@@ -195,8 +207,8 @@ def submit_answer():
     session.modified = True
 
     user_id = session['user_id']
-    review_level = get_answer_review_level(user_id)
-    explanation_level = get_explanation_level(user_id)
+    settings = session.get('settings', {})
+    show_correct_immediately = settings.get('quiz.show_correct_immediately', True)
 
     response = {
         'correct': is_correct,
@@ -206,16 +218,11 @@ def submit_answer():
         'score': quiz_data['score']
     }
 
-    if review_level > 0:
+    if show_correct_immediately:
         response['feedback'] = is_correct
+        response['explanation'] = question.get('explanation', '')
     else:
         response['feedback'] = None
-
-    if explanation_level > 0:
-        response['explanation'] = question.get('explanation', '')
-        if explanation_level > 1:
-            response['extra_insight'] = None
-    else:
         response['explanation'] = None
 
     return jsonify(response)
@@ -319,7 +326,6 @@ def results():
         reactions
     )
 
-    # ***** ADD HISTORY ENTRY *****
     add_history_entry(
         user_id=session['user_id'],
         entry_type='quiz_attempt',
@@ -364,11 +370,26 @@ def leaderboard():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
 
-    leaders = get_leaderboard(50)
+    # Filter users who have privacy.show_on_leaderboard = True (default True if not set)
+    # Query with JSON extraction: we need to join with user_settings and check the JSON value.
+    query = """
+        SELECT s.public_id, s.first_name, s.last_name, s.total_points, s.school
+        FROM students s
+        LEFT JOIN user_settings us ON s.id = us.user_id
+        WHERE (
+            us.settings IS NULL
+            OR json_extract(us.settings, '$.privacy.show_on_leaderboard') IS NULL
+            OR json_extract(us.settings, '$.privacy.show_on_leaderboard') = 1
+        )
+        ORDER BY s.total_points DESC
+        LIMIT 50
+    """
+    cursor = execute_with_retry(query)
+    leaders = [dict(row) for row in cursor.fetchall()]
 
     user_rank = None
     for i, student in enumerate(leaders, 1):
-        if student.get('id') == session['user_id']:
+        if student.get('public_id') == session.get('public_id'):
             user_rank = i
             break
 

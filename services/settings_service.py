@@ -40,7 +40,6 @@ class SettingsService:
             "default_difficulty": "quiz.default_difficulty",
             "default_subject": "quiz.default_subject",
             "show_correct_immediately": "quiz.show_correct_immediately",
-            "skip_rating_after_quiz": "quiz.skip_rating_after_quiz",
             "auto_skip_enabled": "quiz.auto_skip_enabled",
             "notify_quiz_complete": "notifications.quiz_complete",
             "notify_live_quiz_start": "notifications.live_quiz_start",
@@ -67,7 +66,6 @@ class SettingsService:
 
         if migrated:
             raw.update(migrated)
-            # Remove legacy keys
             for old_key in mapping.keys():
                 if old_key in raw:
                     del raw[old_key]
@@ -78,7 +76,6 @@ class SettingsService:
             raw['migration_version'] = MIGRATION_VERSION
             update_user_settings(user_id, raw)
         
-        # After migration, update session
         SettingsService._update_session(user_id)
     
     @staticmethod
@@ -148,12 +145,10 @@ class SettingsService:
                 value = value in (True, 1, "true", "1")
             normalized[key] = value
         
-        # Write to DB
         success = update_user_settings(user_id, normalized)
         if not success:
             raise RuntimeError("Database update failed")
         
-        # Read back to verify
         raw = get_raw_settings(user_id)
         for key, expected in normalized.items():
             actual = raw.get(key)
@@ -161,9 +156,7 @@ class SettingsService:
                 logger.error(f"Read-back mismatch for user {user_id}, key {key}: expected {expected}, got {actual}")
                 raise RuntimeError(f"Persistence verification failed for key {key}")
         
-        # Update session with new settings
         SettingsService._update_session(user_id)
-        
         return SettingsService.get_all(user_id)
     
     @staticmethod
@@ -173,3 +166,15 @@ class SettingsService:
             raise ValueError(f"Unknown setting: {key}")
         default = definition["default"]
         return SettingsService.update(user_id, {key: default})
+
+    @staticmethod
+    def get_notification_preference(user_id: int, notification_type: str) -> bool:
+        """
+        Check if a user has enabled a specific notification type.
+        notification_type should match the registry key suffix,
+        e.g. 'quiz_complete' -> 'notifications.quiz_complete'
+        """
+        settings = SettingsService.get_all(user_id)
+        key = f"notifications.{notification_type}"
+        # Default to True if not explicitly set (backward compatibility)
+        return settings.get(key, True)

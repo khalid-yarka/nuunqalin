@@ -117,7 +117,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- QUIZ SECTION (keep as is)                    -->
+<!-- QUIZ SECTION                                -->
 <!-- ============================================ -->
 <section id="quiz" class="settings-section">
     <div class="settings-card">
@@ -168,16 +168,6 @@
                     </label>
                     <p class="toggle-desc">If off, you'll see the correct answer only at the end.</p>
                 </div>
-                <div class="toggle-item">
-                    <label class="toggle-label">
-                        <span class="toggle-text">Skip rating step (HAA/MAY)</span>
-                        <span class="toggle-switch">
-                            <input type="checkbox" id="skip_rating_after_quiz" {% if settings['quiz.skip_rating_after_quiz'] %}checked{% endif %}>
-                            <span class="slider"></span>
-                        </span>
-                    </label>
-                    <p class="toggle-desc">If on, you won't be asked to rate each question.</p>
-                </div>
             </div>
             <div class="form-row toggle-group">
                 <div class="toggle-item {% if tier == 'danbe' %}locked{% endif %}">
@@ -208,7 +198,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- NOTIFICATIONS SECTION (keep as is)           -->
+<!-- NOTIFICATIONS SECTION                       -->
 <!-- ============================================ -->
 <section id="notifications" class="settings-section">
     <div class="settings-card">
@@ -299,6 +289,19 @@
                     <p class="toggle-desc">Get notified when you earn a new badge.</p>
                 </div>
             </div>
+            <!-- NEW: Live Quiz Reminder toggle -->
+            <div class="form-row toggle-group tier-locked" data-tier="dhexe">
+                <div class="toggle-item">
+                    <label class="toggle-label">
+                        <span class="toggle-text">Live Quiz Reminder</span>
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="notify_live_quiz_reminder" {% if settings['notifications.live_quiz_reminder'] %}checked{% endif %}>
+                            <span class="slider"></span>
+                        </span>
+                    </label>
+                    <p class="toggle-desc">5‑minute reminder before a scheduled live quiz.</p>
+                </div>
+            </div>
             <div class="form-row toggle-group tier-locked" data-tier="hore">
                 <div class="toggle-item">
                     <label class="toggle-label">
@@ -319,7 +322,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- PRIVACY SECTION (keep as is)                 -->
+<!-- PRIVACY SECTION                             -->
 <!-- ============================================ -->
 <section id="privacy" class="settings-section">
     <div class="settings-card">
@@ -404,7 +407,7 @@
 {% endif %}
 
 <!-- ============================================ -->
-<!-- SECURITY SECTION (keep as is)                -->
+<!-- SECURITY SECTION                             -->
 <!-- ============================================ -->
 <section id="security" class="settings-section">
     <div class="settings-card">
@@ -439,7 +442,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- TIER SECTION (keep as is)                    -->
+<!-- TIER SECTION                                 -->
 <!-- ============================================ -->
 <section id="tier" class="settings-section">
     <div class="settings-card">
@@ -500,7 +503,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- DATA SECTION (keep as is)                    -->
+<!-- DATA SECTION                                 -->
 <!-- ============================================ -->
 <section id="data" class="settings-section">
     <div class="settings-card">
@@ -518,7 +521,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- ACCESSIBILITY SECTION (keep as is)           -->
+<!-- ACCESSIBILITY SECTION                        -->
 <!-- ============================================ -->
 <section id="accessibility" class="settings-section">
     <div class="settings-card">
@@ -547,7 +550,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- STYLES & SCRIPTS (FIXED)                    -->
+<!-- STYLES & SCRIPTS                             -->
 <!-- ============================================ -->
 <style>
     /* Landing page styles */
@@ -1136,7 +1139,6 @@
                     'quiz.default_difficulty': parseInt(document.getElementById('default_difficulty').value),
                     'quiz.default_subject': document.getElementById('default_subject').value,
                     'quiz.show_correct_immediately': document.getElementById('show_correct_immediately').checked,
-                    'quiz.skip_rating_after_quiz': document.getElementById('skip_rating_after_quiz').checked,
                     'quiz.auto_skip_enabled': document.getElementById('auto_skip_enabled').checked
                 };
                 submitForm('/settings/api', data, 'Quiz preferences saved!');

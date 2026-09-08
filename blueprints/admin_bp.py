@@ -1,3 +1,6 @@
+# blueprints/admin_bp.py
+# Updated announcement to use notification service
+
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, abort
 from db import (
     is_admin, get_all_students, get_all_questions,
@@ -16,9 +19,9 @@ import json
 import secrets
 from subjects_config import get_all_subjects
 from services.tier_service import get_user_tier, set_user_tier, get_current_user_tier
+from services.notification_service import send_notification_to_all
 from activity_logger import log_admin_action
 
-# Import new PDF functions with correct names
 from db import (
     get_all_pdfs,
     get_pdf_by_id,
@@ -443,7 +446,6 @@ def add_pdf():
     if not code:
         flash('Code is required.', 'error')
         return redirect(url_for('admin.admin_pdfs'))
-    # Check uniqueness
     existing = get_pdf_by_code(code)
     if existing:
         flash('This code already exists. Please use a unique code.', 'error')
@@ -499,7 +501,7 @@ def delete_pdf(pdf_id):
 
 
 # ============================================
-# QUESTIONS ADMIN (unchanged)
+# QUESTIONS ADMIN
 # ============================================
 
 @admin_bp.route('/questions')
@@ -570,7 +572,7 @@ def delete_question(question_id):
     validate_csrf()
     if delete_question(question_id):
         flash('Question archived successfully!', 'success')
-        log_admin_action('question.archive', f"Archived question {question_id}", 'info')
+        log_admin_action('question.archive', f"Archived question {question_id}",'info')
     else:
         flash('Error archiving question.', 'error')
     return redirect(url_for('admin.admin_questions'))
@@ -584,7 +586,6 @@ def delete_question(question_id):
 @admin_required
 def admin_users():
     users = get_all_students()
-    # Get tier for each user
     for user in users:
         user['tier'] = get_user_tier(user['id'])
     return render_template('dashboard/admin/users.html', users=users)
@@ -644,7 +645,7 @@ def manage_user_tier(user_id):
 
 
 # ============================================
-# ADMIN ANNOUNCEMENT
+# ADMIN ANNOUNCEMENT (UPDATED with notification service)
 # ============================================
 
 @admin_bp.route('/announcement', methods=['GET', 'POST'])
@@ -661,12 +662,14 @@ def admin_announcement():
             flash('Title and body are required.', 'error')
             return render_template('dashboard/admin/announcement.html')
 
-        create_notification_for_all_users(
-            type='admin',
+        # Use the new notification service with force=True to bypass preferences
+        send_notification_to_all(
+            notification_type='admin',
             title=title,
             body=body,
             link=link or '/dashboard',
-            icon='📢'
+            icon='📢',
+            force=True
         )
 
         flash('✅ Announcement sent to all users!', 'success')
@@ -729,4 +732,4 @@ def dismiss_report_route(report_id):
         flash('Report dismissed.', 'success')
     else:
         flash('Failed to dismiss report.', 'error')
-    return redirect(url_for('admin.reports', status='pending'))    
+    return redirect(url_for('admin.reports', status='pending'))

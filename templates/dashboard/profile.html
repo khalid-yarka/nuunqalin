@@ -18,7 +18,8 @@
             <h2 style="font-size: 22px; font-weight: 700; color: var(--text); margin-top: 12px;">
                 {{ student.first_name }} {{ student.middle_name + ' ' if student.middle_name else '' }}{{ student.last_name }}
             </h2>
-            {% if student.public_id %}
+            {% set show_public_id = settings.get('privacy.show_public_id', True) %}
+            {% if show_public_id and student.public_id %}
                 <span style="font-size: 14px; color: var(--primary); background: var(--primary-light); padding: 4px 16px; border-radius: 12px; font-weight: 600; letter-spacing: 0.5px; margin-top: 2px;">
                     #{{ student.public_id }}
                     <button onclick="copyToClipboard('{{ student.public_id }}')" style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:12px;margin-left:4px;">

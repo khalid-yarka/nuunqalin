@@ -1,6 +1,4 @@
-# ============================================
-# NUUNPLATFORM - MAIN APPLICATION
-# ============================================
+# app.py – Full file (unchanged, already correct)
 
 import os
 import sys
@@ -751,7 +749,6 @@ def utility_processor():
                 session['settings'] = settings
                 session.modified = True
             except Exception as e:
-                # Use module-level logger, not app.logger
                 logging.getLogger(__name__).warning(f"Failed to load settings for user {session['user_id']}: {e}")
                 settings = {}
     
