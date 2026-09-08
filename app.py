@@ -56,7 +56,7 @@ from blueprints.admin_errors_bp import admin_errors_bp
 from blueprints.quiz_bp import quiz_bp
 from blueprints.live_quiz_bp import live_quiz_bp
 from blueprints.notifications_bp import notifications_bp
-from blueprints.user_settings_bp import user_settings_bp
+from blueprints.user_settings_bp import user_settings_bp  # OLD – will be replaced by settings_bp
 from blueprints.saved_content_bp import saved_content_bp
 from blueprints.achievements_bp import achievements_bp
 from blueprints.admin_activity_bp import admin_activity_bp
@@ -76,12 +76,20 @@ from bot.db import init_bot_db
 from blueprints.interactions_bp import interactions_bp
 
 # ============================================
-# HISTORY BLUEPRINT (NEW) – now file‑based, no worker
+# HISTORY BLUEPRINT
 # ============================================
 from blueprints.history_bp import history_bp
-from history_logger import recover_pending_entries   # new: flush leftovers on startup
+from history_logger import recover_pending_entries
 
+# ============================================
+# NEW SETTINGS & PROFILE BLUEPRINTS
+# ============================================
+from blueprints.settings_bp import settings_bp
+from blueprints.profile_bp import profile_bp
+
+# ============================================
 # Activity logger
+# ============================================
 from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event, init_activity_logger
 
 # ============================================
@@ -310,11 +318,17 @@ app.register_blueprint(admin_errors_bp)
 app.register_blueprint(quiz_bp)
 app.register_blueprint(live_quiz_bp)
 app.register_blueprint(notifications_bp)
-app.register_blueprint(user_settings_bp)
+# app.register_blueprint(user_settings_bp)  # OLD – replaced by settings_bp
 app.register_blueprint(saved_content_bp)
 app.register_blueprint(achievements_bp)
 app.register_blueprint(admin_activity_bp)
 app.register_blueprint(admin_backup_bp)
+
+# ============================================
+# REGISTER NEW SETTINGS & PROFILE BLUEPRINTS
+# ============================================
+app.register_blueprint(settings_bp)
+app.register_blueprint(profile_bp)
 
 # ============================================
 # REGISTER PDF ADMIN BLUEPRINT (Secret Path)
@@ -333,7 +347,7 @@ logger.info(f"PDF Admin panel mounted at {PDF_ADMIN_SECRET}")
 app.register_blueprint(interactions_bp)
 
 # ============================================
-# REGISTER HISTORY BLUEPRINT (NEW – file‑based)
+# REGISTER HISTORY BLUEPRINT
 # ============================================
 app.register_blueprint(history_bp)
 
@@ -402,7 +416,7 @@ except Exception as e:
     logger.error(f"Failed to configure bot webhook: {e}")
 
 # ============================================
-# HISTORY SYSTEM – RECOVER PENDING ENTRIES (NEW)
+# HISTORY SYSTEM – RECOVER PENDING ENTRIES
 # ============================================
 try:
     recover_pending_entries()

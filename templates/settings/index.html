@@ -1,0 +1,237 @@
+{% extends "settings/base.html" %}
+
+{% block settings_content %}
+<div class="settings-landing">
+    <div class="settings-landing-header">
+        <h2>Customize Your Experience</h2>
+        <p>Choose a category below to adjust your preferences.</p>
+    </div>
+
+    <div class="settings-grid">
+        <!-- Appearance -->
+        <a href="#appearance" class="settings-category-card" data-section="appearance">
+            <div class="card-icon"><i class="fas fa-palette"></i></div>
+            <div class="card-content">
+                <h3>Appearance</h3>
+                <p>Theme, colours, and layout</p>
+            </div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
+
+        <!-- Quiz -->
+        <a href="#quiz" class="settings-category-card" data-section="quiz">
+            <div class="card-icon"><i class="fas fa-pencil-alt"></i></div>
+            <div class="card-content">
+                <h3>Quiz</h3>
+                <p>Defaults and behaviour</p>
+            </div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
+
+        <!-- Notifications -->
+        <a href="#notifications" class="settings-category-card" data-section="notifications">
+            <div class="card-icon"><i class="fas fa-bell"></i></div>
+            <div class="card-content">
+                <h3>Notifications</h3>
+                <p>What and how you're notified</p>
+            </div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
+
+        <!-- Privacy -->
+        <a href="#privacy" class="settings-category-card" data-section="privacy">
+            <div class="card-icon"><i class="fas fa-lock"></i></div>
+            <div class="card-content">
+                <h3>Privacy</h3>
+                <p>Visibility and data sharing</p>
+            </div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
+
+        <!-- Live Quiz (only if user can create) -->
+        {% if can_create_live %}
+        <a href="#live_quiz" class="settings-category-card" data-section="live_quiz">
+            <div class="card-icon"><i class="fas fa-bolt"></i></div>
+            <div class="card-content">
+                <h3>Live Quiz</h3>
+                <p>Defaults for hosting</p>
+            </div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
+        {% endif %}
+
+        <!-- Security -->
+        <a href="#security" class="settings-category-card" data-section="security">
+            <div class="card-icon"><i class="fas fa-shield-alt"></i></div>
+            <div class="card-content">
+                <h3>Security</h3>
+                <p>Password and account safety</p>
+            </div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
+
+        <!-- Plan & Features -->
+        <a href="#tier" class="settings-category-card" data-section="tier">
+            <div class="card-icon"><i class="fas fa-crown"></i></div>
+            <div class="card-content">
+                <h3>Plan & Features</h3>
+                <p>Your current tier and benefits</p>
+            </div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
+
+        <!-- Data -->
+        <a href="#data" class="settings-category-card" data-section="data">
+            <div class="card-icon"><i class="fas fa-database"></i></div>
+            <div class="card-content">
+                <h3>Data</h3>
+                <p>History, export, and deletion</p>
+            </div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
+
+        <!-- Accessibility -->
+        <a href="#accessibility" class="settings-category-card" data-section="accessibility">
+            <div class="card-icon"><i class="fas fa-universal-access"></i></div>
+            <div class="card-content">
+                <h3>Accessibility</h3>
+                <p>Motion, contrast, and readability</p>
+            </div>
+            <div class="card-arrow"><i class="fas fa-chevron-right"></i></div>
+        </a>
+    </div>
+</div>
+
+<style>
+    .settings-landing {
+        padding: 20px 0;
+    }
+    .settings-landing-header {
+        margin-bottom: 28px;
+    }
+    .settings-landing-header h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+    }
+    .settings-landing-header p {
+        color: var(--text-secondary);
+        font-size: 15px;
+        margin: 4px 0 0;
+    }
+
+    .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+    }
+
+    .settings-category-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 18px 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        text-decoration: none;
+        color: var(--text);
+        transition: all 0.2s ease;
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+    }
+
+    .settings-category-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--primary);
+        box-shadow: var(--shadow-md);
+        text-decoration: none;
+    }
+
+    .settings-category-card .card-icon {
+        font-size: 28px;
+        color: var(--primary);
+        width: 48px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .settings-category-card .card-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .settings-category-card .card-content h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0;
+        color: var(--text);
+    }
+
+    .settings-category-card .card-content p {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin: 2px 0 0;
+    }
+
+    .settings-category-card .card-arrow {
+        color: var(--text-muted);
+        transition: transform 0.2s ease;
+        font-size: 14px;
+    }
+
+    .settings-category-card:hover .card-arrow {
+        transform: translateX(4px);
+        color: var(--primary);
+    }
+
+    @media (max-width: 768px) {
+        .settings-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+        .settings-category-card .card-icon {
+            font-size: 22px;
+            width: 40px;
+        }
+        .settings-category-card .card-content h3 {
+            font-size: 15px;
+        }
+    }
+</style>
+
+<script>
+    // Handle click on cards to navigate to the section
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.settings-category-card');
+        cards.forEach(card => {
+            card.addEventListener('click', function(e) {
+                e.preventDefault();
+                const section = this.dataset.section;
+                if (section) {
+                    // Find the nav item and click it
+                    const nav = document.querySelector(`.settings-nav-item[data-section="${section}"]`);
+                    if (nav) {
+                        nav.click();
+                    } else {
+                        // Fallback: direct section show
+                        const targetSection = document.getElementById(section);
+                        if (targetSection) {
+                            document.querySelectorAll('.settings-section').forEach(sec => sec.classList.remove('active'));
+                            targetSection.classList.add('active');
+                            document.querySelectorAll('.settings-nav-item').forEach(item => item.classList.remove('active'));
+                            history.pushState(null, '', '#' + section);
+                        }
+                    }
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,7 +1,7 @@
 # blueprints/user_settings_bp.py
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify
 from functools import wraps
-from db import get_student_by_id, is_admin, execute_with_retry, get_student_by_public_id
+from db import get_student_by_id, is_admin, execute_with_retry, get_student_by_public_id, get_user_subject_list
 from user_settings import get_user_settings, update_user_settings, get_user_setting
 from services.tier_service import get_feature_level, get_current_user_tier, can_create_live_quiz, has_feature
 from activity_logger import log_activity
@@ -44,13 +44,16 @@ def index():
     profile_level = get_feature_level("profile_customization", user_id)
     notif_level = get_feature_level("notification_settings", user_id)
     can_create = can_create_live_quiz()
+    # Get user subjects for dropdown
+    user_subjects = get_user_subject_list(user_id)  # returns list of dicts with code, name, icon
     return render_template('dashboard/user_settings.html',
                            student=student,
                            settings=settings,
                            tier=tier,
                            profile_level=profile_level,
                            notif_level=notif_level,
-                           can_create=can_create)
+                           can_create=can_create,
+                           user_subjects=user_subjects)
 
 # ---------- Profile ----------
 @user_settings_bp.route('/update-profile', methods=['POST'])
