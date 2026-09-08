@@ -1,12 +1,11 @@
 // static/js/history.js
-// Complete history page JavaScript with defensive rendering and debugging logs
+// Fully modern history page – no export functionality
 
 document.addEventListener('DOMContentLoaded', function() {
     let currentPage = 1;
     let perPage = 20;
     let loading = false;
     let hasMore = true;
-    let filters = {};
 
     const timelineList = document.getElementById('timelineList');
     const loadMoreBtn = document.getElementById('loadMoreBtn');
@@ -15,22 +14,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const filterEndDate = document.getElementById('filterEndDate');
     const filterSearch = document.getElementById('filterSearch');
 
-    // Load initial stats
+    // Load stats and first page
     fetchStats();
-
-    // Load first page
     loadEntries(true);
 
-    // Event listeners for filters (debounced)
+    // Debounced filter changes
     let debounceTimer;
     function applyFilters() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             currentPage = 1;
             hasMore = true;
-            if (timelineList) {
-                timelineList.innerHTML = '';
-            }
+            if (timelineList) timelineList.innerHTML = '';
             loadEntries(true);
         }, 400);
     }
@@ -47,27 +42,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Export
-    window.exportHistory = function() {
-        const params = buildParams();
-        window.location.href = '/history/api/export?' + params;
-    };
-
     function buildParams() {
         const params = new URLSearchParams();
-        if (filterType && filterType.value) {
-            params.set('types', filterType.value);
-        }
-        if (filterStartDate && filterStartDate.value) {
-            params.set('start_date', filterStartDate.value);
-        }
-        if (filterEndDate && filterEndDate.value) {
-            params.set('end_date', filterEndDate.value);
-        }
-        if (filterSearch && filterSearch.value) {
-            params.set('search', filterSearch.value);
-        }
-        return params.toString();
+        if (filterType && filterType.value) params.set('types', filterType.value);
+        if (filterStartDate && filterStartDate.value) params.set('start_date', filterStartDate.value);
+        if (filterEndDate && filterEndDate.value) params.set('end_date', filterEndDate.value);
+        if (filterSearch && filterSearch.value) params.set('search', filterSearch.value);
+        return params;
     }
 
     function loadEntries(reset) {
@@ -79,23 +60,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const params = buildParams();
-        // Add pagination parameters
-        const url = '/history/api/entries?' + params + '&page=' + currentPage + '&per_page=' + perPage;
-        console.log('History API request URL:', url);
+        params.set('page', currentPage);
+        params.set('per_page', perPage);
+        const url = '/history/api/entries?' + params.toString();
 
         fetch(url)
             .then(response => {
-                if (!response.ok) {
-                    throw new Error('HTTP error ' + response.status);
-                }
+                if (!response.ok) throw new Error('HTTP ' + response.status);
                 return response.json();
             })
             .then(data => {
                 loading = false;
-                console.log('History API response:', data);
-
                 if (data.error) {
-                    console.error('API error:', data.error);
                     showEmptyState('Error loading history: ' + data.error);
                     return;
                 }
@@ -117,7 +93,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Group by date
                 const groups = {};
                 entries.forEach(entry => {
-                    // Safely extract date
                     let dateStr = 'Unknown';
                     if (entry.created_at) {
                         try {
@@ -132,8 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 let html = '';
                 for (const [date, items] of Object.entries(groups)) {
-                    const label = formatDate(date);
-                    html += `<div class="history-day-group"><div class="day-label">${label}</div>`;
+                    html += `<div class="day-group"><div class="day-label"><span class="day-dot"></span> ${formatDate(date)}</div>`;
                     items.forEach(item => {
                         html += renderEntry(item);
                     });
@@ -146,7 +120,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (timelineList) timelineList.insertAdjacentHTML('beforeend', html);
                 }
 
-                // Update pagination state
                 const totalPages = data.pagination ? data.pagination.pages : 0;
                 if (currentPage < totalPages) {
                     if (loadMoreBtn) loadMoreBtn.style.display = 'block';
@@ -165,7 +138,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderEntry(entry) {
-        // Defensive: ensure entry exists and has minimal fields
         if (!entry) return '';
 
         const iconMap = {
@@ -184,7 +156,6 @@ document.addEventListener('DOMContentLoaded', function() {
         let meta = '';
         let timeAgo = '';
 
-        // Safe time formatting
         if (entry.created_at) {
             try {
                 timeAgo = getTimeAgo(entry.created_at);
@@ -195,17 +166,13 @@ document.addEventListener('DOMContentLoaded', function() {
             timeAgo = 'Unknown date';
         }
 
-        // Parse metadata safely
         let metaData = {};
         try {
             if (entry.metadata) {
                 metaData = typeof entry.metadata === 'string' ? JSON.parse(entry.metadata) : entry.metadata;
             }
-        } catch (e) {
-            // ignore
-        }
+        } catch (e) {}
 
-        // Build title and meta based on entry_type
         switch (entry.entry_type) {
             case 'quiz_attempt':
                 const subject = metaData.subject || 'Unknown';
@@ -254,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <span class="entry-icon">${icon}</span>
                 <div class="entry-content">
                     <div class="entry-title">${title}</div>
-                    ${meta ? `<div class="entry-meta">${meta}</div>` : ''}
+                    ${meta ? `<div class="entry-meta"><span>${meta}</span></div>` : ''}
                 </div>
                 <div class="entry-time">${timeAgo}</div>
             </div>
@@ -265,9 +232,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!timelineList) return;
         timelineList.innerHTML = `
             <div class="history-empty">
-                <span class="icon">📭</span>
-                <h3>No history entries</h3>
-                <p>${message || 'Start learning to build your history!'}</p>
+                <span class="empty-icon">📭</span>
+                <h3>No history yet</h3>
+                <p>${message || 'Start learning to build your history timeline!'}</p>
             </div>
         `;
         if (loadMoreBtn) loadMoreBtn.style.display = 'none';
@@ -275,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function formatDate(dateStr) {
-        if (!dateStr || dateStr === 'Unknown') return 'Unknown date';
+        if (!dateStr || dateStr === 'Unknown') return 'Unknown';
         const today = new Date().toISOString().split('T')[0];
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
         if (dateStr === today) return 'Today';
@@ -293,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
             return new Date(isoDate).toLocaleDateString();
         } catch (e) {
-            return 'Unknown date';
+            return 'Invalid date';
         }
     }
 
