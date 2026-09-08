@@ -4,7 +4,25 @@
 
 {% block extra_css %}
 {{ super() }}
+<!-- ============================================ -->
+<!-- SETTINGS CSS – loads first                   -->
+<!-- ============================================ -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}" />
+
+<!-- ============================================ -->
+<!-- SERVER-SIDE ACCENT COLOURS – OVERRIDES       -->
+<!-- Loaded AFTER settings CSS so the user's      -->
+<!-- accent is applied immediately at paint time. -->
+<!-- ============================================ -->
+{% if accent_colours %}
+<style id="accent-style-override">
+    :root {
+        --primary: {{ accent_colours.hex }};
+        --primary-hover: {{ accent_colours.hover }};
+        --primary-light: {{ accent_colours.light }};
+    }
+</style>
+{% endif %}
 {% endblock %}
 
 {% block dashboard_content %}
@@ -41,6 +59,9 @@
                 </a>
                 <a class="settings-nav-item" data-section="accessibility" href="#accessibility">
                     <i class="fas fa-universal-access"></i> Accessibility
+                </a>
+                <a class="settings-nav-item" data-section="logout" href="#logout">
+                    <i class="fas fa-sign-out-alt" style="color: #DC2626;"></i> Logout
                 </a>
             </div>
         </nav>

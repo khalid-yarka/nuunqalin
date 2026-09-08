@@ -1,7 +1,4 @@
 // static/js/font-size-fix.js
-// This file ensures font size changes are applied correctly across all elements
-// It injects CSS rules that use the base font size for all text
-
 (function() {
     'use strict';
 
@@ -9,11 +6,9 @@
         const sizes = { small: '14px', medium: '16px', large: '18px' };
         const pixelSize = sizes[size] || '16px';
         
-        // Remove existing style
         const existing = document.getElementById('nuun-font-size-style');
         if (existing) existing.remove();
         
-        // Build CSS rules that scale all text elements relative to base
         const rules = [
             '* { font-size: ' + pixelSize + ' !important; }',
             'h1 { font-size: calc(' + pixelSize + ' * 1.75) !important; }',
@@ -80,31 +75,22 @@
             '.footer-copy { font-size: calc(' + pixelSize + ' * 0.8125) !important; }'
         ];
         
-        // Inject style
         const style = document.createElement('style');
         style.id = 'nuun-font-size-style';
         style.textContent = rules.join('\n');
         document.head.appendChild(style);
         
-        // Store in localStorage for persistence
         localStorage.setItem('preferred-font-size', size);
     }
 
-    // ============================================
-    // INIT: Apply saved font size on page load
-    // ============================================
     function initFontSize() {
         try {
-            // Check if NuunSettings already has the preference
             let size = 'medium';
-            
             if (window.NuunSettings && window.NuunSettings.settings) {
                 size = window.NuunSettings.settings['appearance.font_size'] || 'medium';
             } else {
-                // Fallback to localStorage
                 size = localStorage.getItem('preferred-font-size') || 'medium';
             }
-            
             applyFontSize(size);
             console.log('✅ Font size applied:', size);
         } catch (e) {
@@ -112,22 +98,18 @@
         }
     }
 
-    // Run on DOM ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initFontSize);
     } else {
         initFontSize();
     }
 
-    // Also apply when NuunSettings initializes
     document.addEventListener('DOMContentLoaded', function() {
         if (window.NuunSettings && window.NuunSettings.initialized) {
-            // Already initialized, ensure font size is applied
             var size = NuunSettings.settings['appearance.font_size'] || 'medium';
             applyFontSize(size);
         }
         
-        // Hook into NuunSettings if it becomes available later
         var originalApplyAll = window.NuunSettings ? window.NuunSettings.applyAll : null;
         if (window.NuunSettings) {
             window.NuunSettings.applyAll = function() {
@@ -138,10 +120,8 @@
         }
     });
 
-    // Expose the apply function globally so it can be called from settings
     window.applyFontSize = applyFontSize;
     
-    // Listen for storage changes from other tabs
     window.addEventListener('storage', function(e) {
         if (e.key === 'preferred-font-size' && e.newValue) {
             applyFontSize(e.newValue);

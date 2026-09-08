@@ -9,8 +9,14 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
     <!-- ============================================ -->
-    <!-- SERVER-SIDE ACCENT COLOURS – NO FOUC        -->
-    <!-- Injected before any CSS to prevent flash    -->
+    <!-- MAIN CSS – loads first                       -->
+    <!-- ============================================ -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+
+    <!-- ============================================ -->
+    <!-- SERVER-SIDE ACCENT COLOURS – OVERRIDES       -->
+    <!-- Loaded AFTER main CSS so the user's accent   -->
+    <!-- is applied immediately at paint time.        -->
     <!-- ============================================ -->
     {% if accent_colours %}
     <style id="accent-style">
@@ -22,13 +28,10 @@
     </style>
     {% endif %}
 
-    <!-- Main CSS (Variables + Toasts + Dark Mode) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-
     <!-- Page specific CSS -->
     {% block extra_css %}{% endblock %}
 
-    <!-- Additional head content (meta, scripts, etc.) -->
+    <!-- Additional head content -->
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -86,7 +89,6 @@
 
     <script>
         (function() {
-            // Show toggle only on login/register pages
             const isAuthPage = window.location.pathname === '/login' || window.location.pathname === '/register';
             const toggle = document.getElementById('floatingThemeToggle');
             if (!isAuthPage) {
@@ -100,7 +102,6 @@
             const icon = document.getElementById('fabThemeIcon');
             const options = document.querySelectorAll('.theme-option');
 
-            // Load saved theme
             const savedTheme = localStorage.getItem('preferred-theme') || 'system';
             function applyTheme(theme) {
                 if (theme === 'system') {

@@ -563,10 +563,10 @@ def login():
                 return redirect(url_for('dashboard.home'))
             else:
                 flash('Invalid password. Please try again.', 'error')
-                log_activity('user.login', f"Failed login attempt for {phone}', 'warning')
+                log_activity('user.login', f'Failed login attempt for {phone}', 'warning')
         else:
             flash('No account found with this phone number.', 'error')
-            log_activity('user.login', f"Unknown phone {phone} tried to login", 'warning')
+            log_activity('user.login', f'Unknown phone {phone} tried to login', 'warning')
 
     return render_template('login.html')
 
