@@ -6,6 +6,9 @@ from services.settings_registry import SETTINGS_REGISTRY, get_all_categories
 from services.tier_service import get_current_user_tier, can_create_live_quiz, get_user_tier, is_tier_at_least
 from utils import validate_csrf
 from db import get_user_subject_list
+import logging
+
+logger = logging.getLogger(__name__)
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
@@ -81,6 +84,7 @@ def api_patch():
     except PermissionError as e:
         return jsonify({'error': str(e)}), 403
     except RuntimeError as e:
+        logger.error(f"Runtime error updating settings: {e}")
         return jsonify({'error': 'Internal error: ' + str(e)}), 500
     except Exception as e:
         logger.error(f"Unexpected error in settings update: {e}", exc_info=True)
@@ -107,7 +111,6 @@ def api_reset():
         logger.error(f"Unexpected error in settings reset: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
-# Password change endpoint remains separate
 @settings_bp.route('/api/password', methods=['POST'])
 @login_required
 def api_password():

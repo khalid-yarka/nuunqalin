@@ -19,7 +19,7 @@ DEFAULT_SETTINGS = {
     "notify_new_pdf": 1,
 }
 
-MIGRATION_VERSION = 1  # current version
+MIGRATION_VERSION = 1
 
 
 def get_raw_settings(user_id: int) -> Dict[str, Any]:
@@ -53,27 +53,29 @@ def get_user_settings(user_id: int) -> Dict[str, Any]:
     """
     stored = get_raw_settings(user_id)
     merged = DEFAULT_SETTINGS.copy()
-    # Merge stored, but skip migration_version (internal)
     stored_without_version = {k: v for k, v in stored.items() if k != 'migration_version'}
     merged.update(stored_without_version)
     return merged
+
+
+def get_user_setting(user_id: int, key: str, default: Any = None) -> Any:
+    """Get a single user setting."""
+    settings = get_user_settings(user_id)
+    return settings.get(key, default)
 
 
 def update_user_settings(user_id: int, updates: Dict[str, Any]) -> bool:
     """
     Update the stored settings with the given dict.
     This does NOT merge defaults; it writes exactly the provided keys.
-    The migration_version field is preserved if not explicitly overwritten.
     """
     try:
         raw = get_raw_settings(user_id)
-        # If migration_version exists, keep it; else set to 0 (will be upgraded later)
         if 'migration_version' not in raw:
             raw['migration_version'] = 0
-        # Apply updates
         for key, value in updates.items():
             if key == 'migration_version':
-                continue  # handled above
+                continue
             raw[key] = value
         execute_with_retry(
             """

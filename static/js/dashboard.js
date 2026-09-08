@@ -1,4 +1,3 @@
-// static/js/dashboard.js
 // ============================================
 // DASHBOARD JAVASCRIPT
 // ============================================
@@ -98,8 +97,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.documentElement.setAttribute('data-theme', theme);
                 }
                 localStorage.setItem('preferred-theme', theme);
-                // Update icon
-                icon.className = 'fas ' + (themeIcons[theme] || 'fa-sun');
             }
             // Optimistically update icon
             icon.className = 'fas ' + (themeIcons[theme] || 'fa-sun');
@@ -108,7 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
         function cycleTheme() {
             const current = getCurrentTheme();
             let idx = themes.indexOf(current);
-            if (idx === -1) idx = 2; // default to system
+            if (idx === -1) idx = 2;
             const next = themes[(idx + 1) % themes.length];
             applyTheme(next);
         }

@@ -734,7 +734,7 @@ def utility_processor():
             from services.settings_service import SettingsService
             settings = SettingsService.get_all(session['user_id'])
         except Exception as e:
-            logger.warning(f"Failed to load settings for user {session['user_id']}: {e}")
+            app.logger.warning(f"Failed to load settings for user {session['user_id']}: {e}")
             settings = {}
     return {
         'session': session,
