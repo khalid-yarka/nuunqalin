@@ -1,8 +1,9 @@
-# utils.py
-from datetime import datetime, timezone, timedelta
+# utils.py – Complete file with updated ACCENT_MAP
+
 import re
-from flask import request, session
 import secrets
+from datetime import datetime, timezone, timedelta
+from flask import request, session
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,8 +19,7 @@ def get_somali_time() -> datetime:
     return datetime.now(SOMALI_TIMEZONE)
 
 def format_somali_time(dt=None) -> str:
-    """Format datetime in Somali format: 2026/9/24 4:32 PM
-       Converts any timezone-aware datetime to Somali time."""
+    """Format datetime in Somali format: 2026/9/24 4:32 PM"""
     if dt is None:
         dt = get_somali_time()
     else:
@@ -113,7 +113,6 @@ def ensure_csrf_token():
         session['csrf_token'] = secrets.token_hex(32)
         session.modified = True
         logger.debug("CSRF token generated and stored in session.")
-    # Token already exists – leave session.modified unchanged
     return session['csrf_token']
 
 def validate_csrf():
@@ -132,14 +131,11 @@ def validate_csrf():
         logger.warning("CSRF validation failed: no token submitted in request.")
         return False
 
-    # Use secrets.compare_digest for constant-time comparison
     if secrets.compare_digest(token, expected):
         return True
     else:
         logger.warning("CSRF validation failed: submitted token does not match session token.")
         return False
-        
-# utils.py – append this function at the end of the file
 
 def time_ago(dt_str: str) -> str:
     """
@@ -148,7 +144,6 @@ def time_ago(dt_str: str) -> str:
     if not dt_str:
         return "Just now"
     try:
-        # Handle both 'Z' and '+00:00' timezone formats
         dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
         now = get_somali_time()
         diff = now - dt
@@ -175,21 +170,51 @@ def time_ago(dt_str: str) -> str:
         return f"{years} year{'s' if years > 1 else ''} ago"
     except Exception:
         return dt_str
-        
-
 
 # ============================================
-# ACCENT COLOUR HELPERS
+# ACCENT COLOUR HELPERS – IMPROVED CONTRAST
 # ============================================
 
 ACCENT_MAP = {
-    'red': {'hex': '#FF3138', 'hover': '#E62B32', 'light': '#FFF0EC'},
-    'blue': {'hex': '#3B82F6', 'hover': '#2563EB', 'light': '#EFF6FF'},
-    'green': {'hex': '#10B981', 'hover': '#059669', 'light': '#ECFDF5'},
-    'purple': {'hex': '#8B5CF6', 'hover': '#7C3AED', 'light': '#F3E8FF'},
-    'orange': {'hex': '#F59E0B', 'hover': '#D97706', 'light': '#FFFBEB'},
+    'red': {
+        'hex': '#FF3138',
+        'hover': '#E62B32',
+        'light': '#FFEBE8',          # Slightly darker for better contrast
+        'light_dark': '#3A1A20'
+    },
+    'blue': {
+        'hex': '#3B82F6',
+        'hover': '#2563EB',
+        'light': '#E8F0FE',          # Slightly darker for better contrast
+        'light_dark': '#1A2A4A'
+    },
+    'green': {
+        'hex': '#10B981',
+        'hover': '#059669',
+        'light': '#D1FAE5',          # Much darker, better contrast
+        'light_dark': '#1A3A2E'
+    },
+    'purple': {
+        'hex': '#8B5CF6',
+        'hover': '#7C3AED',
+        'light': '#EDE9FE',          # Slightly darker, better contrast
+        'light_dark': '#2A1A4A'
+    },
+    'orange': {
+        'hex': '#F59E0B',
+        'hover': '#D97706',
+        'light': '#FEF3C7',          # Slightly darker, better contrast
+        'light_dark': '#3A2E1A'
+    }
 }
 
-def get_accent_colours(accent_name='red'):
-    """Return hex colours for a given accent name."""
-    return ACCENT_MAP.get(accent_name, ACCENT_MAP['red'])        
+def get_accent_colours(accent_name='red', is_dark=False):
+    """
+    Return hex colours for a given accent name, with appropriate light tint.
+    """
+    data = ACCENT_MAP.get(accent_name, ACCENT_MAP['red'])
+    return {
+        'hex': data['hex'],
+        'hover': data['hover'],
+        'light': data['light_dark'] if is_dark else data['light']
+    }

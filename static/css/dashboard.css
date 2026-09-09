@@ -1,5 +1,5 @@
 /* ============================================
-   DASHBOARD.CSS – LAYOUT ONLY
+   DASHBOARD.CSS – LAYOUT WITH CONTRAST FIXES
    Sidebar, navbar, wrapper, page structure
    Uses .btn, .card, .form-control from style.css
    NO generic selectors (body, button, input, etc.)
@@ -105,7 +105,7 @@
     height: 44px;
     border-radius: 50%;
     background: var(--primary);
-    color: white;
+    color: #ffffff !important;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -179,12 +179,12 @@
 
 .sidebar-nav .nav-item.active {
     background: var(--primary);
-    color: white;
+    color: #ffffff !important;
     box-shadow: 0 4px 14px rgba(255, 49, 56, 0.30);
 }
 
 .sidebar-nav .nav-item.active .nav-icon {
-    color: white;
+    color: #ffffff !important;
 }
 
 .sidebar-nav .nav-item .nav-icon {
@@ -201,7 +201,7 @@
 }
 
 .sidebar-nav .nav-item.active .nav-icon {
-    color: white;
+    color: #ffffff !important;
 }
 
 .sidebar-nav .nav-item .nav-badge {
@@ -357,7 +357,7 @@
 }
 
 /* ============================================
-   THEME TOGGLE (cycling) – REPLACES old popover
+   THEME TOGGLE
    ============================================ */
 
 .theme-toggle {
@@ -379,10 +379,6 @@
     background: var(--primary-light);
     color: var(--primary);
 }
-
-/* ============================================
-   END THEME TOGGLE
-   ============================================ */
 
 .top-navbar .navbar-right .nav-divider {
     width: 1px;
@@ -413,7 +409,7 @@
     height: 34px;
     border-radius: 50%;
     background: var(--primary);
-    color: white;
+    color: #ffffff !important;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -475,7 +471,7 @@
 }
 
 /* ============================================
-   STATS GRID (uses .card from style.css)
+   STATS GRID
    ============================================ */
 
 .stats-grid {
@@ -508,8 +504,8 @@
     align-items: center;
     justify-content: center;
     background: var(--primary-light);
+    color: var(--text) !important;
     border-radius: 8px;
-    color: var(--primary);
     margin-bottom: 8px;
 }
 
@@ -533,48 +529,48 @@
 
 /* Accent colors for stat icons */
 .stat-card.accent-primary .stat-icon {
-    color: var(--primary);
+    color: var(--text) !important;
     background: var(--primary-light);
 }
 .stat-card.accent-blue .stat-icon {
-    color: #3B82F6;
+    color: var(--text) !important;
     background: #EFF6FF;
 }
 .stat-card.accent-green .stat-icon {
-    color: #10B981;
+    color: var(--text) !important;
     background: #ECFDF5;
 }
 .stat-card.accent-orange .stat-icon {
-    color: #F59E0B;
+    color: var(--text) !important;
     background: #FFFBEB;
 }
 .stat-card.accent-purple .stat-icon {
-    color: #8B5CF6;
+    color: var(--text) !important;
     background: #F3E8FF;
 }
 .stat-card.accent-red .stat-icon {
-    color: #EF4444;
+    color: var(--text) !important;
     background: #FEF2F2;
 }
 .stat-card.accent-critical .stat-icon {
-    color: #EF4444;
+    color: var(--text) !important;
     background: #FEF2F2;
 }
 .stat-card.accent-error .stat-icon {
-    color: #F59E0B;
+    color: var(--text) !important;
     background: #FFFBEB;
 }
 .stat-card.accent-warning .stat-icon {
-    color: #3B82F6;
+    color: var(--text) !important;
     background: #EFF6FF;
 }
 .stat-card.accent-resolved .stat-icon {
-    color: #10B981;
+    color: var(--text) !important;
     background: #ECFDF5;
 }
 
 /* ============================================
-   QUICK ACTIONS (uses .card from style.css)
+   QUICK ACTIONS
    ============================================ */
 
 .quick-actions-grid {
@@ -616,6 +612,10 @@
     font-size: 16px;
     flex-shrink: 0;
     background: var(--primary-light);
+    color: var(--text) !important;
+}
+
+.quick-action-card:hover .qa-icon {
     color: var(--primary);
 }
 
@@ -707,19 +707,19 @@
 
 .activity-item .ai-icon.green {
     background: #ECFDF5;
-    color: #10B981;
+    color: #065F46;
 }
 .activity-item .ai-icon.orange {
     background: #FFFBEB;
-    color: #F59E0B;
+    color: #92400E;
 }
 .activity-item .ai-icon.red {
     background: #FEF2F2;
-    color: #EF4444;
+    color: #991B1B;
 }
 .activity-item .ai-icon.blue {
     background: #EFF6FF;
-    color: #3B82F6;
+    color: #1E40AF;
 }
 
 .activity-item .ai-content {
@@ -767,7 +767,7 @@
 }
 
 /* ============================================
-   FILTER BAR (uses .form-control from style.css)
+   FILTER BAR
    ============================================ */
 
 .filter-bar {
@@ -808,7 +808,7 @@
 }
 
 /* ============================================
-   TABLE CONTAINER (uses .table from style.css)
+   TABLE CONTAINER
    ============================================ */
 
 .table-container {
@@ -835,7 +835,7 @@
 }
 
 /* ============================================
-   NOTIFICATIONS (dashboard-specific)
+   NOTIFICATIONS
    ============================================ */
 
 .notification-wrapper {
@@ -883,15 +883,9 @@
 }
 
 @keyframes badgePop {
-    0% {
-        transform: scale(0);
-    }
-    70% {
-        transform: scale(1.2);
-    }
-    100% {
-        transform: scale(1);
-    }
+    0% { transform: scale(0); }
+    70% { transform: scale(1.2); }
+    100% { transform: scale(1); }
 }
 
 .notification-dropdown {
@@ -991,8 +985,9 @@
 }
 
 .notification-item.unread {
-    background: var(--background);
+    background: var(--primary-light) !important;
     border-left: 3px solid var(--primary);
+    color: var(--text) !important;
 }
 
 .notification-item .n-icon {
@@ -1053,6 +1048,23 @@
     opacity: 0.3;
     margin-bottom: 8px;
     display: block;
+}
+
+/* ============================================
+   LEADERBOARD – FIXED CONTRAST
+   ============================================ */
+
+.leaderboard-table tr.you td {
+    background: var(--primary-light) !important;
+    color: var(--text) !important;
+    border-left: 3px solid var(--primary);
+    font-weight: 600;
+}
+
+[data-theme="dark"] .leaderboard-table tr.you td {
+    background: var(--highlight-bg, #4A2A40) !important;
+    color: var(--highlight-text, #FFFFFF) !important;
+    border-left-color: #FF6B70;
 }
 
 /* ============================================
@@ -1214,6 +1226,7 @@
 
 [data-theme="dark"] .stat-card .stat-icon {
     background: var(--primary-light) !important;
+    color: var(--text-secondary) !important;
 }
 
 [data-theme="dark"] .quick-action-card {
@@ -1224,6 +1237,15 @@
 [data-theme="dark"] .quick-action-card:hover {
     background: var(--primary-light) !important;
     border-color: var(--primary) !important;
+}
+
+[data-theme="dark"] .quick-action-card .qa-icon {
+    background: var(--primary-light) !important;
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .quick-action-card:hover .qa-icon {
+    color: #FF6B70 !important;
 }
 
 [data-theme="dark"] .activity-feed {

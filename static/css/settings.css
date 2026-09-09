@@ -1,5 +1,5 @@
 /* ============================================
-   SETTINGS – COMPLETE STYLING
+   SETTINGS – COMPLETE STYLING WITH CONTRAST FIXES
    ============================================ */
 
 /* ---------- Layout ---------- */
@@ -32,7 +32,7 @@
     border-radius: 10px;
 }
 
-/* Navigation wrapper – hidden by default, shown when a section is active */
+/* Navigation wrapper */
 .settings-nav-wrapper {
     display: none;
 }
@@ -535,25 +535,6 @@
     margin-right: 4px;
 }
 
-/* ---------- Locked indicators for individual controls ---------- */
-.locked-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-top: 6px;
-    flex-wrap: wrap;
-}
-
-.locked-indicator .upgrade-btn {
-    pointer-events: auto;
-}
-
-.locked-indicator i {
-    color: var(--text-muted);
-}
-
 /* ---------- Public ID ---------- */
 .public-id-display {
     display: flex;
@@ -591,7 +572,7 @@
     letter-spacing: 1px;
 }
 
-/* ---------- PUBLIC ID ON SIDEBAR (Fixed contrast) ---------- */
+/* ---------- PUBLIC ID ON SIDEBAR ---------- */
 .sidebar-user .user-id {
     background: var(--primary) !important;
     color: #ffffff !important;
@@ -706,7 +687,7 @@
     opacity: 0.7;
 }
 
-/* ---------- Accent Selector – FIXED contrast ---------- */
+/* ---------- Accent Selector – FIXED CONTRAST ---------- */
 .accent-selector {
     display: flex;
     gap: 10px;
@@ -801,7 +782,7 @@
     color: #EF4444;
 }
 
-/* ---------- Tier Section ---------- */
+/* ---------- Tier Section – FIXED CONTRAST ---------- */
 .tier-summary {
     display: flex;
     justify-content: space-between;
@@ -855,13 +836,13 @@
 
 .tier-badge.dhexe {
     background: var(--primary-light);
-    color: var(--primary);
+    color: var(--text) !important;
     border: 1px solid var(--primary);
 }
 
 .tier-badge.hore {
     background: linear-gradient(135deg, var(--primary), #B91C1C);
-    color: white;
+    color: #ffffff !important;
     border: none;
 }
 
@@ -869,7 +850,7 @@
     white-space: nowrap;
 }
 
-/* ---------- Feature Cards ---------- */
+/* ---------- Feature Cards – FIXED CONTRAST ---------- */
 .features-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -896,7 +877,18 @@
     transform: translateY(-2px);
 }
 
-/* Locked feature: distinct background with pattern */
+.feature-card .feature-icon {
+    font-size: 22px;
+    width: 36px;
+    text-align: center;
+    flex-shrink: 0;
+    color: var(--text-secondary) !important;
+}
+
+.feature-card:hover .feature-icon {
+    color: var(--primary);
+}
+
 .feature-card.locked {
     background: var(--surface-alt);
     border-color: var(--border-light);
@@ -933,13 +925,6 @@
     color: var(--text-muted);
 }
 
-.feature-icon {
-    font-size: 22px;
-    width: 36px;
-    text-align: center;
-    flex-shrink: 0;
-}
-
 .feature-content {
     flex: 1;
     min-width: 0;
@@ -963,7 +948,7 @@
     font-size: 18px;
 }
 
-/* ---------- Feature Popup (improved readability) ---------- */
+/* ---------- Feature Popup ---------- */
 .feature-popup {
     display: none;
     position: absolute;
@@ -1088,7 +1073,7 @@
 
 .btn-primary {
     background: var(--primary);
-    color: white;
+    color: #ffffff !important;
     border: none;
     border-radius: var(--radius-sm);
     font-weight: 600;
@@ -1100,11 +1085,12 @@
     background: var(--primary-hover);
     transform: translateY(-1px);
     box-shadow: 0 4px 14px rgba(255, 49, 56, 0.25);
+    color: #ffffff !important;
 }
 
 .btn-danger {
     background: #DC2626;
-    color: white;
+    color: #ffffff !important;
     border: none;
     border-radius: var(--radius-sm);
     font-weight: 600;
@@ -1116,6 +1102,7 @@
     background: #B91C1C;
     transform: translateY(-1px);
     box-shadow: 0 4px 14px rgba(220, 38, 38, 0.25);
+    color: #ffffff !important;
 }
 
 .btn-secondary {
@@ -1192,6 +1179,14 @@
     border-color: var(--primary);
 }
 
+[data-theme="dark"] .feature-card .feature-icon {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .feature-card:hover .feature-icon {
+    color: #FF6B70;
+}
+
 [data-theme="dark"] .feature-popup {
     background: var(--surface);
     border-color: var(--border);
@@ -1213,6 +1208,11 @@
 [data-theme="dark"] .tier-summary {
     background: var(--surface-alt);
     border-color: var(--border);
+}
+
+[data-theme="dark"] .tier-badge.dhexe {
+    background: var(--primary-light);
+    color: #ffffff !important;
 }
 
 [data-theme="dark"] .settings-breadcrumb .breadcrumb-link {

@@ -563,10 +563,10 @@ def login():
                 return redirect(url_for('dashboard.home'))
             else:
                 flash('Invalid password. Please try again.', 'error')
-                log_activity('user.login', f'Failed login attempt for {phone}', 'warning')
+                log_activity('user.login', f"Failed login attempt for {phone}", 'warning')
         else:
             flash('No account found with this phone number.', 'error')
-            log_activity('user.login', f'Unknown phone {phone} tried to login', 'warning')
+            log_activity('user.login', f"Unknown phone {phone} tried to login", 'warning')
 
     return render_template('login.html')
 
@@ -668,7 +668,6 @@ def register():
 def logout():
     user_id = session.get('user_id')
     
-    # Log activity BEFORE clearing session
     if user_id:
         try:
             log_activity('user.logout', f"User {user_id} logged out", 'info', user_id=user_id)
@@ -741,14 +740,14 @@ def backup_status():
         return jsonify({'error': str(e)}), 500
 
 # ============================================
-# CONTEXT PROCESSOR – WITH SERVER-SIDE ACCENT
+# CONTEXT PROCESSOR – WITH IMPROVED ACCENT
 # ============================================
 
 @app.context_processor
 def utility_processor():
     token = ensure_csrf_token() if 'user_id' in session else ''
     settings = {}
-    accent_colours = ACCENT_MAP['red']  # Default fallback
+    accent_colours = {'hex': '#FF3138', 'hover': '#E62B32', 'light': '#FFEBE8'}
     
     if 'user_id' in session:
         if 'settings' in session:
@@ -763,9 +762,14 @@ def utility_processor():
                 logging.getLogger(__name__).warning(f"Failed to load settings for user {session['user_id']}: {e}")
                 settings = {}
         
-        # Get accent from settings (server-side rendering)
+        # Get accent from settings with proper light tint
         accent = settings.get('appearance.accent', 'red')
-        accent_colours = ACCENT_MAP.get(accent, ACCENT_MAP['red'])
+        theme = settings.get('appearance.theme', 'system')
+        is_dark = (theme == 'dark') or (theme == 'system' and __import__('utils').get_somali_time().hour < 6)
+        
+        # Use the improved get_accent_colours function
+        from utils import get_accent_colours as get_accent
+        accent_colours = get_accent(accent, is_dark)
     
     return {
         'session': session,
@@ -773,7 +777,7 @@ def utility_processor():
         'somali_time': get_somali_time_display,
         'csrf_token': token,
         'settings': settings,
-        'accent_colours': accent_colours,  # ← Server-side accent for templates
+        'accent_colours': accent_colours,
     }
 
 # ============================================
