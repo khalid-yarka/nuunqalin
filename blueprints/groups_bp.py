@@ -1,10 +1,10 @@
 # blueprints/groups_bp.py
-# Complete updated file with new group features
+# Complete file with all groups visible, but join restricted by curriculum and tier
 
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, abort
 from db import (
     track_group_click, get_group_by_id, get_group_categories_with_count,
-    get_group_platforms_with_count, get_available_curricula
+    get_group_platforms_with_count, get_available_curricula, get_student_by_id
 )
 from services.group_service import (
     get_user_groups, get_featured_for_user, get_groups_by_curriculum,
@@ -22,7 +22,7 @@ groups_bp = Blueprint('groups', __name__, url_prefix='/groups')
 
 @groups_bp.route('/')
 def list_groups():
-    """Display all active groups with curriculum-based filtering."""
+    """Display all active groups with join eligibility based on curriculum and tier."""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
@@ -30,20 +30,13 @@ def list_groups():
     user_id = session['user_id']
     user_tier = get_current_user_tier()
 
-    # Get user's curriculum from session
-    user_curriculum = session.get('curriculum')
-    from db import get_student_by_id
-    student = get_student_by_id(user_id)
-    if student:
-        user_curriculum = student.get('curriculum') or user_curriculum
-
-    # Get groups visible to this user
+    # Get all groups with eligibility info
     groups = get_user_groups(user_id)
 
-    # Get featured groups
+    # Get featured groups with eligibility info
     featured_groups = get_featured_for_user(user_id)
 
-    # Get curricula with counts
+    # Get curricula with counts (for tabs)
     curricula_data = get_available_curricula()
     curricula = []
     for code in curricula_data:
@@ -51,14 +44,11 @@ def list_groups():
         count = sum(1 for g in groups if g.get('curriculum') == code or (not g.get('curriculum') and not code))
         curricula.append({'code': code, 'name': label, 'count': count, 'icon': '📚'})
 
-    # Also add "All" count
     total_groups = len(groups)
 
-    # Get platforms with counts
-    platforms = get_group_platforms_with_count(user_curriculum)
-
-    # Get categories with counts
-    categories = get_group_categories_with_count(user_curriculum)
+    # Get platforms with counts (based on all groups)
+    platforms = get_group_platforms_with_count()
+    categories = get_group_categories_with_count()
 
     # Apply platform filter if present
     platform_filter = request.args.get('platform', '')

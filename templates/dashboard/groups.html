@@ -18,12 +18,12 @@
     <div class="groups-header">
         <div class="title-section">
             <h2><i class="fas fa-users" style="color: var(--primary);"></i> Study Groups</h2>
-            <p>Join community groups based on your curriculum and subjects</p>
+            <p>Browse all public groups. You can join groups that match your curriculum and tier.</p>
         </div>
     </div>
 
     <!-- ============================================ -->
-    <!-- CURRICULUM TABS                               -->
+    <!-- CURRICULUM TABS (filter by curriculum)        -->
     <!-- ============================================ -->
     <div class="curriculum-tabs" id="curriculumTabs">
         <button class="curriculum-tab active" data-curriculum="all">
@@ -39,7 +39,7 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- FILTER BAR (No search, only platform & category) -->
+    <!-- FILTER BAR (Platform & Category)              -->
     <!-- ============================================ -->
     <div class="filter-bar" id="filterBar">
         <select id="platformFilter">
@@ -64,7 +64,7 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- FEATURED GROUPS                              -->
+    <!-- FEATURED GROUPS (always visible)              -->
     <!-- ============================================ -->
     {% if featured_groups %}
     <div class="featured-section">
@@ -76,14 +76,20 @@
             {% for group in featured_groups %}
                 <div class="featured-card {% if not group.can_join %}locked{% endif %}"
                      data-group="{{ group.id }}"
-                     onclick="handleGroupClick({{ group.id }}, '{{ group.name }}', '{{ group.invite_link }}', {{ group.can_join|lower }}, '{{ group.tier_required|default('danbe') }}')">
+                     onclick="handleGroupClick({{ group.id }}, {{ group.name|tojson }}, {{ group.invite_link|tojson }}, {{ group.can_join|lower }}, {{ group.join_block_reason|tojson }})">
                     <span class="featured-icon">{{ group.icon or '📚' }}</span>
                     <div class="featured-name">{{ group.name }}</div>
                     <div class="featured-meta">
                         👥 <span class="count">{{ group.click_count or 0 }}</span> joins
                     </div>
                     {% if not group.can_join %}
-                        <div class="upgrade-hint">🔒 Requires {{ group.required_tier|capitalize }}</div>
+                        <div class="upgrade-hint">
+                            {% if group.join_block_reason == 'curriculum' %}
+                                🔒 Available for {{ group.curriculum|upper }} only
+                            {% else %}
+                                🔒 Requires {{ group.required_tier|capitalize }}
+                            {% endif %}
+                        </div>
                     {% endif %}
                 </div>
             {% endfor %}
@@ -112,7 +118,13 @@
                                     <span class="featured-tag">⭐ Featured</span>
                                 {% endif %}
                                 {% if not group.can_join %}
-                                    <span class="locked-tag">🔒 {{ group.required_tier|capitalize }}</span>
+                                    <span class="locked-tag">
+                                        {% if group.join_block_reason == 'curriculum' %}
+                                            🔒 {{ group.curriculum|upper }} only
+                                        {% else %}
+                                            🔒 {{ group.required_tier|capitalize }}
+                                        {% endif %}
+                                    </span>
                                 {% endif %}
                             </div>
                             <div class="meta">
@@ -140,12 +152,17 @@
 
                     <div class="card-actions">
                         <button class="btn-join {% if not group.can_join %}locked{% endif %}"
-                                onclick="handleGroupClick({{ group.id }}, '{{ group.name }}', '{{ group.invite_link }}', {{ group.can_join|lower }}, '{{ group.tier_required|default('danbe') }}')"
+                                onclick="handleGroupClick({{ group.id }}, {{ group.name|tojson }}, {{ group.invite_link|tojson }}, {{ group.can_join|lower }}, {{ group.join_block_reason|tojson }})"
                                 {% if not group.can_join %}disabled{% endif %}>
                             {% if group.can_join %}
                                 <i class="fas fa-arrow-right"></i> Join Group
                             {% else %}
-                                <span class="lock-icon">🔒</span> Upgrade to Join
+                                <span class="lock-icon">🔒</span>
+                                {% if group.join_block_reason == 'curriculum' %}
+                                    Not available for your curriculum
+                                {% else %}
+                                    Upgrade to Join
+                                {% endif %}
                             {% endif %}
                         </button>
                         <span class="platform-tag {{ group.platform }}">
@@ -159,7 +176,7 @@
             <div class="groups-empty">
                 <span class="empty-icon">👥</span>
                 <h3>No groups available</h3>
-                <p>Check back later for new study groups in your curriculum.</p>
+                <p>There are no public groups available at the moment. Check back later!</p>
             </div>
         {% endif %}
     </div>
@@ -242,11 +259,9 @@
                 }
             });
 
-            // Also filter featured groups (simplified: show/hide based on curriculum)
             if (featuredGrid) {
                 const featuredCards = featuredGrid.querySelectorAll('.featured-card');
                 featuredCards.forEach(card => {
-                    // For featured, we just check if the group exists in the filtered list
                     const groupId = card.dataset.group;
                     const matchingGroup = document.querySelector(`.group-card[data-group="${groupId}"]`);
                     if (matchingGroup && matchingGroup.style.display !== 'none') {
@@ -301,12 +316,8 @@
                 }
 
                 group.style.display = show ? '' : 'none';
-                if (show) {
-                    // Count for featured
-                }
             });
 
-            // Also filter featured cards
             if (featuredGrid) {
                 const featuredCards = featuredGrid.querySelectorAll('.featured-card');
                 featuredCards.forEach(card => {
@@ -320,7 +331,6 @@
                 });
             }
 
-            // Update active filters display
             activeFilters.innerHTML = '';
             if (platform) {
                 hasFilters = true;
@@ -353,22 +363,26 @@
             applyFilters();
         });
 
-        // Initial filter application
         applyFilters();
 
         // ============================================
-        // GROUP CLICK HANDLER
+        // GROUP CLICK HANDLER (with join restriction handling)
         // ============================================
-        window.handleGroupClick = function(groupId, name, link, canJoin, requiredTier) {
+        window.handleGroupClick = function(groupId, name, link, canJoin, blockReason) {
             if (!canJoin) {
-                // Show upgrade sheet
-                if (typeof window.openSafkaPreview === 'function') {
-                    window.openSafkaPreview({
-                        feature: 'group_access',
-                        requiredTier: requiredTier || 'dhexe'
-                    });
+                if (blockReason === 'curriculum') {
+                    showToast('🔒 This group is only available for users with the matching curriculum.', 'warning');
+                } else if (blockReason === 'tier') {
+                    if (typeof window.openSafkaPreview === 'function') {
+                        window.openSafkaPreview({
+                            feature: 'group_access',
+                            requiredTier: 'dhexe'
+                        });
+                    } else {
+                        showToast('🔒 Upgrade to join this group.', 'warning');
+                    }
                 } else {
-                    showToast('🔒 This group requires ' + (requiredTier || 'higher') + ' tier.', 'warning');
+                    showToast('🔒 You cannot join this group.', 'warning');
                 }
                 return;
             }
@@ -377,7 +391,6 @@
             document.getElementById('modalGroupName').textContent = name;
             document.getElementById('modalJoinLink').href = link;
 
-            // Fetch additional group details
             fetch('/groups/details/' + groupId)
                 .then(response => response.json())
                 .then(data => {
@@ -394,7 +407,6 @@
             document.getElementById('joinModal').classList.add('active');
             document.body.style.overflow = 'hidden';
 
-            // Track click
             trackGroupClick(groupId);
         };
 

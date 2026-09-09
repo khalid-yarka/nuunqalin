@@ -24,7 +24,9 @@ from db import (
     get_available_curricula,
     track_group_click,
     get_all_groups_advanced,
-    execute_with_retry
+    execute_with_retry,
+    get_student_by_id,
+    get_active_groups
 )
 from services.tier_service import is_tier_at_least, get_current_user_tier
 from subjects_config import get_subject, get_all_subjects
@@ -47,9 +49,9 @@ def get_curriculum_label(curriculum):
 
 def get_user_groups(user_id: Optional[int] = None):
     """
-    Get groups visible to a user based on their tier and curriculum.
+    Get all active groups (public) with join eligibility based on user's curriculum and tier.
     """
-    from db import get_student_by_id
+    from db import get_active_groups, get_student_by_id
     
     user_curriculum = None
     user_tier = 'danbe'
@@ -60,45 +62,80 @@ def get_user_groups(user_id: Optional[int] = None):
             user_curriculum = student.get('curriculum')
             user_tier = student.get('tier', 'danbe')
     
-    all_groups = get_groups_by_curriculum(user_curriculum)
+    # Fetch all active groups (public)
+    all_groups = get_active_groups()  # This fetches all active groups
     
-    # Filter by tier
+    # Determine join eligibility for each group
     visible_groups = []
     for group in all_groups:
+        group_curriculum = group.get('curriculum', '')
         required_tier = group.get('tier_required', 'danbe')
-        if is_tier_at_least(user_tier, required_tier):
-            group['can_join'] = True
-            visible_groups.append(group)
-        else:
-            group['can_join'] = False
+        
+        # Check curriculum match: group has no curriculum OR matches user's curriculum
+        curriculum_match = (not group_curriculum) or (group_curriculum == user_curriculum)
+        
+        # Check tier match
+        tier_match = is_tier_at_least(user_tier, required_tier)
+        
+        # User can join only if both conditions are met
+        can_join = curriculum_match and tier_match
+        
+        # Build the group object with metadata
+        group['can_join'] = can_join
+        group['curriculum_match'] = curriculum_match
+        group['tier_match'] = tier_match
+        group['required_tier'] = required_tier
+        
+        if not can_join:
             group['locked'] = True
-            group['required_tier'] = required_tier
-            visible_groups.append(group)
+            if not curriculum_match:
+                group['join_block_reason'] = 'curriculum'
+            elif not tier_match:
+                group['join_block_reason'] = 'tier'
+        else:
+            group['locked'] = False
+            group['join_block_reason'] = None
+        
+        visible_groups.append(group)
     
     return visible_groups
 
 
 def get_featured_for_user(user_id: Optional[int] = None):
-    """Get featured groups visible to user."""
+    """Get featured groups with join eligibility."""
+    if not user_id:
+        return []
+    student = get_student_by_id(user_id)
+    if not student:
+        return []
+    
+    user_curriculum = student.get('curriculum')
+    user_tier = student.get('tier', 'danbe')
+    
     all_featured = get_featured_groups(limit=10)
-    user_tier = 'danbe'
-    
-    if user_id:
-        from db import get_student_by_id
-        student = get_student_by_id(user_id)
-        if student:
-            user_tier = student.get('tier', 'danbe')
-    
-    visible = []
+    filtered = []
     for group in all_featured:
+        group_curriculum = group.get('curriculum', '')
         required_tier = group.get('tier_required', 'danbe')
-        group['can_join'] = is_tier_at_least(user_tier, required_tier)
-        if not group['can_join']:
+        
+        curriculum_match = (not group_curriculum) or (group_curriculum == user_curriculum)
+        tier_match = is_tier_at_least(user_tier, required_tier)
+        can_join = curriculum_match and tier_match
+        
+        group['can_join'] = can_join
+        group['curriculum_match'] = curriculum_match
+        group['tier_match'] = tier_match
+        group['required_tier'] = required_tier
+        
+        if not can_join:
             group['locked'] = True
-            group['required_tier'] = required_tier
-        visible.append(group)
+            group['join_block_reason'] = 'curriculum' if not curriculum_match else 'tier'
+        else:
+            group['locked'] = False
+        
+        filtered.append(group)
     
-    return visible[:5]
+    return filtered[:5]
 
 
 def create_group(admin_id: int, data: Dict) -> tuple:
@@ -106,7 +143,6 @@ def create_group(admin_id: int, data: Dict) -> tuple:
     try:
         success = create_group_advanced(data)
         if success:
-            # Get the group ID (we need to fetch the last inserted)
             cursor = execute_with_retry(
                 "SELECT id FROM groups ORDER BY id DESC LIMIT 1"
             )
@@ -128,7 +164,6 @@ def update_group(admin_id: int, group_id: int, data: Dict) -> bool:
         if not old_group:
             return False
         
-        # Track changes
         changes = {}
         for key, value in data.items():
             if key in old_group and old_group[key] != value:
@@ -214,7 +249,6 @@ def get_admin_group_list(
     """Get groups for admin panel with filters."""
     offset = (page - 1) * per_page
     
-    # Build query
     query = "SELECT * FROM groups WHERE 1=1"
     params = []
     
@@ -242,7 +276,6 @@ def get_admin_group_list(
     cursor = execute_with_retry(query, params)
     groups = [dict(row) for row in cursor.fetchall()]
     
-    # Get total count
     count_query = "SELECT COUNT(*) as total FROM groups WHERE 1=1"
     count_params = []
     if search:
@@ -275,10 +308,7 @@ def get_curriculum_subjects(curriculum):
 def track_join(group_id: int, user_id: int) -> bool:
     """Track when a user joins a group."""
     try:
-        # Increment click count
         track_group_click(group_id)
-        
-        # Log user join (optional - we don't have a table for this yet)
         return True
     except Exception as e:
         logger.error(f"Error tracking join: {e}")
