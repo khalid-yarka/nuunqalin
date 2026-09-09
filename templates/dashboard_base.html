@@ -258,4 +258,14 @@
     })();
 </script>
 {% endif %}
+
+<!-- ============================================ -->
+<!-- USER DATA FOR UPGRADE SHEET (AUTO‑FILL FORM) -->
+<!-- ============================================ -->
+<script>
+    // Expose user data for upgrade sheet
+    window.userName = "{{ session.user_name or '' }}";
+    window.userPhone = "{{ session.user_phone or '' }}";
+</script>
+
 {% endblock %}

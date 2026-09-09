@@ -62,7 +62,8 @@
     function init() {
         backdrop = document.getElementById('safkaBackdrop');
         sheet = document.getElementById('safkaSheet');
-        content = document.getElementById('safkaContent');
+        // FIX: Use safkaTrack as the dynamic content container
+        content = document.getElementById('safkaTrack');
         closeBtn = document.getElementById('safkaClose');
         handle = document.getElementById('safkaHandle');
 
