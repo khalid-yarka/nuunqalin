@@ -1,0 +1,68 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Discount Codes - Admin{% endblock %}
+{% block page_title %}Discount Codes{% endblock %}
+
+{% block dashboard_content %}
+<div style="max-width: 100%;">
+    <div class="breadcrumb">
+        <a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
+        <span class="separator">/</span>
+        <span class="current">Discount Codes</span>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+        <div>
+            <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
+                <i class="fas fa-tags" style="color: var(--primary);"></i> Discount Codes
+            </h2>
+            <p style="color: var(--text-secondary); font-size: 14px;">Create and manage discount codes for upgrades.</p>
+        </div>
+        <a href="{{ url_for('upgrade.admin_discount_create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> New Code</a>
+    </div>
+
+    <div class="table-container">
+        <div class="table-header">
+            <span><strong>{{ discounts|length }}</strong> codes</span>
+        </div>
+        <div style="overflow-x: auto;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Type</th>
+                        <th>Value</th>
+                        <th>Applies To</th>
+                        <th>Uses</th>
+                        <th>Expires</th>
+                        <th>Status</th>
+                        <th style="text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in discounts %}
+                    <tr>
+                        <td><code>{{ d.code }}</code></td>
+                        <td>{{ d.discount_type|capitalize }}</td>
+                        <td>{% if d.discount_type == 'percentage' %}{{ d.discount_value }}%{% else %}${{ (d.discount_value / 100)|round(2) }}{% endif %}</td>
+                        <td>{{ d.applies_to|capitalize }}</td>
+                        <td>{{ d.used_count }}{% if d.max_uses %}/{{ d.max_uses }}{% endif %}</td>
+                        <td>{% if d.expires_at %}{{ d.expires_at[:10] }}{% else %}Never{% endif %}</td>
+                        <td><span class="badge {% if d.is_active %}badge-success{% else %}badge-danger{% endif %}">{{ 'Active' if d.is_active else 'Inactive' }}</span></td>
+                        <td style="text-align: center;">
+                            <a href="{{ url_for('upgrade.admin_discount_edit', discount_id=d.id) }}" class="btn btn-sm btn-secondary"><i class="fas fa-edit"></i></a>
+                            <form method="POST" action="{{ url_for('upgrade.admin_discount_delete', discount_id=d.id) }}" style="display:inline;" onsubmit="return confirm('Delete this code?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" style="text-align:center; padding:30px;">No discount codes created yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

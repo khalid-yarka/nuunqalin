@@ -483,3 +483,387 @@
         animation: none !important;
     }
 }
+
+/* ============================================
+   SAKA UPGRADE SHEET – MOBILE-FIRST STYLES
+   ============================================ */
+
+.safka-upgrade-step {
+    padding: 16px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 400px;
+    animation: fadeSlide 0.4s ease;
+}
+
+@keyframes fadeSlide {
+    from { opacity: 0; transform: translateX(20px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.safka-step-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+.safka-step-header h2 {
+    font-size: clamp(1.2rem, 4vw, 1.5rem);
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+}
+.safka-step-dots {
+    display: flex;
+    gap: 6px;
+}
+.safka-step-dots .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.3s;
+}
+.safka-step-dots .dot.active {
+    background: var(--primary);
+    width: 20px;
+    border-radius: 10px;
+}
+.safka-back-btn {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.2s;
+}
+.safka-back-btn:hover {
+    color: var(--primary);
+}
+
+.safka-plan-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.safka-plan-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+.safka-plan-card:active {
+    transform: scale(0.98);
+}
+.safka-plan-card.selected {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    box-shadow: 0 0 0 4px rgba(255,49,56,0.1);
+}
+.safka-plan-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.safka-tier-icon {
+    font-size: 1.5rem;
+}
+.safka-tier-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text);
+}
+.safka-tier-price {
+    margin-left: auto;
+    font-weight: 600;
+    color: var(--primary);
+}
+.safka-feature-badges {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.safka-feature-badges li {
+    background: var(--background);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.safka-tap-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 8px;
+    text-align: right;
+}
+.safka-reassurance {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 8px;
+}
+
+.safka-feature-list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 50vh;
+}
+.safka-feature-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+.safka-price-range {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.safka-feature-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.safka-feature-list ul li {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.95rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.safka-feature-list ul li:last-child {
+    border-bottom: none;
+}
+.safka-duration-picker {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0;
+    justify-content: center;
+}
+.safka-duration-pill {
+    flex: 1;
+    padding: 10px 4px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+.safka-duration-pill.active {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    color: var(--text);
+}
+.safka-duration-price {
+    display: block;
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.safka-duration-pill.active .safka-duration-price {
+    color: var(--primary);
+}
+
+.safka-plan-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--background);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+}
+.safka-summary-tier {
+    font-weight: 600;
+    color: var(--text);
+}
+.safka-summary-price {
+    margin-left: auto;
+    font-weight: 700;
+    color: var(--primary);
+}
+.safka-discount-badge {
+    background: #10B981;
+    color: white;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+}
+.safka-discount-section {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.safka-discount-section input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    background: var(--surface);
+    color: var(--text);
+}
+.safka-discount-section button {
+    padding: 10px 16px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+#safkaDiscountFeedback {
+    width: 100%;
+    font-size: 0.85rem;
+    min-height: 1.5rem;
+}
+#safkaDiscountFeedback .valid { color: #10B981; }
+#safkaDiscountFeedback .invalid { color: #EF4444; }
+
+.safka-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.safka-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.safka-field label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+.safka-field input,
+.safka-field textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    background: var(--surface);
+    color: var(--text);
+    width: 100%;
+}
+.safka-field.readonly input {
+    background: var(--background);
+    color: var(--text-muted);
+}
+
+.safka-step-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+.safka-step-actions .safka-back-link {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-weight: 500;
+    padding: 10px 0;
+}
+.safka-step-actions .safka-primary-btn {
+    flex: 1;
+    padding: 12px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(255,49,56,0.25);
+    transition: all 0.2s;
+}
+.safka-step-actions .safka-primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.safka-success-icon {
+    text-align: center;
+    margin: 8px 0;
+}
+.safka-success-icon svg {
+    display: inline-block;
+}
+.safka-check-path {
+    transition: stroke-dashoffset 0.8s ease;
+}
+.safka-success-details {
+    text-align: center;
+}
+.safka-request-id {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin: 4px 0;
+}
+.safka-summary {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.safka-next-step {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin: 8px 0;
+}
+.safka-whatsapp-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #25D366;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 40px;
+    font-weight: 600;
+    font-size: 1rem;
+    text-decoration: none;
+    margin: 8px 0;
+    box-shadow: 0 4px 14px rgba(37,211,102,0.3);
+    transition: transform 0.2s;
+}
+.safka-whatsapp-btn:hover {
+    transform: scale(1.02);
+    color: white;
+}
+.safka-close-btn {
+    background: none;
+    border: 1px solid var(--border);
+    padding: 8px 24px;
+    border-radius: 40px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 8px;
+}
+
+@media (min-width: 600px) {
+    .safka-plan-grid {
+        flex-direction: row;
+    }
+    .safka-plan-card {
+        flex: 1;
+    }
+    .safka-duration-picker {
+        gap: 12px;
+    }
+}

@@ -1,0 +1,82 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Request Detail - Admin{% endblock %}
+{% block page_title %}Request Detail{% endblock %}
+
+{% block dashboard_content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <div class="breadcrumb">
+        <a href="{{ url_for('upgrade.admin_list') }}">Upgrade Requests</a>
+        <span class="separator">/</span>
+        <span class="current">{{ request.request_id }}</span>
+    </div>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+            <div>
+                <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">{{ request.request_id }}</h2>
+                <span class="badge {% if request.status == 'pending' %}badge-warning{% elif request.status == 'approved' %}badge-success{% else %}badge-danger{% endif %}" style="font-size:14px;">
+                    {{ request.status|capitalize }}
+                </span>
+                <span style="margin-left: 12px; font-size: 13px; color: var(--text-secondary);">Created: {{ request.created_at[:16] }}</span>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                {% if request.status == 'pending' %}
+                <form method="POST" action="{{ url_for('upgrade.admin_approve', request_id=request.request_id) }}" onsubmit="return confirm('Approve this upgrade?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Approve</button>
+                </form>
+                <form method="POST" action="{{ url_for('upgrade.admin_reject', request_id=request.request_id) }}" onsubmit="return confirm('Reject this request?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-danger"><i class="fas fa-times"></i> Reject</button>
+                </form>
+                {% endif %}
+                <a href="https://wa.me/{{ request.phone_number }}?text=Hello%20{{ request.first_name }}%2C%20I%27m%20following%20up%20on%20your%20upgrade%20request%20{{ request.request_id }}." target="_blank" class="btn btn-telegram">
+                    <i class="fab fa-whatsapp"></i> WhatsApp
+                </a>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div style="background: var(--background); padding: 16px; border-radius: var(--radius-sm);">
+                <h4 style="font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">User Information</h4>
+                <p><strong>Name:</strong> {{ request.first_name }} {{ request.last_name }}</p>
+                <p><strong>Public ID:</strong> #{{ request.public_id }}</p>
+                <p><strong>Phone:</strong> {{ request.phone_number }}</p>
+                <p><strong>Current Tier:</strong> {{ request.current_tier|upper }}</p>
+                <p><strong>Total Points:</strong> {{ request.total_points or 0 }}</p>
+            </div>
+            <div style="background: var(--background); padding: 16px; border-radius: var(--radius-sm);">
+                <h4 style="font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Request Details</h4>
+                <p><strong>Requested Tier:</strong> {{ request.requested_tier|upper }}</p>
+                <p><strong>Duration:</strong> {{ request.duration|capitalize }}</p>
+                <p><strong>Original Price:</strong> ${{ (request.original_price_cents / 100)|round(2) }}</p>
+                <p><strong>Discount Applied:</strong> ${{ (request.discount_amount_cents / 100)|round(2) }}</p>
+                <p><strong>Final Price:</strong> <strong style="color: var(--primary);">${{ (request.final_price_cents / 100)|round(2) }}</strong></p>
+                {% if request.user_note %}
+                <p><strong>User Note:</strong> {{ request.user_note }}</p>
+                {% endif %}
+                {% if request.admin_note %}
+                <p><strong>Admin Note:</strong> {{ request.admin_note }}</p>
+                {% endif %}
+                {% if request.expiry_date %}
+                <p><strong>Expiry:</strong> {{ request.expiry_date[:10] }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if request.status == 'pending' %}
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);">
+            <h4 style="font-size: 14px; font-weight: 600;">Admin Note (optional)</h4>
+            <form method="POST" action="{{ url_for('upgrade.admin_approve', request_id=request.request_id) }}" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div style="flex: 1; min-width: 200px;">
+                    <input type="text" name="admin_note" placeholder="Internal note..." class="form-control">
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Approve with Note</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

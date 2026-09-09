@@ -1,0 +1,93 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}Upgrade Requests - Admin{% endblock %}
+{% block page_title %}Upgrade Requests{% endblock %}
+
+{% block dashboard_content %}
+<div style="max-width: 100%;">
+    <div class="breadcrumb">
+        <a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
+        <span class="separator">/</span>
+        <span class="current">Upgrade Requests</span>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+        <div>
+            <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
+                <i class="fas fa-rocket" style="color: var(--primary);"></i> Upgrade Requests
+            </h2>
+            <p style="color: var(--text-secondary); font-size: 14px;">Manage user upgrade requests.</p>
+        </div>
+        <a href="{{ url_for('upgrade.admin_discounts') }}" class="btn btn-secondary">
+            <i class="fas fa-tags"></i> Manage Discounts
+        </a>
+    </div>
+
+    <form method="GET" class="filter-bar">
+        <select name="status">
+            <option value="">All Status</option>
+            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+            <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+        </select>
+        <div class="search-wrapper">
+            <input type="text" name="search" placeholder="Search by request ID, name, phone..." value="{{ search }}" class="form-control">
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Filter</button>
+        {% if status_filter or search %}
+            <a href="{{ url_for('upgrade.admin_list') }}" class="btn btn-secondary">Clear</a>
+        {% endif %}
+    </form>
+
+    <div class="table-container">
+        <div class="table-header">
+            <span><strong>{{ total }}</strong> requests</span>
+        </div>
+        <div style="overflow-x: auto;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Request ID</th>
+                        <th>User</th>
+                        <th>Tier</th>
+                        <th>Duration</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th style="text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requests %}
+                    <tr>
+                        <td><code>{{ req.request_id }}</code></td>
+                        <td>{{ req.first_name }} {{ req.last_name }}<br><span style="font-size:12px; color:var(--text-muted);">#{{ req.public_id }}</span></td>
+                        <td><span class="badge badge-primary">{{ req.requested_tier|upper }}</span></td>
+                        <td>{{ req.duration|capitalize }}</td>
+                        <td>${{ (req.final_price_cents / 100)|round(2) }}</td>
+                        <td>
+                            <span class="badge {% if req.status == 'pending' %}badge-warning{% elif req.status == 'approved' %}badge-success{% else %}badge-danger{% endif %}">
+                                {{ req.status|capitalize }}
+                            </span>
+                        </td>
+                        <td style="font-size:13px; color:var(--text-secondary);">{{ req.created_at[:16] }}</td>
+                        <td style="text-align: center;">
+                            <a href="{{ url_for('upgrade.admin_detail', request_id=req.request_id) }}" class="btn btn-sm btn-primary">View</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" style="text-align:center; padding:30px;">No requests found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% for p in range(1, total_pages + 1) %}
+                <a href="?page={{ p }}&status={{ status_filter }}&search={{ search }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
