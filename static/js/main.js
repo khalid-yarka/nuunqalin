@@ -1,14 +1,10 @@
-// ============================================
-// MAIN.JS - GLOBAL UTILITIES
-// ============================================
+// static/js/main.js – Global utilities with logout modal handling
 
 document.addEventListener('DOMContentLoaded', function() {
-
     // ============================================
     // THEME PERSISTENCE (Global)
     // ============================================
 
-    // Define global applyTheme function
     window.applyTheme = function(theme) {
         if (theme === 'system') {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -18,22 +14,18 @@ document.addEventListener('DOMContentLoaded', function() {
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('preferred-theme', theme);
         }
-        // Update floating toggle icon if present (login/register)
         const icon = document.getElementById('fabThemeIcon');
         if (icon) {
             if (theme === 'system') icon.className = 'fas fa-desktop';
             else if (theme === 'dark') icon.className = 'fas fa-moon';
             else icon.className = 'fas fa-sun';
         }
-        // Also update dashboard toggle if present (handled by its own logic)
     };
 
-    // Apply saved theme on load
     (function() {
         const savedTheme = localStorage.getItem('preferred-theme') || 'system';
         window.applyTheme(savedTheme);
 
-        // Listen for system changes
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
             const current = localStorage.getItem('preferred-theme') || 'system';
             if (current === 'system') {
@@ -64,18 +56,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
         container.appendChild(toast);
 
-        // Auto dismiss
         const timeout = setTimeout(function() {
             toast.remove();
         }, duration);
 
-        // Close button
         toast.querySelector('.toast-close').addEventListener('click', function() {
             clearTimeout(timeout);
             toast.remove();
         });
 
-        // Hover pause
         toast.addEventListener('mouseenter', function() {
             clearTimeout(timeout);
         });
@@ -101,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // CSRF TOKEN HELPER (for AJAX)
+    // CSRF TOKEN HELPER
     // ============================================
     window.getCsrfToken = function() {
         const meta = document.querySelector('meta[name="csrf-token"]');
@@ -130,11 +119,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ============================================
+    // SIDEBAR LOGOUT – Fallback handler
+    // ============================================
+    const sidebarLogoutBtn = document.getElementById('sidebarLogoutBtn');
+    if (sidebarLogoutBtn) {
+        // The modal is already handled in dashboard_base.html
+        // This is just a safety fallback
+        sidebarLogoutBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            // Check if the modal function exists
+            if (typeof openSidebarLogoutModal === 'function') {
+                openSidebarLogoutModal();
+            } else {
+                // Fallback: redirect to logout directly
+                if (confirm('Are you sure you want to log out? Any unsaved changes will be lost.')) {
+                    window.location.href = '/logout';
+                }
+            }
+        });
+    }
+
     console.log('✅ NuunPlatform main.js loaded');
 });
 
 // ============================================
-// DISABLED BUTTON HANDLER (Added for PDF system)
+// DISABLED BUTTON HANDLER
 // ============================================
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('.btn-disabled');
@@ -148,3 +158,24 @@ document.addEventListener('click', function(e) {
         }
     }
 });
+
+// ============================================
+// GLOBAL LOGOUT MODAL FUNCTIONS (fallback)
+// ============================================
+// These are defined in dashboard_base.html and settings/index.html,
+// but we provide a fallback just in case.
+
+if (typeof openSidebarLogoutModal === 'undefined') {
+    window.openSidebarLogoutModal = function() {
+        // Fallback to simple confirm
+        if (confirm('Are you sure you want to log out?\n\nYou will lose any unsaved changes, including:\n• Unsaved settings\n• In-progress quizzes\n• Live quiz sessions\n• Unsaved form data\n\nThis action cannot be undone.')) {
+            window.location.href = '/logout';
+        }
+    };
+}
+
+if (typeof closeSidebarLogoutModal === 'undefined') {
+    window.closeSidebarLogoutModal = function() {
+        // Nothing to close in fallback mode
+    };
+}

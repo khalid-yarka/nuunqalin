@@ -113,6 +113,14 @@
                 </a>
             {% endif %}
         </nav>
+
+        <!-- Footer with Logout -->
+        <div class="sidebar-footer">
+            <a href="#" id="sidebarLogoutBtn" class="nav-item logout" onclick="event.preventDefault(); openSidebarLogoutModal();">
+                <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
+                Logout
+            </a>
+        </div>
     </aside>
 
     <!-- ============================================ -->
@@ -205,6 +213,56 @@
 </div>
 
 <!-- ============================================ -->
+<!-- SIDEBAR LOGOUT CONFIRMATION MODAL            -->
+<!-- ============================================ -->
+<div class="modal-overlay" id="sidebarLogoutModal">
+    <div class="modal-content" style="max-width: 560px;">
+        <div style="text-align: center; margin-bottom: 16px;">
+            <div style="font-size: 48px; margin-bottom: 4px;">🚪</div>
+            <h3 class="modal-title" style="color: #DC2626;">Confirm Logout</h3>
+            <p class="modal-body">You are about to log out. The following unsaved data will be permanently lost:</p>
+        </div>
+
+        <div style="background: var(--surface-alt); border-radius: var(--radius-sm); padding: 16px 20px; margin-bottom: 16px; border: 1px solid var(--border);">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text);">
+                    <span style="font-size: 18px;">⚙️</span>
+                    <span><strong>Unsaved settings</strong> – Any changes you made in settings that haven't been saved.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text);">
+                    <span style="font-size: 18px;">📝</span>
+                    <span><strong>In-progress quizzes</strong> – Any quiz you started but didn't complete or submit.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text);">
+                    <span style="font-size: 18px;">⚡</span>
+                    <span><strong>Live quiz session</strong> – If you are currently in a live quiz, your progress will be lost.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text);">
+                    <span style="font-size: 18px;">📋</span>
+                    <span><strong>Unsaved form data</strong> – Any text or selections you entered on the current page.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-muted);">
+                    <span style="font-size: 18px;">🔒</span>
+                    <span><em>Other temporary data not specified above.</em></span>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: #FEF2F2; border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 16px; border: 1px solid #FCA5A5; font-size: 13px; color: #991B1B; display: flex; align-items: center; gap: 10px;">
+            <i class="fas fa-exclamation-triangle" style="font-size: 18px;"></i>
+            <span>This action cannot be undone. You will need to log in again.</span>
+        </div>
+
+        <div class="modal-actions">
+            <button onclick="closeSidebarLogoutModal()" class="btn btn-secondary">Cancel</button>
+            <a href="{{ url_for('logout') }}" id="confirmSidebarLogoutBtn" class="btn btn-danger">
+                <i class="fas fa-sign-out-alt"></i> Logout Anyway
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================ -->
 <!-- SAFKA PREVIEW SHEET -->
 <!-- ============================================ -->
 <div class="safka-sheet__backdrop" id="safkaBackdrop"></div>
@@ -258,4 +316,31 @@
     })();
 </script>
 {% endif %}
+
+<script>
+    // ============================================
+    // SIDEBAR LOGOUT MODAL
+    // ============================================
+    function openSidebarLogoutModal() {
+        document.getElementById('sidebarLogoutModal').classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeSidebarLogoutModal() {
+        document.getElementById('sidebarLogoutModal').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    document.getElementById('sidebarLogoutModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeSidebarLogoutModal();
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && document.getElementById('sidebarLogoutModal').classList.contains('active')) {
+            closeSidebarLogoutModal();
+        }
+    });
+</script>
 {% endblock %}

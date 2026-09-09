@@ -85,13 +85,12 @@
             <div class="form-row two-col">
                 <div class="form-group">
                     <label>Accent Colour</label>
-                    <div class="accent-selector" id="accentSelector">
-                        <!-- Each accent button now has tier metadata -->
-                        <button type="button" class="accent-option red" data-accent="red" data-tier="danbe" style="background:#FF3138;" title="Available for all tiers"></button>
-                        <button type="button" class="accent-option blue" data-accent="blue" data-tier="dhexe" style="background:#3B82F6;" title="Requires Safka Dhexe or higher"></button>
-                        <button type="button" class="accent-option green" data-accent="green" data-tier="dhexe" style="background:#10B981;" title="Requires Safka Dhexe or higher"></button>
-                        <button type="button" class="accent-option purple" data-accent="purple" data-tier="dhexe" style="background:#8B5CF6;" title="Requires Safka Dhexe or higher"></button>
-                        <button type="button" class="accent-option orange" data-accent="orange" data-tier="hore" style="background:#F59E0B;" title="Requires Safka Hore"></button>
+                    <div class="accent-selector">
+                        <button type="button" class="accent-option red" data-accent="red" style="background:#FF3138;"></button>
+                        <button type="button" class="accent-option blue" data-accent="blue" style="background:#3B82F6;"></button>
+                        <button type="button" class="accent-option green" data-accent="green" style="background:#10B981;"></button>
+                        <button type="button" class="accent-option purple" data-accent="purple" style="background:#8B5CF6;"></button>
+                        <button type="button" class="accent-option orange" data-accent="orange" style="background:#F59E0B;"></button>
                     </div>
                 </div>
                 <div class="form-group">
@@ -555,7 +554,7 @@
 </section>
 
 <!-- ============================================ -->
-<!-- LOGOUT SECTION                               -->
+<!-- LOGOUT SECTION WITH MODAL TRIGGER            -->
 <!-- ============================================ -->
 <section id="logout" class="settings-section">
     <div class="settings-card">
@@ -564,18 +563,62 @@
             <p>Sign out of your account securely.</p>
         </div>
         <div class="logout-section">
-            <div class="logout-warning">
-                <i class="fas fa-exclamation-triangle"></i>
-                <div>
-                    <strong>Logging out</strong> will end your current session. You will need to log in again to access your account.
-                </div>
-            </div>
-            <a href="{{ url_for('logout') }}" id="logoutBtn" class="btn btn-danger btn-block">
+            <button class="btn btn-danger btn-block" id="openLogoutModalBtn">
                 <i class="fas fa-sign-out-alt"></i> Logout
-            </a>
+            </button>
         </div>
     </div>
 </section>
+
+<!-- ============================================ -->
+<!-- LOGOUT CONFIRMATION MODAL                    -->
+<!-- ============================================ -->
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-content" style="max-width: 560px;">
+        <div style="text-align: center; margin-bottom: 16px;">
+            <div style="font-size: 48px; margin-bottom: 4px;">🚪</div>
+            <h3 class="modal-title" style="color: #DC2626;">Confirm Logout</h3>
+            <p class="modal-body">You are about to log out. The following unsaved data will be permanently lost:</p>
+        </div>
+
+        <div style="background: var(--surface-alt); border-radius: var(--radius-sm); padding: 16px 20px; margin-bottom: 16px; border: 1px solid var(--border);">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text);">
+                    <span style="font-size: 18px;">⚙️</span>
+                    <span><strong>Unsaved settings</strong> – Any changes you made in settings that haven't been saved.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text);">
+                    <span style="font-size: 18px;">📝</span>
+                    <span><strong>In-progress quizzes</strong> – Any quiz you started but didn't complete or submit.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text);">
+                    <span style="font-size: 18px;">⚡</span>
+                    <span><strong>Live quiz session</strong> – If you are currently in a live quiz, your progress will be lost.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text);">
+                    <span style="font-size: 18px;">📋</span>
+                    <span><strong>Unsaved form data</strong> – Any text or selections you entered on the current page.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-muted);">
+                    <span style="font-size: 18px;">🔒</span>
+                    <span><em>Other temporary data not specified above.</em></span>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: #FEF2F2; border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 16px; border: 1px solid #FCA5A5; font-size: 13px; color: #991B1B; display: flex; align-items: center; gap: 10px;">
+            <i class="fas fa-exclamation-triangle" style="font-size: 18px;"></i>
+            <span>This action cannot be undone. You will need to log in again.</span>
+        </div>
+
+        <div class="modal-actions">
+            <button onclick="closeLogoutModal()" class="btn btn-secondary">Cancel</button>
+            <a href="{{ url_for('logout') }}" id="confirmLogoutBtn" class="btn btn-danger">
+                <i class="fas fa-sign-out-alt"></i> Logout Anyway
+            </a>
+        </div>
+    </div>
+</div>
 
 <!-- ============================================ -->
 <!-- UNSAVED CHANGES INDICATOR                    -->
@@ -588,9 +631,133 @@
 </div>
 
 <!-- ============================================ -->
-<!-- SCRIPTS                                      -->
+<!-- STYLES & SCRIPTS                             -->
 <!-- ============================================ -->
+<style>
+    /* ... (existing styles) ... */
+    .logout-section {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+    }
+
+    .btn-danger {
+        background: #DC2626;
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: 12px 20px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .btn-danger:hover {
+        background: #B91C1C;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+    }
+
+    .settings-category-card[data-section="logout"]:hover {
+        border-color: #DC2626;
+    }
+
+    /* Additional modal styles */
+    .modal-content .modal-body {
+        color: var(--text-secondary);
+        font-size: 14px;
+        margin-bottom: 16px;
+        line-height: 1.6;
+    }
+</style>
+
 <script>
+    // ============================================
+    // LOGOUT MODAL CONTROL
+    // ============================================
+    function openLogoutModal() {
+        document.getElementById('logoutModal').classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeLogoutModal() {
+        document.getElementById('logoutModal').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    document.getElementById('openLogoutModalBtn').addEventListener('click', openLogoutModal);
+
+    document.getElementById('logoutModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeLogoutModal();
+        }
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && document.getElementById('logoutModal').classList.contains('active')) {
+            closeLogoutModal();
+        }
+    });
+
+    // ============================================
+    // UNSAVED CHANGES INDICATOR
+    // ============================================
+    let unsavedChanges = false;
+    const indicator = document.getElementById('unsavedIndicator');
+    const saveNowBtn = document.getElementById('unsavedSaveNow');
+    const discardBtn = document.getElementById('unsavedDiscard');
+
+    function showUnsavedIndicator() {
+        if (indicator) indicator.classList.add('show');
+        unsavedChanges = true;
+    }
+
+    function hideUnsavedIndicator() {
+        if (indicator) indicator.classList.remove('show');
+        unsavedChanges = false;
+    }
+
+    document.querySelectorAll('.settings-form').forEach(form => {
+        const inputs = form.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('change', function() {
+                showUnsavedIndicator();
+            });
+        });
+        form.addEventListener('submit', function() {
+            hideUnsavedIndicator();
+        });
+    });
+
+    if (saveNowBtn) {
+        saveNowBtn.addEventListener('click', function() {
+            const form = document.querySelector('.settings-form:not([style*="display: none"])');
+            if (form) form.dispatchEvent(new Event('submit'));
+        });
+    }
+
+    if (discardBtn) {
+        discardBtn.addEventListener('click', function() {
+            if (confirm('Discard all unsaved changes?')) {
+                location.reload();
+            }
+        });
+    }
+
+    window.addEventListener('beforeunload', function(e) {
+        if (unsavedChanges) {
+            e.preventDefault();
+            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+            return e.returnValue;
+        }
+    });
+
     // ============================================
     // CSRF TOKEN HELPER
     // ============================================
@@ -654,12 +821,6 @@
                     if (typeof NuunSettings !== 'undefined') {
                         NuunSettings.settings = result.settings;
                         NuunSettings.applyAll();
-                    }
-                    // Also update font size if changed
-                    if (data['appearance.font_size']) {
-                        if (typeof window.applyFontSize === 'function') {
-                            window.applyFontSize(data['appearance.font_size']);
-                        }
                     }
                 }
                 return result;
@@ -759,127 +920,7 @@
     });
 
     // ============================================
-    // ACCENT TIER-LOCKING (FIXED)
-    // ============================================
-    document.addEventListener('DOMContentLoaded', function() {
-        const userTier = '{{ tier|default("danbe") }}';
-        const tierLevels = { 'danbe': 0, 'dhexe': 1, 'hore': 2 };
-        const userTierLevel = tierLevels[userTier] || 0;
-        const accentTierMap = {
-            'red': 'danbe',
-            'blue': 'dhexe',
-            'green': 'dhexe',
-            'purple': 'dhexe',
-            'orange': 'hore'
-        };
-
-        document.querySelectorAll('.accent-option').forEach(btn => {
-            const accent = btn.dataset.accent;
-            const requiredTier = accentTierMap[accent] || 'danbe';
-            const requiredLevel = tierLevels[requiredTier] || 0;
-
-            if (requiredLevel > userTierLevel) {
-                btn.classList.add('locked');
-                btn.title = `Upgrade to ${requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1)} to use this accent.`;
-                // Add lock icon overlay
-                const lockSpan = document.createElement('span');
-                lockSpan.className = 'lock-icon-overlay';
-                lockSpan.textContent = '🔒';
-                lockSpan.style.cssText = `
-                    position: absolute;
-                    top: -4px;
-                    right: -4px;
-                    font-size: 12px;
-                    background: var(--surface);
-                    border-radius: 50%;
-                    padding: 2px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                    z-index: 2;
-                `;
-                btn.style.position = 'relative';
-                btn.appendChild(lockSpan);
-                
-                btn.addEventListener('click', function(e) {
-                    if (this.classList.contains('locked')) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (typeof window.openSafkaPreview === 'function') {
-                            window.openSafkaPreview({ feature: 'accent_color', requiredTier: requiredTier });
-                        }
-                    }
-                });
-            }
-        });
-    });
-
-    // ============================================
-    // UNSAVED CHANGES
-    // ============================================
-    let unsavedChanges = false;
-    const indicator = document.getElementById('unsavedIndicator');
-    const saveNowBtn = document.getElementById('unsavedSaveNow');
-    const discardBtn = document.getElementById('unsavedDiscard');
-
-    function showUnsavedIndicator() {
-        if (indicator) indicator.classList.add('show');
-        unsavedChanges = true;
-    }
-
-    function hideUnsavedIndicator() {
-        if (indicator) indicator.classList.remove('show');
-        unsavedChanges = false;
-    }
-
-    document.querySelectorAll('.settings-form').forEach(form => {
-        const inputs = form.querySelectorAll('input, select, textarea');
-        inputs.forEach(input => {
-            input.addEventListener('change', function() {
-                showUnsavedIndicator();
-            });
-        });
-        form.addEventListener('submit', function() {
-            hideUnsavedIndicator();
-        });
-    });
-
-    if (saveNowBtn) {
-        saveNowBtn.addEventListener('click', function() {
-            const form = document.querySelector('.settings-form:not([style*="display: none"])');
-            if (form) form.dispatchEvent(new Event('submit'));
-        });
-    }
-
-    if (discardBtn) {
-        discardBtn.addEventListener('click', function() {
-            if (confirm('Discard all unsaved changes?')) {
-                location.reload();
-            }
-        });
-    }
-
-    window.addEventListener('beforeunload', function(e) {
-        if (unsavedChanges) {
-            e.preventDefault();
-            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-            return e.returnValue;
-        }
-    });
-
-    // ============================================
-    // LOGOUT CONFIRMATION
-    // ============================================
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (confirm('Are you sure you want to log out?')) {
-                window.location.href = this.href;
-            }
-        });
-    }
-
-    // ============================================
-    // FORM SUBMISSIONS
+    // FORM SUBMISSIONS (only the critical ones)
     // ============================================
     document.addEventListener('DOMContentLoaded', function() {
         // Appearance
@@ -1017,7 +1058,7 @@
             });
         });
 
-        // Accent selector preview (with tier locking already handled)
+        // Accent selector preview
         document.querySelectorAll('.accent-option:not(.locked)').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.accent-option').forEach(b => b.classList.remove('active'));
@@ -1113,128 +1154,4 @@
         });
     });
 </script>
-
-<style>
-    /* Additional styles for locked accent buttons */
-    .accent-option.locked {
-        cursor: pointer !important;
-        opacity: 0.7 !important;
-        position: relative;
-    }
-    .accent-option.locked:hover {
-        opacity: 0.9 !important;
-        transform: scale(1.05) !important;
-    }
-    .accent-option.locked .lock-icon-overlay {
-        position: absolute;
-        top: -4px;
-        right: -4px;
-        font-size: 12px;
-        background: var(--surface);
-        border-radius: 50%;
-        padding: 2px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        z-index: 2;
-    }
-    /* Unsaved indicator styles */
-    .unsaved-indicator {
-        display: none;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 16px;
-        background: #FEF3C7;
-        border: 1px solid #FDE68A;
-        border-radius: var(--radius-sm);
-        color: #92400E;
-        font-size: 14px;
-        font-weight: 500;
-        margin-bottom: 16px;
-        animation: slideDown 0.3s ease;
-    }
-    .unsaved-indicator.show {
-        display: flex;
-    }
-    .unsaved-indicator .btn-save-now {
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: var(--radius-sm);
-        padding: 4px 16px;
-        font-weight: 600;
-        font-size: 13px;
-        cursor: pointer;
-        transition: var(--transition);
-        flex-shrink: 0;
-    }
-    .unsaved-indicator .btn-save-now:hover {
-        background: var(--primary-hover);
-        transform: translateY(-1px);
-    }
-    .unsaved-indicator .btn-discard {
-        background: transparent;
-        color: #92400E;
-        border: 1px solid #FDE68A;
-        border-radius: var(--radius-sm);
-        padding: 4px 12px;
-        font-weight: 500;
-        font-size: 13px;
-        cursor: pointer;
-        transition: var(--transition);
-        flex-shrink: 0;
-    }
-    .unsaved-indicator .btn-discard:hover {
-        background: #FDE68A;
-        color: #78350F;
-    }
-    [data-theme="dark"] .unsaved-indicator {
-        background: #3A2E1A;
-        border-color: #92400E;
-        color: #FCD34D;
-    }
-    [data-theme="dark"] .unsaved-indicator .btn-discard {
-        color: #FCD34D;
-        border-color: #92400E;
-    }
-    [data-theme="dark"] .unsaved-indicator .btn-discard:hover {
-        background: #92400E;
-        color: #FEF3C7;
-    }
-    @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    /* Logout section */
-    .logout-section {
-        margin-top: 24px;
-        padding-top: 24px;
-        border-top: 1px solid var(--border);
-    }
-    .logout-warning {
-        background: #FEF2F2;
-        border: 1px solid #FCA5A5;
-        border-radius: var(--radius-sm);
-        padding: 16px 20px;
-        margin-bottom: 16px;
-        color: #991B1B;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .logout-warning i {
-        font-size: 20px;
-        color: #EF4444;
-    }
-    [data-theme="dark"] .logout-warning {
-        background: #3A1A1A;
-        border-color: #EF4444;
-        color: #FECACA;
-    }
-    [data-theme="dark"] .logout-warning i {
-        color: #F87171;
-    }
-    .settings-category-card[data-section="logout"]:hover {
-        border-color: #DC2626;
-    }
-</style>
 {% endblock %}

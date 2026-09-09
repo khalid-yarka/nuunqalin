@@ -1,4 +1,4 @@
-# app.py – Full file with accent context processor
+# app.py – Complete file with fixed logout
 
 import os
 import sys
@@ -660,22 +660,30 @@ def register():
 
     return render_template('register.html')
 
+
 # ============================================
-# LOGOUT ROUTE – FIXED
+# LOGOUT ROUTE – FIXED with warning flash
 # ============================================
 
 @app.route('/logout')
 def logout():
+    """
+    Log out the current user, clear all session data,
+    and display a warning about unsaved data.
+    """
     user_id = session.get('user_id')
-    
     if user_id:
         try:
             log_activity('user.logout', f"User {user_id} logged out", 'info', user_id=user_id)
         except Exception as e:
             logger.warning(f"Failed to log logout: {e}")
     
-    flash('You have been logged out.', 'info')
+    # Clear all session data
     session.clear()
+    
+    # Flash a warning about unsaved data
+    flash('You have been logged out. Any unsaved changes were discarded.', 'warning')
+    
     return redirect(url_for('login'))
 
 # ============================================
@@ -767,7 +775,6 @@ def utility_processor():
         theme = settings.get('appearance.theme', 'system')
         is_dark = (theme == 'dark') or (theme == 'system' and __import__('utils').get_somali_time().hour < 6)
         
-        # Use the improved get_accent_colours function
         from utils import get_accent_colours as get_accent
         accent_colours = get_accent(accent, is_dark)
     
