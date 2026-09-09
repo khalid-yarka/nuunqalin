@@ -516,3 +516,54 @@ CREATE INDEX IF NOT EXISTS idx_history_user_created ON history_entries(user_id, 
 CREATE INDEX IF NOT EXISTS idx_history_type ON history_entries(entry_type);
 CREATE INDEX IF NOT EXISTS idx_history_user_type ON history_entries(user_id, entry_type);
 CREATE INDEX IF NOT EXISTS idx_history_created ON history_entries(created_at DESC);
+
+-- ============================================
+-- NEW TABLES FOR UPGRADE SYSTEM
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS discount_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
+    discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
+    discount_value INTEGER NOT NULL,
+    applies_to TEXT NOT NULL CHECK (applies_to IN ('all', 'dhexe', 'hore')),
+    max_uses INTEGER,
+    used_count INTEGER DEFAULT 0,
+    expires_at TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_by INTEGER,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    updated_at TEXT,
+    FOREIGN KEY (created_by) REFERENCES students(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS upgrade_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id TEXT UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    requested_tier TEXT NOT NULL CHECK (requested_tier IN ('dhexe', 'hore')),
+    duration TEXT NOT NULL CHECK (duration IN ('monthly', 'term', 'yearly')),
+    original_price_cents INTEGER NOT NULL,
+    discount_code_id INTEGER,
+    discount_amount_cents INTEGER DEFAULT 0,
+    final_price_cents INTEGER NOT NULL,
+    user_note TEXT,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+    admin_id INTEGER,
+    admin_note TEXT,
+    expiry_date TEXT,
+    approved_at TEXT,
+    rejected_at TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    updated_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (discount_code_id) REFERENCES discount_codes(id) ON DELETE SET NULL,
+    FOREIGN KEY (admin_id) REFERENCES students(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_upgrade_requests_user ON upgrade_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_upgrade_requests_status ON upgrade_requests(status);
+CREATE INDEX IF NOT EXISTS idx_upgrade_requests_created ON upgrade_requests(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_upgrade_requests_request_id ON upgrade_requests(request_id);
+CREATE INDEX IF NOT EXISTS idx_discount_codes_code ON discount_codes(code);
+CREATE INDEX IF NOT EXISTS idx_discount_codes_expires ON discount_codes(expires_at);
