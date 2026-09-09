@@ -7,8 +7,8 @@ from db import (
     get_group_platforms_with_count, get_available_curricula, get_student_by_id
 )
 from services.group_service import (
-    get_user_groups, get_featured_for_user, get_groups_by_curriculum,
-    get_groups_by_platform, get_groups_by_category, track_join
+    get_user_groups, get_featured_for_user, get_curriculum_label,
+    get_groups_by_curriculum, get_groups_by_platform, get_groups_by_category, track_join
 )
 from services.tier_service import get_current_user_tier
 from subjects_config import LOCATION_CURRICULA, get_subject, get_all_subjects
@@ -32,9 +32,14 @@ def list_groups():
 
     # Get all groups with eligibility info
     groups = get_user_groups(user_id)
+    # Add curriculum label for display
+    for group in groups:
+        group['curriculum_label'] = get_curriculum_label(group.get('curriculum'))
 
     # Get featured groups with eligibility info
     featured_groups = get_featured_for_user(user_id)
+    for group in featured_groups:
+        group['curriculum_label'] = get_curriculum_label(group.get('curriculum'))
 
     # Get curricula with counts (for tabs)
     curricula_data = get_available_curricula()
@@ -81,16 +86,6 @@ def list_groups():
                          platform_filter=platform_filter,
                          category_filter=category_filter,
                          user_tier=user_tier)
-
-
-def get_curriculum_label(curriculum):
-    """Get display label for curriculum."""
-    labels = {
-        'PL': '🇸🇴 Puntland',
-        'SO': '🇸🇴 Somalia',
-        'SL': '🇸🇴 Somaliland'
-    }
-    return labels.get(curriculum, curriculum or 'All')
 
 
 @groups_bp.route('/details/<int:group_id>')
