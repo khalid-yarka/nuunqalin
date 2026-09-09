@@ -336,7 +336,6 @@
         color: var(--primary);
     }
 
-    /* Bulk actions */
     .bulk-actions {
         display: flex;
         gap: 8px;
@@ -408,7 +407,6 @@
         margin-left: auto;
     }
 
-    /* Responsive */
     @media (max-width: 992px) {
         .admin-table .hide-tablet {
             display: none;
@@ -478,39 +476,36 @@
 {% block dashboard_content %}
 <div class="admin-groups-container">
 
-    <!-- ============================================ -->
-    <!-- STATS CARDS                                   -->
-    <!-- ============================================ -->
+    <!-- Stats Cards -->
     <div class="admin-stats-grid">
         <div class="admin-stat-card">
-            <div class="stat-number primary">{{ stats.total_groups or 0 }}</div>
+            <div class="stat-number primary">{{ stats.total_groups|default(0) }}</div>
             <div class="stat-label">Total Groups</div>
         </div>
         <div class="admin-stat-card">
-            <div class="stat-number green">{{ stats.active_groups or 0 }}</div>
+            <div class="stat-number green">{{ stats.active_groups|default(0) }}</div>
             <div class="stat-label">Active</div>
         </div>
         <div class="admin-stat-card">
-            <div class="stat-number red">{{ stats.inactive_groups or 0 }}</div>
+            <div class="stat-number red">{{ stats.inactive_groups|default(0) }}</div>
             <div class="stat-label">Inactive</div>
         </div>
         <div class="admin-stat-card">
-            <div class="stat-number gold">{{ stats.featured_groups or 0 }}</div>
+            <div class="stat-number gold">{{ stats.featured_groups|default(0) }}</div>
             <div class="stat-label">Featured</div>
         </div>
         <div class="admin-stat-card">
-            <div class="stat-number">{{ stats.total_clicks or 0 }}</div>
+            <div class="stat-number">{{ stats.total_clicks|default(0) }}</div>
             <div class="stat-label">Total Clicks</div>
         </div>
         <div class="admin-stat-card">
-            <div class="stat-number">{{ stats.avg_clicks|round(0) or 0 }}</div>
+            <!-- FIXED: use (stats.avg_clicks or 0) to handle None -->
+            <div class="stat-number">{{ (stats.avg_clicks or 0)|round(0) }}</div>
             <div class="stat-label">Avg Clicks/Group</div>
         </div>
     </div>
 
-    <!-- ============================================ -->
-    <!-- TOOLBAR                                       -->
-    <!-- ============================================ -->
+    <!-- Toolbar -->
     <div class="admin-toolbar">
         <div class="search-wrapper">
             <i class="fas fa-search"></i>
@@ -549,9 +544,7 @@
         </a>
     </div>
 
-    <!-- ============================================ -->
-    <!-- GROUPS TABLE                                  -->
-    <!-- ============================================ -->
+    <!-- Groups Table -->
     <div class="admin-table-wrap">
         <div class="table-header">
             <span><strong>{{ groups|length }}</strong> groups found</span>
@@ -618,7 +611,7 @@
                                 <button class="btn-sm feature" onclick="toggleGroupFeatured({{ group.id }})" title="Toggle Featured">
                                     <i class="fas fa-star"></i>
                                 </button>
-                                <button class="btn-sm delete" onclick="deleteGroup({{ group.id }}, '{{ group.name|escapejs }}')" title="Delete">
+                                <button class="btn-sm delete" onclick="deleteGroup({{ group.id }}, {{ group.name|tojson }})" title="Delete">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -648,9 +641,7 @@
         </form>
     </div>
 
-    <!-- ============================================ -->
-    <!-- PAGINATION                                   -->
-    <!-- ============================================ -->
+    <!-- Pagination -->
     {% if total_pages > 1 %}
         <div class="pagination">
             <a href="?page=1&search={{ search }}&platform={{ platform }}&category={{ category }}&status={{ status }}" class="page-link {% if page == 1 %}disabled{% endif %}">First</a>
@@ -668,9 +659,7 @@
     {% endif %}
 </div>
 
-<!-- ============================================ -->
-<!-- ADD/EDIT MODAL                                -->
-<!-- ============================================ -->
+<!-- Add/Edit Modal -->
 <div class="modal-overlay" id="groupModal">
     <div class="modal-content" style="max-width: 560px;">
         <h3 class="modal-title" id="modalTitle">Add New Group</h3>
