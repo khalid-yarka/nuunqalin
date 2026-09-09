@@ -7,8 +7,7 @@ from db import (
     get_group_platforms_with_count, get_available_curricula, get_student_by_id
 )
 from services.group_service import (
-    get_user_groups, get_featured_for_user, get_groups_by_curriculum,
-    get_groups_by_platform, get_groups_by_category, track_join
+    get_user_groups, get_featured_for_user, track_join
 )
 from services.tier_service import get_current_user_tier
 from subjects_config import LOCATION_CURRICULA, get_subject, get_all_subjects
@@ -82,7 +81,7 @@ def list_groups():
                          platform_filter=platform_filter,
                          category_filter=category_filter,
                          user_tier=user_tier,
-                         join_rules=Config.GROUP_JOIN_RULES)   # <-- added
+                         join_rules=Config.GROUP_JOIN_RULES)
 
 
 def get_curriculum_label(curriculum):
