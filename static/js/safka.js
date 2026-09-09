@@ -243,12 +243,12 @@
         });
     }
 
-    // ----- Open Sheet -----
+    // ----- Open Sheet (with custom message) -----
     function openSafkaPreview(options) {
         options = options || {};
         const feature = options.feature || null;
         const requiredTier = options.requiredTier || null;
-        const customMessage = options.message || null;
+        const message = options.message || null;
 
         targetFeature = feature;
         targetRequiredTier = requiredTier;
@@ -269,16 +269,18 @@
             goToSlide(1);
         }
 
-        // If custom message provided, update the subtitle of the current slide
-        if (customMessage) {
-            const slides = document.querySelectorAll('.safka-slide');
-            const currentSlideEl = slides[currentSlide];
-            if (currentSlideEl) {
-                const subtitle = currentSlideEl.querySelector('.safka-slide__subtitle');
-                if (subtitle) {
-                    subtitle.textContent = customMessage;
+        // If a custom message is provided, update the subtitle of the current slide
+        if (message) {
+            // Wait a tick to let the slide render
+            setTimeout(function() {
+                const activeSlide = document.querySelector('.safka-slide');
+                if (activeSlide) {
+                    const subtitle = activeSlide.querySelector('.safka-slide__subtitle');
+                    if (subtitle) {
+                        subtitle.textContent = message;
+                    }
                 }
-            }
+            }, 50);
         }
 
         sheet.style.transform = 'translateY(0)';
@@ -396,6 +398,8 @@
     function onSwipeMove(e) {
         if (!isSwiping) return;
         const delta = e.clientX - swipeStartX;
+        // We could move the track partially, but we'll keep simple: if delta exceeds threshold, change slide.
+        // For now, we just track the delta; we'll decide on end.
         swipeCurrentX = delta;
     }
 

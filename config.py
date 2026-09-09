@@ -218,7 +218,22 @@ class Config:
             if not cls.SMTP_TO:
                 errors.append("SMTP_TO is missing")
         return errors
+      
+    # ============================================
+    # GROUP JOIN RULES
+    # ============================================
 
+    GROUP_JOIN_RULES = """
+📋 **Group Participation Rules**
+
+1. **Be Respectful** – Treat all members with kindness and respect.
+2. **Stay On Topic** – Keep discussions relevant to the group's subject.
+3. **No Spam** – Do not share irrelevant links or advertisements.
+4. **Help Others** – Share knowledge and support fellow learners.
+5. **Follow Platform Guidelines** – Abide by the general terms of service.
+
+By proceeding, you agree to these rules.
+    """
 # ============================================
 # CREATE DIRECTORIES AFTER CLASS DEFINITION
 # ============================================
