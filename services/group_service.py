@@ -28,8 +28,7 @@ from db import (
     get_student_by_id,
     get_active_groups
 )
-from services.tier_service import is_tier_at_least, get_current_user_tier
-from subjects_config import get_subject, get_all_subjects
+from services.tier_service import is_tier_at_least, get_current_user_tier, get_user_tier
 
 logger = logging.getLogger(__name__)
 
@@ -50,17 +49,20 @@ def get_curriculum_label(curriculum):
 def get_user_groups(user_id: Optional[int] = None):
     """
     Get all active groups (public) with join eligibility based on user's curriculum and tier.
+    Hore tier bypasses all locks.
     """
     from db import get_active_groups, get_student_by_id
     
     user_curriculum = None
     user_tier = 'danbe'
+    is_hore = False
     
     if user_id:
         student = get_student_by_id(user_id)
         if student:
             user_curriculum = student.get('curriculum')
             user_tier = student.get('tier', 'danbe')
+            is_hore = (user_tier == 'hore')
     
     # Fetch all active groups (public)
     all_groups = get_active_groups()  # This fetches all active groups
@@ -71,30 +73,30 @@ def get_user_groups(user_id: Optional[int] = None):
         group_curriculum = group.get('curriculum', '')
         required_tier = group.get('tier_required', 'danbe')
         
-        # Check curriculum match: group has no curriculum OR matches user's curriculum
-        curriculum_match = (not group_curriculum) or (group_curriculum == user_curriculum)
-        
-        # Check tier match
-        tier_match = is_tier_at_least(user_tier, required_tier)
-        
-        # User can join only if both conditions are met
-        can_join = curriculum_match and tier_match
+        # For Hore: can join everything
+        if is_hore:
+            can_join = True
+            locked = False
+            join_block_reason = None
+        else:
+            # Check curriculum match: group has no curriculum OR matches user's curriculum
+            curriculum_match = (not group_curriculum) or (group_curriculum == user_curriculum)
+            # Check tier match
+            tier_match = is_tier_at_least(user_tier, required_tier)
+            can_join = curriculum_match and tier_match
+            locked = not can_join
+            if not can_join:
+                join_block_reason = 'curriculum' if not curriculum_match else 'tier'
+            else:
+                join_block_reason = None
         
         # Build the group object with metadata
         group['can_join'] = can_join
-        group['curriculum_match'] = curriculum_match
-        group['tier_match'] = tier_match
+        group['curriculum_match'] = curriculum_match if not is_hore else True
+        group['tier_match'] = tier_match if not is_hore else True
         group['required_tier'] = required_tier
-        
-        if not can_join:
-            group['locked'] = True
-            if not curriculum_match:
-                group['join_block_reason'] = 'curriculum'
-            elif not tier_match:
-                group['join_block_reason'] = 'tier'
-        else:
-            group['locked'] = False
-            group['join_block_reason'] = None
+        group['locked'] = locked if not is_hore else False
+        group['join_block_reason'] = join_block_reason  # 'curriculum' or 'tier' or None
         
         visible_groups.append(group)
     
@@ -102,7 +104,7 @@ def get_user_groups(user_id: Optional[int] = None):
 
 
 def get_featured_for_user(user_id: Optional[int] = None):
-    """Get featured groups with join eligibility."""
+    """Get featured groups with join eligibility (Hore bypass)."""
     if not user_id:
         return []
     student = get_student_by_id(user_id)
@@ -111,6 +113,7 @@ def get_featured_for_user(user_id: Optional[int] = None):
     
     user_curriculum = student.get('curriculum')
     user_tier = student.get('tier', 'danbe')
+    is_hore = (user_tier == 'hore')
     
     all_featured = get_featured_groups(limit=10)
     filtered = []
@@ -118,20 +121,23 @@ def get_featured_for_user(user_id: Optional[int] = None):
         group_curriculum = group.get('curriculum', '')
         required_tier = group.get('tier_required', 'danbe')
         
-        curriculum_match = (not group_curriculum) or (group_curriculum == user_curriculum)
-        tier_match = is_tier_at_least(user_tier, required_tier)
-        can_join = curriculum_match and tier_match
+        if is_hore:
+            can_join = True
+            locked = False
+            join_block_reason = None
+        else:
+            curriculum_match = (not group_curriculum) or (group_curriculum == user_curriculum)
+            tier_match = is_tier_at_least(user_tier, required_tier)
+            can_join = curriculum_match and tier_match
+            locked = not can_join
+            join_block_reason = 'curriculum' if not curriculum_match else 'tier' if not tier_match else None
         
         group['can_join'] = can_join
-        group['curriculum_match'] = curriculum_match
-        group['tier_match'] = tier_match
+        group['curriculum_match'] = curriculum_match if not is_hore else True
+        group['tier_match'] = tier_match if not is_hore else True
         group['required_tier'] = required_tier
-        
-        if not can_join:
-            group['locked'] = True
-            group['join_block_reason'] = 'curriculum' if not curriculum_match else 'tier'
-        else:
-            group['locked'] = False
+        group['locked'] = locked if not is_hore else False
+        group['join_block_reason'] = join_block_reason
         
         filtered.append(group)
     

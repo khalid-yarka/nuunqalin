@@ -1,5 +1,5 @@
 # blueprints/groups_bp.py
-# Complete file with all groups visible, but join restricted by curriculum and tier
+# Complete file with all groups visible, but join restricted by curriculum and tier (Hore bypasses all)
 
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, abort
 from db import (
@@ -22,7 +22,7 @@ groups_bp = Blueprint('groups', __name__, url_prefix='/groups')
 
 @groups_bp.route('/')
 def list_groups():
-    """Display all active groups with join eligibility based on curriculum and tier."""
+    """Display all active groups with join eligibility based on curriculum and tier (Hore bypass)."""
     if 'user_id' not in session:
         flash('Please login first.', 'error')
         return redirect(url_for('login'))

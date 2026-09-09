@@ -248,6 +248,7 @@
         options = options || {};
         const feature = options.feature || null;
         const requiredTier = options.requiredTier || null;
+        const customMessage = options.message || null;
 
         targetFeature = feature;
         targetRequiredTier = requiredTier;
@@ -266,6 +267,18 @@
             }
         } else {
             goToSlide(1);
+        }
+
+        // If custom message provided, update the subtitle of the current slide
+        if (customMessage) {
+            const slides = document.querySelectorAll('.safka-slide');
+            const currentSlideEl = slides[currentSlide];
+            if (currentSlideEl) {
+                const subtitle = currentSlideEl.querySelector('.safka-slide__subtitle');
+                if (subtitle) {
+                    subtitle.textContent = customMessage;
+                }
+            }
         }
 
         sheet.style.transform = 'translateY(0)';
@@ -383,8 +396,6 @@
     function onSwipeMove(e) {
         if (!isSwiping) return;
         const delta = e.clientX - swipeStartX;
-        // We could move the track partially, but we'll keep simple: if delta exceeds threshold, change slide.
-        // For now, we just track the delta; we'll decide on end.
         swipeCurrentX = delta;
     }
 
