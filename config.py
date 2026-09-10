@@ -19,6 +19,7 @@ class Config:
     
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     ADMIN_ERROR_PASSWORD = os.getenv('ADMIN_ERROR_PASSWORD', 'samir')
+    UPGRADE_ADMIN_PHONE = os.getenv('UPGRADE_ADMIN_PHONE', '')
     
     # ============================================
     # DATABASE (Main)

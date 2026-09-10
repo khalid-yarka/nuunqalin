@@ -1,23 +1,29 @@
 # blueprints/upgrade_bp.py
 # Upgrade request system – API + Admin
 #
-# FIXES in this version:
-#   1. Discount message format ("200$ OFF" -> "$2.00 OFF")
-#   2. generate_request_id() uses Somali time + MAX-based counter
-#   3. submit_request() retries on UNIQUE-collision instead of leaking SQL error
-#   4. Safe datetime comparison for expires_at (fixes silent TypeError)
-#   5. Proper exc_info logging on DB errors
+# Includes:
+#   - Root redirect routes (/upgrade/, /upgrade/admin/)
+#   - List with stats + filters + pagination
+#   - Detail with approve/reject/delete
+#   - Bulk actions
+#   - CSV export
+#   - Discount code CRUD
+#   - Login redirect for unauthenticated admin access
 
+import csv
+import io
 import secrets
 import logging
 import sqlite3
 import time
 from datetime import datetime, timedelta
-from flask import (
-    Blueprint, render_template, request, session, jsonify,
-    flash, redirect, url_for, abort
-)
 from functools import wraps
+
+from flask import (
+    Blueprint, render_template, request, session, jsonify, flash,
+    redirect, url_for, abort, Response
+)
+
 from db import get_student_by_id, is_admin, execute_with_retry, get_somali_time_db
 from services.tier_service import set_user_tier
 from utils import validate_csrf, get_somali_time, SOMALI_TIMEZONE
@@ -39,13 +45,22 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
+
 def admin_required(f):
+    """
+    Admin-only guard.
+    - Not logged in → redirect to /login?next=<original URL>.
+    - Logged in but not admin → 403.
+    """
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'user_id' not in session or not is_admin(session['user_id']):
+        if 'user_id' not in session:
+            return redirect(url_for('login', next=request.url))
+        if not is_admin(session['user_id']):
             abort(403)
         return f(*args, **kwargs)
     return decorated
+
 
 # ============================================
 # PRICING DATA
@@ -56,20 +71,16 @@ PRICES = {
     'hore':  {'monthly': 2.00, 'term': 4.50, 'yearly': 7.00}
 }
 
+
 # ============================================
 # HELPERS
 # ============================================
 
 def _parse_db_datetime(dt_str):
-    """
-    Parse a datetime string from the DB.
-    Attaches Somali timezone if the value is naive, so it can safely
-    be compared with get_somali_time(). Returns None on failure.
-    """
+    """Parse a datetime string from DB; attach Somali TZ if naive."""
     if not dt_str:
         return None
     try:
-        # Accept both 'YYYY-MM-DD' and 'YYYY-MM-DD HH:MM:SS' and ISO.
         normalized = dt_str.replace(' ', 'T')
         dt = datetime.fromisoformat(normalized)
         if dt.tzinfo is None:
@@ -80,16 +91,9 @@ def _parse_db_datetime(dt_str):
 
 
 def generate_request_id():
-    """
-    Generate a request ID of the form UR-YYYYMMDD-NNN.
-
-    Uses Somali time for the date part (consistent with the rest of the app),
-    and derives the counter from the highest existing ID for that day,
-    not from a row count (row count could double-count after a delete).
-    """
+    """Generate request ID: UR-YYYYMMDD-NNN using Somali time."""
     today = get_somali_time().strftime('%Y%m%d')
     prefix = f'UR-{today}-'
-
     cursor = execute_with_retry(
         "SELECT MAX(CAST(SUBSTR(request_id, -3) AS INTEGER)) AS max_num "
         "FROM upgrade_requests WHERE request_id LIKE ?",
@@ -112,11 +116,73 @@ def calculate_expiry(duration):
 
 
 def _discount_message(discount_type, discount_value):
-    """Build a human-readable message for a valid discount code."""
     if discount_type == 'percentage':
         return f"{discount_value}% OFF applied!"
-    # Fixed: value is stored in cents, display in dollars.
     return f"${discount_value / 100:.2f} OFF applied!"
+
+
+def _get_pending_count():
+    """Cheap COUNT for the sidebar badge and admin dashboard widget."""
+    try:
+        cursor = execute_with_retry(
+            "SELECT COUNT(*) AS cnt FROM upgrade_requests WHERE status = 'pending'"
+        )
+        row = cursor.fetchone()
+        return row['cnt'] if row else 0
+    except Exception:
+        return 0
+
+
+def _get_request_stats():
+    """Return overall stats for the list header."""
+    try:
+        cursor = execute_with_retry("""
+            SELECT
+                COUNT(CASE WHEN status = 'pending'  THEN 1 END) AS pending,
+                COUNT(CASE WHEN status = 'approved' THEN 1 END) AS approved,
+                COUNT(CASE WHEN status = 'rejected' THEN 1 END) AS rejected,
+                COUNT(CASE WHEN status = 'cancelled' THEN 1 END) AS cancelled,
+                COALESCE(SUM(CASE WHEN status = 'approved' THEN final_price_cents ELSE 0 END), 0) AS revenue_cents,
+                COUNT(CASE WHEN created_at >= datetime('now', '-7 days') THEN 1 END) AS this_week
+            FROM upgrade_requests
+        """)
+        row = cursor.fetchone()
+        if not row:
+            return {
+                'pending': 0, 'approved': 0, 'rejected': 0,
+                'cancelled': 0, 'revenue_cents': 0, 'this_week': 0,
+                'revenue_dollars': 0.0
+            }
+        data = dict(row)
+        data['revenue_dollars'] = round((data.get('revenue_cents') or 0) / 100, 2)
+        return data
+    except Exception:
+        return {
+            'pending': 0, 'approved': 0, 'rejected': 0,
+            'cancelled': 0, 'revenue_cents': 0, 'this_week': 0,
+            'revenue_dollars': 0.0
+        }
+
+
+# ============================================
+# ROOT REDIRECTS (fixes "page not found")
+# ============================================
+
+@upgrade_bp.route('/')
+def index():
+    """Visiting /upgrade/ → redirect to admin list (if admin) or dashboard."""
+    if 'user_id' not in session:
+        return redirect(url_for('login', next=request.url))
+    if is_admin(session['user_id']):
+        return redirect(url_for('upgrade.admin_list'))
+    return redirect(url_for('dashboard.home'))
+
+
+@upgrade_bp.route('/admin/')
+@admin_required
+def admin_root():
+    """Visiting /upgrade/admin/ → admin requests list."""
+    return redirect(url_for('upgrade.admin_list'))
 
 
 # ============================================
@@ -142,7 +208,6 @@ def validate_discount():
     if not row:
         return jsonify({'valid': False, 'message': 'Invalid discount code'})
 
-    # Safe expiry comparison
     if row['expires_at']:
         expiry = _parse_db_datetime(row['expires_at'])
         if expiry is not None and expiry < get_somali_time():
@@ -224,8 +289,6 @@ def submit_request():
                     discount_amount = row['discount_value'] / 100
                 final_price = max(0, original_price - discount_amount)
 
-    # Retry loop for the (rare) case where two concurrent submits
-    # pick the same request_id before either has committed.
     max_attempts = 5
     request_id = None
     last_error = None
@@ -258,7 +321,6 @@ def submit_request():
             last_error = e
             msg = str(e).lower()
             if 'unique' in msg and 'request_id' in msg and attempt < max_attempts - 1:
-                # Small backoff, then regenerate
                 time.sleep(0.05 * (attempt + 1))
                 continue
             logger.error(f"Upgrade request integrity error: {e}", exc_info=True)
@@ -282,7 +344,7 @@ def submit_request():
 def admin_list():
     status_filter = request.args.get('status', '')
     search = request.args.get('search', '').strip()
-    page = int(request.args.get('page', 1) or 1)
+    page = max(1, int(request.args.get('page', 1) or 1))
     per_page = 20
     offset = (page - 1) * per_page
 
@@ -308,7 +370,12 @@ def admin_list():
     cursor = execute_with_retry(query, params)
     requests = [dict(row) for row in cursor.fetchall()]
 
-    count_query = "SELECT COUNT(*) AS total FROM upgrade_requests r LEFT JOIN students s ON r.user_id = s.id WHERE 1=1"
+    count_query = """
+        SELECT COUNT(*) AS total
+        FROM upgrade_requests r
+        LEFT JOIN students s ON r.user_id = s.id
+        WHERE 1=1
+    """
     count_params = []
     if status_filter:
         count_query += " AND r.status = ?"
@@ -322,13 +389,19 @@ def admin_list():
     total = cursor.fetchone()['total']
     total_pages = (total + per_page - 1) // per_page if total > 0 else 1
 
-    return render_template('admin/upgrade_requests_list.html',
-                           requests=requests,
-                           status_filter=status_filter,
-                           search=search,
-                           page=page,
-                           total_pages=total_pages,
-                           total=total)
+    stats = _get_request_stats()
+
+    return render_template(
+        'dashboard/admin/upgrade_requests_list.html',
+        requests=requests,
+        status_filter=status_filter,
+        search=search,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        total=total,
+        stats=stats
+    )
 
 
 # ============================================
@@ -348,8 +421,9 @@ def admin_detail(request_id):
     row = cursor.fetchone()
     if not row:
         abort(404)
+
     request_data = dict(row)
-    return render_template('admin/upgrade_request_detail.html', request=request_data)
+    return render_template('dashboard/admin/upgrade_request_detail.html', upgrade_request=request_data)
 
 
 # ============================================
@@ -474,6 +548,217 @@ def admin_reject(request_id):
 
 
 # ============================================
+# ADMIN: Delete Request (cleanup)
+# ============================================
+
+@upgrade_bp.route('/admin/upgrade-requests/<request_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete(request_id):
+    if not validate_csrf():
+        abort(403)
+
+    cursor = execute_with_retry(
+        "SELECT * FROM upgrade_requests WHERE request_id = ?",
+        (request_id,)
+    )
+    row = cursor.fetchone()
+    if not row:
+        flash('Request not found.', 'error')
+        return redirect(url_for('upgrade.admin_list'))
+
+    if row['status'] == 'approved':
+        flash('Cannot delete an approved request.', 'error')
+        return redirect(url_for('upgrade.admin_detail', request_id=request_id))
+
+    execute_with_retry(
+        "DELETE FROM upgrade_requests WHERE request_id = ?",
+        (request_id,), commit=True
+    )
+    flash('Request deleted.', 'info')
+    return redirect(url_for('upgrade.admin_list'))
+
+
+# ============================================
+# ADMIN: Bulk Actions
+# ============================================
+
+@upgrade_bp.route('/admin/upgrade-requests/bulk', methods=['POST'])
+@admin_required
+def admin_bulk():
+    if not validate_csrf():
+        abort(403)
+
+    action = request.form.get('action', '')
+    request_ids = request.form.getlist('request_ids')
+
+    if not request_ids:
+        flash('No requests selected.', 'error')
+        return redirect(url_for('upgrade.admin_list'))
+
+    if action not in ('approve', 'reject', 'delete'):
+        flash('Invalid bulk action.', 'error')
+        return redirect(url_for('upgrade.admin_list'))
+
+    succeeded = 0
+    failed = 0
+    admin_note = f'Bulk {action} by admin #{session["user_id"]}'
+
+    for rid in request_ids:
+        try:
+            cursor = execute_with_retry(
+                "SELECT * FROM upgrade_requests WHERE request_id = ? AND status = 'pending'",
+                (rid,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                failed += 1
+                continue
+
+            if action == 'approve':
+                tier = row['requested_tier']
+                duration = row['duration']
+                if set_user_tier(row['user_id'], tier, admin_id=session['user_id']):
+                    expiry = calculate_expiry(duration)
+                    execute_with_retry("""
+                        UPDATE upgrade_requests
+                        SET status = 'approved', admin_id = ?, admin_note = ?,
+                            expiry_date = ?, approved_at = ?
+                        WHERE request_id = ?
+                    """, (session['user_id'], admin_note, expiry,
+                          get_somali_time_db(), rid), commit=True)
+                    if row['discount_code_id']:
+                        execute_with_retry(
+                            "UPDATE discount_codes SET used_count = used_count + 1 WHERE id = ?",
+                            (row['discount_code_id'],), commit=True
+                        )
+                    try:
+                        from db import create_notification
+                        create_notification(
+                            user_id=row['user_id'],
+                            type='tier_upgrade',
+                            title='🎉 Tier Upgrade Approved!',
+                            body=f'Your account has been upgraded to {tier.upper()}! Valid until {expiry[:10]}.',
+                            link='/dashboard',
+                            icon='⭐'
+                        )
+                    except Exception:
+                        pass
+                    succeeded += 1
+                else:
+                    failed += 1
+
+            elif action == 'reject':
+                execute_with_retry("""
+                    UPDATE upgrade_requests
+                    SET status = 'rejected', admin_id = ?, admin_note = ?, rejected_at = ?
+                    WHERE request_id = ?
+                """, (session['user_id'], admin_note,
+                      get_somali_time_db(), rid), commit=True)
+                try:
+                    from db import create_notification
+                    create_notification(
+                        user_id=row['user_id'],
+                        type='tier_upgrade',
+                        title='❌ Upgrade Request Rejected',
+                        body=f'Your request for {row["requested_tier"].upper()} was rejected.',
+                        link='/dashboard',
+                        icon='❌'
+                    )
+                except Exception:
+                    pass
+                succeeded += 1
+
+            elif action == 'delete':
+                execute_with_retry(
+                    "DELETE FROM upgrade_requests WHERE request_id = ?",
+                    (rid,), commit=True
+                )
+                succeeded += 1
+
+        except Exception as e:
+            logger.error(f"Bulk {action} failed for {rid}: {e}", exc_info=True)
+            failed += 1
+
+    if succeeded > 0:
+        flash(f'Bulk {action}: {succeeded} succeeded.', 'success')
+    if failed > 0:
+        flash(f'Bulk {action}: {failed} skipped or failed.', 'error')
+
+    return redirect(url_for('upgrade.admin_list'))
+
+
+# ============================================
+# ADMIN: CSV Export
+# ============================================
+
+@upgrade_bp.route('/admin/upgrade-requests/export')
+@admin_required
+def admin_export():
+    status_filter = request.args.get('status', '')
+    search = request.args.get('search', '').strip()
+
+    query = """
+        SELECT r.request_id, s.first_name, s.last_name, s.public_id,
+               s.phone_number, r.requested_tier, r.duration,
+               r.original_price_cents, r.discount_amount_cents, r.final_price_cents,
+               r.status, r.created_at, r.approved_at, r.rejected_at, r.expiry_date,
+               r.admin_note, r.user_note
+        FROM upgrade_requests r
+        LEFT JOIN students s ON r.user_id = s.id
+        WHERE 1=1
+    """
+    params = []
+    if status_filter:
+        query += " AND r.status = ?"
+        params.append(status_filter)
+    if search:
+        query += " AND (r.request_id LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ? OR s.phone_number LIKE ?)"
+        like = f"%{search}%"
+        params.extend([like, like, like, like])
+    query += " ORDER BY r.created_at DESC"
+
+    cursor = execute_with_retry(query, params)
+    rows = cursor.fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        'Request ID', 'First Name', 'Last Name', 'Public ID', 'Phone',
+        'Tier', 'Duration', 'Original ($)', 'Discount ($)', 'Final ($)',
+        'Status', 'Created', 'Approved', 'Rejected', 'Expiry',
+        'Admin Note', 'User Note'
+    ])
+    for row in rows:
+        writer.writerow([
+            row['request_id'],
+            row['first_name'] or '',
+            row['last_name'] or '',
+            row['public_id'] or '',
+            row['phone_number'] or '',
+            (row['requested_tier'] or '').upper(),
+            (row['duration'] or '').capitalize(),
+            f"{(row['original_price_cents'] or 0) / 100:.2f}",
+            f"{(row['discount_amount_cents'] or 0) / 100:.2f}",
+            f"{(row['final_price_cents'] or 0) / 100:.2f}",
+            (row['status'] or '').capitalize(),
+            row['created_at'] or '',
+            row['approved_at'] or '',
+            row['rejected_at'] or '',
+            row['expiry_date'] or '',
+            (row['admin_note'] or '').replace('\n', ' '),
+            (row['user_note'] or '').replace('\n', ' ')
+        ])
+
+    output.seek(0)
+    filename = f"upgrade_requests_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
+# ============================================
 # ADMIN: Discount Management
 # ============================================
 
@@ -482,7 +767,7 @@ def admin_reject(request_id):
 def admin_discounts():
     cursor = execute_with_retry("SELECT * FROM discount_codes ORDER BY created_at DESC")
     discounts = [dict(row) for row in cursor.fetchall()]
-    return render_template('admin/discounts_list.html', discounts=discounts)
+    return render_template('dashboard/admin/discounts_list.html', discounts=discounts)
 
 
 @upgrade_bp.route('/admin/discounts/create', methods=['GET', 'POST'])
@@ -507,12 +792,11 @@ def admin_discount_create():
 
         if not code or discount_type not in ('percentage', 'fixed') or discount_value <= 0:
             flash('Please fill all required fields.', 'error')
-            return render_template('admin/discount_form.html')
+            return render_template('dashboard/admin/discount_form.html')
 
-        # Guardrail: percentages cannot exceed 100.
         if discount_type == 'percentage' and discount_value > 100:
             flash('Percentage discount cannot exceed 100.', 'error')
-            return render_template('admin/discount_form.html')
+            return render_template('dashboard/admin/discount_form.html')
 
         if applies_to not in ('all', 'dhexe', 'hore'):
             applies_to = 'all'
@@ -536,7 +820,7 @@ def admin_discount_create():
             logger.error(f"Failed to create discount code: {e}", exc_info=True)
             flash('Error creating discount code. Please check the code is unique.', 'error')
 
-    return render_template('admin/discount_form.html')
+    return render_template('dashboard/admin/discount_form.html')
 
 
 @upgrade_bp.route('/admin/discounts/<int:discount_id>/edit', methods=['GET', 'POST'])
@@ -567,11 +851,11 @@ def admin_discount_edit(discount_id):
 
         if not code or discount_type not in ('percentage', 'fixed') or discount_value <= 0:
             flash('Please fill all required fields.', 'error')
-            return render_template('admin/discount_form.html', discount=discount)
+            return render_template('dashboard/admin/discount_form.html', discount=discount)
 
         if discount_type == 'percentage' and discount_value > 100:
             flash('Percentage discount cannot exceed 100.', 'error')
-            return render_template('admin/discount_form.html', discount=discount)
+            return render_template('dashboard/admin/discount_form.html', discount=discount)
 
         if applies_to not in ('all', 'dhexe', 'hore'):
             applies_to = 'all'
@@ -582,14 +866,8 @@ def admin_discount_edit(discount_id):
 
         execute_with_retry("""
             UPDATE discount_codes SET
-                code = ?,
-                discount_type = ?,
-                discount_value = ?,
-                applies_to = ?,
-                max_uses = ?,
-                expires_at = ?,
-                is_active = ?,
-                updated_at = ?
+                code = ?, discount_type = ?, discount_value = ?, applies_to = ?,
+                max_uses = ?, expires_at = ?, is_active = ?, updated_at = ?
             WHERE id = ?
         """, (
             code, discount_type, discount_value, applies_to, max_uses_val,
@@ -598,7 +876,7 @@ def admin_discount_edit(discount_id):
         flash('Discount code updated.', 'success')
         return redirect(url_for('upgrade.admin_discounts'))
 
-    return render_template('admin/discount_form.html', discount=discount)
+    return render_template('dashboard/admin/discount_form.html', discount=discount)
 
 
 @upgrade_bp.route('/admin/discounts/<int:discount_id>/delete', methods=['POST'])

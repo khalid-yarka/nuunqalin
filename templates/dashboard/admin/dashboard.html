@@ -1,13 +1,11 @@
 {% extends "dashboard_base.html" %}
 
 {% block title %}Admin Dashboard{% endblock %}
-
 {% block page_title %}Admin Dashboard{% endblock %}
 
 {% block extra_css %}
 {{ super() }}
 <style>
-    /* Modern Admin Dashboard Styles */
     .admin-stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -21,6 +19,9 @@
         padding: 18px 20px;
         box-shadow: var(--shadow-sm);
         transition: var(--transition);
+        text-decoration: none;
+        color: inherit;
+        display: block;
     }
     .admin-stat-card:hover {
         transform: translateY(-2px);
@@ -135,14 +136,67 @@
         color: white;
     }
 
-    .admin-activity-widget .load-more {
-        display: block;
-        text-align: center;
-        margin-top: 12px;
-        font-size: 13px;
+    .quick-action-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 18px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        text-decoration: none;
+        color: var(--text);
+        transition: all 0.2s ease;
+        box-shadow: var(--shadow-sm);
+    }
+    .quick-action-card:hover {
+        transform: translateX(4px);
+        border-color: var(--primary);
+        background: var(--primary-light);
+        box-shadow: var(--shadow-md);
+    }
+    .quick-action-card .qa-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        flex-shrink: 0;
+        background: var(--primary-light);
         color: var(--primary);
-        cursor: pointer;
-        font-weight: 500;
+    }
+    .quick-action-card .qa-text {
+        flex: 1;
+        min-width: 0;
+    }
+    .quick-action-card .qa-text .qa-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+    }
+    .quick-action-card .qa-text .qa-sub {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+    .quick-action-card .qa-arrow {
+        color: var(--text-muted);
+        font-size: 14px;
+        transition: transform 0.2s ease;
+    }
+    .quick-action-card:hover .qa-arrow {
+        transform: translateX(4px);
+        color: var(--primary);
+    }
+    .quick-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin-bottom: 28px;
+    }
+    .stat-pending-highlight {
+        color: #DC2626 !important;
     }
 </style>
 {% endblock %}
@@ -173,19 +227,31 @@
         <div><span class="stat-icon">👥</span><span class="stat-number">{{ groups_count }}</span></div>
         <div class="stat-label">Groups</div>
     </div>
+    <a href="{{ url_for('upgrade.admin_list') }}" class="admin-stat-card">
+        <div>
+            <span class="stat-icon">⚡</span>
+            <span class="stat-number {% if pending_upgrades_count and pending_upgrades_count > 0 %}stat-pending-highlight{% endif %}">
+                {{ pending_upgrades_count or 0 }}
+            </span>
+        </div>
+        <div class="stat-label">Pending Upgrades</div>
+    </a>
     <div class="admin-stat-card">
-        <div><span class="stat-icon">⚠️</span><span class="stat-number" style="color: {{ 'red' if error_stats.unresolved > 0 else 'green' }};">{{ error_stats.unresolved }}</span></div>
+        <div>
+            <span class="stat-icon">⚠️</span>
+            <span class="stat-number" style="color: {{ 'red' if error_stats.unresolved > 0 else 'green' }};">
+                {{ error_stats.unresolved }}
+            </span>
+        </div>
         <div class="stat-label">Unresolved Errors</div>
     </div>
 </div>
 
 <!-- ============================================ -->
-<!-- TWO COLUMN: ACTIVITY + BACKUP STATUS -->
+<!-- ACTIVITY + BACKUP -->
 <!-- ============================================ -->
 <div class="admin-grid-2">
-
-    <!-- Activity Feed -->
-    <div class="activity-feed admin-activity-widget">
+    <div class="activity-feed">
         <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 12px;">
             <i class="fas fa-clock" style="color: var(--primary);"></i> Recent Activity
         </h3>
@@ -196,7 +262,9 @@
                         <span class="severity-dot {{ act.severity }}"></span>
                         <div>
                             <div style="font-weight: 500; color: var(--text);">{{ act.message }}</div>
-                            <div style="font-size: 12px; color: var(--text-muted);">{{ act.created_at|replace('T', ' ')|truncate(16, True, '') }}</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">
+                                {{ act.created_at|replace('T', ' ')|truncate(16, True, '') }}
+                            </div>
                         </div>
                     </div>
                 {% endfor %}
@@ -204,10 +272,8 @@
                 <div style="text-align: center; color: var(--text-muted); padding: 20px 0;">No recent activity</div>
             {% endif %}
         </div>
-        <div class="load-more" onclick="loadMoreActivity()">Load more...</div>
     </div>
 
-    <!-- Backup Status -->
     <div class="backup-status-card">
         <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 12px;">
             <i class="fas fa-database" style="color: var(--primary);"></i> Backup Status
@@ -232,84 +298,90 @@
         {% endif %}
         <div class="quick-actions">
             <a href="{{ url_for('admin_backup.dashboard') }}">Manage Backups</a>
-            <a href="#" onclick="triggerBackup()">Backup Now</a>
+            <a href="#" onclick="triggerBackup(); return false;">Backup Now</a>
         </div>
     </div>
 </div>
 
 <!-- ============================================ -->
-<!-- QUICK ACTIONS (MANAGE SUBJECTS REMOVED) -->
+<!-- QUICK ACTIONS -->
 <!-- ============================================ -->
 <div style="margin-bottom: 28px;">
     <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 14px 0;">🚀 Quick Actions</h3>
     <div class="quick-actions-grid">
         <a href="{{ url_for('admin.admin_users') }}" class="quick-action-card">
-            <span class="qa-icon primary"><i class="fas fa-user-cog"></i></span>
+            <span class="qa-icon"><i class="fas fa-user-cog"></i></span>
             <span class="qa-text"><span class="qa-title">Manage Users</span><span class="qa-sub">View, promote, delete</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
+        <a href="{{ url_for('upgrade.admin_list') }}" class="quick-action-card">
+            <span class="qa-icon"><i class="fas fa-rocket"></i></span>
+            <span class="qa-text">
+                <span class="qa-title">Upgrade Requests</span>
+                <span class="qa-sub">
+                    {% if pending_upgrades_count and pending_upgrades_count > 0 %}
+                        {{ pending_upgrades_count }} pending review
+                    {% else %}
+                        No pending requests
+                    {% endif %}
+                </span>
+            </span>
+            <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
+        </a>
+        <a href="{{ url_for('upgrade.admin_discounts') }}" class="quick-action-card">
+            <span class="qa-icon"><i class="fas fa-tags"></i></span>
+            <span class="qa-text"><span class="qa-title">Discount Codes</span><span class="qa-sub">Create and manage</span></span>
+            <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
+        </a>
         <a href="{{ url_for('admin.admin_questions') }}" class="quick-action-card">
-            <span class="qa-icon blue"><i class="fas fa-question-circle"></i></span>
+            <span class="qa-icon"><i class="fas fa-question-circle"></i></span>
             <span class="qa-text"><span class="qa-title">Manage Questions</span><span class="qa-sub">Add or bulk import</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
         <a href="{{ url_for('admin.admin_pdfs') }}" class="quick-action-card">
-            <span class="qa-icon green"><i class="fas fa-file-pdf"></i></span>
+            <span class="qa-icon"><i class="fas fa-file-pdf"></i></span>
             <span class="qa-text"><span class="qa-title">Manage PDFs</span><span class="qa-sub">Upload materials</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
         <a href="{{ url_for('admin.admin_groups') }}" class="quick-action-card">
-            <span class="qa-icon teal"><i class="fas fa-users"></i></span>
+            <span class="qa-icon"><i class="fas fa-users"></i></span>
             <span class="qa-text"><span class="qa-title">Manage Groups</span><span class="qa-sub">Add/remove groups</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
+        <a href="{{ url_for('admin.reports') }}" class="quick-action-card">
+            <span class="qa-icon"><i class="fas fa-flag"></i></span>
+            <span class="qa-text"><span class="qa-title">Reports</span><span class="qa-sub">User-reported questions</span></span>
+            <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
+        </a>
         <a href="{{ url_for('admin.deleted_users') }}" class="quick-action-card">
-            <span class="qa-icon red"><i class="fas fa-trash-restore"></i></span>
+            <span class="qa-icon"><i class="fas fa-trash-restore"></i></span>
             <span class="qa-text"><span class="qa-title">Deleted Users</span><span class="qa-sub">Restore removed users</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
         <a href="{{ url_for('admin.admin_announcement') }}" class="quick-action-card">
-            <span class="qa-icon purple"><i class="fas fa-bullhorn"></i></span>
+            <span class="qa-icon"><i class="fas fa-bullhorn"></i></span>
             <span class="qa-text"><span class="qa-title">Send Announcement</span><span class="qa-sub">Notify all users</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
         <a href="{{ url_for('admin_errors.index') }}" class="quick-action-card">
-            <span class="qa-icon red"><i class="fas fa-exclamation-triangle"></i></span>
+            <span class="qa-icon"><i class="fas fa-exclamation-triangle"></i></span>
             <span class="qa-text"><span class="qa-title">Error Logs</span><span class="qa-sub">View system errors</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
         <a href="{{ url_for('admin_activity.index') }}" class="quick-action-card">
-            <span class="qa-icon blue"><i class="fas fa-list-ul"></i></span>
+            <span class="qa-icon"><i class="fas fa-list-ul"></i></span>
             <span class="qa-text"><span class="qa-title">Activity Log</span><span class="qa-sub">Full audit trail</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
         <a href="{{ url_for('admin_backup.dashboard') }}" class="quick-action-card">
-            <span class="qa-icon green"><i class="fas fa-database"></i></span>
+            <span class="qa-icon"><i class="fas fa-database"></i></span>
             <span class="qa-text"><span class="qa-title">Backup Management</span><span class="qa-sub">Create, restore, schedule</span></span>
             <span class="qa-arrow"><i class="fas fa-chevron-right"></i></span>
         </a>
     </div>
 </div>
 
-<!-- ============================================ -->
-<!-- LEGACY ACTIVITY FEED (keeping for now) -->
-<!-- ============================================ -->
-<div class="activity-feed" style="margin-bottom: 24px;">
-    <div class="feed-header">
-        <h3><i class="fas fa-clock" style="color: var(--primary); margin-right: 8px;"></i> Full Activity Log</h3>
-        <a href="{{ url_for('admin_activity.index') }}">View All →</a>
-    </div>
-    <div style="text-align: center; padding: 12px 0; color: var(--text-muted); font-size: 14px;">
-        <span style="font-size: 24px; display: block; opacity: 0.3; margin-bottom: 4px;">📊</span>
-        Visit the <a href="{{ url_for('admin_activity.index') }}" style="color: var(--primary);">Activity Log</a> for full history and filtering.
-    </div>
-</div>
-
 <script>
-function loadMoreActivity() {
-    window.location.href = "{{ url_for('admin_activity.index') }}";
-}
-
 function triggerBackup() {
     if (!confirm('Start a new backup now?')) return;
     const btn = event.target;
@@ -324,9 +396,9 @@ function triggerBackup() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Backup created: ' + data.filename + ' (' + data.size_kb.toFixed(1) + ' KB)');
+            alert('Backup created: ' + data.filename);
         } else {
-            alert('Backup failed: ' + data.message);
+            alert('Backup failed: ' + (data.message || data.error || 'Unknown error'));
         }
     })
     .catch(err => alert('Error: ' + err))

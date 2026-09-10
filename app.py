@@ -1,4 +1,4 @@
-# app.py – Complete file with fixed logout
+# app.py – Complete file
 
 import os
 import sys
@@ -14,7 +14,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from config import Config
 from db import (
     get_student_by_phone, get_student_by_id, create_student, is_admin,
-    close_db_connections, close_db,
+    close_db_connections, close_db, execute_with_retry,
 )
 from utils import (
     get_somali_time_display, validate_csrf, ensure_csrf_token, time_ago,
@@ -26,7 +26,7 @@ from errors import register_error_handlers
 from error_models import get_error_stats, get_error_log_count
 
 # ============================================
-# DEPLOYMENT SAFETY CHECK: Single worker
+# DEPLOYMENT SAFETY CHECK
 # ============================================
 def ensure_single_worker():
     if os.environ.get('FORCE_MULTI_WORKER') == '1':
@@ -63,38 +63,31 @@ from blueprints.admin_activity_bp import admin_activity_bp
 from blueprints.admin_backup_bp import admin_backup_bp
 from blueprints.upgrade_bp import upgrade_bp
 
-# ============================================
-# PDF ADMIN BLUEPRINT & TELEGRAM BOT (Webhook)
-# ============================================
+# PDF Admin + Telegram bot
 from blueprints.pdf_admin_bp import pdf_admin_bp
 from bot.bot import start_bot, stop_bot, get_bot
 from bot.handlers import process_telegram_update
 from bot.db import init_bot_db
 
-# ============================================
-# INTERACTIONS BLUEPRINT
-# ============================================
+# Interactions
 from blueprints.interactions_bp import interactions_bp
 
-# ============================================
-# HISTORY BLUEPRINT
-# ============================================
+# History
 from blueprints.history_bp import history_bp
 from history_logger import recover_pending_entries
 
-# ============================================
-# NEW SETTINGS & PROFILE BLUEPRINTS
-# ============================================
+# Settings & Profile
 from blueprints.settings_bp import settings_bp
 from blueprints.profile_bp import profile_bp
 
-# ============================================
 # Activity logger
-# ============================================
-from activity_logger import log_activity, log_admin_action, log_quiz_complete, log_backup_event, init_activity_logger
+from activity_logger import (
+    log_activity, log_admin_action, log_quiz_complete,
+    log_backup_event, init_activity_logger
+)
 
 # ============================================
-# BASE DIRECTORY & LOGGING
+# BASE DIR & LOGGING
 # ============================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -195,7 +188,10 @@ logger.info("=" * 60)
 BACKUP_AVAILABLE = False
 BACKUP_LOCK_FILE = None
 try:
-    from backup import BackupManager, acquire_backup_lock, release_backup_lock, is_backup_locked, BACKUP_LOCK_FILE
+    from backup import (
+        BackupManager, acquire_backup_lock, release_backup_lock,
+        is_backup_locked, BACKUP_LOCK_FILE
+    )
     BACKUP_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Backup module not available: {e}")
@@ -229,7 +225,7 @@ def execute_backup(backup_type='daily'):
         try:
             result = manager.create_backup(backup_type)
             if result['success']:
-                logger.info(f"Backup successful: {result['filename']} ({result['size_bytes'] / 1024:.2f} KB)")
+                logger.info(f"Backup successful: {result['filename']}")
             else:
                 logger.error(f"Backup failed: {result['message']}")
             return result
@@ -240,7 +236,7 @@ def execute_backup(backup_type='daily'):
         return {'success': False, 'message': str(e)}
 
 # ============================================
-# CACHE INITIALIZATION
+# CACHE INIT
 # ============================================
 
 try:
@@ -325,15 +321,10 @@ app.register_blueprint(admin_activity_bp)
 app.register_blueprint(admin_backup_bp)
 app.register_blueprint(upgrade_bp)
 
-# ============================================
-# REGISTER NEW SETTINGS & PROFILE BLUEPRINTS
-# ============================================
 app.register_blueprint(settings_bp)
 app.register_blueprint(profile_bp)
 
-# ============================================
-# REGISTER PDF ADMIN BLUEPRINT (Secret Path)
-# ============================================
+# PDF Admin
 PDF_ADMIN_SECRET = Config.PDF_ADMIN_SECRET_PATH
 if not PDF_ADMIN_SECRET:
     PDF_ADMIN_SECRET = '/pdf-admin-' + os.urandom(8).hex()
@@ -342,20 +333,11 @@ elif not PDF_ADMIN_SECRET.startswith('/'):
 app.register_blueprint(pdf_admin_bp, url_prefix=PDF_ADMIN_SECRET)
 logger.info(f"PDF Admin panel mounted at {PDF_ADMIN_SECRET}")
 
-# ============================================
-# REGISTER INTERACTIONS BLUEPRINT
-# ============================================
+# Interactions & History
 app.register_blueprint(interactions_bp)
-
-# ============================================
-# REGISTER HISTORY BLUEPRINT
-# ============================================
 app.register_blueprint(history_bp)
 
-# ============================================
-# REGISTER ERROR HANDLERS
-# ============================================
-
+# Error handlers
 register_error_handlers(app)
 
 # ============================================
@@ -376,8 +358,9 @@ def cleanup():
         logger.warning(f"Cleanup error: {e}")
 
 # ============================================
-# INITIALIZE BOT DATABASE
+# INIT BOT DATABASE
 # ============================================
+
 try:
     init_bot_db()
     logger.info("Bot database initialized")
@@ -385,14 +368,14 @@ except Exception as e:
     logger.error(f"Failed to initialize bot database: {e}")
 
 # ============================================
-# TELEGRAM WEBHOOK ROUTE
+# TELEGRAM WEBHOOK
 # ============================================
 
 @app.route('/webhook/<token>', methods=['POST'])
 def telegram_webhook(token):
     expected_token = Config.TELEGRAM_BOT_TOKEN
     if not expected_token or token != expected_token:
-        logger.warning(f"Webhook token mismatch. Expected {expected_token[:4]}... got {token[:4]}...")
+        logger.warning(f"Webhook token mismatch.")
         return jsonify({'error': 'Unauthorized'}), 403
 
     try:
@@ -407,23 +390,27 @@ def telegram_webhook(token):
         logger.error(f"Webhook error: {e}", exc_info=True)
         return jsonify({'error': 'Internal error'}), 500
 
-# ============================================
-# START BOT (Set Webhook, No Polling)
-# ============================================
 try:
     start_bot()
     logger.info("Bot webhook configured successfully.")
 except Exception as e:
     logger.error(f"Failed to configure bot webhook: {e}")
 
-# ============================================
-# HISTORY SYSTEM – RECOVER PENDING ENTRIES
-# ============================================
+# History recovery
 try:
     recover_pending_entries()
     logger.info("History queue recovery checked.")
 except Exception as e:
     logger.error(f"History recovery error: {e}")
+ 
+@app.route('/favicon.ico')
+def favicon():
+    from flask import send_from_directory
+    return send_from_directory(
+        os.path.join(app.root_path, 'static'),
+        'favicon.ico',
+        mimetype='image/vnd.microsoft.icon'
+    )   
 
 # ============================================
 # ROUTES
@@ -478,36 +465,26 @@ def health_check():
         'timestamp': get_somali_time_display(),
         'request_id': getattr(g, 'request_id', 'no-req'),
         'components': {
-            'database': {
-                'exists': db_health.get('exists'),
-                'openable': db_health.get('openable'),
-                'writable': db_health.get('writable'),
-                'integrity': db_health.get('integrity'),
-                'wal_enabled': db_health.get('wal_enabled'),
-                'tables_ok': db_health.get('tables_ok'),
-                'columns_ok': db_health.get('columns_ok'),
-                'errors': db_health.get('errors', [])
-            },
+            'database': db_health,
             'backup': backup_health,
             'cache': cache_health,
-            'errors': {
-                'total': error_stats.get('total', 0),
-                'critical': error_stats.get('critical', 0),
-                'unresolved': error_stats.get('unresolved', 0)
-            }
+            'errors': error_stats,
         },
         'critical_issues': critical_issues
     }), status_code
 
+
 @app.route('/docs')
 def docs():
     return render_template('docs.html')
+
 
 @app.route('/')
 def index():
     if 'user_id' in session:
         return redirect(url_for('dashboard.home'))
     return redirect(url_for('login'))
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -524,10 +501,6 @@ def login():
         try:
             student = get_student_by_phone(phone)
         except Exception as e:
-            if "malformed" in str(e).lower() or "corrupt" in str(e).lower():
-                logger.error(f"Database corruption on login attempt: {e}")
-                flash('Database error. Please contact support.', 'error')
-                return render_template('login.html')
             logger.error(f"Login error: {e}")
             flash('An error occurred. Please try again.', 'error')
             return render_template('login.html')
@@ -544,14 +517,13 @@ def login():
                 session.permanent = True
                 session['csrf_token'] = secrets.token_hex(32)
 
-                # Load settings into session
                 try:
                     from services.settings_service import SettingsService
                     settings = SettingsService.get_all(student['id'])
                     session['settings'] = settings
                     session.modified = True
                 except Exception as e:
-                    logger.error(f"Failed to load settings on login for user {student['id']}: {e}")
+                    logger.error(f"Failed to load settings on login: {e}")
                     session['settings'] = {}
 
                 logger.info(f"User logged in: user_id={student['id']}")
@@ -598,13 +570,7 @@ def register():
                 return False
             return True
 
-        if not validate_name(first_name):
-            logger.warning(f"Registration failed: Invalid first_name '{first_name}'")
-            flash('Registration failed. Please check your details.', 'error')
-            return render_template('register.html')
-
-        if not validate_name(last_name):
-            logger.warning(f"Registration failed: Invalid last_name '{last_name}'")
+        if not validate_name(first_name) or not validate_name(last_name):
             flash('Registration failed. Please check your details.', 'error')
             return render_template('register.html')
 
@@ -663,34 +629,19 @@ def register():
     return render_template('register.html')
 
 
-# ============================================
-# LOGOUT ROUTE – FIXED with warning flash
-# ============================================
-
 @app.route('/logout')
 def logout():
-    """
-    Log out the current user, clear all session data,
-    and display a warning about unsaved data.
-    """
     user_id = session.get('user_id')
     if user_id:
         try:
             log_activity('user.logout', f"User {user_id} logged out", 'info', user_id=user_id)
         except Exception as e:
             logger.warning(f"Failed to log logout: {e}")
-    
-    # Clear all session data
+
     session.clear()
-    
-    # Flash a warning about unsaved data
     flash('You have been logged out. Any unsaved changes were discarded.', 'warning')
-    
     return redirect(url_for('login'))
 
-# ============================================
-# BACKUP TRIGGER ENDPOINTS
-# ============================================
 
 @app.route('/backup/trigger', methods=['GET'])
 def trigger_backup():
@@ -724,11 +675,11 @@ def trigger_backup():
             'size_kb': round(result['size_bytes'] / 1024, 2),
             'duration_seconds': round(duration, 2),
             'timestamp': get_somali_time_display(),
-            'warning': 'Web-triggered backups are not recommended. Use scheduled tasks.'
         }), 200
     else:
         error_msg = result.get('message', 'Backup failed') if result else 'Backup failed'
         return jsonify({'status': 'error', 'message': error_msg}), 500
+
 
 @app.route('/backup/status', methods=['GET'])
 def backup_status():
@@ -749,8 +700,9 @@ def backup_status():
         logger.error(f"Backup status error: {e}")
         return jsonify({'error': str(e)}), 500
 
+
 # ============================================
-# CONTEXT PROCESSOR – WITH IMPROVED ACCENT
+# CONTEXT PROCESSOR
 # ============================================
 
 @app.context_processor
@@ -758,7 +710,7 @@ def utility_processor():
     token = ensure_csrf_token() if 'user_id' in session else ''
     settings = {}
     accent_colours = {'hex': '#FF3138', 'hover': '#E62B32', 'light': '#FFEBE8'}
-    
+
     if 'user_id' in session:
         if 'settings' in session:
             settings = session['settings']
@@ -769,17 +721,29 @@ def utility_processor():
                 session['settings'] = settings
                 session.modified = True
             except Exception as e:
-                logging.getLogger(__name__).warning(f"Failed to load settings for user {session['user_id']}: {e}")
+                logging.getLogger(__name__).warning(f"Failed to load settings: {e}")
                 settings = {}
-        
-        # Get accent from settings with proper light tint
+
         accent = settings.get('appearance.accent', 'red')
         theme = settings.get('appearance.theme', 'system')
-        is_dark = (theme == 'dark') or (theme == 'system' and __import__('utils').get_somali_time().hour < 6)
-        
+        is_dark = (theme == 'dark') or (
+            theme == 'system' and __import__('utils').get_somali_time().hour < 6
+        )
         from utils import get_accent_colours as get_accent
         accent_colours = get_accent(accent, is_dark)
-    
+
+    # Pending upgrade requests count (admins only)
+    pending_upgrades_count = 0
+    if session.get('is_admin'):
+        try:
+            cursor = execute_with_retry(
+                "SELECT COUNT(*) AS cnt FROM upgrade_requests WHERE status = 'pending'"
+            )
+            row = cursor.fetchone()
+            pending_upgrades_count = row['cnt'] if row else 0
+        except Exception:
+            pending_upgrades_count = 0
+
     return {
         'session': session,
         'is_admin': session.get('is_admin', False),
@@ -787,16 +751,18 @@ def utility_processor():
         'csrf_token': token,
         'settings': settings,
         'accent_colours': accent_colours,
+        'pending_upgrades_count': pending_upgrades_count,
+        'upgrade_admin_phone': Config.UPGRADE_ADMIN_PHONE,
     }
 
 # ============================================
-# INITIALIZE ACTIVITY LOGGER
+# INIT ACTIVITY LOGGER
 # ============================================
 
 init_activity_logger(app)
 
 # ============================================
-# INITIALIZE LIVE QUIZ STATE MANAGER
+# INIT LIVE QUIZ STATE MANAGER
 # ============================================
 
 try:
@@ -808,7 +774,7 @@ except Exception as e:
     logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
 
 # ============================================
-# RUN APP
+# RUN
 # ============================================
 
 if __name__ == '__main__':

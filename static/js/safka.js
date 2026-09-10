@@ -5,20 +5,13 @@
 (function() {
     'use strict';
 
-    // ----- DOM References -----
     let backdrop, sheet, content, closeBtn, handle;
-    let currentSlide = 0;
-    let totalSlides = 3;
     let isOpen = false;
     let isDragging = false;
     let dragStartY = 0;
     let sheetOffsetY = 0;
-
-    // FIX: default mode is 'upgrade'. All existing trigger calls
-    // (which omit `mode`) now land on the working 4-step wizard.
     let currentMode = 'upgrade';
 
-    // ----- Upgrade Flow State -----
     let upgradeState = {
         tier: null,
         duration: 'yearly',
@@ -29,7 +22,6 @@
         step: 1,
         requestId: null,
         note: '',
-        // FIX: preserve trigger context so we can show a hint banner
         feature: null,
         message: null
     };
@@ -64,7 +56,6 @@
         ]
     };
 
-    // ----- Initialisation -----
     function init() {
         backdrop = document.getElementById('safkaBackdrop');
         sheet = document.getElementById('safkaSheet');
@@ -95,7 +86,6 @@
             openSafkaPreview({ mode: 'upgrade', requiredTier: tier });
         };
 
-        // Delegated trigger for any [data-tier-locked] element.
         document.addEventListener('click', function(e) {
             const target = e.target.closest('[data-tier-locked]');
             if (target) {
@@ -107,18 +97,12 @@
         });
     }
 
-    // ----- Open Sheet -----
     function openSafkaPreview(options) {
         options = options || {};
-        // Always render the upgrade wizard. Legacy 'features' mode
-        // (which was only a placeholder) is redirected here.
         currentMode = options.mode || 'upgrade';
-
-        // Preserve any context the trigger wanted to communicate.
         upgradeState.feature = options.feature || null;
         upgradeState.message = options.message || null;
 
-        // Hide the old pagination dots — the wizard does not use them.
         const pagination = document.getElementById('safkaPagination');
         if (pagination) pagination.style.display = 'none';
 
@@ -131,7 +115,6 @@
         isOpen = true;
     }
 
-    // ----- Close Sheet -----
     function closeSheet() {
         if (!isOpen) return;
         sheet.style.transform = 'translateY(100%)';
@@ -140,25 +123,13 @@
         document.body.style.overflow = '';
         isOpen = false;
 
-        // Reset wizard state after close.
         upgradeState = {
-            step: 1,
-            tier: null,
-            duration: 'yearly',
-            originalPrice: 0,
-            discountCode: null,
-            discountAmount: 0,
-            finalPrice: 0,
-            requestId: null,
-            note: '',
-            feature: null,
-            message: null
+            step: 1, tier: null, duration: 'yearly', originalPrice: 0,
+            discountCode: null, discountAmount: 0, finalPrice: 0,
+            requestId: null, note: '', feature: null, message: null
         };
     }
 
-    // ============================================
-    // UPGRADE WIZARD – 4 Steps
-    // ============================================
     function renderUpgradeSheet(highlightTier) {
         upgradeState.step = 1;
         upgradeState.tier = highlightTier || null;
@@ -177,10 +148,8 @@
 
     function renderStep1() {
         const tier = upgradeState.tier;
-
-        // Optional hint banner shown when triggered from a locked feature.
         const contextMsg = upgradeState.message
-            ? '<div class="safka-context-banner" style="background: var(--primary-light); color: var(--text); padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 13px; line-height: 1.45;">' +
+            ? '<div style="background: var(--primary-light); color: var(--text); padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 13px; line-height: 1.45;">' +
               escapeHtml(upgradeState.message) +
               '</div>'
             : '';
@@ -236,8 +205,7 @@
 
         document.querySelectorAll('.safka-plan-card').forEach(card => {
             card.addEventListener('click', function() {
-                const t = this.dataset.tier;
-                upgradeState.tier = t;
+                upgradeState.tier = this.dataset.tier;
                 upgradeState.duration = 'yearly';
                 updatePrices();
                 renderStep2();
@@ -256,7 +224,7 @@
         let html = `
             <div class="safka-upgrade-step" data-step="2">
                 <div class="safka-step-header">
-                    <button class="safka-back-btn" data-step="1">←</button>
+                    <button class="safka-back-btn">←</button>
                     <h2>${tier.toUpperCase()}</h2>
                     <div class="safka-step-dots">
                         <span class="dot"></span>
@@ -284,7 +252,7 @@
         html += `
                 </div>
                 <div class="safka-step-actions">
-                    <button class="safka-back-link" data-step="1">← Back to Plans</button>
+                    <button class="safka-back-link">← Back to Plans</button>
                     <button class="safka-primary-btn" id="safkaUpgradeNow">Upgrade Now →</button>
                 </div>
             </div>
@@ -315,15 +283,13 @@
         const discount = upgradeState.discountAmount;
         const finalPrice = price - discount;
 
-        // FIX: always render the badge element (hidden if no discount),
-        // so the "Apply" handler has something to update without null-ref.
         const badgeStyle = discount > 0 ? '' : 'style="display:none;"';
         const badgeText = discount > 0 ? `-$${discount.toFixed(2)}` : '-$0.00';
 
         let html = `
             <div class="safka-upgrade-step" data-step="3">
                 <div class="safka-step-header">
-                    <button class="safka-back-btn" data-step="2">←</button>
+                    <button class="safka-back-btn">←</button>
                     <h2>Submit Request</h2>
                     <div class="safka-step-dots">
                         <span class="dot"></span>
@@ -349,7 +315,7 @@
                     </div>
                     <div class="safka-field readonly">
                         <label>Phone</label>
-                        <input type="text" value="${escapeHtml(window.userPhone || '+252 61 234 5678')}" readonly>
+                        <input type="text" value="${escapeHtml(window.userPhone || '')}" readonly>
                     </div>
                     <div class="safka-field">
                         <label>Note (optional)</label>
@@ -357,7 +323,7 @@
                     </div>
                 </div>
                 <div class="safka-step-actions">
-                    <button class="safka-back-link" data-step="2">← Back</button>
+                    <button class="safka-back-link">← Back</button>
                     <button class="safka-primary-btn" id="safkaSubmitRequest">Submit Request</button>
                 </div>
             </div>
@@ -391,7 +357,6 @@
                         upgradeState.discountCode = code;
                         upgradeState.discountAmount = data.discount_amount || 0;
                         upgradeState.finalPrice = data.final_price;
-
                         feedbackEl.innerHTML = '<span style="color:#10B981;">✅ ' + escapeHtml(data.message || 'Applied!') + '</span>';
 
                         const priceEl = document.getElementById('safkaSummaryPrice');
@@ -466,14 +431,25 @@
         const finalPrice = upgradeState.finalPrice;
         const requestId = upgradeState.requestId;
 
-        const whatsappMsg = encodeURIComponent(
-            'Hello Admin, I have submitted an upgrade request.\n' +
+        // Build admin request URL
+        const baseUrl = window.baseUrl || window.location.origin;
+        const requestUrl = baseUrl.replace(/\/$/, '') + '/upgrade/admin/upgrade-requests/' + encodeURIComponent(requestId);
+
+        // Message body sent to the admin via WhatsApp
+        const messageBody =
+            'Hello Admin, I have submitted an upgrade request.\n\n' +
             '📌 Request ID: ' + requestId + '\n' +
             '👤 Name: ' + (window.userName || 'User') + '\n' +
-            '📞 Phone: ' + (window.userPhone || '+252 61 234 5678') + '\n' +
-            '🏷️ Requested: ' + tier.toUpperCase() + ' — ' + (duration.charAt(0).toUpperCase() + duration.slice(1)) + ' ($' + finalPrice.toFixed(2) + ')\n' +
-            'Please review and let me know the payment details. Thank you!'
-        );
+            '📞 Phone: ' + (window.userPhone || '') + '\n' +
+            '🏷️ Plan: ' + tier.toUpperCase() + ' — ' + (duration.charAt(0).toUpperCase() + duration.slice(1)) + '\n' +
+            '💰 Amount: $' + finalPrice.toFixed(2) + '\n\n' +
+            '🔗 Review here:\n' + requestUrl;
+
+        // Direct to admin number (digits only, no +)
+        const adminPhone = (window.upgradeAdminPhone || '').replace(/[^\d]/g, '');
+        const whatsappUrl = adminPhone
+            ? 'https://wa.me/' + adminPhone + '?text=' + encodeURIComponent(messageBody)
+            : 'https://wa.me/?text=' + encodeURIComponent(messageBody);
 
         const html = `
             <div class="safka-upgrade-step" data-step="4">
@@ -497,8 +473,8 @@
                     <p class="safka-request-id">Request ID: <strong>${escapeHtml(requestId)}</strong></p>
                     <p class="safka-summary">${tier.toUpperCase()} — ${duration.charAt(0).toUpperCase() + duration.slice(1)} ($${finalPrice.toFixed(2)})</p>
                     <p class="safka-next-step">📱 The admin will contact you via WhatsApp to complete payment.</p>
-                    <a href="https://wa.me/?text=${whatsappMsg}" target="_blank" rel="noopener" class="safka-whatsapp-btn">
-                        <i class="fab fa-whatsapp"></i> Contact Admin on WhatsApp
+                    <a href="${whatsappUrl}" target="_blank" rel="noopener" class="safka-whatsapp-btn">
+                        <i class="fab fa-whatsapp"></i> Notify Admin on WhatsApp
                     </a>
                     <button class="safka-close-btn" onclick="closeSafkaSheet()">✕ Close</button>
                 </div>
@@ -512,9 +488,6 @@
         }, 100);
     }
 
-    // ============================================
-    // Drag to Dismiss
-    // ============================================
     function onDragStart(e) {
         if (!isOpen) return;
         isDragging = true;
@@ -573,9 +546,6 @@
         else sheet.style.transform = 'translateY(0)';
     }
 
-    // ============================================
-    // Helpers
-    // ============================================
     function getCsrfToken() {
         const meta = document.querySelector('meta[name="csrf-token"]');
         if (meta) return meta.content;
@@ -594,9 +564,6 @@
             .replace(/'/g, '&#39;');
     }
 
-    // ============================================
-    // Boot
-    // ============================================
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {

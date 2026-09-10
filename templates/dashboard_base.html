@@ -106,6 +106,19 @@
                     Admin Panel
                 </a>
 
+                <a href="{{ url_for('upgrade.admin_list') }}" class="nav-item {% if request.path.startswith('/upgrade/admin/upgrade-requests') %}active{% endif %}">
+                    <span class="nav-icon"><i class="fas fa-rocket"></i></span>
+                    Upgrade Requests
+                    {% if pending_upgrades_count and pending_upgrades_count > 0 %}
+                        <span class="nav-badge" style="background: #DC2626;">{{ pending_upgrades_count }}</span>
+                    {% endif %}
+                </a>
+
+                <a href="{{ url_for('upgrade.admin_discounts') }}" class="nav-item {% if request.path.startswith('/upgrade/admin/discounts') %}active{% endif %}">
+                    <span class="nav-icon"><i class="fas fa-tags"></i></span>
+                    Discount Codes
+                </a>
+
                 <a href="{{ url_for('admin_errors.index') }}" class="nav-item {% if request.endpoint.startswith('admin_errors.') %}active{% endif %}">
                     <span class="nav-icon"><i class="fas fa-exclamation-triangle"></i></span>
                     Error Logs
@@ -128,19 +141,16 @@
                 <span class="page-title">{% block page_title %}Dashboard{% endblock %}</span>
             </div>
             <div class="navbar-right">
-                <!-- THEME TOGGLE (cycling) -->
                 <button class="theme-toggle" id="themeToggle" aria-label="Change theme">
                     <i class="fas fa-sun" id="themeIcon"></i>
                 </button>
 
-                <!-- 🔔 NOTIFICATION BELL -->
                 <div class="notification-wrapper" id="notificationWrapper">
                     <button class="notification-toggle" id="notificationToggle" aria-label="Notifications">
                         <i class="fas fa-bell"></i>
                         <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
                     </button>
 
-                    <!-- Notification Dropdown -->
                     <div class="notification-dropdown" id="notificationDropdown">
                         <div class="dropdown-header">
                             <span>Notifications</span>
@@ -175,7 +185,7 @@
             {% block dashboard_content %}{% endblock %}
         </div>
 
-        <!-- Footer Redesign -->
+        <!-- Footer -->
         <footer class="app-footer">
             <div class="footer-inner">
                 <div class="footer-brand">
@@ -214,10 +224,10 @@
     <div class="safka-sheet__content">
         <div class="safka-carousel">
             <div class="safka-carousel__track" id="safkaTrack">
-                <!-- Slides will be rendered by JavaScript -->
+                <!-- Rendered by JS -->
             </div>
         </div>
-        <div class="safka-pagination" id="safkaPagination">
+        <div class="safka-pagination" id="safkaPagination" style="display:none;">
             <button class="safka-pagination__dot active" data-slide="0" aria-label="Slide 1"></button>
             <button class="safka-pagination__dot" data-slide="1" aria-label="Slide 2"></button>
             <button class="safka-pagination__dot" data-slide="2" aria-label="Slide 3"></button>
@@ -238,9 +248,7 @@
 <script src="{{ url_for('static', filename='js/font-size-fix.js') }}"></script>
 {% block dashboard_js %}{% endblock %}
 
-<!-- ============================================ -->
-<!-- SETTINGS BOOTSTRAP – for all authenticated pages -->
-<!-- ============================================ -->
+<!-- Settings bootstrap for authenticated pages -->
 {% if session.user_id %}
 <script id="nuun-settings-data" type="application/json">{{ settings|tojson|safe }}</script>
 <script src="{{ url_for('static', filename='js/platform-settings.js') }}"></script>
@@ -260,12 +268,13 @@
 {% endif %}
 
 <!-- ============================================ -->
-<!-- USER DATA FOR UPGRADE SHEET (AUTO‑FILL FORM) -->
+<!-- USER DATA FOR UPGRADE SHEET -->
 <!-- ============================================ -->
 <script>
-    // Expose user data for upgrade sheet
     window.userName = "{{ session.user_name or '' }}";
     window.userPhone = "{{ session.user_phone or '' }}";
+    window.upgradeAdminPhone = "{{ upgrade_admin_phone or '' }}";
+    window.baseUrl = "{{ request.url_root.rstrip('/') }}";
 </script>
 
 {% endblock %}

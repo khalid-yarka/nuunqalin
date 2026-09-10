@@ -5,89 +5,268 @@
 
 {% block dashboard_content %}
 <div style="max-width: 100%;">
+
+    <!-- Breadcrumb -->
     <div class="breadcrumb">
         <a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
         <span class="separator">/</span>
         <span class="current">Upgrade Requests</span>
     </div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+    <!-- Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
         <div>
-            <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">
+            <h2 style="font-size: 22px; font-weight: 700; color: var(--text); margin: 0;">
                 <i class="fas fa-rocket" style="color: var(--primary);"></i> Upgrade Requests
             </h2>
-            <p style="color: var(--text-secondary); font-size: 14px;">Manage user upgrade requests.</p>
+            <p style="color: var(--text-secondary); font-size: 14px; margin: 4px 0 0 0;">
+                Review and process user tier upgrade requests.
+            </p>
         </div>
-        <a href="{{ url_for('upgrade.admin_discounts') }}" class="btn btn-secondary">
-            <i class="fas fa-tags"></i> Manage Discounts
-        </a>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{{ url_for('upgrade.admin_export', status=status_filter, search=search) }}" class="btn btn-secondary">
+                <i class="fas fa-download"></i> Export CSV
+            </a>
+            <a href="{{ url_for('upgrade.admin_discounts') }}" class="btn btn-secondary">
+                <i class="fas fa-tags"></i> Discount Codes
+            </a>
+        </div>
     </div>
 
-    <form method="GET" class="filter-bar">
-        <select name="status">
-            <option value="">All Status</option>
-            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
-            <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
-            <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
-        </select>
-        <div class="search-wrapper">
-            <input type="text" name="search" placeholder="Search by request ID, name, phone..." value="{{ search }}" class="form-control">
+    <!-- Stats strip -->
+    <div class="stats-grid" style="margin-bottom: 20px;">
+        <a href="{{ url_for('upgrade.admin_list', status='pending') }}" class="stat-card" style="text-decoration:none;">
+            <span class="stat-icon" style="background:#FEF3C7;color:#92400E;">⏳</span>
+            <div class="stat-number" style="color: {{ '#DC2626' if stats.pending > 0 else 'var(--text)' }};">{{ stats.pending }}</div>
+            <div class="stat-label">Pending</div>
+        </a>
+        <div class="stat-card">
+            <span class="stat-icon" style="background:#EFF6FF;color:#1E40AF;">📅</span>
+            <div class="stat-number">{{ stats.this_week }}</div>
+            <div class="stat-label">This Week</div>
         </div>
-        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Filter</button>
-        {% if status_filter or search %}
-            <a href="{{ url_for('upgrade.admin_list') }}" class="btn btn-secondary">Clear</a>
+        <div class="stat-card">
+            <span class="stat-icon" style="background:#ECFDF5;color:#065F46;">✅</span>
+            <div class="stat-number" style="color:#10B981;">{{ stats.approved }}</div>
+            <div class="stat-label">Approved</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon" style="background:#FEF2F2;color:#991B1B;">❌</span>
+            <div class="stat-number" style="color:#EF4444;">{{ stats.rejected }}</div>
+            <div class="stat-label">Rejected</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon" style="background:var(--primary-light);color:var(--primary);">💰</span>
+            <div class="stat-number" style="color:var(--primary);">${{ stats.revenue_dollars }}</div>
+            <div class="stat-label">Revenue (approved)</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+        {% set tabs = [('pending', 'Pending', stats.pending), ('approved', 'Approved', stats.approved), ('rejected', 'Rejected', stats.rejected), ('cancelled', 'Cancelled', stats.cancelled), ('', 'All', total)] %}
+        {% for key, label, count in tabs %}
+            <a href="{{ url_for('upgrade.admin_list', status=key, search=search) }}"
+               class="btn {% if status_filter == key %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+                {{ label }}
+                {% if count and count > 0 %}
+                    <span style="background: {% if status_filter == key %}rgba(255,255,255,0.25){% else %}var(--background){% endif %}; padding: 1px 8px; border-radius: 10px; margin-left: 4px; font-size: 11px;">{{ count }}</span>
+                {% endif %}
+            </a>
+        {% endfor %}
+    </div>
+
+    <!-- Filter bar -->
+    <form method="GET" class="filter-bar" style="margin-bottom: 16px;">
+        <input type="hidden" name="status" value="{{ status_filter }}">
+        <div class="search-wrapper" style="flex: 1;">
+            <input type="text" name="search" placeholder="Search by request ID, name, or phone..."
+                   value="{{ search }}" class="form-control">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i></button>
+        </div>
+        {% if search or status_filter %}
+            <a href="{{ url_for('upgrade.admin_list') }}" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Clear
+            </a>
         {% endif %}
     </form>
 
-    <div class="table-container">
-        <div class="table-header">
-            <span><strong>{{ total }}</strong> requests</span>
+    <!-- Requests table -->
+    <form method="POST" action="{{ url_for('upgrade.admin_bulk') }}" id="bulkForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="action" id="bulkAction" value="">
+
+        <div class="table-container">
+            <div class="table-header">
+                <span><strong>{{ total }}</strong> requests</span>
+                <span>Page {{ page }} of {{ total_pages }}</span>
+            </div>
+
+            {% if requests %}
+                <div style="overflow-x: auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th style="width: 32px;">
+                                    <input type="checkbox" id="selectAll" onchange="toggleAll(this)">
+                                </th>
+                                <th>Request ID</th>
+                                <th>User</th>
+                                <th>Tier</th>
+                                <th>Duration</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th style="text-align: center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in requests %}
+                                {% set is_pending = req.status == 'pending' %}
+                                <tr>
+                                    <td>
+                                        {% if is_pending %}
+                                            <input type="checkbox" name="request_ids" value="{{ req.request_id }}" class="row-checkbox">
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('upgrade.admin_detail', request_id=req.request_id) }}"
+                                           style="color: var(--primary); font-family: monospace; font-size: 12px; text-decoration: none; font-weight: 600;">
+                                            {{ req.request_id }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <div style="font-weight: 500; color: var(--text);">
+                                            {{ req.first_name }} {{ req.last_name or '' }}
+                                        </div>
+                                        <div style="font-size: 11px; color: var(--text-muted);">
+                                            #{{ req.public_id or '----' }} · {{ req.phone_number or '' }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-primary" style="text-transform: uppercase;">
+                                            {{ req.requested_tier }}
+                                        </span>
+                                    </td>
+                                    <td>{{ req.duration|capitalize }}</td>
+                                    <td style="font-weight: 600; color: var(--primary);">
+                                        ${{ (req.final_price_cents / 100)|round(2) }}
+                                        {% if req.discount_amount_cents and req.discount_amount_cents > 0 %}
+                                            <div style="font-size: 11px; color: var(--text-muted); text-decoration: line-through;">
+                                                ${{ (req.original_price_cents / 100)|round(2) }}
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge
+                                            {% if req.status == 'pending' %}badge-warning
+                                            {% elif req.status == 'approved' %}badge-success
+                                            {% elif req.status == 'rejected' %}badge-danger
+                                            {% else %}badge-info{% endif %}">
+                                            {{ req.status|capitalize }}
+                                        </span>
+                                    </td>
+                                    <td style="font-size: 12px; color: var(--text-secondary); white-space: nowrap;">
+                                        {{ req.created_at[:16] if req.created_at else '-' }}
+                                    </td>
+                                    <td style="text-align: center; white-space: nowrap;">
+                                        <a href="{{ url_for('upgrade.admin_detail', request_id=req.request_id) }}"
+                                           class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Bulk actions -->
+                <div style="display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: var(--background); border-top: 1px solid var(--border); flex-wrap: wrap;">
+                    <span style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">
+                        Bulk Actions:
+                    </span>
+                    <button type="button" class="btn btn-sm btn-success" onclick="submitBulk('approve')">
+                        <i class="fas fa-check"></i> Approve Selected
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="submitBulk('reject')">
+                        <i class="fas fa-times"></i> Reject Selected
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="submitBulk('delete')">
+                        <i class="fas fa-trash"></i> Delete Selected
+                    </button>
+                    <span style="margin-left: auto; font-size: 12px; color: var(--text-muted);" id="selectedCount">
+                        0 selected
+                    </span>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <span class="empty-icon">📭</span>
+                    <div class="empty-title">No requests found</div>
+                    <p style="font-size: 14px; color: var(--text-secondary);">
+                        {% if search or status_filter %}
+                            Try adjusting your filters.
+                        {% else %}
+                            No upgrade requests have been submitted yet.
+                        {% endif %}
+                    </p>
+                </div>
+            {% endif %}
         </div>
-        <div style="overflow-x: auto;">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Request ID</th>
-                        <th>User</th>
-                        <th>Tier</th>
-                        <th>Duration</th>
-                        <th>Price</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th style="text-align: center;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for req in requests %}
-                    <tr>
-                        <td><code>{{ req.request_id }}</code></td>
-                        <td>{{ req.first_name }} {{ req.last_name }}<br><span style="font-size:12px; color:var(--text-muted);">#{{ req.public_id }}</span></td>
-                        <td><span class="badge badge-primary">{{ req.requested_tier|upper }}</span></td>
-                        <td>{{ req.duration|capitalize }}</td>
-                        <td>${{ (req.final_price_cents / 100)|round(2) }}</td>
-                        <td>
-                            <span class="badge {% if req.status == 'pending' %}badge-warning{% elif req.status == 'approved' %}badge-success{% else %}badge-danger{% endif %}">
-                                {{ req.status|capitalize }}
-                            </span>
-                        </td>
-                        <td style="font-size:13px; color:var(--text-secondary);">{{ req.created_at[:16] }}</td>
-                        <td style="text-align: center;">
-                            <a href="{{ url_for('upgrade.admin_detail', request_id=req.request_id) }}" class="btn btn-sm btn-primary">View</a>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="8" style="text-align:center; padding:30px;">No requests found.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% if total_pages > 1 %}
-        <div class="pagination">
+    </form>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+        <div class="pagination" style="margin-top: 20px;">
+            <a href="?page=1&status={{ status_filter }}&search={{ search }}"
+               class="page-link {% if page == 1 %}disabled{% endif %}">First</a>
+            <a href="?page={{ page - 1 }}&status={{ status_filter }}&search={{ search }}"
+               class="page-link {% if page == 1 %}disabled{% endif %}">Previous</a>
             {% for p in range(1, total_pages + 1) %}
-                <a href="?page={{ p }}&status={{ status_filter }}&search={{ search }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+                {% if p == page %}
+                    <span class="page-link active">{{ p }}</span>
+                {% elif p <= page + 2 and p >= page - 2 %}
+                    <a href="?page={{ p }}&status={{ status_filter }}&search={{ search }}" class="page-link">{{ p }}</a>
+                {% endif %}
             {% endfor %}
+            <a href="?page={{ page + 1 }}&status={{ status_filter }}&search={{ search }}"
+               class="page-link {% if page == total_pages %}disabled{% endif %}">Next</a>
+            <a href="?page={{ total_pages }}&status={{ status_filter }}&search={{ search }}"
+               class="page-link {% if page == total_pages %}disabled{% endif %}">Last</a>
         </div>
-        {% endif %}
-    </div>
+    {% endif %}
 </div>
+
+<script>
+function toggleAll(source) {
+    document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = source.checked);
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const n = document.querySelectorAll('.row-checkbox:checked').length;
+    const el = document.getElementById('selectedCount');
+    if (el) el.textContent = n + ' selected';
+}
+
+document.querySelectorAll('.row-checkbox').forEach(cb => {
+    cb.addEventListener('change', updateSelectedCount);
+});
+
+function submitBulk(action) {
+    const checked = document.querySelectorAll('.row-checkbox:checked');
+    if (checked.length === 0) {
+        alert('Please select at least one request.');
+        return;
+    }
+    const label = action.charAt(0).toUpperCase() + action.slice(1);
+    const warning = action === 'delete'
+        ? 'This will PERMANENTLY delete the selected requests. Continue?'
+        : `Are you sure you want to ${action} ${checked.length} request(s)?`;
+    if (!confirm(warning)) return;
+
+    document.getElementById('bulkAction').value = action;
+    document.getElementById('bulkForm').submit();
+}
+</script>
 {% endblock %}
