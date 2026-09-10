@@ -1,29 +1,31 @@
 // ============================================
 // SAFKA SHEET – Feature & Upgrade Modals
+// Advanced multi-slide upgrade wizard (frontend only)
 // ============================================
 
 (function() {
     'use strict';
 
+    // ----- DOM -----
     let backdrop, sheet, content, closeBtn, handle;
     let isOpen = false;
     let isDragging = false;
     let dragStartY = 0;
     let sheetOffsetY = 0;
-    let currentMode = 'upgrade';
 
-    let upgradeState = {
-        tier: null,
-        duration: 'yearly',
+    // ----- State -----
+    const state = {
+        step: 1,                 // 1=plans 2=details 3=submit 4=success
+        tier: null,              // 'dhexe' | 'hore'
+        duration: 'yearly',      // 'monthly' | 'term' | 'yearly'
         originalPrice: 0,
         discountCode: null,
         discountAmount: 0,
         finalPrice: 0,
-        step: 1,
-        requestId: null,
         note: '',
+        requestId: null,
         feature: null,
-        message: null
+        message: null,
     };
 
     const PRICES = {
@@ -31,31 +33,58 @@
         hore:  { monthly: 2.00, term: 4.50, yearly: 7.00 }
     };
 
-    const FEATURES = {
-        dhexe: [
-            '📊 Advanced analytics & progress charts',
-            '⚡ Host live quizzes (up to 50 participants)',
-            '💾 Save up to 50 questions',
-            '📝 30 quiz attempts per day',
-            '🔍 Subject filters for PDFs',
-            '🏆 Expanded achievements',
-            '🔑 Unlock accent colours',
-            '📅 Daily digest notifications'
-        ],
-        hore: [
-            '📈 Full analytics & historical trends',
-            '💎 Access to all premium PDF resources',
-            '♾️ Unlimited quiz attempts',
-            '♾️ Unlimited saved items',
-            '🎯 Full live quiz hosting & scheduling',
-            '🏅 All achievements & badges',
-            '📊 Personal learning insights',
-            '📧 Weekly summary reports',
-            '🔍 Advanced search filters',
-            '⭐ Priority support'
-        ]
+    // Savings vs. monthly (approximate %, computed once)
+    const SAVINGS = {
+        dhexe: { monthly: 0, term: 40, yearly: 66 },
+        hore:  { monthly: 0, term: 43, yearly: 71 }
     };
 
+    const DURATION_LABEL = {
+        monthly: 'Monthly',
+        term: 'Term · 4 months',
+        yearly: 'Yearly'
+    };
+
+    const TIER_META = {
+        dhexe: {
+            icon: '🔑',
+            name: 'Dhexe',
+            tagline: 'Advanced features for serious learners',
+            accent: 'pink',
+            features: [
+                'Advanced analytics & progress charts',
+                'Host live quizzes (up to 50 participants)',
+                'Save up to 50 questions',
+                '30 quiz attempts per day',
+                'Subject filters for PDFs',
+                'Expanded achievements',
+                'Accent colour themes',
+                'Daily digest notifications',
+            ],
+        },
+        hore: {
+            icon: '⭐',
+            name: 'Hore',
+            tagline: 'Complete access — nothing held back',
+            accent: 'gold',
+            features: [
+                'Full analytics & historical trends',
+                'Access to all premium PDFs',
+                'Unlimited quiz attempts',
+                'Unlimited saved items',
+                'Full live quiz hosting & scheduling',
+                'All achievements & badges',
+                'Personal learning insights',
+                'Weekly summary reports',
+                'Advanced search filters',
+                'Priority support',
+            ],
+        },
+    };
+
+    // ============================================
+    // INIT
+    // ============================================
     function init() {
         backdrop = document.getElementById('safkaBackdrop');
         sheet = document.getElementById('safkaSheet');
@@ -83,36 +112,52 @@
         window.openSafkaPreview = openSafkaPreview;
         window.closeSafkaSheet = closeSheet;
         window.openUpgradeSheet = function(tier) {
-            openSafkaPreview({ mode: 'upgrade', requiredTier: tier });
+            openSafkaPreview({ requiredTier: tier });
         };
 
+        // Delegated trigger for [data-tier-locked]
         document.addEventListener('click', function(e) {
             const target = e.target.closest('[data-tier-locked]');
             if (target) {
                 e.preventDefault();
-                const feature = target.dataset.feature || null;
-                const requiredTier = target.dataset.requiredTier || 'dhexe';
-                openSafkaPreview({ mode: 'upgrade', feature: feature, requiredTier: requiredTier });
+                openSafkaPreview({
+                    feature: target.dataset.feature || null,
+                    requiredTier: target.dataset.requiredTier || 'dhexe',
+                    message: target.dataset.lockReason || null,
+                });
             }
         });
     }
 
+    // ============================================
+    // OPEN / CLOSE
+    // ============================================
     function openSafkaPreview(options) {
         options = options || {};
-        currentMode = options.mode || 'upgrade';
-        upgradeState.feature = options.feature || null;
-        upgradeState.message = options.message || null;
 
-        const pagination = document.getElementById('safkaPagination');
-        if (pagination) pagination.style.display = 'none';
+        state.feature = options.feature || null;
+        state.message = options.message || null;
+        state.tier = options.requiredTier || null;
+        state.duration = 'yearly';
+        state.step = 1;
+        state.discountCode = null;
+        state.discountAmount = 0;
+        state.requestId = null;
+        state.note = '';
 
-        renderUpgradeSheet(options.requiredTier || 'hore');
+        updatePrices();
+
+        // Hide the legacy pagination dots
+        const pag = document.getElementById('safkaPagination');
+        if (pag) pag.style.display = 'none';
 
         sheet.style.transform = 'translateY(0)';
         sheet.classList.add('active');
         backdrop.classList.add('active');
         document.body.style.overflow = 'hidden';
         isOpen = true;
+
+        renderStep();
     }
 
     function closeSheet() {
@@ -123,221 +168,429 @@
         document.body.style.overflow = '';
         isOpen = false;
 
-        upgradeState = {
-            step: 1, tier: null, duration: 'yearly', originalPrice: 0,
-            discountCode: null, discountAmount: 0, finalPrice: 0,
-            requestId: null, note: '', feature: null, message: null
-        };
+        state.step = 1;
+        state.tier = null;
+        state.duration = 'yearly';
+        state.discountCode = null;
+        state.discountAmount = 0;
+        state.finalPrice = 0;
+        state.requestId = null;
+        state.note = '';
+        state.feature = null;
+        state.message = null;
     }
 
-    function renderUpgradeSheet(highlightTier) {
-        upgradeState.step = 1;
-        upgradeState.tier = highlightTier || null;
-        upgradeState.duration = 'yearly';
-        updatePrices();
-        renderStep1();
-    }
-
+    // ============================================
+    // HELPERS
+    // ============================================
     function updatePrices() {
-        if (upgradeState.tier) {
-            upgradeState.originalPrice = PRICES[upgradeState.tier][upgradeState.duration] || 0;
-            upgradeState.finalPrice = upgradeState.originalPrice - upgradeState.discountAmount;
-            if (upgradeState.finalPrice < 0) upgradeState.finalPrice = 0;
-        }
+        if (!state.tier) return;
+        state.originalPrice = PRICES[state.tier][state.duration] || 0;
+        state.finalPrice = Math.max(0, state.originalPrice - state.discountAmount);
     }
 
-    function renderStep1() {
-        const tier = upgradeState.tier;
-        const contextMsg = upgradeState.message
-            ? '<div style="background: var(--primary-light); color: var(--text); padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 13px; line-height: 1.45;">' +
-              escapeHtml(upgradeState.message) +
-              '</div>'
+    function getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta) return meta.content;
+        const input = document.querySelector('input[name="csrf_token"]');
+        return input ? input.value : '';
+    }
+
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        return String(text)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function money(n) { return '$' + Number(n || 0).toFixed(2); }
+
+    // ============================================
+    // RENDER – ROUTER
+    // ============================================
+    function renderStep() {
+        if (!content) return;
+
+        let html = '';
+        if (state.step === 1)      html = renderPlans();
+        else if (state.step === 2) html = renderDetails();
+        else if (state.step === 3) html = renderConfirm();
+        else                       html = renderSuccess();
+
+        content.innerHTML = html;
+        bindStep();
+    }
+
+    // ============================================
+    // STEP 1 – PLANS
+    // ============================================
+    function renderPlans() {
+        const ctxMsg = state.message
+            ? `<div class="sf-context">${escapeHtml(state.message)}</div>`
             : '';
 
-        const html = `
-            <div class="safka-upgrade-step" data-step="1">
-                <div class="safka-step-header">
-                    <h2>Upgrade Your Plan</h2>
-                    <div class="safka-step-dots">
-                        <span class="dot active"></span>
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                        <span class="dot"></span>
+        const tierCard = (key) => {
+            const meta = TIER_META[key];
+            const fromPrice = PRICES[key].monthly;
+            const selected = state.tier === key ? 'selected' : '';
+            return `
+                <button type="button" class="sf-plan ${meta.accent} ${selected}" data-tier="${key}">
+                    <div class="sf-plan-head">
+                        <div class="sf-plan-badge">${meta.icon}</div>
+                        <div class="sf-plan-title">
+                            <span class="sf-plan-name">${meta.name}</span>
+                            <span class="sf-plan-tag">${meta.tagline}</span>
+                        </div>
+                        <div class="sf-plan-price">
+                            <span class="sf-from">from</span>
+                            <span class="sf-amount">${money(fromPrice)}</span>
+                            <span class="sf-per">/mo</span>
+                        </div>
+                    </div>
+                    <ul class="sf-plan-list">
+                        ${meta.features.slice(0, 4).map(f => `<li>${f}</li>`).join('')}
+                    </ul>
+                    <div class="sf-plan-cta">
+                        <span>Choose ${meta.name}</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </div>
+                </button>
+            `;
+        };
+
+        return `
+            <div class="sf-step" data-step="1">
+                <div class="sf-head">
+                    <div class="sf-head-title">
+                        <h2>Upgrade your plan</h2>
+                        <p>Unlock more quizzes, features, and premium content.</p>
+                    </div>
+                    <div class="sf-steps">
+                        <span class="sf-dot active"></span>
+                        <span class="sf-dot"></span>
+                        <span class="sf-dot"></span>
+                        <span class="sf-dot"></span>
                     </div>
                 </div>
-                ${contextMsg}
-                <div class="safka-plan-grid">
-                    <div class="safka-plan-card ${tier === 'dhexe' ? 'selected' : ''}" data-tier="dhexe">
-                        <div class="safka-plan-header">
-                            <span class="safka-tier-icon">🔓</span>
-                            <span class="safka-tier-name">Dhexe</span>
-                            <span class="safka-tier-price">From $1.25</span>
-                        </div>
-                        <ul class="safka-feature-badges">
-                            <li>📊 Analytics</li>
-                            <li>⚡ Live Host</li>
-                            <li>💾 50 Saves</li>
-                            <li>📝 30/day Quizzes</li>
-                        </ul>
-                        <div class="safka-tap-hint">Tap to view</div>
-                    </div>
-                    <div class="safka-plan-card ${tier === 'hore' ? 'selected' : ''}" data-tier="hore">
-                        <div class="safka-plan-header">
-                            <span class="safka-tier-icon">⭐</span>
-                            <span class="safka-tier-name">Hore</span>
-                            <span class="safka-tier-price">From $2.00</span>
-                        </div>
-                        <ul class="safka-feature-badges">
-                            <li>📈 Full Analytics</li>
-                            <li>💎 Premium PDFs</li>
-                            <li>♾️ Unlimited</li>
-                            <li>⭐ Priority Support</li>
-                        </ul>
-                        <div class="safka-tap-hint">Tap to view</div>
-                    </div>
+                ${ctxMsg}
+                <div class="sf-plan-grid">
+                    ${tierCard('dhexe')}
+                    ${tierCard('hore')}
                 </div>
-                <div class="safka-reassurance">
-                    🔒 Admin approval required. No payment collected here.
+                <div class="sf-note">
+                    🔒 Admin approval required. No payment is collected here.
                 </div>
             </div>
         `;
-        content.innerHTML = html;
-
-        document.querySelectorAll('.safka-plan-card').forEach(card => {
-            card.addEventListener('click', function() {
-                upgradeState.tier = this.dataset.tier;
-                upgradeState.duration = 'yearly';
-                updatePrices();
-                renderStep2();
-            });
-        });
     }
 
-    function renderStep2() {
-        const tier = upgradeState.tier;
-        const features = FEATURES[tier] || [];
-        const price = PRICES[tier];
+    // ============================================
+    // STEP 2 – DETAILS
+    // ============================================
+    function renderDetails() {
+        const meta = TIER_META[state.tier];
         const durations = ['monthly', 'term', 'yearly'];
-        const durationLabels = { monthly: 'Monthly', term: 'Term (4 mo)', yearly: 'Yearly' };
-        const selectedDuration = upgradeState.duration;
+        const savings = SAVINGS[state.tier] || {};
 
-        let html = `
-            <div class="safka-upgrade-step" data-step="2">
-                <div class="safka-step-header">
-                    <button class="safka-back-btn">←</button>
-                    <h2>${tier.toUpperCase()}</h2>
-                    <div class="safka-step-dots">
-                        <span class="dot"></span>
-                        <span class="dot active"></span>
-                        <span class="dot"></span>
-                        <span class="dot"></span>
+        const durationBtns = durations.map(d => {
+            const active = state.duration === d ? 'active' : '';
+            const price = PRICES[state.tier][d];
+            const save = savings[d] || 0;
+            const saveBadge = save > 0
+                ? `<span class="sf-save">Save ${save}%</span>`
+                : '';
+            return `
+                <button type="button" class="sf-dur ${active}" data-dur="${d}">
+                    <span class="sf-dur-label">${DURATION_LABEL[d]}</span>
+                    <span class="sf-dur-price">${money(price)}</span>
+                    ${saveBadge}
+                </button>
+            `;
+        }).join('');
+
+        return `
+            <div class="sf-step" data-step="2">
+                <div class="sf-head">
+                    <button type="button" class="sf-back" data-back="1">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <div class="sf-head-title">
+                        <h2>${meta.icon} ${meta.name}</h2>
+                        <p>${meta.tagline}</p>
+                    </div>
+                    <div class="sf-steps">
+                        <span class="sf-dot"></span>
+                        <span class="sf-dot active"></span>
+                        <span class="sf-dot"></span>
+                        <span class="sf-dot"></span>
                     </div>
                 </div>
-                <div class="safka-feature-list">
-                    <div class="safka-feature-list-header">
-                        <span class="safka-price-range">From $${price.monthly}/month</span>
-                    </div>
+
+                <div class="sf-dur-grid">
+                    ${durationBtns}
+                </div>
+
+                <div class="sf-features">
+                    <div class="sf-features-title">What you get</div>
                     <ul>
-        `;
-        features.forEach(f => { html += `<li>✅ ${f}</li>`; });
-        html += `
+                        ${meta.features.map(f => `<li><i class="fas fa-check"></i> ${f}</li>`).join('')}
                     </ul>
                 </div>
-                <div class="safka-duration-picker">
-        `;
-        durations.forEach(d => {
-            const active = d === selectedDuration ? 'active' : '';
-            html += `<button class="safka-duration-pill ${active}" data-duration="${d}">${durationLabels[d]}<br><span class="safka-duration-price">$${price[d]}</span></button>`;
-        });
-        html += `
+            </div>
+
+            <div class="sf-footer">
+                <div class="sf-footer-price">
+                    <span class="sf-footer-label">Total</span>
+                    <span class="sf-footer-amount" data-amount>${money(PRICES[state.tier][state.duration])}</span>
                 </div>
-                <div class="safka-step-actions">
-                    <button class="safka-back-link">← Back to Plans</button>
-                    <button class="safka-primary-btn" id="safkaUpgradeNow">Upgrade Now →</button>
-                </div>
+                <button type="button" class="sf-cta" data-next="3">
+                    Continue <i class="fas fa-arrow-right"></i>
+                </button>
             </div>
         `;
-        content.innerHTML = html;
+    }
 
-        document.querySelectorAll('.safka-duration-pill').forEach(pill => {
-            pill.addEventListener('click', function() {
-                upgradeState.duration = this.dataset.duration;
+    // ============================================
+    // STEP 3 – CONFIRM
+    // ============================================
+    function renderConfirm() {
+        const meta = TIER_META[state.tier];
+        const durationLabel = DURATION_LABEL[state.duration];
+        const discountVisible = state.discountAmount > 0 ? '' : 'hidden';
+        const discountText = state.discountAmount > 0
+            ? `-${money(state.discountAmount)}`
+            : '';
+
+        return `
+            <div class="sf-step" data-step="3">
+                <div class="sf-head">
+                    <button type="button" class="sf-back" data-back="2">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <div class="sf-head-title">
+                        <h2>Review & submit</h2>
+                        <p>Confirm your request before sending.</p>
+                    </div>
+                    <div class="sf-steps">
+                        <span class="sf-dot"></span>
+                        <span class="sf-dot"></span>
+                        <span class="sf-dot active"></span>
+                        <span class="sf-dot"></span>
+                    </div>
+                </div>
+
+                <div class="sf-summary">
+                    <div class="sf-summary-row">
+                        <span>Plan</span>
+                        <span><strong>${meta.icon} ${meta.name}</strong></span>
+                    </div>
+                    <div class="sf-summary-row">
+                        <span>Duration</span>
+                        <span><strong>${durationLabel}</strong></span>
+                    </div>
+                    <div class="sf-summary-row">
+                        <span>Price</span>
+                        <span><strong>${money(state.originalPrice)}</strong></span>
+                    </div>
+                    <div class="sf-summary-row sf-discount-row" ${discountVisible ? '' : 'style="display:none;"'}>
+                        <span>Discount</span>
+                        <span style="color:#10B981;"><strong data-discount-text>${discountText}</strong></span>
+                    </div>
+                    <div class="sf-summary-row sf-total-row">
+                        <span>Total</span>
+                        <span data-total>${money(state.finalPrice)}</span>
+                    </div>
+                </div>
+
+                <div class="sf-discount">
+                    <button type="button" class="sf-discount-toggle" data-toggle-discount>
+                        <i class="fas fa-tag"></i>
+                        <span>Have a discount code?</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="sf-discount-body" hidden>
+                        <div class="sf-discount-input">
+                            <input type="text" placeholder="Enter code" data-discount-input
+                                   value="${escapeHtml(state.discountCode || '')}"
+                                   autocomplete="off" spellcheck="false">
+                            <button type="button" data-apply-discount>Apply</button>
+                        </div>
+                        <div class="sf-discount-feedback" data-discount-feedback></div>
+                    </div>
+                </div>
+
+                <div class="sf-note-box">
+                    <i class="fas fa-info-circle"></i>
+                    <span>After submitting, the admin will contact you on WhatsApp to complete payment.</span>
+                </div>
+            </div>
+
+            <div class="sf-footer">
+                <div class="sf-footer-price">
+                    <span class="sf-footer-label">Total</span>
+                    <span class="sf-footer-amount" data-amount>${money(state.finalPrice)}</span>
+                </div>
+                <button type="button" class="sf-cta sf-cta-primary" data-submit>
+                    <i class="fas fa-paper-plane"></i> Submit Request
+                </button>
+            </div>
+        `;
+    }
+
+    // ============================================
+    // STEP 4 – SUCCESS
+    // ============================================
+    function renderSuccess() {
+        const tier = state.tier;
+        const meta = TIER_META[tier];
+        const durationLabel = DURATION_LABEL[state.duration];
+        const reqId = state.requestId || '—';
+
+        const baseUrl = (window.baseUrl || window.location.origin).replace(/\/$/, '');
+        const requestUrl = baseUrl + '/upgrade/admin/upgrade-requests/' + encodeURIComponent(reqId);
+        const adminPhone = (window.upgradeAdminPhone || '').replace(/[^\d]/g, '');
+
+        const messageBody =
+            'Hello Admin, I have submitted an upgrade request.\n\n' +
+            '📌 Request ID: ' + reqId + '\n' +
+            '👤 Name: ' + (window.userName || 'User') + '\n' +
+            '📞 Phone: ' + (window.userPhone || '') + '\n' +
+            '🏷️ Plan: ' + meta.name.toUpperCase() + ' — ' + durationLabel + '\n' +
+            '💰 Amount: ' + money(state.finalPrice) + '\n\n' +
+            '🔗 Review here:\n' + requestUrl;
+
+        const waUrl = adminPhone
+            ? 'https://wa.me/' + adminPhone + '?text=' + encodeURIComponent(messageBody)
+            : 'https://wa.me/?text=' + encodeURIComponent(messageBody);
+
+        return `
+            <div class="sf-step sf-step-success" data-step="4">
+                <div class="sf-success-icon">
+                    <svg viewBox="0 0 80 80" width="80" height="80">
+                        <circle cx="40" cy="40" r="34" fill="none" stroke="#10B981" stroke-width="3" opacity="0.3"/>
+                        <circle cx="40" cy="40" r="34" fill="none" stroke="#10B981" stroke-width="3"
+                                stroke-dasharray="214" stroke-dashoffset="214" class="sf-success-ring"/>
+                        <path d="M24 40 L36 52 L58 30" fill="none" stroke="#10B981" stroke-width="4"
+                              stroke-linecap="round" stroke-linejoin="round"
+                              stroke-dasharray="50" stroke-dashoffset="50" class="sf-success-check"/>
+                    </svg>
+                </div>
+
+                <h2 class="sf-success-title">Request submitted!</h2>
+                <p class="sf-success-sub">We've sent it to the admin for review.</p>
+
+                <div class="sf-success-card">
+                    <div class="sf-success-row">
+                        <span>Request ID</span>
+                        <span class="sf-id-chip">
+                            ${escapeHtml(reqId)}
+                            <button type="button" class="sf-copy" data-copy="${escapeHtml(reqId)}" title="Copy">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </span>
+                    </div>
+                    <div class="sf-success-row">
+                        <span>Plan</span>
+                        <span><strong>${meta.icon} ${meta.name}</strong></span>
+                    </div>
+                    <div class="sf-success-row">
+                        <span>Duration</span>
+                        <span>${durationLabel}</span>
+                    </div>
+                    <div class="sf-success-row sf-success-total">
+                        <span>Amount</span>
+                        <span>${money(state.finalPrice)}</span>
+                    </div>
+                </div>
+
+                <a href="${waUrl}" target="_blank" rel="noopener" class="sf-wa">
+                    <i class="fab fa-whatsapp"></i> Notify Admin on WhatsApp
+                </a>
+
+                <button type="button" class="sf-close-btn" data-close>
+                    Close
+                </button>
+            </div>
+        `;
+    }
+
+    // ============================================
+    // BIND STEP EVENTS
+    // ============================================
+    function bindStep() {
+        // Plan selection
+        content.querySelectorAll('.sf-plan').forEach(el => {
+            el.addEventListener('click', () => {
+                state.tier = el.dataset.tier;
+                state.duration = 'yearly';
+                state.discountAmount = 0;
+                state.discountCode = null;
                 updatePrices();
-                renderStep2();
+                state.step = 2;
+                renderStep();
             });
         });
 
-        const backLink = document.querySelector('.safka-back-link');
-        if (backLink) backLink.addEventListener('click', renderStep1);
-        const backBtn = document.querySelector('.safka-back-btn');
-        if (backBtn) backBtn.addEventListener('click', renderStep1);
+        // Back buttons
+        content.querySelectorAll('.sf-back').forEach(el => {
+            el.addEventListener('click', () => {
+                const back = parseInt(el.dataset.back, 10);
+                if (!isNaN(back)) {
+                    state.step = back;
+                    renderStep();
+                }
+            });
+        });
 
-        const upgradeBtn = document.getElementById('safkaUpgradeNow');
-        if (upgradeBtn) upgradeBtn.addEventListener('click', renderStep3);
-    }
+        // Duration picker
+        content.querySelectorAll('.sf-dur').forEach(el => {
+            el.addEventListener('click', () => {
+                state.duration = el.dataset.dur;
+                updatePrices();
 
-    function renderStep3() {
-        const tier = upgradeState.tier;
-        const duration = upgradeState.duration;
-        const price = PRICES[tier][duration];
-        const discount = upgradeState.discountAmount;
-        const finalPrice = price - discount;
+                // Update UI without a full re-render (keeps the slide smooth)
+                content.querySelectorAll('.sf-dur').forEach(x => x.classList.remove('active'));
+                el.classList.add('active');
 
-        const badgeStyle = discount > 0 ? '' : 'style="display:none;"';
-        const badgeText = discount > 0 ? `-$${discount.toFixed(2)}` : '-$0.00';
+                // Update the sticky footer price
+                const amountEl = content.querySelector('.sf-footer-amount[data-amount]');
+                if (amountEl) amountEl.textContent = money(PRICES[state.tier][state.duration]);
+            });
+        });
 
-        let html = `
-            <div class="safka-upgrade-step" data-step="3">
-                <div class="safka-step-header">
-                    <button class="safka-back-btn">←</button>
-                    <h2>Submit Request</h2>
-                    <div class="safka-step-dots">
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                        <span class="dot active"></span>
-                        <span class="dot"></span>
-                    </div>
-                </div>
-                <div class="safka-plan-summary">
-                    <span class="safka-summary-tier">${tier.toUpperCase()} — ${duration.charAt(0).toUpperCase() + duration.slice(1)}</span>
-                    <span class="safka-summary-price" id="safkaSummaryPrice">$${finalPrice.toFixed(2)}</span>
-                    <span class="safka-discount-badge" id="safkaDiscountBadge" ${badgeStyle}>${badgeText}</span>
-                </div>
-                <div class="safka-discount-section">
-                    <input type="text" id="safkaDiscountInput" placeholder="Discount code" value="${upgradeState.discountCode || ''}">
-                    <button id="safkaApplyDiscount">Apply</button>
-                    <div id="safkaDiscountFeedback"></div>
-                </div>
-                <div class="safka-form-fields">
-                    <div class="safka-field readonly">
-                        <label>Name</label>
-                        <input type="text" value="${escapeHtml(window.userName || 'User')}" readonly>
-                    </div>
-                    <div class="safka-field readonly">
-                        <label>Phone</label>
-                        <input type="text" value="${escapeHtml(window.userPhone || '')}" readonly>
-                    </div>
-                    <div class="safka-field">
-                        <label>Note (optional)</label>
-                        <textarea id="safkaNote" rows="2" placeholder="Any special request?">${escapeHtml(upgradeState.note || '')}</textarea>
-                    </div>
-                </div>
-                <div class="safka-step-actions">
-                    <button class="safka-back-link">← Back</button>
-                    <button class="safka-primary-btn" id="safkaSubmitRequest">Submit Request</button>
-                </div>
-            </div>
-        `;
-        content.innerHTML = html;
+        // Continue
+        content.querySelectorAll('[data-next]').forEach(el => {
+            el.addEventListener('click', () => {
+                state.step = parseInt(el.dataset.next, 10) || 2;
+                renderStep();
+            });
+        });
 
-        const applyBtn = document.getElementById('safkaApplyDiscount');
+        // Discount toggle
+        const toggle = content.querySelector('[data-toggle-discount]');
+        if (toggle) {
+            toggle.addEventListener('click', () => {
+                const body = toggle.nextElementSibling;
+                const open = !body.hidden;
+                body.hidden = open;
+                toggle.classList.toggle('open', !open);
+            });
+        }
+
+        // Apply discount
+        const applyBtn = content.querySelector('[data-apply-discount]');
         if (applyBtn) {
-            applyBtn.addEventListener('click', function() {
-                const code = document.getElementById('safkaDiscountInput').value.trim();
-                if (!code) return;
-
-                const feedbackEl = document.getElementById('safkaDiscountFeedback');
-                feedbackEl.innerHTML = '<span style="color: var(--text-muted);">Checking…</span>';
+            applyBtn.addEventListener('click', () => {
+                const input = content.querySelector('[data-discount-input]');
+                const code = (input ? input.value : '').trim();
+                const fb = content.querySelector('[data-discount-feedback]');
+                if (!code) {
+                    if (fb) { fb.textContent = 'Please enter a code.'; fb.className = 'sf-discount-feedback err'; }
+                    return;
+                }
+                applyBtn.disabled = true;
+                applyBtn.textContent = '…';
+                if (fb) { fb.textContent = 'Checking…'; fb.className = 'sf-discount-feedback'; }
 
                 fetch('/upgrade/api/validate-discount', {
                     method: 'POST',
@@ -347,50 +600,57 @@
                     },
                     body: JSON.stringify({
                         code: code,
-                        tier: upgradeState.tier,
-                        duration: upgradeState.duration
+                        tier: state.tier,
+                        duration: state.duration
                     })
                 })
-                .then(res => res.json())
+                .then(r => r.json())
                 .then(data => {
+                    applyBtn.disabled = false;
+                    applyBtn.textContent = 'Apply';
+
                     if (data.valid) {
-                        upgradeState.discountCode = code;
-                        upgradeState.discountAmount = data.discount_amount || 0;
-                        upgradeState.finalPrice = data.final_price;
-                        feedbackEl.innerHTML = '<span style="color:#10B981;">✅ ' + escapeHtml(data.message || 'Applied!') + '</span>';
+                        state.discountCode = code;
+                        state.discountAmount = data.discount_amount || 0;
+                        state.finalPrice = data.final_price;
 
-                        const priceEl = document.getElementById('safkaSummaryPrice');
-                        if (priceEl) priceEl.textContent = '$' + upgradeState.finalPrice.toFixed(2);
-
-                        const badgeEl = document.getElementById('safkaDiscountBadge');
-                        if (badgeEl) {
-                            badgeEl.textContent = '-$' + upgradeState.discountAmount.toFixed(2);
-                            badgeEl.style.display = '';
+                        if (fb) {
+                            fb.textContent = '✅ ' + (data.message || 'Applied');
+                            fb.className = 'sf-discount-feedback ok';
                         }
+
+                        // Update summary numbers
+                        const totalEl = content.querySelector('[data-total]');
+                        if (totalEl) totalEl.textContent = money(state.finalPrice);
+                        const footerEl = content.querySelector('.sf-footer-amount[data-amount]');
+                        if (footerEl) footerEl.textContent = money(state.finalPrice);
+                        const discRow = content.querySelector('.sf-discount-row');
+                        const discText = content.querySelector('[data-discount-text]');
+                        if (discRow) discRow.style.display = '';
+                        if (discText) discText.textContent = '-' + money(state.discountAmount);
                     } else {
-                        feedbackEl.innerHTML = '<span style="color:#EF4444;">❌ ' + escapeHtml(data.message || 'Invalid code') + '</span>';
+                        if (fb) {
+                            fb.textContent = '❌ ' + (data.message || 'Invalid code');
+                            fb.className = 'sf-discount-feedback err';
+                        }
                     }
                 })
                 .catch(() => {
-                    feedbackEl.innerHTML = '<span style="color:#EF4444;">❌ Network error. Try again.</span>';
+                    applyBtn.disabled = false;
+                    applyBtn.textContent = 'Apply';
+                    if (fb) { fb.textContent = '❌ Network error. Try again.'; fb.className = 'sf-discount-feedback err'; }
                 });
             });
         }
 
-        const backLink = document.querySelector('.safka-back-link');
-        if (backLink) backLink.addEventListener('click', renderStep2);
-        const backBtn = document.querySelector('.safka-back-btn');
-        if (backBtn) backBtn.addEventListener('click', renderStep2);
-
-        const submitBtn = document.getElementById('safkaSubmitRequest');
+        // Submit
+        const submitBtn = content.querySelector('[data-submit]');
         if (submitBtn) {
-            submitBtn.addEventListener('click', function() {
-                const noteEl = document.getElementById('safkaNote');
-                upgradeState.note = noteEl ? noteEl.value.trim() : '';
-
-                const btn = this;
-                btn.disabled = true;
-                btn.innerHTML = 'Submitting…';
+            submitBtn.addEventListener('click', () => {
+                if (submitBtn.disabled) return;
+                submitBtn.disabled = true;
+                const original = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting…';
 
                 fetch('/upgrade/api/request', {
                     method: 'POST',
@@ -399,95 +659,83 @@
                         'X-CSRF-Token': getCsrfToken()
                     },
                     body: JSON.stringify({
-                        tier: upgradeState.tier,
-                        duration: upgradeState.duration,
-                        discount_code: upgradeState.discountCode || null,
-                        note: upgradeState.note
+                        tier: state.tier,
+                        duration: state.duration,
+                        discount_code: state.discountCode || null,
+                        note: state.note || ''
                     })
                 })
-                .then(res => res.json())
+                .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        upgradeState.requestId = data.request_id;
-                        renderStep4();
+                        state.requestId = data.request_id;
+                        state.step = 4;
+                        renderStep();
                     } else {
-                        alert('Error: ' + (data.message || 'Unknown error'));
-                        btn.disabled = false;
-                        btn.innerHTML = 'Submit Request';
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = original;
+                        alert('Error: ' + (data.message || 'Could not submit. Please try again.'));
                     }
                 })
                 .catch(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = original;
                     alert('Network error. Please try again.');
-                    btn.disabled = false;
-                    btn.innerHTML = 'Submit Request';
                 });
             });
         }
+
+        // Copy on success
+        content.querySelectorAll('[data-copy]').forEach(el => {
+            el.addEventListener('click', () => {
+                const text = el.dataset.copy || '';
+                if (!text) return;
+                const done = () => {
+                    el.innerHTML = '<i class="fas fa-check"></i>';
+                    el.classList.add('copied');
+                    setTimeout(() => {
+                        el.innerHTML = '<i class="fas fa-copy"></i>';
+                        el.classList.remove('copied');
+                    }, 1400);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+                } else {
+                    fallbackCopy(text, done);
+                }
+            });
+        });
+
+        // Close on success button
+        content.querySelectorAll('[data-close]').forEach(el => {
+            el.addEventListener('click', closeSheet);
+        });
+
+        // Animate success ring + check
+        if (state.step === 4) {
+            setTimeout(() => {
+                const ring = content.querySelector('.sf-success-ring');
+                const check = content.querySelector('.sf-success-check');
+                if (ring) ring.style.strokeDashoffset = '0';
+                if (check) check.style.strokeDashoffset = '0';
+            }, 60);
+        }
     }
 
-    function renderStep4() {
-        const tier = upgradeState.tier;
-        const duration = upgradeState.duration;
-        const finalPrice = upgradeState.finalPrice;
-        const requestId = upgradeState.requestId;
-
-        // Build admin request URL
-        const baseUrl = window.baseUrl || window.location.origin;
-        const requestUrl = baseUrl.replace(/\/$/, '') + '/upgrade/admin/upgrade-requests/' + encodeURIComponent(requestId);
-
-        // Message body sent to the admin via WhatsApp
-        const messageBody =
-            'Hello Admin, I have submitted an upgrade request.\n\n' +
-            '📌 Request ID: ' + requestId + '\n' +
-            '👤 Name: ' + (window.userName || 'User') + '\n' +
-            '📞 Phone: ' + (window.userPhone || '') + '\n' +
-            '🏷️ Plan: ' + tier.toUpperCase() + ' — ' + (duration.charAt(0).toUpperCase() + duration.slice(1)) + '\n' +
-            '💰 Amount: $' + finalPrice.toFixed(2) + '\n\n' +
-            '🔗 Review here:\n' + requestUrl;
-
-        // Direct to admin number (digits only, no +)
-        const adminPhone = (window.upgradeAdminPhone || '').replace(/[^\d]/g, '');
-        const whatsappUrl = adminPhone
-            ? 'https://wa.me/' + adminPhone + '?text=' + encodeURIComponent(messageBody)
-            : 'https://wa.me/?text=' + encodeURIComponent(messageBody);
-
-        const html = `
-            <div class="safka-upgrade-step" data-step="4">
-                <div class="safka-step-header">
-                    <h2>✅ Request Submitted!</h2>
-                    <div class="safka-step-dots">
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                        <span class="dot active"></span>
-                    </div>
-                </div>
-                <div class="safka-success-icon">
-                    <svg viewBox="0 0 24 24" width="64" height="64">
-                        <circle cx="12" cy="12" r="10" fill="none" stroke="#10B981" stroke-width="2"/>
-                        <path d="M7 12l3 3 7-7" stroke="#10B981" stroke-width="2" fill="none"
-                              stroke-dasharray="20" stroke-dashoffset="20" class="safka-check-path"/>
-                    </svg>
-                </div>
-                <div class="safka-success-details">
-                    <p class="safka-request-id">Request ID: <strong>${escapeHtml(requestId)}</strong></p>
-                    <p class="safka-summary">${tier.toUpperCase()} — ${duration.charAt(0).toUpperCase() + duration.slice(1)} ($${finalPrice.toFixed(2)})</p>
-                    <p class="safka-next-step">📱 The admin will contact you via WhatsApp to complete payment.</p>
-                    <a href="${whatsappUrl}" target="_blank" rel="noopener" class="safka-whatsapp-btn">
-                        <i class="fab fa-whatsapp"></i> Notify Admin on WhatsApp
-                    </a>
-                    <button class="safka-close-btn" onclick="closeSafkaSheet()">✕ Close</button>
-                </div>
-            </div>
-        `;
-        content.innerHTML = html;
-
-        setTimeout(() => {
-            const path = document.querySelector('.safka-check-path');
-            if (path) path.style.strokeDashoffset = '0';
-        }, 100);
+    function fallbackCopy(text, cb) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); cb && cb(); } catch (e) {}
+        document.body.removeChild(ta);
     }
 
+    // ============================================
+    // DRAG TO DISMISS
+    // ============================================
     function onDragStart(e) {
         if (!isOpen) return;
         isDragging = true;
@@ -512,14 +760,14 @@
         sheet.classList.remove('dragging');
         document.removeEventListener('mousemove', onDragMove);
         document.removeEventListener('mouseup', onDragEnd);
-        if (sheetOffsetY > 80) closeSheet();
+        if (sheetOffsetY > 90) closeSheet();
         else sheet.style.transform = 'translateY(0)';
     }
     function onDragStartTouch(e) {
         if (!isOpen) return;
-        const touch = e.touches[0];
+        const t = e.touches[0];
         isDragging = true;
-        dragStartY = touch.clientY;
+        dragStartY = t.clientY;
         sheetOffsetY = 0;
         sheet.classList.add('dragging');
         document.addEventListener('touchmove', onDragMoveTouch, { passive: false });
@@ -528,8 +776,8 @@
     }
     function onDragMoveTouch(e) {
         if (!isDragging) return;
-        const touch = e.touches[0];
-        const delta = touch.clientY - dragStartY;
+        const t = e.touches[0];
+        const delta = t.clientY - dragStartY;
         if (delta > 0) {
             sheet.style.transform = 'translateY(' + delta + 'px)';
             sheetOffsetY = delta;
@@ -542,28 +790,13 @@
         sheet.classList.remove('dragging');
         document.removeEventListener('touchmove', onDragMoveTouch);
         document.removeEventListener('touchend', onDragEndTouch);
-        if (sheetOffsetY > 80) closeSheet();
+        if (sheetOffsetY > 90) closeSheet();
         else sheet.style.transform = 'translateY(0)';
     }
 
-    function getCsrfToken() {
-        const meta = document.querySelector('meta[name="csrf-token"]');
-        if (meta) return meta.content;
-        const input = document.querySelector('input[name="csrf_token"]');
-        if (input) return input.value;
-        return '';
-    }
-
-    function escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        return String(text)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
+    // ============================================
+    // BOOT
+    // ============================================
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
