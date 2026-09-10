@@ -897,11 +897,19 @@ def get_user_quiz_history(student_id: int, limit: int = 10):
 
 def get_leaderboard(limit: int = 50):
     """
-    Get leaderboard with privacy filter and full name including middle name.
+    Get leaderboard with privacy filters:
+      - User hidden from leaderboard (show_on_leaderboard=0) -> excluded.
+      - User hides public ID (show_public_id=0) -> included but ID blanked.
     """
     try:
         cursor = execute_with_retry("""
-            SELECT s.public_id, s.first_name, s.middle_name, s.last_name, s.total_points, s.school
+            SELECT
+                CASE
+                    WHEN json_extract(us.settings, '$.privacy.show_public_id') = 0
+                        THEN '----'
+                    ELSE s.public_id
+                END AS public_id,
+                s.first_name, s.middle_name, s.last_name, s.total_points, s.school
             FROM students s
             LEFT JOIN user_settings us ON s.id = us.user_id
             WHERE (
@@ -2078,6 +2086,9 @@ def get_live_quizzes_lobby(
     per_page: int = 20
 ) -> tuple:
     try:
+        # Privacy filter:
+        #   Public quizzes -> visible to everyone.
+        #   Private quizzes -> visible ONLY to their creator or existing participants.
         query = """
             SELECT
                 lq.id,
@@ -2108,15 +2119,31 @@ def get_live_quizzes_lobby(
             FROM live_quizzes lq
             LEFT JOIN students creator ON lq.creator_id = creator.id
             LEFT JOIN live_quiz_participants lqp ON lq.id = lqp.quiz_id
-            WHERE lq.is_public = 1
+            WHERE (
+                lq.is_public = 1
+                OR lq.creator_id = ?
+                OR EXISTS (
+                    SELECT 1 FROM live_quiz_participants lqp3
+                    WHERE lqp3.quiz_id = lq.id AND lqp3.student_id = ?
+                )
+            )
         """
         count_query = """
             SELECT COUNT(DISTINCT lq.id) as total
             FROM live_quizzes lq
-            WHERE lq.is_public = 1
+            WHERE (
+                lq.is_public = 1
+                OR lq.creator_id = ?
+                OR EXISTS (
+                    SELECT 1 FROM live_quiz_participants lqp3
+                    WHERE lqp3.quiz_id = lq.id AND lqp3.student_id = ?
+                )
+            )
         """
-        params = [user_id or 0, user_id or 0, user_id or 0]
-        count_params = []
+        # 3 placeholders in SELECT subqueries + 2 in the WHERE privacy filter
+        params = [user_id or 0, user_id or 0, user_id or 0, user_id or 0, user_id or 0]
+        # 2 placeholders in the count query's privacy filter
+        count_params = [user_id or 0, user_id or 0]
 
         if status_filter and status_filter in ['scheduled', 'waiting', 'active', 'finished']:
             query += " AND lq.status = ?"

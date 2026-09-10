@@ -1,4 +1,4 @@
-# app.py – Complete file
+# app.py – Complete file with advanced user management integration
 
 import os
 import sys
@@ -18,7 +18,7 @@ from db import (
 )
 from utils import (
     get_somali_time_display, validate_csrf, ensure_csrf_token, time_ago,
-    get_accent_colours, ACCENT_MAP
+    get_accent_colours, ACCENT_MAP, get_somali_time_db,
 )
 from startup import verify_startup, get_startup_health
 from database import get_database_health
@@ -26,7 +26,7 @@ from errors import register_error_handlers
 from error_models import get_error_stats, get_error_log_count
 
 # ============================================
-# DEPLOYMENT SAFETY CHECK
+# DEPLOYMENT SAFETY CHECK: Single worker
 # ============================================
 def ensure_single_worker():
     if os.environ.get('FORCE_MULTI_WORKER') == '1':
@@ -63,31 +63,41 @@ from blueprints.admin_activity_bp import admin_activity_bp
 from blueprints.admin_backup_bp import admin_backup_bp
 from blueprints.upgrade_bp import upgrade_bp
 
-# PDF Admin + Telegram bot
+# ============================================
+# PDF ADMIN BLUEPRINT & TELEGRAM BOT (Webhook)
+# ============================================
 from blueprints.pdf_admin_bp import pdf_admin_bp
 from bot.bot import start_bot, stop_bot, get_bot
 from bot.handlers import process_telegram_update
 from bot.db import init_bot_db
 
-# Interactions
+# ============================================
+# INTERACTIONS BLUEPRINT
+# ============================================
 from blueprints.interactions_bp import interactions_bp
 
-# History
+# ============================================
+# HISTORY BLUEPRINT
+# ============================================
 from blueprints.history_bp import history_bp
 from history_logger import recover_pending_entries
 
-# Settings & Profile
+# ============================================
+# NEW SETTINGS & PROFILE BLUEPRINTS
+# ============================================
 from blueprints.settings_bp import settings_bp
 from blueprints.profile_bp import profile_bp
 
+# ============================================
 # Activity logger
+# ============================================
 from activity_logger import (
     log_activity, log_admin_action, log_quiz_complete,
     log_backup_event, init_activity_logger
 )
 
 # ============================================
-# BASE DIR & LOGGING
+# BASE DIRECTORY & LOGGING
 # ============================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -236,7 +246,7 @@ def execute_backup(backup_type='daily'):
         return {'success': False, 'message': str(e)}
 
 # ============================================
-# CACHE INIT
+# CACHE INITIALIZATION
 # ============================================
 
 try:
@@ -321,10 +331,15 @@ app.register_blueprint(admin_activity_bp)
 app.register_blueprint(admin_backup_bp)
 app.register_blueprint(upgrade_bp)
 
+# ============================================
+# REGISTER NEW SETTINGS & PROFILE BLUEPRINTS
+# ============================================
 app.register_blueprint(settings_bp)
 app.register_blueprint(profile_bp)
 
-# PDF Admin
+# ============================================
+# REGISTER PDF ADMIN BLUEPRINT (Secret Path)
+# ============================================
 PDF_ADMIN_SECRET = Config.PDF_ADMIN_SECRET_PATH
 if not PDF_ADMIN_SECRET:
     PDF_ADMIN_SECRET = '/pdf-admin-' + os.urandom(8).hex()
@@ -333,11 +348,20 @@ elif not PDF_ADMIN_SECRET.startswith('/'):
 app.register_blueprint(pdf_admin_bp, url_prefix=PDF_ADMIN_SECRET)
 logger.info(f"PDF Admin panel mounted at {PDF_ADMIN_SECRET}")
 
-# Interactions & History
+# ============================================
+# REGISTER INTERACTIONS BLUEPRINT
+# ============================================
 app.register_blueprint(interactions_bp)
+
+# ============================================
+# REGISTER HISTORY BLUEPRINT
+# ============================================
 app.register_blueprint(history_bp)
 
-# Error handlers
+# ============================================
+# REGISTER ERROR HANDLERS
+# ============================================
+
 register_error_handlers(app)
 
 # ============================================
@@ -358,9 +382,8 @@ def cleanup():
         logger.warning(f"Cleanup error: {e}")
 
 # ============================================
-# INIT BOT DATABASE
+# INITIALIZE BOT DATABASE
 # ============================================
-
 try:
     init_bot_db()
     logger.info("Bot database initialized")
@@ -368,7 +391,7 @@ except Exception as e:
     logger.error(f"Failed to initialize bot database: {e}")
 
 # ============================================
-# TELEGRAM WEBHOOK
+# TELEGRAM WEBHOOK ROUTE
 # ============================================
 
 @app.route('/webhook/<token>', methods=['POST'])
@@ -390,27 +413,23 @@ def telegram_webhook(token):
         logger.error(f"Webhook error: {e}", exc_info=True)
         return jsonify({'error': 'Internal error'}), 500
 
+# ============================================
+# START BOT (Set Webhook, No Polling)
+# ============================================
 try:
     start_bot()
     logger.info("Bot webhook configured successfully.")
 except Exception as e:
     logger.error(f"Failed to configure bot webhook: {e}")
 
-# History recovery
+# ============================================
+# HISTORY SYSTEM – RECOVER PENDING ENTRIES
+# ============================================
 try:
     recover_pending_entries()
     logger.info("History queue recovery checked.")
 except Exception as e:
     logger.error(f"History recovery error: {e}")
- 
-@app.route('/favicon.ico')
-def favicon():
-    from flask import send_from_directory
-    return send_from_directory(
-        os.path.join(app.root_path, 'static'),
-        'favicon.ico',
-        mimetype='image/vnd.microsoft.icon'
-    )   
 
 # ============================================
 # ROUTES
@@ -517,13 +536,26 @@ def login():
                 session.permanent = True
                 session['csrf_token'] = secrets.token_hex(32)
 
+                # Record last login for admin user management
+                try:
+                    execute_with_retry(
+                        "UPDATE students SET last_login_at = ?, last_login_ip = ? WHERE id = ?",
+                        (get_somali_time_db(),
+                         request.remote_addr or '',
+                         student['id']),
+                        commit=True
+                    )
+                except Exception:
+                    pass
+
+                # Load settings into session
                 try:
                     from services.settings_service import SettingsService
                     settings = SettingsService.get_all(student['id'])
                     session['settings'] = settings
                     session.modified = True
                 except Exception as e:
-                    logger.error(f"Failed to load settings on login: {e}")
+                    logger.error(f"Failed to load settings on login for user {student['id']}: {e}")
                     session['settings'] = {}
 
                 logger.info(f"User logged in: user_id={student['id']}")
@@ -629,8 +661,16 @@ def register():
     return render_template('register.html')
 
 
+# ============================================
+# LOGOUT ROUTE
+# ============================================
+
 @app.route('/logout')
 def logout():
+    """
+    Log out the current user, clear all session data,
+    and display a warning about unsaved data.
+    """
     user_id = session.get('user_id')
     if user_id:
         try:
@@ -642,6 +682,10 @@ def logout():
     flash('You have been logged out. Any unsaved changes were discarded.', 'warning')
     return redirect(url_for('login'))
 
+
+# ============================================
+# BACKUP TRIGGER ENDPOINTS
+# ============================================
 
 @app.route('/backup/trigger', methods=['GET'])
 def trigger_backup():
@@ -675,6 +719,7 @@ def trigger_backup():
             'size_kb': round(result['size_bytes'] / 1024, 2),
             'duration_seconds': round(duration, 2),
             'timestamp': get_somali_time_display(),
+            'warning': 'Web-triggered backups are not recommended. Use scheduled tasks.'
         }), 200
     else:
         error_msg = result.get('message', 'Backup failed') if result else 'Backup failed'
@@ -756,13 +801,13 @@ def utility_processor():
     }
 
 # ============================================
-# INIT ACTIVITY LOGGER
+# INITIALIZE ACTIVITY LOGGER
 # ============================================
 
 init_activity_logger(app)
 
 # ============================================
-# INIT LIVE QUIZ STATE MANAGER
+# INITIALIZE LIVE QUIZ STATE MANAGER
 # ============================================
 
 try:
@@ -774,7 +819,7 @@ except Exception as e:
     logger.error(f"Live Quiz State Manager initialization failed: {e}", exc_info=True)
 
 # ============================================
-# RUN
+# RUN APP
 # ============================================
 
 if __name__ == '__main__':

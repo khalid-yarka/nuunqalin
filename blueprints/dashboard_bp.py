@@ -72,7 +72,13 @@ def home():
     limit = 5 if analytics_level == 1 else 10 if analytics_level == 2 else 20
     recent_activity = []
     for q in attempts[:limit]:
-        subject_name = q.get('subjects', {}).get('name', 'Unknown') if q.get('subjects') else 'Unknown'
+        # db.get_user_quiz_history returns 'subject' (singular), not 'subjects'.
+        subject_name = 'Unknown'
+        if q.get('subject'):
+            subject_name = q['subject'].get('name') or subject_name
+        elif q.get('subject_code'):
+            subject_name = q['subject_code']
+    
         score = q.get('score', 0)
         total = q.get('total_questions', 10)
         pct = round((score / total) * 100) if total > 0 else 0

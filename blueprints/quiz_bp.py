@@ -370,9 +370,17 @@ def leaderboard():
         flash('Please login first.', 'error')
         return redirect(url_for('login'))
 
-    # Get top 50 users with privacy filter, including middle_name
+    # Privacy filter:
+    #   show_on_leaderboard=0 -> user excluded entirely
+    #   show_public_id=0     -> user included but public_id blanked
     query = """
-        SELECT s.public_id, s.first_name, s.middle_name, s.last_name, s.total_points, s.school
+        SELECT
+            CASE
+                WHEN json_extract(us.settings, '$.privacy.show_public_id') = 0
+                    THEN '----'
+                ELSE s.public_id
+            END AS public_id,
+            s.first_name, s.middle_name, s.last_name, s.total_points, s.school
         FROM students s
         LEFT JOIN user_settings us ON s.id = us.user_id
         WHERE (
@@ -387,10 +395,31 @@ def leaderboard():
     leaders = [dict(row) for row in cursor.fetchall()]
 
     user_rank = None
-    for i, student in enumerate(leaders, 1):
-        if student.get('public_id') == session.get('public_id'):
-            user_rank = i
-            break
+    # NOTE: don't compare by public_id here anymore — it may be masked.
+    # Use the logged-in user's id to find their rank.
+    cursor = execute_with_retry(
+        "SELECT id FROM students WHERE id = ?",
+        (session['user_id'],)
+    )
+    row = cursor.fetchone()
+    if row:
+        # Count how many visible users have more points than the current user.
+        rank_cursor = execute_with_retry("""
+            SELECT COUNT(*) AS c
+            FROM students s
+            LEFT JOIN user_settings us ON s.id = us.user_id
+            WHERE (
+                us.settings IS NULL
+                OR json_extract(us.settings, '$.privacy.show_on_leaderboard') IS NULL
+                OR json_extract(us.settings, '$.privacy.show_on_leaderboard') = 1
+            )
+              AND s.total_points > (
+                SELECT total_points FROM students WHERE id = ?
+              )
+        """, (session['user_id'],))
+        rank_row = rank_cursor.fetchone()
+        if rank_row:
+            user_rank = rank_row['c'] + 1
 
     level = get_feature_level("detailed_ranking_stats", session['user_id'])
 

@@ -354,11 +354,25 @@ def create():
                                    default_privacy=default_privacy)
 
         title = request.form.get('title', '').strip()
+        if not title:
+            flash('Please give your quiz a title before creating it.', 'error')
+            return render_template('dashboard/live_quiz/create.html',
+                                   subjects=user_subjects,
+                                   subject_code=subject_code,
+                                   title='',
+                                   is_public=request.form.get('is_public', default_privacy),
+                                   default_time=default_time,
+                                   default_max_participants=default_max_participants,
+                                   default_privacy=default_privacy)
         if len(title) > 100:
             flash('Title is too long (max 100 characters).', 'error')
-            return render_template('dashboard/live_quiz/create.html', subjects=user_subjects,
-                                   subject_code=subject_code, title=title, is_public=request.form.get('is_public', default_privacy),
-                                   default_time=default_time, default_max_participants=default_max_participants,
+            return render_template('dashboard/live_quiz/create.html',
+                                   subjects=user_subjects,
+                                   subject_code=subject_code,
+                                   title=title,
+                                   is_public=request.form.get('is_public', default_privacy),
+                                   default_time=default_time,
+                                   default_max_participants=default_max_participants,
                                    default_privacy=default_privacy)
 
         # Use form value, fallback to default
@@ -521,6 +535,9 @@ def create_with_available():
         return redirect(url_for('live_quiz.create'))
 
     title = request.form.get('title', '').strip()
+    if not title:
+        flash('Please give your quiz a title before creating it.', 'error')
+        return redirect(url_for('live_quiz.create'))
     if len(title) > 100:
         flash('Title is too long (max 100 characters).', 'error')
         return redirect(url_for('live_quiz.create'))

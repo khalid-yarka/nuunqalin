@@ -765,9 +765,103 @@ def admin_export():
 @upgrade_bp.route('/admin/discounts')
 @admin_required
 def admin_discounts():
-    cursor = execute_with_retry("SELECT * FROM discount_codes ORDER BY created_at DESC")
+    filter_status = request.args.get('filter', '').strip()
+    search = request.args.get('search', '').strip()
+
+    query = "SELECT * FROM discount_codes WHERE 1=1"
+    params = []
+
+    if search:
+        query += " AND code LIKE ?"
+        params.append(f"%{search}%")
+
+    # Computed status filters (align with the template's pill logic)
+    if filter_status == 'active':
+        query += (
+            " AND is_active = 1"
+            " AND (expires_at IS NULL OR expires_at > datetime('now'))"
+            " AND (max_uses IS NULL OR used_count < max_uses)"
+        )
+    elif filter_status == 'inactive':
+        query += " AND is_active = 0"
+    elif filter_status == 'expired':
+        query += " AND expires_at IS NOT NULL AND expires_at <= datetime('now')"
+    elif filter_status == 'exhausted':
+        query += " AND max_uses IS NOT NULL AND used_count >= max_uses"
+
+    query += " ORDER BY created_at DESC"
+
+    cursor = execute_with_retry(query, params)
     discounts = [dict(row) for row in cursor.fetchall()]
-    return render_template('dashboard/admin/discounts_list.html', discounts=discounts)
+
+    # Compute per-row status so the template can render pills directly
+    now_dt = get_somali_time()
+    for d in discounts:
+        expires_str = d.get('expires_at')
+        is_expired = False
+        if expires_str:
+            try:
+                exp_dt = datetime.fromisoformat(str(expires_str).replace(' ', 'T'))
+                if exp_dt.tzinfo is None:
+                    exp_dt = exp_dt.replace(tzinfo=SOMALI_TIMEZONE)
+                is_expired = exp_dt < now_dt
+            except (ValueError, TypeError):
+                is_expired = False
+
+        is_exhausted = (
+            d.get('max_uses') is not None
+            and (d.get('used_count') or 0) >= d['max_uses']
+        )
+
+        if is_expired:
+            d['computed_status'] = 'expired'
+        elif is_exhausted:
+            d['computed_status'] = 'exhausted'
+        elif d.get('is_active'):
+            d['computed_status'] = 'active'
+        else:
+            d['computed_status'] = 'inactive'
+
+    stats = _get_discount_stats()
+
+    return render_template(
+        'dashboard/admin/discounts_list.html',
+        discounts=discounts,
+        stats=stats,
+        filter_status=filter_status,
+        search=search,
+    )
+
+
+def _get_discount_stats():
+    """Aggregate stats for the discount page header."""
+    try:
+        cursor = execute_with_retry("""
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN is_active = 1
+                         AND (expires_at IS NULL OR expires_at > datetime('now'))
+                         AND (max_uses IS NULL OR used_count < max_uses)
+                    THEN 1 ELSE 0 END) AS active,
+                SUM(CASE WHEN expires_at IS NOT NULL AND expires_at <= datetime('now')
+                    THEN 1 ELSE 0 END) AS expired,
+                SUM(CASE WHEN max_uses IS NOT NULL AND used_count >= max_uses
+                    THEN 1 ELSE 0 END) AS exhausted,
+                COALESCE(SUM(used_count), 0) AS total_uses
+            FROM discount_codes
+        """)
+        row = cursor.fetchone()
+        if row:
+            return {
+                'total': row['total'] or 0,
+                'active': row['active'] or 0,
+                'expired': row['expired'] or 0,
+                'exhausted': row['exhausted'] or 0,
+                'total_uses': row['total_uses'] or 0,
+            }
+    except Exception as e:
+        logger.error(f"Discount stats error: {e}", exc_info=True)
+    return {'total': 0, 'active': 0, 'expired': 0, 'exhausted': 0, 'total_uses': 0}
 
 
 @upgrade_bp.route('/admin/discounts/create', methods=['GET', 'POST'])
@@ -887,3 +981,48 @@ def admin_discount_delete(discount_id):
     execute_with_retry("DELETE FROM discount_codes WHERE id = ?", (discount_id,), commit=True)
     flash('Discount code deleted.', 'info')
     return redirect(url_for('upgrade.admin_discounts'))
+
+@upgrade_bp.route('/admin/discounts/bulk', methods=['POST'])
+@admin_required
+def admin_discount_bulk():
+    if not validate_csrf():
+        abort(403)
+
+    action = request.form.get('action', '')
+    ids = request.form.getlist('discount_ids')
+
+    if not ids:
+        flash('No discount codes selected.', 'error')
+        return redirect(url_for('upgrade.admin_discounts'))
+
+    if action not in ('activate', 'deactivate', 'delete'):
+        flash('Invalid bulk action.', 'error')
+        return redirect(url_for('upgrade.admin_discounts'))
+
+    succeeded = 0
+    failed = 0
+    for did in ids:
+        try:
+            if action == 'delete':
+                execute_with_retry(
+                    "DELETE FROM discount_codes WHERE id = ?",
+                    (did,), commit=True
+                )
+            else:
+                new_state = 1 if action == 'activate' else 0
+                execute_with_retry(
+                    "UPDATE discount_codes SET is_active = ?, updated_at = ? WHERE id = ?",
+                    (new_state, get_somali_time_db(), did),
+                    commit=True
+                )
+            succeeded += 1
+        except Exception as e:
+            logger.error(f"Bulk {action} failed for discount {did}: {e}", exc_info=True)
+            failed += 1
+
+    if succeeded:
+        flash(f'Bulk {action}: {succeeded} succeeded.', 'success')
+    if failed:
+        flash(f'Bulk {action}: {failed} failed.', 'error')
+
+    return redirect(url_for('upgrade.admin_discounts'))  
