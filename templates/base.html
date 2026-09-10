@@ -5,6 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Student Platform{% endblock %}</title>
 
+    <!-- ============================================ -->
+    <!-- ANTI-FLASH: apply theme before first paint  -->
+    <!-- ============================================ -->
+    <script>
+        (function() {
+            try {
+                // Priority 1: Server-rendered setting (most authoritative)
+                var serverTheme = "{{ settings.get('appearance.theme', '') if settings is defined else '' }}";
+                var theme = serverTheme || localStorage.getItem('preferred-theme') || 'system';
+
+                var resolved;
+                if (theme === 'system') {
+                    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                } else {
+                    resolved = theme;
+                }
+                document.documentElement.setAttribute('data-theme', resolved);
+
+                // Apply accent colour too (prevents colour flash)
+                var serverAccent = "{{ settings.get('appearance.accent', '') if settings is defined else '' }}";
+                var accent = serverAccent || localStorage.getItem('preferred-accent') || 'red';
+
+                var ACCENTS = {
+                    red:    { hex: '#FF3138', hover: '#E62B32', light: '#FFEBE8', light_dark: '#3A1A20' },
+                    blue:   { hex: '#3B82F6', hover: '#2563EB', light: '#E8F0FE', light_dark: '#1A2A4A' },
+                    green:  { hex: '#10B981', hover: '#059669', light: '#D1FAE5', light_dark: '#1A3A2E' },
+                    purple: { hex: '#8B5CF6', hover: '#7C3AED', light: '#EDE9FE', light_dark: '#2A1A4A' },
+                    orange: { hex: '#F59E0B', hover: '#D97706', light: '#FEF3C7', light_dark: '#3A2E1A' }
+                };
+                var a = ACCENTS[accent] || ACCENTS.red;
+                var isDark = resolved === 'dark';
+                var root = document.documentElement;
+                root.style.setProperty('--primary', a.hex);
+                root.style.setProperty('--primary-hover', a.hover);
+                root.style.setProperty('--primary-light', isDark ? a.light_dark : a.light);
+
+                // Apply font size (prevents size flash)
+                var serverFont = "{{ settings.get('appearance.font_size', '') if settings is defined else '' }}";
+                var fontSize = serverFont || localStorage.getItem('preferred-font-size') || 'medium';
+                var sizes = { small: '14px', medium: '16px', large: '18px' };
+                root.style.setProperty('--base-font-size', sizes[fontSize] || '16px');
+
+                // Compact mode
+                var serverCompact = "{{ settings.get('appearance.compact_mode', '') if settings is defined else '' }}";
+                var compact = serverCompact === 'True' || serverCompact === 'true' || serverCompact === '1'
+                              || localStorage.getItem('preferred-compact') === '1';
+                if (compact) root.classList.add('compact-mode');
+
+                // Reduced motion
+                var serverMotion = "{{ settings.get('appearance.reduced_motion', '') if settings is defined else '' }}";
+                var reduced = serverMotion === 'True' || serverMotion === 'true' || serverMotion === '1'
+                              || localStorage.getItem('preferred-reduced-motion') === '1';
+                if (reduced) root.classList.add('reduced-motion');
+            } catch (e) { /* silent — fallback to defaults */ }
+        })();
+    </script>
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
@@ -15,8 +72,6 @@
 
     <!-- ============================================ -->
     <!-- SERVER-SIDE ACCENT COLOURS – OVERRIDES       -->
-    <!-- Loaded AFTER main CSS so the user's accent   -->
-    <!-- is applied immediately at paint time.        -->
     <!-- ============================================ -->
     {% if accent_colours %}
     <style id="accent-style">
@@ -103,18 +158,20 @@
             const options = document.querySelectorAll('.theme-option');
 
             const savedTheme = localStorage.getItem('preferred-theme') || 'system';
+
             function applyTheme(theme) {
+                let resolved;
                 if (theme === 'system') {
-                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
                     icon.className = 'fas fa-desktop';
                 } else if (theme === 'dark') {
-                    document.documentElement.setAttribute('data-theme', 'dark');
+                    resolved = 'dark';
                     icon.className = 'fas fa-moon';
                 } else {
-                    document.documentElement.setAttribute('data-theme', 'light');
+                    resolved = 'light';
                     icon.className = 'fas fa-sun';
                 }
+                document.documentElement.setAttribute('data-theme', resolved);
                 options.forEach(opt => {
                     const val = opt.dataset.theme;
                     if (val === theme) {

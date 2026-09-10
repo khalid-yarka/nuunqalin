@@ -5,14 +5,63 @@
 {% block extra_head %}
 {{ super() }}
 <meta name="csrf-token" content="{{ csrf_token }}">
+
+<!-- ============================================ -->
+<!-- ANTI-FLASH (dashboard): theme + sidebar     -->
+<!-- Runs before first paint                      -->
+<!-- ============================================ -->
 <script>
-    // Anti-flash: apply collapsed sidebar state before first paint
     (function() {
         try {
+            // ---- Theme ----
+            var serverTheme = "{{ settings.get('appearance.theme', '') if settings is defined else '' }}";
+            var theme = serverTheme || localStorage.getItem('preferred-theme') || 'system';
+            var resolved = (theme === 'system')
+                ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                : theme;
+            document.documentElement.setAttribute('data-theme', resolved);
+
+            // ---- Accent ----
+            var serverAccent = "{{ settings.get('appearance.accent', '') if settings is defined else '' }}";
+            var accent = serverAccent || localStorage.getItem('preferred-accent') || 'red';
+
+            var ACCENTS = {
+                red:    { hex: '#FF3138', hover: '#E62B32', light: '#FFEBE8', light_dark: '#3A1A20' },
+                blue:   { hex: '#3B82F6', hover: '#2563EB', light: '#E8F0FE', light_dark: '#1A2A4A' },
+                green:  { hex: '#10B981', hover: '#059669', light: '#D1FAE5', light_dark: '#1A3A2E' },
+                purple: { hex: '#8B5CF6', hover: '#7C3AED', light: '#EDE9FE', light_dark: '#2A1A4A' },
+                orange: { hex: '#F59E0B', hover: '#D97706', light: '#FEF3C7', light_dark: '#3A2E1A' }
+            };
+            var a = ACCENTS[accent] || ACCENTS.red;
+            var isDark = resolved === 'dark';
+            var root = document.documentElement;
+            root.style.setProperty('--primary', a.hex);
+            root.style.setProperty('--primary-hover', a.hover);
+            root.style.setProperty('--primary-light', isDark ? a.light_dark : a.light);
+
+            // ---- Font size ----
+            var serverFont = "{{ settings.get('appearance.font_size', '') if settings is defined else '' }}";
+            var fontSize = serverFont || localStorage.getItem('preferred-font-size') || 'medium';
+            var sizes = { small: '14px', medium: '16px', large: '18px' };
+            root.style.setProperty('--base-font-size', sizes[fontSize] || '16px');
+
+            // ---- Compact mode ----
+            var serverCompact = "{{ settings.get('appearance.compact_mode', '') if settings is defined else '' }}";
+            var compact = serverCompact === 'True' || serverCompact === 'true' || serverCompact === '1'
+                          || localStorage.getItem('preferred-compact') === '1';
+            if (compact) root.classList.add('compact-mode');
+
+            // ---- Reduced motion ----
+            var serverMotion = "{{ settings.get('appearance.reduced_motion', '') if settings is defined else '' }}";
+            var reduced = serverMotion === 'True' || serverMotion === 'true' || serverMotion === '1'
+                          || localStorage.getItem('preferred-reduced-motion') === '1';
+            if (reduced) root.classList.add('reduced-motion');
+
+            // ---- Sidebar collapsed state ----
             if (localStorage.getItem('sidebar-collapsed') === '1') {
-                document.documentElement.classList.add('sidebar-collapsed');
+                root.classList.add('sidebar-collapsed');
             }
-        } catch (e) {}
+        } catch (e) { /* silent */ }
     })();
 </script>
 {% endblock %}
