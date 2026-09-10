@@ -3,6 +3,7 @@
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
+
     // ============================================
     // SIDEBAR TOGGLE (Mobile)
     // ============================================
@@ -50,6 +51,46 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ============================================
+    // SIDEBAR COLLAPSE (Desktop only)
+    // ============================================
+
+    const collapseBtn = document.getElementById('sidebarCollapseBtn');
+
+    if (collapseBtn) {
+        // Sync initial state (class may already be set by anti-flash script)
+        const isCollapsed = document.documentElement.classList.contains('sidebar-collapsed');
+        collapseBtn.setAttribute('aria-expanded', !isCollapsed);
+        collapseBtn.setAttribute('aria-label', isCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+
+        collapseBtn.addEventListener('click', function() {
+            const collapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+            try {
+                localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+            } catch (e) {
+                // localStorage unavailable (private browsing) — ignore
+            }
+            collapseBtn.setAttribute('aria-expanded', !collapsed);
+            collapseBtn.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+        });
+    }
+
+    // ============================================
+    // SIDEBAR LOGOUT (Footer button)
+    // ============================================
+
+    const sidebarLogoutBtn = document.getElementById('sidebarLogoutBtn');
+    if (sidebarLogoutBtn) {
+        sidebarLogoutBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (typeof openSidebarLogoutModal === 'function') {
+                openSidebarLogoutModal();
+            } else if (confirm('Are you sure you want to log out? Any unsaved changes will be lost.')) {
+                window.location.href = '/logout';
+            }
+        });
+    }
+
+    // ============================================
     // ACTIVE NAV LINK
     // ============================================
 
@@ -61,12 +102,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (href && href !== '#') {
             if (currentPath === href || (href !== '/' && currentPath.startsWith(href))) {
                 item.classList.add('active');
+                item.setAttribute('aria-current', 'page');
             }
         }
     });
 
     // ============================================
-    // THEME TOGGLE – Updated to use NuunSettings API
+    // THEME TOGGLE – Uses NuunSettings API
     // ============================================
     (function() {
         const toggleBtn = document.getElementById('themeToggle');

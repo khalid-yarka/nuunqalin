@@ -5,6 +5,16 @@
 {% block extra_head %}
 {{ super() }}
 <meta name="csrf-token" content="{{ csrf_token }}">
+<script>
+    // Anti-flash: apply collapsed sidebar state before first paint
+    (function() {
+        try {
+            if (localStorage.getItem('sidebar-collapsed') === '1') {
+                document.documentElement.classList.add('sidebar-collapsed');
+            }
+        } catch (e) {}
+    })();
+</script>
 {% endblock %}
 
 {% block extra_css %}
@@ -23,14 +33,25 @@
     <!-- SIDEBAR -->
     <!-- ============================================ -->
     <aside class="sidebar" id="sidebar">
+
         <!-- Brand -->
         <div class="sidebar-brand">
             <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="logo" />
             <span class="brand-text">Nuun<span>Platform</span></span>
+            <button type="button"
+                    class="sidebar-collapse-btn"
+                    id="sidebarCollapseBtn"
+                    aria-label="Collapse sidebar"
+                    aria-expanded="true"
+                    title="Toggle sidebar">
+                <i class="fas fa-angles-left"></i>
+            </button>
         </div>
 
-        <!-- User Info -->
-        <div class="sidebar-user">
+        <!-- User Info (clickable to profile) -->
+        <a href="{{ url_for('dashboard.profile') }}"
+           class="sidebar-user"
+           title="{{ session.user_name or 'Profile' }}">
             <div class="avatar avatar-primary">
                 {{ session.user_name[0] if session.user_name else 'U' }}
             </div>
@@ -46,89 +67,149 @@
                     <span class="user-id">#{{ session.public_id }}</span>
                 {% endif %}
             </div>
-        </div>
+        </a>
 
         <!-- Navigation -->
         <nav class="sidebar-nav">
-            <div class="nav-label">Main</div>
 
-            <a href="{{ url_for('dashboard.home') }}" class="nav-item {% if request.endpoint == 'dashboard.home' %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-home"></i></span>
-                Dashboard
-            </a>
+            <!-- ============ MAIN ============ -->
+            <div class="nav-section">
+                <div class="nav-label">Main</div>
 
-            <a href="{{ url_for('dashboard.profile') }}" class="nav-item {% if request.endpoint == 'dashboard.profile' %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-user"></i></span>
-                Profile
-            </a>
+                <a href="{{ url_for('dashboard.home') }}"
+                   class="nav-item {% if request.endpoint == 'dashboard.home' %}active{% endif %}"
+                   data-title="Dashboard"
+                   title="Dashboard">
+                    <span class="nav-icon"><i class="fas fa-home"></i></span>
+                    <span class="nav-text">Dashboard</span>
+                </a>
 
-            <a href="{{ url_for('settings.index') }}" class="nav-item {% if request.endpoint.startswith('settings.') %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-sliders-h"></i></span>
-                Settings
-            </a>
+                <a href="{{ url_for('dashboard.profile') }}"
+                   class="nav-item {% if request.endpoint == 'dashboard.profile' %}active{% endif %}"
+                   data-title="Profile"
+                   title="Profile">
+                    <span class="nav-icon"><i class="fas fa-user"></i></span>
+                    <span class="nav-text">Profile</span>
+                </a>
 
-            <a href="{{ url_for('history.index') }}" class="nav-item {% if request.endpoint.startswith('history.') %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-history"></i></span>
-                History
-            </a>
+                <a href="{{ url_for('settings.index') }}"
+                   class="nav-item {% if request.endpoint.startswith('settings.') %}active{% endif %}"
+                   data-title="Settings"
+                   title="Settings">
+                    <span class="nav-icon"><i class="fas fa-sliders-h"></i></span>
+                    <span class="nav-text">Settings</span>
+                </a>
 
-            <a href="{{ url_for('quiz.index') }}" class="nav-item {% if request.endpoint.startswith('quiz.') %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-pencil-alt"></i></span>
-                Quizzes
-            </a>
+                <a href="{{ url_for('history.index') }}"
+                   class="nav-item {% if request.endpoint.startswith('history.') %}active{% endif %}"
+                   data-title="History"
+                   title="History">
+                    <span class="nav-icon"><i class="fas fa-history"></i></span>
+                    <span class="nav-text">History</span>
+                </a>
 
-            <a href="{{ url_for('live_quiz.lobby') }}" class="nav-item {% if request.endpoint.startswith('live_quiz.') %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-bolt"></i></span>
-                Live Quiz
-                <span class="nav-badge">⚡</span>
-            </a>
+                <a href="{{ url_for('quiz.index') }}"
+                   class="nav-item {% if request.endpoint.startswith('quiz.') %}active{% endif %}"
+                   data-title="Quizzes"
+                   title="Quizzes">
+                    <span class="nav-icon"><i class="fas fa-pencil-alt"></i></span>
+                    <span class="nav-text">Quizzes</span>
+                </a>
 
-            <a href="{{ url_for('groups.list_groups') }}" class="nav-item {% if request.endpoint == 'groups.list_groups' %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-users"></i></span>
-                Groups
-            </a>
+                <a href="{{ url_for('live_quiz.lobby') }}"
+                   class="nav-item {% if request.endpoint.startswith('live_quiz.') %}active{% endif %}"
+                   data-title="Live Quiz"
+                   title="Live Quiz">
+                    <span class="nav-icon"><i class="fas fa-bolt"></i></span>
+                    <span class="nav-text">Live Quiz</span>
+                    <span class="nav-badge">⚡</span>
+                </a>
 
-            <a href="{{ url_for('pdfs.list_pdfs') }}" class="nav-item {% if request.endpoint == 'pdfs.list_pdfs' or request.endpoint == 'pdfs.view_pdf' %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-file-pdf"></i></span>
-                PDFs
-            </a>
+                <a href="{{ url_for('groups.list_groups') }}"
+                   class="nav-item {% if request.endpoint == 'groups.list_groups' %}active{% endif %}"
+                   data-title="Groups"
+                   title="Groups">
+                    <span class="nav-icon"><i class="fas fa-users"></i></span>
+                    <span class="nav-text">Groups</span>
+                </a>
 
-            <div class="nav-label" style="margin-top:12px;">Community</div>
+                <a href="{{ url_for('pdfs.list_pdfs') }}"
+                   class="nav-item {% if request.endpoint == 'pdfs.list_pdfs' or request.endpoint == 'pdfs.view_pdf' %}active{% endif %}"
+                   data-title="PDFs"
+                   title="PDFs">
+                    <span class="nav-icon"><i class="fas fa-file-pdf"></i></span>
+                    <span class="nav-text">PDFs</span>
+                </a>
+            </div>
 
-            <a href="{{ url_for('quiz.leaderboard') }}" class="nav-item {% if request.endpoint == 'quiz.leaderboard' %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-trophy"></i></span>
-                Leaderboard
-            </a>
+            <!-- ============ COMMUNITY ============ -->
+            <div class="nav-section">
+                <div class="nav-label">Community</div>
 
-            <!-- ADMIN PANEL (only for admins) -->
+                <a href="{{ url_for('quiz.leaderboard') }}"
+                   class="nav-item {% if request.endpoint == 'quiz.leaderboard' %}active{% endif %}"
+                   data-title="Leaderboard"
+                   title="Leaderboard">
+                    <span class="nav-icon"><i class="fas fa-trophy"></i></span>
+                    <span class="nav-text">Leaderboard</span>
+                </a>
+            </div>
+
+            <!-- ============ ADMIN (admin only) ============ -->
             {% if session.is_admin %}
-                <div class="nav-label" style="margin-top:12px;">Admin</div>
+                <div class="nav-section">
+                    <div class="nav-label">Admin</div>
 
-                <a href="{{ url_for('admin.dashboard') }}" class="nav-item {% if request.endpoint.startswith('admin.') and not request.endpoint.startswith('admin_errors.') %}active{% endif %}">
-                    <span class="nav-icon"><i class="fas fa-cog"></i></span>
-                    Admin Panel
-                </a>
+                    <a href="{{ url_for('admin.dashboard') }}"
+                       class="nav-item {% if request.endpoint.startswith('admin.') and not request.endpoint.startswith('admin_errors.') %}active{% endif %}"
+                       data-title="Admin Panel"
+                       title="Admin Panel">
+                        <span class="nav-icon"><i class="fas fa-cog"></i></span>
+                        <span class="nav-text">Admin Panel</span>
+                    </a>
 
-                <a href="{{ url_for('upgrade.admin_list') }}" class="nav-item {% if request.path.startswith('/upgrade/admin/upgrade-requests') %}active{% endif %}">
-                    <span class="nav-icon"><i class="fas fa-rocket"></i></span>
-                    Upgrade Requests
-                    {% if pending_upgrades_count and pending_upgrades_count > 0 %}
-                        <span class="nav-badge" style="background: #DC2626;">{{ pending_upgrades_count }}</span>
-                    {% endif %}
-                </a>
+                    <a href="{{ url_for('upgrade.admin_list') }}"
+                       class="nav-item {% if request.path.startswith('/upgrade/admin/upgrade-requests') %}active{% endif %}"
+                       data-title="Upgrade Requests"
+                       title="Upgrade Requests">
+                        <span class="nav-icon"><i class="fas fa-rocket"></i></span>
+                        <span class="nav-text">Upgrade Requests</span>
+                        {% if pending_upgrades_count and pending_upgrades_count > 0 %}
+                            <span class="nav-badge danger">{{ pending_upgrades_count }}</span>
+                        {% endif %}
+                    </a>
 
-                <a href="{{ url_for('upgrade.admin_discounts') }}" class="nav-item {% if request.path.startswith('/upgrade/admin/discounts') %}active{% endif %}">
-                    <span class="nav-icon"><i class="fas fa-tags"></i></span>
-                    Discount Codes
-                </a>
+                    <a href="{{ url_for('upgrade.admin_discounts') }}"
+                       class="nav-item {% if request.path.startswith('/upgrade/admin/discounts') %}active{% endif %}"
+                       data-title="Discount Codes"
+                       title="Discount Codes">
+                        <span class="nav-icon"><i class="fas fa-tags"></i></span>
+                        <span class="nav-text">Discount Codes</span>
+                    </a>
 
-                <a href="{{ url_for('admin_errors.index') }}" class="nav-item {% if request.endpoint.startswith('admin_errors.') %}active{% endif %}">
-                    <span class="nav-icon"><i class="fas fa-exclamation-triangle"></i></span>
-                    Error Logs
-                    <span class="nav-badge" style="background: #DC2626;">!</span>
-                </a>
+                    <a href="{{ url_for('admin_errors.index') }}"
+                       class="nav-item {% if request.endpoint.startswith('admin_errors.') %}active{% endif %}"
+                       data-title="Error Logs"
+                       title="Error Logs">
+                        <span class="nav-icon"><i class="fas fa-exclamation-triangle"></i></span>
+                        <span class="nav-text">Error Logs</span>
+                        <span class="nav-badge danger">!</span>
+                    </a>
+                </div>
             {% endif %}
         </nav>
+
+        <!-- Footer -->
+        <div class="sidebar-footer">
+            <button type="button"
+                    class="nav-item logout"
+                    id="sidebarLogoutBtn"
+                    data-title="Logout"
+                    title="Logout">
+                <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
+                <span class="nav-text">Logout</span>
+            </button>
+        </div>
     </aside>
 
     <!-- ============================================ -->
