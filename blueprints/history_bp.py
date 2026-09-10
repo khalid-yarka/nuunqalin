@@ -1,4 +1,4 @@
-# blueprints/history_bp.py – Fixed date handling with Somali timezone
+# blueprints/history_bp.py – Tier-aware history page + API
 
 import csv
 import json
@@ -20,7 +20,7 @@ from services.tier_service import (
     can_see_trends,
     can_delete_history,
     get_current_user_tier,
-    get_feature_level
+    get_feature_level,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def validate_date(date_str: str) -> Optional[str]:
 
 
 # -------------------------------------------------------------------
-# PAGE: History Dashboard
+# PAGE: History Dashboard (tier-aware)
 # -------------------------------------------------------------------
 
 @history_bp.route('')
@@ -74,12 +74,54 @@ def index():
 
     user_id = session['user_id']
     tier = get_current_user_tier()
+
     can_search = can_search_history(user_id)
     can_export = can_export_history(user_id)
     can_trend = can_see_trends(user_id)
     can_delete = can_delete_history(user_id)
 
+    retention_days = get_history_retention_days(user_id)
+    max_entries = get_history_max_entries(user_id)
+
+    # Current entry count for the usage bar
+    try:
+        cursor = execute_with_retry(
+            "SELECT COUNT(*) AS c FROM history_entries WHERE user_id = ?",
+            (user_id,)
+        )
+        current_count = cursor.fetchone()['c']
+    except Exception:
+        current_count = 0
+
     stats = get_history_stats(user_id)
+    stats['current_count'] = current_count
+    stats['retention_days'] = retention_days
+    stats['max_entries'] = max_entries
+
+    # Usage % (only meaningful when a cap exists)
+    if max_entries:
+        usage_pct = round(min(100, (current_count / max_entries) * 100), 1)
+    else:
+        usage_pct = 0
+    stats['usage_pct'] = usage_pct
+
+    # What the next tier would unlock
+    upgrade_benefits = []
+    if tier == 'danbe':
+        upgrade_benefits = [
+            '180-day retention (vs 30)',
+            'Up to 500 entries (vs 50)',
+            'CSV export of your history',
+            'Extended activity types',
+        ]
+    elif tier == 'dhexe':
+        upgrade_benefits = [
+            'Unlimited retention',
+            'Unlimited entries',
+            'Search inside your history',
+            'Progress trends & charts',
+            'Delete individual entries',
+        ]
 
     return render_template(
         'dashboard/history.html',
@@ -88,7 +130,12 @@ def index():
         can_export=can_export,
         can_trend=can_trend,
         can_delete=can_delete,
-        stats=stats
+        stats=stats,
+        retention_days=retention_days,
+        max_entries=max_entries,
+        current_count=current_count,
+        usage_pct=usage_pct,
+        upgrade_benefits=upgrade_benefits,
     )
 
 
@@ -100,12 +147,11 @@ def index():
 @login_required
 def get_entries():
     """Return paginated history entries – flush first, then apply tier dates."""
-    flush_history_queue()  # ensure latest data
+    flush_history_queue()
 
     user_id = session['user_id']
     tier = get_current_user_tier()
 
-    # Parse parameters
     types_param = request.args.get('types', '')
     if types_param:
         types = [t.strip() for t in types_param.split(',') if t.strip()]
@@ -121,12 +167,11 @@ def get_entries():
     if order not in ('asc', 'desc'):
         order = 'desc'
 
-    # Tier restrictions on pagination size
     max_per_page = 20 if tier == 'danbe' else 50 if tier == 'dhexe' else 100
     if per_page > max_per_page:
         per_page = max_per_page
 
-    # Date range: use Somali timezone consistently
+    # Tier-based date restrictions
     somali_now = get_somali_time()
     if tier == 'danbe':
         if not start_date or not end_date:
@@ -146,12 +191,10 @@ def get_entries():
             end_dt = datetime.fromisoformat(end_date)
             if (end_dt - start_dt).days > 30:
                 start_date = (end_dt - timedelta(days=30)).isoformat()
-    # Hore: no automatic date restriction; use user dates if provided
 
     if search and not can_search_history(user_id):
         return jsonify({'error': 'Search not available for your tier.'}), 403
 
-    # Build queries
     query = """
         SELECT id, user_id, entry_type, action, entry_id, metadata, created_at
         FROM history_entries
@@ -190,15 +233,11 @@ def get_entries():
     query += f" ORDER BY created_at {order} LIMIT ? OFFSET ?"
     params.extend([per_page, (page - 1) * per_page])
 
-    logger.debug(f"History API params: user={user_id}, tier={tier}, start={start_date}, end={end_date}, types={types}, search={search}, page={page}, per_page={per_page}")
-
     entries_cursor = execute_with_retry(query, params)
     entries = [dict(row) for row in entries_cursor.fetchall()]
 
     count_cursor = execute_with_retry(count_query, count_params)
     total = count_cursor.fetchone()['total']
-
-    logger.info(f"History API: returned {len(entries)} of {total} entries for user {user_id}")
 
     return jsonify({
         'entries': entries,
@@ -218,7 +257,6 @@ def get_entries():
 @history_bp.route('/api/stats')
 @login_required
 def get_stats():
-    """Return summary statistics – flush first."""
     flush_history_queue()
     user_id = session['user_id']
     stats = get_history_stats(user_id)
@@ -232,7 +270,6 @@ def get_stats():
 @history_bp.route('/api/export')
 @login_required
 def export():
-    """Export filtered history as CSV – flush first."""
     flush_history_queue()
 
     user_id = session['user_id']
@@ -290,7 +327,7 @@ def export():
             row['entry_type'],
             row['action'],
             row['metadata'],
-            row['created_at']
+            row['created_at'],
         ])
 
     output.seek(0)
@@ -308,7 +345,6 @@ def export():
 @history_bp.route('/api/trends')
 @login_required
 def trends():
-    """Return trend data for charts – flush first."""
     flush_history_queue()
 
     user_id = session['user_id']
@@ -331,7 +367,7 @@ def trends():
         {
             'date': row['date'],
             'percentage': float(row['percentage']) if row['percentage'] is not None else 0,
-            'subject': row['subject'] or 'Unknown'
+            'subject': row['subject'] or 'Unknown',
         }
         for row in rows
     ]
@@ -340,13 +376,12 @@ def trends():
 
 
 # -------------------------------------------------------------------
-# ADMIN: Flush queue manually
+# ADMIN: Flush + Queue status
 # -------------------------------------------------------------------
 
 @history_bp.route('/admin/flush', methods=['POST'])
 @admin_required
 def admin_flush():
-    """Force flush and return detailed status."""
     result = force_flush_queue()
     return jsonify({
         'success': result['success'],
@@ -354,7 +389,7 @@ def admin_flush():
         'errors': result['errors'],
         'skipped': result['skipped'],
         'file_size_before': result['file_size_before'],
-        'file_size_after': result['file_size_after']
+        'file_size_after': result['file_size_after'],
     })
 
 
@@ -378,11 +413,14 @@ def get_history_stats(user_id: int) -> Dict:
             COUNT(CASE WHEN entry_type = 'achievement' THEN 1 END) as achievements,
             COUNT(CASE WHEN entry_type = 'save' THEN 1 END) as saves,
             COUNT(CASE WHEN entry_type = 'pdf_view' THEN 1 END) as pdf_views,
+            COUNT(CASE WHEN entry_type = 'pdf_download' THEN 1 END) as pdf_downloads,
+            COUNT(CASE WHEN entry_type = 'like' THEN 1 END) as likes,
+            COUNT(CASE WHEN entry_type = 'report' THEN 1 END) as reports,
             AVG(CAST(json_extract(metadata, '$.percentage') AS REAL)) as avg_score
         FROM history_entries
         WHERE user_id = ?
     """, (user_id,))
     row = cursor.fetchone()
-    stats = dict(row)
-    stats['avg_score'] = round(stats['avg_score'] or 0, 1)
+    stats = dict(row) if row else {}
+    stats['avg_score'] = round(stats.get('avg_score') or 0, 1)
     return stats

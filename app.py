@@ -62,6 +62,7 @@ from blueprints.achievements_bp import achievements_bp
 from blueprints.admin_activity_bp import admin_activity_bp
 from blueprints.admin_backup_bp import admin_backup_bp
 from blueprints.upgrade_bp import upgrade_bp
+from blueprints.admin_platform_bp import admin_platform_bp
 
 # ============================================
 # PDF ADMIN BLUEPRINT & TELEGRAM BOT (Webhook)
@@ -330,6 +331,7 @@ app.register_blueprint(achievements_bp)
 app.register_blueprint(admin_activity_bp)
 app.register_blueprint(admin_backup_bp)
 app.register_blueprint(upgrade_bp)
+app.register_blueprint(admin_platform_bp)
 
 # ============================================
 # REGISTER NEW SETTINGS & PROFILE BLUEPRINTS
