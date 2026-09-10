@@ -509,73 +509,89 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Already logged in -> go home
     if 'user_id' in session:
         return redirect(url_for('dashboard.home'))
 
     if request.method == 'POST':
-        phone = request.form.get('phone', '').strip()
-        password = request.form.get('password', '')
+        phone = (request.form.get('phone') or '').strip()
+        password = request.form.get('password') or ''
 
+        # Normalise Somali phone number
         if not phone.startswith('+252'):
             phone = '+252' + phone
 
+        # ---- Validate credentials ----
         try:
             student = get_student_by_phone(phone)
         except Exception as e:
-            logger.error(f"Login error: {e}")
+            logger.error(f"Login error (DB): {e}", exc_info=True)
             flash('An error occurred. Please try again.', 'error')
             return render_template('login.html')
 
-        if student:
-            if password == student['password']:
-                session['user_id'] = student['id']
-                session['public_id'] = student.get('public_id', '----')
-                session['user_name'] = student['first_name']
-                session['user_phone'] = student['phone_number']
-                session['is_admin'] = bool(student.get('is_admin', 0))
-                session['curriculum'] = student.get('curriculum')
-                session['tier'] = student.get('tier', 'danbe')
-                session.permanent = True
-                session['csrf_token'] = secrets.token_hex(32)
-
-                # Record last login for admin user management
-                try:
-                    execute_with_retry(
-                        "UPDATE students SET last_login_at = ?, last_login_ip = ? WHERE id = ?",
-                        (get_somali_time_db(),
-                         request.remote_addr or '',
-                         student['id']),
-                        commit=True
-                    )
-                except Exception:
-                    pass
-
-                # Load settings into session
-                try:
-                    from services.settings_service import SettingsService
-                    settings = SettingsService.get_all(student['id'])
-                    session['settings'] = settings
-                    session.modified = True
-                except Exception as e:
-                    logger.error(f"Failed to load settings on login for user {student['id']}: {e}")
-                    session['settings'] = {}
-
-                logger.info(f"User logged in: user_id={student['id']}")
-                flash('Welcome back!', 'success')
-
-                log_activity('user.login', f"User {student['id']} logged in", 'info', user_id=student['id'])
-
-                next_url = request.args.get('next')
-                if next_url:
-                    return redirect(next_url)
-                return redirect(url_for('dashboard.home'))
+        if not student or password != student['password']:
+            # Do not leak which field was wrong
+            if student:
+                log_activity('user.login', f"Failed login for {phone}", 'warning')
             else:
-                flash('Invalid password. Please try again.', 'error')
-                log_activity('user.login', f"Failed login attempt for {phone}", 'warning')
-        else:
-            flash('No account found with this phone number.', 'error')
-            log_activity('user.login', f"Unknown phone {phone} tried to login", 'warning')
+                log_activity('user.login', f"Unknown phone {phone}", 'warning')
+            flash('Invalid phone number or password.', 'error')
+            return render_template('login.html')
 
+        # ---- SESSION FIXATION PROTECTION ----
+        # 1) Preserve any flash messages we want to keep (none here)
+        # 2) Wipe everything else so old data cannot persist
+        session.clear()
+
+        # 3) Now populate the fresh session
+        session['user_id']     = student['id']
+        session['public_id']   = student.get('public_id', '----')
+        session['user_name']   = student['first_name']
+        session['user_phone']  = student['phone_number']
+        session['is_admin']    = bool(student.get('is_admin', 0))
+        session['curriculum']  = student.get('curriculum')
+        session['tier']        = student.get('tier', 'danbe')
+
+        # 4) Regenerate CSRF token for the new session
+        session['csrf_token']  = secrets.token_hex(32)
+
+        # 5) Mark permanent LAST so the cookie lifetime applies
+        session.permanent = True
+        session.modified  = True
+
+        # ---- Side effects (best effort, never block login) ----
+        try:
+            execute_with_retry(
+                "UPDATE students SET last_login_at = ?, last_login_ip = ? WHERE id = ?",
+                (get_somali_time_db(), request.remote_addr or '', student['id']),
+                commit=True,
+            )
+        except Exception as e:
+            logger.warning(f"Could not record last_login for {student['id']}: {e}")
+
+        # ---- Load settings WITHOUT touching the session twice ----
+        # Use the raw loader instead of SettingsService.get_all() so we
+        # don't trigger _update_session() again (which would re-write
+        # the session inside the login handler).
+        try:
+            from user_settings import get_user_settings
+            session['settings'] = get_user_settings(student['id'])
+        except Exception as e:
+            logger.error(f"Failed to load settings for user {student['id']}: {e}")
+            session['settings'] = {}
+
+        session.modified = True
+
+        log_activity('user.login', f"User {student['id']} logged in", 'info', user_id=student['id'])
+        logger.info(f"User logged in: user_id={student['id']}")
+
+        # ---- Safe redirect ----
+        next_url = request.args.get('next')
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
+        return redirect(url_for('dashboard.home'))
+
+    # GET → show form
     return render_template('login.html')
 
 

@@ -14,15 +14,31 @@ logger = logging.getLogger(__name__)
 
 class SettingsService:
     
+    # services/settings_service.py
+    
     @staticmethod
     def _update_session(user_id: int) -> None:
-        """Update the session with the latest settings from the database."""
+        """Push the current settings into the Flask session (no recursion)."""
         try:
-            settings = SettingsService.get_all(user_id)
+            # Read directly — do NOT call get_all() here (it would call
+            # ensure_migrated -> _update_session -> get_all -> ...).
+            from user_settings import get_user_settings
+            settings = get_user_settings(user_id)
             session['settings'] = settings
             session.modified = True
         except Exception as e:
             logger.error(f"Failed to update session settings for user {user_id}: {e}")
+    
+    
+    @staticmethod
+    def get_all(user_id: int) -> Dict[str, Any]:
+        """
+        Get effective settings. Migrate if necessary.
+        Does NOT touch the session — callers can persist if they want.
+        """
+        SettingsService.ensure_migrated(user_id)
+        from user_settings import get_user_settings
+        return get_user_settings(user_id)
     
     @staticmethod
     def ensure_migrated(user_id: int) -> None:

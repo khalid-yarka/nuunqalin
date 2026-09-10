@@ -1,5 +1,5 @@
 # blueprints/pdfs_bp.py
-
+import os
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for, abort, send_file, Response, jsonify
 from db import (
     get_all_pdfs, get_pdf_by_code, get_pdf_by_id, increment_pdf_view,
