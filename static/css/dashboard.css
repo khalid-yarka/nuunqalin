@@ -1,6 +1,6 @@
 /* ============================================
-   DASHBOARD.CSS – LAYOUT WITH CONTRAST FIXES
-   Sidebar, navbar, wrapper, page structure
+   DASHBOARD.CSS — Layout + Sidebar
+   Preserves all existing class names.
    Uses .btn, .card, .form-control from style.css
    NO generic selectors (body, button, input, etc.)
    ============================================ */
@@ -86,19 +86,18 @@ html.sidebar-collapsed {
 /* ---------- Brand ---------- */
 
 .sidebar-brand {
-    padding: 20px 24px;
+    padding: 18px 20px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     border-bottom: 1px solid var(--border);
-    min-height: 70px;
+    min-height: 68px;
     flex-shrink: 0;
-    position: relative;
-    transition: padding 0.25s ease;
+    transition: padding 0.25s ease, gap 0.25s ease;
 }
 
 .sidebar-brand .logo {
-    height: 32px;
+    height: 30px;
     width: auto;
     flex-shrink: 0;
 }
@@ -107,7 +106,7 @@ html.sidebar-collapsed {
     font-size: 16px;
     font-weight: 700;
     color: var(--text);
-    letter-spacing: -0.5px;
+    letter-spacing: -0.4px;
     white-space: nowrap;
     flex: 1;
     min-width: 0;
@@ -135,7 +134,7 @@ html.sidebar-collapsed {
     justify-content: center;
     transition: var(--transition);
     flex-shrink: 0;
-    font-size: 13px;
+    font-size: 12px;
     padding: 0;
 }
 
@@ -157,11 +156,11 @@ html.sidebar-collapsed {
 /* ---------- User Info ---------- */
 
 .sidebar-user {
-    padding: 20px 24px;
+    padding: 18px 20px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     flex-shrink: 0;
     text-decoration: none;
     color: inherit;
@@ -181,8 +180,8 @@ html.sidebar-collapsed {
 }
 
 .sidebar-user .avatar {
-    width: 44px;
-    height: 44px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
     background: var(--primary);
     color: #ffffff !important;
@@ -190,9 +189,15 @@ html.sidebar-collapsed {
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 18px;
+    font-size: 17px;
     border: 2px solid var(--primary-light);
     flex-shrink: 0;
+    position: relative;
+    transition: transform 0.2s ease;
+}
+
+.sidebar-user:hover .avatar {
+    transform: scale(1.05);
 }
 
 .sidebar-user .user-details {
@@ -219,40 +224,90 @@ html.sidebar-collapsed {
     font-weight: 600;
     letter-spacing: 0.5px;
     display: inline-block;
+    margin-top: 2px;
+}
+
+/* ---------- Tier Badge on Avatar ---------- */
+
+.tier-badge {
+    position: absolute;
+    bottom: -3px;
+    right: -3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: #ffffff;
+    border: 2px solid var(--surface);
+    line-height: 1;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.tier-badge.tier-hore {
+    background: linear-gradient(135deg, #F59E0B, #D97706);
+}
+
+.tier-badge.tier-dhexe {
+    background: linear-gradient(135deg, var(--primary), #B91C1C);
+}
+
+.tier-badge i {
+    font-size: 9px;
+    line-height: 1;
 }
 
 /* ---------- Navigation ---------- */
 
 .sidebar-nav {
     flex: 1 1 auto;
-    padding: 16px 12px;
+    padding: 12px 10px;
     overflow-y: auto;
     overflow-x: hidden;
     min-height: 0;
 }
 
 .nav-section {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 .nav-section:last-child {
     margin-bottom: 0;
 }
 
+/* Section Header — small caps + gradient line */
 .sidebar-nav .nav-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 12px 6px;
     font-size: 10px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.9px;
     color: var(--text-muted);
-    padding: 8px 12px 6px;
-    font-weight: 600;
 }
 
+.sidebar-nav .nav-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, var(--border) 0%, transparent 100%);
+    margin-left: 4px;
+}
+
+.nav-section:first-child .nav-label {
+    padding-top: 6px;
+}
+
+/* Nav Items */
 .sidebar-nav .nav-item {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 11px 14px;
+    gap: 12px;
+    padding: 10px 14px;
     border-radius: var(--radius-sm);
     color: var(--text-secondary);
     text-decoration: none;
@@ -290,9 +345,23 @@ html.sidebar-collapsed {
     color: #ffffff !important;
 }
 
+/* Left accent bar on active item */
+.sidebar-nav .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 55%;
+    background: #ffffff;
+    border-radius: 0 3px 3px 0;
+    opacity: 0.9;
+}
+
 .sidebar-nav .nav-item .nav-icon {
-    font-size: 18px;
-    width: 24px;
+    font-size: 16px;
+    width: 22px;
     text-align: center;
     flex-shrink: 0;
     color: var(--text-muted);
@@ -335,22 +404,24 @@ html.sidebar-collapsed {
 .sidebar-nav .nav-item .nav-badge.danger {
     background: #DC2626;
     color: #ffffff;
+    animation: badgePulse 2s ease-in-out infinite;
 }
 
-.sidebar-nav .nav-item .nav-badge.success {
-    background: #10B981;
-    color: #ffffff;
+@keyframes badgePulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+    50%      { transform: scale(1.08); box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); }
 }
 
 .sidebar-nav .nav-item.active .nav-badge {
     background: rgba(255, 255, 255, 0.25);
     color: #ffffff;
+    animation: none;
 }
 
 /* ---------- Footer ---------- */
 
 .sidebar-footer {
-    padding: 16px 12px;
+    padding: 12px 10px 16px;
     border-top: 1px solid var(--border);
     flex-shrink: 0;
     background: var(--surface);
@@ -364,8 +435,8 @@ html.sidebar-collapsed {
 .sidebar-footer .nav-item {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 11px 14px;
+    gap: 12px;
+    padding: 10px 14px;
     border-radius: var(--radius-sm);
     color: var(--text-secondary);
     text-decoration: none;
@@ -392,8 +463,8 @@ html.sidebar-collapsed {
 }
 
 .sidebar-footer .nav-item .nav-icon {
-    font-size: 18px;
-    width: 24px;
+    font-size: 16px;
+    width: 22px;
     text-align: center;
     flex-shrink: 0;
     color: var(--text-muted);
@@ -434,16 +505,15 @@ html.sidebar-collapsed {
 
 html.sidebar-collapsed .brand-text,
 html.sidebar-collapsed .user-details,
-html.sidebar-collapsed .nav-text,
-html.sidebar-collapsed .nav-label {
+html.sidebar-collapsed .nav-text {
     display: none;
 }
 
 /* Brand stacks vertically when collapsed */
 html.sidebar-collapsed .sidebar-brand {
     flex-direction: column;
-    padding: 16px 8px 12px;
-    gap: 10px;
+    padding: 14px 8px 10px;
+    gap: 8px;
     justify-content: center;
 }
 
@@ -458,7 +528,7 @@ html.sidebar-collapsed .sidebar-collapse-btn i {
 /* User block centers */
 html.sidebar-collapsed .sidebar-user {
     justify-content: center;
-    padding: 16px 0;
+    padding: 14px 0;
     gap: 0;
 }
 
@@ -471,20 +541,35 @@ html.sidebar-collapsed .sidebar-nav .nav-item {
 
 html.sidebar-collapsed .sidebar-nav .nav-item .nav-icon {
     width: auto;
+    font-size: 18px;
 }
 
-/* Section dividers replace hidden labels */
-html.sidebar-collapsed .nav-section + .nav-section {
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
+/* Section labels become thin dividers */
+html.sidebar-collapsed .sidebar-nav .nav-label {
+    font-size: 0;
+    padding: 0;
+    height: 1px;
+    background: var(--border);
+    margin: 12px 16px 8px;
+    letter-spacing: 0;
+    gap: 0;
+    display: block;
+    overflow: hidden;
+}
+
+html.sidebar-collapsed .sidebar-nav .nav-label::after {
+    display: none;
+}
+
+html.sidebar-collapsed .nav-section:first-child .nav-label {
+    display: none;
 }
 
 /* Badges become small dots */
 html.sidebar-collapsed .sidebar-nav .nav-item .nav-badge {
     position: absolute;
-    top: 6px;
-    right: 12px;
+    top: 8px;
+    right: 14px;
     min-width: 8px;
     width: 8px;
     height: 8px;
@@ -495,11 +580,12 @@ html.sidebar-collapsed .sidebar-nav .nav-item .nav-badge {
     border: 2px solid var(--surface);
     color: transparent;
     overflow: hidden;
+    animation: none;
 }
 
 /* Footer items center */
 html.sidebar-collapsed .sidebar-footer {
-    padding: 12px 0;
+    padding: 12px 0 14px;
 }
 
 html.sidebar-collapsed .sidebar-footer .nav-item {
@@ -510,6 +596,7 @@ html.sidebar-collapsed .sidebar-footer .nav-item {
 
 html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
     width: auto;
+    font-size: 18px;
 }
 
 /* ============================================
@@ -766,46 +853,16 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
 }
 
 /* Accent colors for stat icons */
-.stat-card.accent-primary .stat-icon {
-    color: var(--text) !important;
-    background: var(--primary-light);
-}
-.stat-card.accent-blue .stat-icon {
-    color: var(--text) !important;
-    background: #EFF6FF;
-}
-.stat-card.accent-green .stat-icon {
-    color: var(--text) !important;
-    background: #ECFDF5;
-}
-.stat-card.accent-orange .stat-icon {
-    color: var(--text) !important;
-    background: #FFFBEB;
-}
-.stat-card.accent-purple .stat-icon {
-    color: var(--text) !important;
-    background: #F3E8FF;
-}
-.stat-card.accent-red .stat-icon {
-    color: var(--text) !important;
-    background: #FEF2F2;
-}
-.stat-card.accent-critical .stat-icon {
-    color: var(--text) !important;
-    background: #FEF2F2;
-}
-.stat-card.accent-error .stat-icon {
-    color: var(--text) !important;
-    background: #FFFBEB;
-}
-.stat-card.accent-warning .stat-icon {
-    color: var(--text) !important;
-    background: #EFF6FF;
-}
-.stat-card.accent-resolved .stat-icon {
-    color: var(--text) !important;
-    background: #ECFDF5;
-}
+.stat-card.accent-primary .stat-icon { color: var(--text) !important; background: var(--primary-light); }
+.stat-card.accent-blue     .stat-icon { color: var(--text) !important; background: #EFF6FF; }
+.stat-card.accent-green    .stat-icon { color: var(--text) !important; background: #ECFDF5; }
+.stat-card.accent-orange   .stat-icon { color: var(--text) !important; background: #FFFBEB; }
+.stat-card.accent-purple   .stat-icon { color: var(--text) !important; background: #F3E8FF; }
+.stat-card.accent-red      .stat-icon { color: var(--text) !important; background: #FEF2F2; }
+.stat-card.accent-critical .stat-icon { color: var(--text) !important; background: #FEF2F2; }
+.stat-card.accent-error    .stat-icon { color: var(--text) !important; background: #FFFBEB; }
+.stat-card.accent-warning  .stat-icon { color: var(--text) !important; background: #EFF6FF; }
+.stat-card.accent-resolved .stat-icon { color: var(--text) !important; background: #ECFDF5; }
 
 /* ============================================
    QUICK ACTIONS
@@ -943,22 +1000,10 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
     flex-shrink: 0;
 }
 
-.activity-item .ai-icon.green {
-    background: #ECFDF5;
-    color: #065F46;
-}
-.activity-item .ai-icon.orange {
-    background: #FFFBEB;
-    color: #92400E;
-}
-.activity-item .ai-icon.red {
-    background: #FEF2F2;
-    color: #991B1B;
-}
-.activity-item .ai-icon.blue {
-    background: #EFF6FF;
-    color: #1E40AF;
-}
+.activity-item .ai-icon.green  { background: #ECFDF5; color: #065F46; }
+.activity-item .ai-icon.orange { background: #FFFBEB; color: #92400E; }
+.activity-item .ai-icon.red    { background: #FEF2F2; color: #991B1B; }
+.activity-item .ai-icon.blue   { background: #EFF6FF; color: #1E40AF; }
 
 .activity-item .ai-content {
     flex: 1;
@@ -1289,7 +1334,7 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
 }
 
 /* ============================================
-   LEADERBOARD – FIXED CONTRAST
+   LEADERBOARD — FIXED CONTRAST
    ============================================ */
 
 .leaderboard-table tr.you td {
@@ -1306,7 +1351,7 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
 }
 
 /* ============================================
-   RESPONSIVE – Dashboard Layout
+   RESPONSIVE — Dashboard Layout
    ============================================ */
 
 @media (max-width: 1024px) {
@@ -1340,33 +1385,52 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
         max-width: 100%;
     }
 
-    /* Hide collapse button entirely on mobile */
+    /* Hide collapse button on mobile */
     .sidebar-collapse-btn {
         display: none;
     }
 
-    /* Ensure collapsed-only rules never apply on mobile */
+    /* Neutralise collapsed-only rules on mobile */
     html.sidebar-collapsed .sidebar-brand {
         flex-direction: row;
-        padding: 20px 24px;
-        gap: 12px;
+        padding: 18px 20px;
+        gap: 10px;
         justify-content: flex-start;
     }
     html.sidebar-collapsed .brand-text,
     html.sidebar-collapsed .user-details,
-    html.sidebar-collapsed .nav-text,
-    html.sidebar-collapsed .nav-label {
+    html.sidebar-collapsed .nav-text {
         display: revert;
     }
     html.sidebar-collapsed .sidebar-user {
         justify-content: flex-start;
-        padding: 20px 24px;
-        gap: 14px;
+        padding: 18px 20px;
+        gap: 12px;
     }
     html.sidebar-collapsed .sidebar-nav .nav-item {
         justify-content: flex-start;
-        padding: 11px 14px;
-        gap: 14px;
+        padding: 10px 14px;
+        gap: 12px;
+    }
+    html.sidebar-collapsed .sidebar-nav .nav-item .nav-icon {
+        width: 22px;
+        font-size: 16px;
+    }
+    html.sidebar-collapsed .sidebar-nav .nav-label {
+        display: flex;
+        height: auto;
+        font-size: 10px;
+        padding: 14px 12px 6px;
+        margin: 0;
+        background: transparent;
+        letter-spacing: 0.9px;
+        overflow: visible;
+    }
+    html.sidebar-collapsed .sidebar-nav .nav-label::after {
+        display: block;
+    }
+    html.sidebar-collapsed .nav-section:first-child .nav-label {
+        display: flex;
     }
     html.sidebar-collapsed .sidebar-nav .nav-item .nav-badge {
         position: static;
@@ -1379,19 +1443,19 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
         border-radius: 10px;
         border: none;
         color: #ffffff;
-    }
-    html.sidebar-collapsed .nav-section + .nav-section {
-        margin-top: 0;
-        padding-top: 0;
-        border-top: none;
+        overflow: visible;
     }
     html.sidebar-collapsed .sidebar-footer {
-        padding: 16px 12px;
+        padding: 12px 10px 16px;
     }
     html.sidebar-collapsed .sidebar-footer .nav-item {
         justify-content: flex-start;
-        padding: 11px 14px;
-        gap: 14px;
+        padding: 10px 14px;
+        gap: 12px;
+    }
+    html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
+        width: 22px;
+        font-size: 16px;
     }
 
     .top-navbar .navbar-left .menu-toggle {
@@ -1412,9 +1476,6 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
     }
     .top-navbar .navbar-right .nav-divider {
         margin: 0 4px;
-    }
-    .sidebar-footer {
-        padding: 12px 12px;
     }
 
     .stats-grid {
@@ -1498,7 +1559,7 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
 }
 
 /* ============================================
-   DARK MODE – Dashboard Layout Overrides
+   DARK MODE — Dashboard Layout Overrides
    ============================================ */
 
 [data-theme="dark"] .sidebar {
@@ -1540,6 +1601,10 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
     background: var(--primary-light) !important;
     color: #FF6B70 !important;
     border-color: #FF6B70 !important;
+}
+
+[data-theme="dark"] .tier-badge {
+    border-color: var(--surface);
 }
 
 [data-theme="dark"] .stat-card {
@@ -1623,7 +1688,7 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
 }
 
 /* ============================================
-   DARK MODE – Highlight overrides
+   DARK MODE — Highlight overrides
    ============================================ */
 
 [data-theme="dark"] .highlight,
@@ -1727,7 +1792,6 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
     color: #EF4444;
 }
 
-/* Dark mode */
 [data-theme="dark"] .footer-social a {
     border-color: var(--border);
 }
@@ -1736,7 +1800,6 @@ html.sidebar-collapsed .sidebar-footer .nav-item .nav-icon {
     background: var(--primary-light);
 }
 
-/* Responsive */
 @media (max-width: 768px) {
     .footer-inner {
         flex-direction: column;

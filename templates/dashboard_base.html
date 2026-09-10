@@ -34,7 +34,7 @@
     <!-- ============================================ -->
     <aside class="sidebar" id="sidebar">
 
-        <!-- Brand -->
+        <!-- ---------- Brand ---------- -->
         <div class="sidebar-brand">
             <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="logo" />
             <span class="brand-text">Nuun<span>Platform</span></span>
@@ -48,12 +48,17 @@
             </button>
         </div>
 
-        <!-- User Info (clickable to profile) -->
+        <!-- ---------- User Info ---------- -->
         <a href="{{ url_for('dashboard.profile') }}"
            class="sidebar-user"
-           title="{{ session.user_name or 'Profile' }}">
+           title="View profile">
             <div class="avatar avatar-primary">
                 {{ session.user_name[0] if session.user_name else 'U' }}
+                {% if session.tier == 'hore' %}
+                    <span class="tier-badge tier-hore" title="Safka Hore"><i class="fas fa-crown"></i></span>
+                {% elif session.tier == 'dhexe' %}
+                    <span class="tier-badge tier-dhexe" title="Safka Dhexe"><i class="fas fa-key"></i></span>
+                {% endif %}
             </div>
             <div class="user-details">
                 <span class="user-name">{{ session.user_name or 'User' }}</span>
@@ -69,7 +74,7 @@
             </div>
         </a>
 
-        <!-- Navigation -->
+        <!-- ---------- Navigation ---------- -->
         <nav class="sidebar-nav">
 
             <!-- ============ MAIN ============ -->
@@ -78,67 +83,43 @@
 
                 <a href="{{ url_for('dashboard.home') }}"
                    class="nav-item {% if request.endpoint == 'dashboard.home' %}active{% endif %}"
-                   data-title="Dashboard"
-                   title="Dashboard">
+                   data-title="Dashboard" title="Dashboard">
                     <span class="nav-icon"><i class="fas fa-home"></i></span>
                     <span class="nav-text">Dashboard</span>
                 </a>
+            </div>
 
-                <a href="{{ url_for('dashboard.profile') }}"
-                   class="nav-item {% if request.endpoint == 'dashboard.profile' %}active{% endif %}"
-                   data-title="Profile"
-                   title="Profile">
-                    <span class="nav-icon"><i class="fas fa-user"></i></span>
-                    <span class="nav-text">Profile</span>
-                </a>
-
-                <a href="{{ url_for('settings.index') }}"
-                   class="nav-item {% if request.endpoint.startswith('settings.') %}active{% endif %}"
-                   data-title="Settings"
-                   title="Settings">
-                    <span class="nav-icon"><i class="fas fa-sliders-h"></i></span>
-                    <span class="nav-text">Settings</span>
-                </a>
-
-                <a href="{{ url_for('history.index') }}"
-                   class="nav-item {% if request.endpoint.startswith('history.') %}active{% endif %}"
-                   data-title="History"
-                   title="History">
-                    <span class="nav-icon"><i class="fas fa-history"></i></span>
-                    <span class="nav-text">History</span>
-                </a>
+            <!-- ============ LEARNING ============ -->
+            <div class="nav-section">
+                <div class="nav-label">Learning</div>
 
                 <a href="{{ url_for('quiz.index') }}"
-                   class="nav-item {% if request.endpoint.startswith('quiz.') %}active{% endif %}"
-                   data-title="Quizzes"
-                   title="Quizzes">
+                   class="nav-item {% if request.endpoint.startswith('quiz.') and request.endpoint != 'quiz.leaderboard' %}active{% endif %}"
+                   data-title="Quizzes" title="Quizzes">
                     <span class="nav-icon"><i class="fas fa-pencil-alt"></i></span>
                     <span class="nav-text">Quizzes</span>
                 </a>
 
                 <a href="{{ url_for('live_quiz.lobby') }}"
                    class="nav-item {% if request.endpoint.startswith('live_quiz.') %}active{% endif %}"
-                   data-title="Live Quiz"
-                   title="Live Quiz">
+                   data-title="Live Quiz" title="Live Quiz">
                     <span class="nav-icon"><i class="fas fa-bolt"></i></span>
                     <span class="nav-text">Live Quiz</span>
                     <span class="nav-badge">⚡</span>
                 </a>
 
-                <a href="{{ url_for('groups.list_groups') }}"
-                   class="nav-item {% if request.endpoint == 'groups.list_groups' %}active{% endif %}"
-                   data-title="Groups"
-                   title="Groups">
-                    <span class="nav-icon"><i class="fas fa-users"></i></span>
-                    <span class="nav-text">Groups</span>
-                </a>
-
                 <a href="{{ url_for('pdfs.list_pdfs') }}"
                    class="nav-item {% if request.endpoint == 'pdfs.list_pdfs' or request.endpoint == 'pdfs.view_pdf' %}active{% endif %}"
-                   data-title="PDFs"
-                   title="PDFs">
+                   data-title="PDFs" title="PDFs">
                     <span class="nav-icon"><i class="fas fa-file-pdf"></i></span>
                     <span class="nav-text">PDFs</span>
+                </a>
+
+                <a href="{{ url_for('groups.list_groups') }}"
+                   class="nav-item {% if request.endpoint == 'groups.list_groups' %}active{% endif %}"
+                   data-title="Groups" title="Groups">
+                    <span class="nav-icon"><i class="fas fa-users"></i></span>
+                    <span class="nav-text">Groups</span>
                 </a>
             </div>
 
@@ -148,30 +129,53 @@
 
                 <a href="{{ url_for('quiz.leaderboard') }}"
                    class="nav-item {% if request.endpoint == 'quiz.leaderboard' %}active{% endif %}"
-                   data-title="Leaderboard"
-                   title="Leaderboard">
+                   data-title="Leaderboard" title="Leaderboard">
                     <span class="nav-icon"><i class="fas fa-trophy"></i></span>
                     <span class="nav-text">Leaderboard</span>
                 </a>
+
+                <a href="{{ url_for('history.index') }}"
+                   class="nav-item {% if request.endpoint.startswith('history.') %}active{% endif %}"
+                   data-title="History" title="History">
+                    <span class="nav-icon"><i class="fas fa-history"></i></span>
+                    <span class="nav-text">History</span>
+                </a>
             </div>
 
-            <!-- ============ ADMIN (admin only) ============ -->
+            <!-- ============ ACCOUNT ============ -->
+            <div class="nav-section">
+                <div class="nav-label">Account</div>
+
+                <a href="{{ url_for('dashboard.profile') }}"
+                   class="nav-item {% if request.endpoint == 'dashboard.profile' %}active{% endif %}"
+                   data-title="Profile" title="Profile">
+                    <span class="nav-icon"><i class="fas fa-user"></i></span>
+                    <span class="nav-text">Profile</span>
+                </a>
+
+                <a href="{{ url_for('settings.index') }}"
+                   class="nav-item {% if request.endpoint.startswith('settings.') %}active{% endif %}"
+                   data-title="Settings" title="Settings">
+                    <span class="nav-icon"><i class="fas fa-sliders-h"></i></span>
+                    <span class="nav-text">Settings</span>
+                </a>
+            </div>
+
+            <!-- ============ ADMIN ============ -->
             {% if session.is_admin %}
                 <div class="nav-section">
                     <div class="nav-label">Admin</div>
 
                     <a href="{{ url_for('admin.dashboard') }}"
                        class="nav-item {% if request.endpoint.startswith('admin.') and not request.endpoint.startswith('admin_errors.') %}active{% endif %}"
-                       data-title="Admin Panel"
-                       title="Admin Panel">
-                        <span class="nav-icon"><i class="fas fa-cog"></i></span>
+                       data-title="Admin Panel" title="Admin Panel">
+                        <span class="nav-icon"><i class="fas fa-shield-alt"></i></span>
                         <span class="nav-text">Admin Panel</span>
                     </a>
 
                     <a href="{{ url_for('upgrade.admin_list') }}"
                        class="nav-item {% if request.path.startswith('/upgrade/admin/upgrade-requests') %}active{% endif %}"
-                       data-title="Upgrade Requests"
-                       title="Upgrade Requests">
+                       data-title="Upgrade Requests" title="Upgrade Requests">
                         <span class="nav-icon"><i class="fas fa-rocket"></i></span>
                         <span class="nav-text">Upgrade Requests</span>
                         {% if pending_upgrades_count and pending_upgrades_count > 0 %}
@@ -181,16 +185,14 @@
 
                     <a href="{{ url_for('upgrade.admin_discounts') }}"
                        class="nav-item {% if request.path.startswith('/upgrade/admin/discounts') %}active{% endif %}"
-                       data-title="Discount Codes"
-                       title="Discount Codes">
+                       data-title="Discount Codes" title="Discount Codes">
                         <span class="nav-icon"><i class="fas fa-tags"></i></span>
                         <span class="nav-text">Discount Codes</span>
                     </a>
 
                     <a href="{{ url_for('admin_errors.index') }}"
                        class="nav-item {% if request.endpoint.startswith('admin_errors.') %}active{% endif %}"
-                       data-title="Error Logs"
-                       title="Error Logs">
+                       data-title="Error Logs" title="Error Logs">
                         <span class="nav-icon"><i class="fas fa-exclamation-triangle"></i></span>
                         <span class="nav-text">Error Logs</span>
                         <span class="nav-badge danger">!</span>
@@ -199,7 +201,7 @@
             {% endif %}
         </nav>
 
-        <!-- Footer -->
+        <!-- ---------- Footer ---------- -->
         <div class="sidebar-footer">
             <button type="button"
                     class="nav-item logout"

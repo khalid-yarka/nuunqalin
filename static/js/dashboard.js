@@ -36,14 +36,14 @@ document.addEventListener('DOMContentLoaded', function() {
         overlay.addEventListener('click', closeSidebar);
     }
 
-    // Close sidebar on escape key
+    // Close sidebar on Escape
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && sidebar.classList.contains('open')) {
             closeSidebar();
         }
     });
 
-    // Close sidebar on window resize (if going from mobile to desktop)
+    // Auto-close sidebar when resizing from mobile to desktop
     window.addEventListener('resize', function() {
         if (window.innerWidth > 768 && sidebar.classList.contains('open')) {
             closeSidebar();
@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const collapseBtn = document.getElementById('sidebarCollapseBtn');
 
     if (collapseBtn) {
-        // Sync initial state (class may already be set by anti-flash script)
+        // Sync initial state — class may already be set by anti-flash script
         const isCollapsed = document.documentElement.classList.contains('sidebar-collapsed');
         collapseBtn.setAttribute('aria-expanded', !isCollapsed);
         collapseBtn.setAttribute('aria-label', isCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
             } catch (e) {
-                // localStorage unavailable (private browsing) — ignore
+                // localStorage unavailable (private mode) — ignore
             }
             collapseBtn.setAttribute('aria-expanded', !collapsed);
             collapseBtn.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // SIDEBAR LOGOUT (Footer button)
+    // SIDEBAR LOGOUT
     // ============================================
 
     const sidebarLogoutBtn = document.getElementById('sidebarLogoutBtn');
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // ACTIVE NAV LINK
+    // ACTIVE NAV LINK — fallback safety net
     // ============================================
 
     const currentPath = window.location.pathname;
@@ -99,16 +99,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     navItems.forEach(function(item) {
         const href = item.getAttribute('href');
-        if (href && href !== '#') {
-            if (currentPath === href || (href !== '/' && currentPath.startsWith(href))) {
+        if (href && href !== '#' && !item.classList.contains('active')) {
+            // exact match OR prefix match (excluding root)
+            if (currentPath === href || (href !== '/' && currentPath.startsWith(href + '/'))) {
                 item.classList.add('active');
-                item.setAttribute('aria-current', 'page');
             }
+        }
+        if (item.classList.contains('active')) {
+            item.setAttribute('aria-current', 'page');
         }
     });
 
     // ============================================
-    // THEME TOGGLE – Uses NuunSettings API
+    // THEME TOGGLE — uses NuunSettings API
     // ============================================
     (function() {
         const toggleBtn = document.getElementById('themeToggle');
@@ -127,11 +130,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         function applyTheme(theme) {
-            // Delegate to NuunSettings for persistence
             if (typeof NuunSettings !== 'undefined' && NuunSettings.initialized) {
                 NuunSettings.set('appearance.theme', theme);
             } else {
-                // Fallback (should not happen in normal flow)
                 if (theme === 'system') {
                     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                     document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
@@ -140,7 +141,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 localStorage.setItem('preferred-theme', theme);
             }
-            // Optimistically update icon
             icon.className = 'fas ' + (themeIcons[theme] || 'fa-sun');
         }
 
@@ -152,7 +152,6 @@ document.addEventListener('DOMContentLoaded', function() {
             applyTheme(next);
         }
 
-        // Set initial icon based on current theme
         const initial = getCurrentTheme();
         icon.className = 'fas ' + (themeIcons[initial] || 'fa-sun');
 
@@ -161,7 +160,6 @@ document.addEventListener('DOMContentLoaded', function() {
             cycleTheme();
         });
 
-        // Listen for system preference changes when in 'system' mode
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
             const current = document.documentElement.getAttribute('data-theme');
             if (current === 'system') {
