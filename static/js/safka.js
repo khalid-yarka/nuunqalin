@@ -62,7 +62,6 @@
     function init() {
         backdrop = document.getElementById('safkaBackdrop');
         sheet = document.getElementById('safkaSheet');
-        // FIX: Use safkaTrack as the dynamic content container
         content = document.getElementById('safkaTrack');
         closeBtn = document.getElementById('safkaClose');
         handle = document.getElementById('safkaHandle');
@@ -88,14 +87,15 @@
             openSafkaPreview({ mode: 'upgrade', requiredTier: tier });
         };
 
-        // Auto-trigger for locked features (old behaviour remains)
+        // ----- TRIGGER LOCKED FEATURES (NOW OPENS UPGRADE) -----
         document.addEventListener('click', function(e) {
             const target = e.target.closest('[data-tier-locked]');
             if (target) {
                 e.preventDefault();
                 const feature = target.dataset.feature || null;
                 const requiredTier = target.dataset.requiredTier || 'dhexe';
-                openSafkaPreview({ mode: 'features', feature: feature, requiredTier: requiredTier });
+                // FIX: Use 'upgrade' mode instead of 'features'
+                openSafkaPreview({ mode: 'upgrade', feature: feature, requiredTier: requiredTier });
             }
         });
     }
@@ -135,9 +135,7 @@
     // FEATURE CAROUSEL (OLD – Kept Intact)
     // ============================================
     function renderFeatureCarousel(feature, requiredTier) {
-        // This is a placeholder for the existing carousel logic.
-        // Keep your original implementation here – unchanged.
-        // For demonstration, we show a simple message:
+        // This is a placeholder; replace with your actual old carousel if needed.
         content.innerHTML = `
             <div class="safka-carousel">
                 <div class="safka-carousel__track">
