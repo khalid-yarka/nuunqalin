@@ -1,8 +1,6 @@
 # ============================================
 # DATABASE VERIFICATION & MANAGEMENT
 # ============================================
-# Handles database startup, verification, and maintenance
-# ============================================
 
 import os
 import sqlite3
@@ -35,7 +33,7 @@ REQUIRED_TABLES = [
     'saved_content',
     'achievements',
     'user_achievements',
-    'question_interactions',   # NEW
+    'question_interactions',
 ]
 
 REQUIRED_COLUMNS = {
@@ -43,7 +41,7 @@ REQUIRED_COLUMNS = {
     'questions': ['id', 'subject_code', 'question_text', 'options', 'correct_answer', 'difficulty', 'status', 'created_at'],
     'quiz_attempts': ['id', 'student_id', 'subject_code', 'score', 'total_questions', 'answers', 'ratings', 'completed_at'],
     'groups': ['id', 'name', 'platform', 'invite_link', 'is_active', 'created_at'],
-    'pdfs': ['id', 'title', 'file_url', 'telegram_download_url', 'view_count', 'created_at', 'is_premium'],
+    'pdfs': ['id', 'code', 'title', 'file_url', 'view_count', 'uploaded_at', 'is_premium'],
     'live_quizzes': ['id', 'creator_id', 'join_code', 'status', 'question_count', 'created_at'],
     'live_quiz_participants': ['id', 'quiz_id', 'student_id', 'score', 'answers', 'ratings', 'ranking'],
     'deleted_users': ['id', 'original_id', 'first_name', 'last_name', 'phone_number', 'data', 'deleted_at'],
@@ -55,92 +53,129 @@ REQUIRED_COLUMNS = {
     'achievements': ['id', 'name', 'description', 'icon', 'tier_required', 'unlock_condition', 'created_at'],
     'user_achievements': ['id', 'user_id', 'achievement_id', 'unlocked_at'],
     'question_interactions': [
-        'id', 'user_id', 'question_id', 'quiz_attempt_id',
-        'live_quiz_id', 'interaction_type', 'report_reason',
-        'report_comment', 'report_status', 'admin_reply',
-        'resolved_by', 'resolved_at', 'created_at'
+        'id', 'user_id', 'question_id', 'interaction_type',
+        'report_reason', 'report_comment', 'report_status',
+        'admin_reply', 'resolved_by', 'resolved_at', 'created_at'
     ],
 }
 
 DB_INIT_LOCK_FILE = os.path.join(os.path.dirname(Config.DATABASE_PATH), '.db_init_lock')
 
+# Sentinel returned when locking is unavailable but the caller may proceed.
+_NO_LOCK = object()
+
 # ============================================
-# DATABASE LOCK FOR STARTUP
+# DATABASE LOCK FOR STARTUP (best-effort)
 # ============================================
 
-def acquire_db_init_lock(timeout: int = 30) -> Optional[int]:
+def acquire_db_init_lock(timeout: int = 1) -> Any:
     """
-    Acquire an exclusive lock for database initialization.
-    Returns file descriptor if successful, None otherwise.
+    Best-effort exclusive lock for database initialization.
+    Never returns None.
+
+    Returns:
+        - The open lock file object on success.
+        - The sentinel `_NO_LOCK` if locking is unavailable or timed out.
+          In that case the caller proceeds without locking.
     """
-    try:
-        lock_dir = os.path.dirname(DB_INIT_LOCK_FILE)
-        if lock_dir and not os.path.exists(lock_dir):
+    lock_dir = os.path.dirname(DB_INIT_LOCK_FILE)
+    if lock_dir and not os.path.exists(lock_dir):
+        try:
             os.makedirs(lock_dir, exist_ok=True)
-        
+        except Exception as e:
+            logger.warning(f"Could not create lock directory ({e}); proceeding without lock.")
+            return _NO_LOCK
+
+    try:
         fd = open(DB_INIT_LOCK_FILE, 'w')
-        start_time = time.time()
-        
-        while time.time() - start_time < timeout:
+    except Exception as e:
+        logger.warning(f"Could not open lock file ({e}); proceeding without lock.")
+        return _NO_LOCK
+
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             try:
-                fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 fd.write(str(os.getpid()))
                 fd.flush()
-                return fd.fileno()
-            except (IOError, OSError):
-                time.sleep(0.5)
-        return None
-    except Exception as e:
-        logger.error(f"Failed to acquire DB init lock: {e}")
-        return None
-
-
-def release_db_init_lock(fd: int) -> None:
-    """Release the database initialization lock."""
-    if fd:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-        except Exception as e:
-            logger.warning(f"Failed to release DB init lock: {e}")
-        finally:
-            try:
-                fd.close()
-            except:
+            except Exception:
                 pass
+            return fd   # file object, not fileno()
+        except (IOError, OSError) as e:
+            errno = getattr(e, 'errno', None)
+            # EAGAIN (11): another process holds the lock -> retry
+            if errno == 11:
+                time.sleep(0.2)
+                continue
+            # ENOLCK (37), ENOTSUP/EOPNOTSUPP (95), EINVAL (22):
+            # filesystem does not support flock (common on Android FUSE)
+            if errno in (37, 95, 22):
+                logger.warning(
+                    f"flock not supported on this filesystem ({e}); "
+                    f"proceeding without an init lock."
+                )
+                try:
+                    fd.close()
+                except Exception:
+                    pass
+                return _NO_LOCK
+            # Any other error: retry briefly
+            time.sleep(0.2)
+
+    # Timed out while another process held the lock.
+    logger.warning(
+        f"Lock acquire timed out after {timeout}s; "
+        f"proceeding without an init lock."
+    )
+    try:
+        fd.close()
+    except Exception:
+        pass
+    return _NO_LOCK
+
+
+def release_db_init_lock(fd) -> None:
+    """Release the database initialization lock. No-op for the sentinel."""
+    if fd is None or fd is _NO_LOCK:
+        return
+    try:
+        fcntl.flock(fd.fileno(), fcntl.LOCK_UN)
+    except Exception as e:
+        logger.warning(f"Failed to release DB init lock: {e}")
+    finally:
+        try:
+            fd.close()
+        except Exception:
+            pass
 
 
 # ============================================
-# DATABASE CONNECTION HELPER
+# CONNECTION HELPER
 # ============================================
 
 def _get_connection(db_path: str = None, timeout: int = 10):
-    """Get a direct database connection."""
     if db_path is None:
         db_path = Config.DATABASE_PATH
-    
-    try:
-        db_dir = os.path.dirname(db_path)
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir, exist_ok=True)
-        
-        conn = sqlite3.connect(db_path, timeout=timeout)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA journal_mode = WAL")
-        conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
-        conn.execute("PRAGMA synchronous = NORMAL")
-        return conn
-    except Exception as e:
-        logger.error(f"Database connection error: {e}")
-        raise
+
+    db_dir = os.path.dirname(db_path)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+
+    conn = sqlite3.connect(db_path, timeout=timeout)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute(f"PRAGMA busy_timeout = {Config.DB_BUSY_TIMEOUT}")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    return conn
 
 
 # ============================================
-# DATABASE VERIFICATION FUNCTIONS
+# VERIFICATION HELPERS
 # ============================================
 
 def get_schema_version(conn: sqlite3.Connection) -> Optional[str]:
-    """Get the current schema version from the database."""
     try:
         cursor = conn.execute("PRAGMA user_version")
         result = cursor.fetchone()
@@ -150,12 +185,10 @@ def get_schema_version(conn: sqlite3.Connection) -> Optional[str]:
 
 
 def verify_database_exists() -> bool:
-    """Check if the database file exists."""
     return os.path.exists(Config.DATABASE_PATH)
 
 
 def verify_database_openable() -> Tuple[bool, Optional[str]]:
-    """Check if the database can be opened."""
     try:
         conn = _get_connection(timeout=5)
         conn.close()
@@ -165,13 +198,11 @@ def verify_database_openable() -> Tuple[bool, Optional[str]]:
 
 
 def verify_database_integrity() -> Tuple[bool, Optional[str]]:
-    """Run PRAGMA integrity_check on the database."""
     try:
         conn = _get_connection(timeout=10)
         cursor = conn.execute("PRAGMA integrity_check")
         result = cursor.fetchone()
         conn.close()
-        
         if result and result[0] == 'ok':
             return True, None
         return False, result[0] if result else "unknown integrity error"
@@ -180,13 +211,11 @@ def verify_database_integrity() -> Tuple[bool, Optional[str]]:
 
 
 def verify_wal_enabled() -> Tuple[bool, Optional[str]]:
-    """Check if WAL mode is enabled."""
     try:
         conn = _get_connection(timeout=5)
         cursor = conn.execute("PRAGMA journal_mode")
         result = cursor.fetchone()
         conn.close()
-        
         if result and result[0].upper() == 'WAL':
             return True, None
         return False, f"WAL not enabled: {result[0] if result else 'unknown'}"
@@ -195,7 +224,6 @@ def verify_wal_enabled() -> Tuple[bool, Optional[str]]:
 
 
 def verify_database_writable() -> Tuple[bool, Optional[str]]:
-    """Check if the database is writable."""
     try:
         conn = _get_connection(timeout=5)
         conn.execute("CREATE TEMP TABLE IF NOT EXISTS _write_test (id INTEGER)")
@@ -210,11 +238,9 @@ def verify_database_writable() -> Tuple[bool, Optional[str]]:
 
 
 def verify_tables_exist(conn: sqlite3.Connection) -> Tuple[bool, List[str]]:
-    """Verify all required tables exist."""
     try:
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         existing_tables = {row[0] for row in cursor.fetchall()}
-        
         missing_tables = [t for t in REQUIRED_TABLES if t not in existing_tables]
         return len(missing_tables) == 0, missing_tables
     except Exception as e:
@@ -222,29 +248,24 @@ def verify_tables_exist(conn: sqlite3.Connection) -> Tuple[bool, List[str]]:
 
 
 def verify_columns_exist(conn: sqlite3.Connection) -> Tuple[bool, Dict[str, List[str]]]:
-    """Verify all required columns exist in each table."""
     try:
         missing_columns = {}
-        
         for table, required_cols in REQUIRED_COLUMNS.items():
             cursor = conn.execute(f"PRAGMA table_info({table})")
             existing_cols = {row[1] for row in cursor.fetchall()}
-            
             missing = [c for c in required_cols if c not in existing_cols]
             if missing:
                 missing_columns[table] = missing
-        
         return len(missing_columns) == 0, missing_columns
     except Exception as e:
         return False, {"error": [f"Error checking columns: {e}"]}
 
 
 # ============================================
-# QUESTION INTERACTIONS TABLE CREATION
+# QUESTION INTERACTIONS TABLE
 # ============================================
 
 def ensure_question_interactions_table(conn: sqlite3.Connection) -> None:
-    """Create the question_interactions table if it does not exist."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS question_interactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -271,44 +292,38 @@ def ensure_question_interactions_table(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_type ON question_interactions(interaction_type)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_question_interactions_report_status ON question_interactions(report_status)")
     conn.commit()
-    logger.info("question_interactions table verified/created.")
 
 
 # ============================================
-# DATABASE INITIALIZATION (Fresh Install)
+# SCHEMA CREATION (Fresh Install)
 # ============================================
 
 def create_database_schema() -> Tuple[bool, Optional[str]]:
-    """Create the database schema from schema.sql."""
     schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
-    
     if not os.path.exists(schema_path):
         return False, f"Schema file not found: {schema_path}"
-    
+
     try:
         db_dir = os.path.dirname(Config.DATABASE_PATH)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
-        
+
         conn = _get_connection()
         conn.execute("PRAGMA foreign_keys = ON")
-        
+
         with open(schema_path, 'r') as f:
             schema = f.read()
-        
+
         conn.executescript(schema)
-        # Ensure the question_interactions table is included even if schema.sql is old
         ensure_question_interactions_table(conn)
         conn.commit()
         conn.close()
-        
         return True, None
     except Exception as e:
         return False, str(e)
 
 
 def enable_wal_mode() -> Tuple[bool, Optional[str]]:
-    """Enable WAL mode on the database."""
     try:
         conn = _get_connection()
         conn.execute("PRAGMA journal_mode = WAL")
@@ -322,14 +337,10 @@ def enable_wal_mode() -> Tuple[bool, Optional[str]]:
 
 
 # ============================================
-# COMPLETE DATABASE VERIFICATION
+# FULL VERIFICATION
 # ============================================
 
 def verify_database_full() -> Dict[str, Any]:
-    """
-    Perform a complete verification of the database.
-    Returns a dict with all check results.
-    """
     results = {
         'exists': False,
         'openable': False,
@@ -341,119 +352,100 @@ def verify_database_full() -> Dict[str, Any]:
         'schema_version': None,
         'errors': []
     }
-    
-    # Check if database exists
+
     results['exists'] = verify_database_exists()
     if not results['exists']:
         results['errors'].append("Database file does not exist")
         return results
-    
-    # Check if database can be opened
+
     openable, error = verify_database_openable()
     results['openable'] = openable
     if not openable:
         results['errors'].append(f"Cannot open database: {error}")
         return results
-    
-    # Check if database is writable
+
     writable, error = verify_database_writable()
     results['writable'] = writable
     if not writable:
         results['errors'].append(f"Database not writable: {error}")
         return results
-    
+
     try:
         conn = _get_connection()
-        
-        # Ensure question_interactions table exists
         ensure_question_interactions_table(conn)
-        
-        # Check schema version
         results['schema_version'] = get_schema_version(conn)
-        
-        # Check tables
+
         tables_ok, missing_tables = verify_tables_exist(conn)
         results['tables']['ok'] = tables_ok
         results['tables']['missing'] = missing_tables
         if not tables_ok:
             results['errors'].append(f"Missing tables: {', '.join(missing_tables)}")
-        
-        # Check columns
+
         columns_ok, missing_columns = verify_columns_exist(conn)
         results['columns']['ok'] = columns_ok
         results['columns']['missing'] = missing_columns
         if not columns_ok:
             for table, cols in missing_columns.items():
                 results['errors'].append(f"Missing columns in {table}: {', '.join(cols)}")
-        
+
         conn.close()
-        
     except Exception as e:
         results['errors'].append(f"Error during table verification: {e}")
         return results
-    
-    # Check integrity
+
     integrity_ok, error = verify_database_integrity()
     results['integrity'] = integrity_ok
     if not integrity_ok:
         results['errors'].append(f"Integrity check failed: {error}")
-    
-    # Check WAL
+
     wal_ok, error = verify_wal_enabled()
     results['wal_enabled'] = wal_ok
     if not wal_ok:
         results['errors'].append(f"WAL not enabled: {error}")
-    
+
     return results
 
 
 # ============================================
-# STARTUP DATABASE INITIALIZATION
+# STARTUP INITIALIZATION
 # ============================================
 
 def initialize_database_startup() -> Tuple[bool, List[str]]:
     """
     Initialize the database on application startup.
-    This only creates the database if it doesn't exist and verifies it.
-    It does NOT run migrations – that is handled by the one-time migrate.py script.
-    Returns (success, errors) where errors is a list of error messages.
+    Creates the DB if missing, verifies it, and ensures WAL.
+    Does NOT run migrations (that is done by migrate.py).
     """
     errors = []
-    
-    # Acquire startup lock
+
     lock_fd = acquire_db_init_lock()
-    if lock_fd is None:
-        errors.append("Could not acquire database initialization lock")
-        return False, errors
-    
+    # lock_fd is never None now — it's either a file object or _NO_LOCK.
+    # We proceed either way; the lock is best-effort.
+
     try:
-        # Check if database exists
         if not verify_database_exists():
             logger.info("Database not found. Creating new database...")
             success, error = create_database_schema()
             if not success:
                 errors.append(f"Failed to create database schema: {error}")
                 return False, errors
-            
+
             success, error = enable_wal_mode()
             if not success:
                 errors.append(f"Failed to enable WAL mode: {error}")
                 return False, errors
-            
+
             logger.info("Database created successfully")
         else:
             logger.info("Database already exists. Skipping creation.")
-        
-        # Full verification
+
         logger.info("Verifying database...")
         results = verify_database_full()
-        
-        # Check for issues
+
         if results['errors']:
             errors.extend(results['errors'])
             return False, errors
-        
-        # Ensure WAL is enabled (try to enable if not)
+
         if not results['wal_enabled']:
             logger.warning("WAL not enabled, attempting to enable...")
             success, error = enable_wal_mode()
@@ -461,10 +453,9 @@ def initialize_database_startup() -> Tuple[bool, List[str]]:
                 errors.append(f"Failed to enable WAL mode: {error}")
                 return False, errors
             logger.info("WAL mode enabled")
-        
+
         logger.info("Database verification complete")
         return True, []
-        
     except Exception as e:
         logger.error(f"Database initialization error: {e}", exc_info=True)
         errors.append(f"Unexpected error: {str(e)}")
@@ -474,14 +465,10 @@ def initialize_database_startup() -> Tuple[bool, List[str]]:
 
 
 # ============================================
-# DATABASE HEALTH CHECK (for /health endpoint)
+# HEALTH CHECK (for /health endpoint)
 # ============================================
 
 def get_database_health() -> Dict[str, Any]:
-    """
-    Get detailed database health information.
-    Used by the /health endpoint.
-    """
     health = {
         'exists': False,
         'openable': False,
@@ -493,73 +480,62 @@ def get_database_health() -> Dict[str, Any]:
         'errors': [],
         'details': {}
     }
-    
+
     health['exists'] = verify_database_exists()
     if not health['exists']:
         health['errors'].append("Database does not exist")
         return health
-    
+
     openable, error = verify_database_openable()
     health['openable'] = openable
     if not openable:
         health['errors'].append(f"Cannot open database: {error}")
         return health
-    
+
     writable, error = verify_database_writable()
     health['writable'] = writable
     if not writable:
         health['errors'].append(f"Database not writable: {error}")
-    
+
     try:
         conn = _get_connection()
-        
-        # Ensure question_interactions table exists (for health check too)
         ensure_question_interactions_table(conn)
-        
-        # Check tables
+
         tables_ok, missing = verify_tables_exist(conn)
         health['tables_ok'] = tables_ok
         health['details']['missing_tables'] = missing
-        
-        # Check columns
+
         columns_ok, missing_cols = verify_columns_exist(conn)
         health['columns_ok'] = columns_ok
         health['details']['missing_columns'] = missing_cols
-        
+
         conn.close()
-        
     except Exception as e:
         health['errors'].append(f"Table verification error: {e}")
-    
-    # Check integrity
+
     integrity_ok, error = verify_database_integrity()
     health['integrity'] = integrity_ok
     if not integrity_ok:
         health['errors'].append(f"Integrity check failed: {error}")
-    
-    # Check WAL
+
     wal_ok, error = verify_wal_enabled()
     health['wal_enabled'] = wal_ok
     if not wal_ok:
         health['errors'].append(f"WAL not enabled: {error}")
-    
+
     return health
 
 
 # ============================================
-# LIVE QUIZ TABLES (Events & Checkpoints)
+# LIVE QUIZ TABLES
 # ============================================
 
 def ensure_live_quiz_tables():
-    """
-    Create tables for live quiz events and checkpoints if they don't exist.
-    Called during application startup.
-    """
+    """Create tables for live quiz events and checkpoints if missing."""
     try:
         conn = _get_connection()
         cursor = conn.cursor()
 
-        # Events table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS live_quiz_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -574,7 +550,6 @@ def ensure_live_quiz_tables():
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_live_quiz_events_quiz_sequence ON live_quiz_events(quiz_id, sequence)")
 
-        # Checkpoints table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS live_quiz_checkpoints (
                 quiz_id INTEGER PRIMARY KEY,
@@ -584,10 +559,10 @@ def ensure_live_quiz_tables():
             )
         """)
 
-        # Ensure live_quizzes has a status index
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_live_quizzes_status ON live_quizzes(status)")
 
         conn.commit()
+        conn.close()
         logger.info("Live quiz event and checkpoint tables verified/created.")
     except Exception as e:
         logger.error(f"Failed to create live quiz tables: {e}", exc_info=True)

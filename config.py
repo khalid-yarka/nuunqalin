@@ -179,7 +179,8 @@ class Config:
     # FLASK / RUN
     # ============================================
     
-    FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    #FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    FLASK_DEBUG = "true"
     PORT = int(os.getenv('PORT', 5000))
     
     # ============================================

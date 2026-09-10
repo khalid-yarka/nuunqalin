@@ -13,7 +13,10 @@
     let isDragging = false;
     let dragStartY = 0;
     let sheetOffsetY = 0;
-    let currentMode = 'features';
+
+    // FIX: default mode is 'upgrade'. All existing trigger calls
+    // (which omit `mode`) now land on the working 4-step wizard.
+    let currentMode = 'upgrade';
 
     // ----- Upgrade Flow State -----
     let upgradeState = {
@@ -25,12 +28,15 @@
         finalPrice: 0,
         step: 1,
         requestId: null,
-        note: ''
+        note: '',
+        // FIX: preserve trigger context so we can show a hint banner
+        feature: null,
+        message: null
     };
 
     const PRICES = {
         dhexe: { monthly: 1.25, term: 3.00, yearly: 5.00 },
-        hore: { monthly: 2.00, term: 4.50, yearly: 7.00 }
+        hore:  { monthly: 2.00, term: 4.50, yearly: 7.00 }
     };
 
     const FEATURES = {
@@ -72,10 +78,12 @@
         }
 
         backdrop.addEventListener('click', closeSheet);
-        closeBtn.addEventListener('click', closeSheet);
+        if (closeBtn) closeBtn.addEventListener('click', closeSheet);
 
-        handle.addEventListener('mousedown', onDragStart);
-        handle.addEventListener('touchstart', onDragStartTouch, { passive: false });
+        if (handle) {
+            handle.addEventListener('mousedown', onDragStart);
+            handle.addEventListener('touchstart', onDragStartTouch, { passive: false });
+        }
 
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && isOpen) closeSheet();
@@ -87,14 +95,13 @@
             openSafkaPreview({ mode: 'upgrade', requiredTier: tier });
         };
 
-        // ----- TRIGGER LOCKED FEATURES (NOW OPENS UPGRADE) -----
+        // Delegated trigger for any [data-tier-locked] element.
         document.addEventListener('click', function(e) {
             const target = e.target.closest('[data-tier-locked]');
             if (target) {
                 e.preventDefault();
                 const feature = target.dataset.feature || null;
                 const requiredTier = target.dataset.requiredTier || 'dhexe';
-                // FIX: Use 'upgrade' mode instead of 'features'
                 openSafkaPreview({ mode: 'upgrade', feature: feature, requiredTier: requiredTier });
             }
         });
@@ -103,13 +110,19 @@
     // ----- Open Sheet -----
     function openSafkaPreview(options) {
         options = options || {};
-        currentMode = options.mode || 'features';
+        // Always render the upgrade wizard. Legacy 'features' mode
+        // (which was only a placeholder) is redirected here.
+        currentMode = options.mode || 'upgrade';
 
-        if (currentMode === 'upgrade') {
-            renderUpgradeSheet(options.requiredTier || 'hore');
-        } else {
-            renderFeatureCarousel(options.feature, options.requiredTier);
-        }
+        // Preserve any context the trigger wanted to communicate.
+        upgradeState.feature = options.feature || null;
+        upgradeState.message = options.message || null;
+
+        // Hide the old pagination dots — the wizard does not use them.
+        const pagination = document.getElementById('safkaPagination');
+        if (pagination) pagination.style.display = 'none';
+
+        renderUpgradeSheet(options.requiredTier || 'hore');
 
         sheet.style.transform = 'translateY(0)';
         sheet.classList.add('active');
@@ -126,30 +139,25 @@
         backdrop.classList.remove('active');
         document.body.style.overflow = '';
         isOpen = false;
-        if (currentMode === 'upgrade') {
-            upgradeState = { step: 1, tier: null, duration: 'yearly', originalPrice: 0, discountCode: null, discountAmount: 0, finalPrice: 0, requestId: null, note: '' };
-        }
+
+        // Reset wizard state after close.
+        upgradeState = {
+            step: 1,
+            tier: null,
+            duration: 'yearly',
+            originalPrice: 0,
+            discountCode: null,
+            discountAmount: 0,
+            finalPrice: 0,
+            requestId: null,
+            note: '',
+            feature: null,
+            message: null
+        };
     }
 
     // ============================================
-    // FEATURE CAROUSEL (OLD – Kept Intact)
-    // ============================================
-    function renderFeatureCarousel(feature, requiredTier) {
-        // This is a placeholder; replace with your actual old carousel if needed.
-        content.innerHTML = `
-            <div class="safka-carousel">
-                <div class="safka-carousel__track">
-                    <div class="safka-slide">
-                        <div class="safka-slide__title">Feature Preview</div>
-                        <div class="safka-slide__subtitle">This is the old carousel. It is preserved.</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // ============================================
-    // UPGRADE SHEET – 4 Steps (New)
+    // UPGRADE WIZARD – 4 Steps
     // ============================================
     function renderUpgradeSheet(highlightTier) {
         upgradeState.step = 1;
@@ -169,6 +177,14 @@
 
     function renderStep1() {
         const tier = upgradeState.tier;
+
+        // Optional hint banner shown when triggered from a locked feature.
+        const contextMsg = upgradeState.message
+            ? '<div class="safka-context-banner" style="background: var(--primary-light); color: var(--text); padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 13px; line-height: 1.45;">' +
+              escapeHtml(upgradeState.message) +
+              '</div>'
+            : '';
+
         const html = `
             <div class="safka-upgrade-step" data-step="1">
                 <div class="safka-step-header">
@@ -180,6 +196,7 @@
                         <span class="dot"></span>
                     </div>
                 </div>
+                ${contextMsg}
                 <div class="safka-plan-grid">
                     <div class="safka-plan-card ${tier === 'dhexe' ? 'selected' : ''}" data-tier="dhexe">
                         <div class="safka-plan-header">
@@ -216,10 +233,11 @@
             </div>
         `;
         content.innerHTML = html;
+
         document.querySelectorAll('.safka-plan-card').forEach(card => {
             card.addEventListener('click', function() {
-                const tier = this.dataset.tier;
-                upgradeState.tier = tier;
+                const t = this.dataset.tier;
+                upgradeState.tier = t;
                 upgradeState.duration = 'yearly';
                 updatePrices();
                 renderStep2();
@@ -253,9 +271,7 @@
                     </div>
                     <ul>
         `;
-        features.forEach(f => {
-            html += `<li>✅ ${f}</li>`;
-        });
+        features.forEach(f => { html += `<li>✅ ${f}</li>`; });
         html += `
                     </ul>
                 </div>
@@ -277,23 +293,19 @@
 
         document.querySelectorAll('.safka-duration-pill').forEach(pill => {
             pill.addEventListener('click', function() {
-                const duration = this.dataset.duration;
-                upgradeState.duration = duration;
+                upgradeState.duration = this.dataset.duration;
                 updatePrices();
                 renderStep2();
             });
         });
 
-        document.querySelector('.safka-back-link').addEventListener('click', function() {
-            renderStep1();
-        });
-        document.querySelector('.safka-back-btn').addEventListener('click', function() {
-            renderStep1();
-        });
+        const backLink = document.querySelector('.safka-back-link');
+        if (backLink) backLink.addEventListener('click', renderStep1);
+        const backBtn = document.querySelector('.safka-back-btn');
+        if (backBtn) backBtn.addEventListener('click', renderStep1);
 
-        document.getElementById('safkaUpgradeNow').addEventListener('click', function() {
-            renderStep3();
-        });
+        const upgradeBtn = document.getElementById('safkaUpgradeNow');
+        if (upgradeBtn) upgradeBtn.addEventListener('click', renderStep3);
     }
 
     function renderStep3() {
@@ -302,6 +314,11 @@
         const price = PRICES[tier][duration];
         const discount = upgradeState.discountAmount;
         const finalPrice = price - discount;
+
+        // FIX: always render the badge element (hidden if no discount),
+        // so the "Apply" handler has something to update without null-ref.
+        const badgeStyle = discount > 0 ? '' : 'style="display:none;"';
+        const badgeText = discount > 0 ? `-$${discount.toFixed(2)}` : '-$0.00';
 
         let html = `
             <div class="safka-upgrade-step" data-step="3">
@@ -317,8 +334,8 @@
                 </div>
                 <div class="safka-plan-summary">
                     <span class="safka-summary-tier">${tier.toUpperCase()} — ${duration.charAt(0).toUpperCase() + duration.slice(1)}</span>
-                    <span class="safka-summary-price">$${finalPrice.toFixed(2)}</span>
-                    ${discount > 0 ? `<span class="safka-discount-badge">-$${discount.toFixed(2)}</span>` : ''}
+                    <span class="safka-summary-price" id="safkaSummaryPrice">$${finalPrice.toFixed(2)}</span>
+                    <span class="safka-discount-badge" id="safkaDiscountBadge" ${badgeStyle}>${badgeText}</span>
                 </div>
                 <div class="safka-discount-section">
                     <input type="text" id="safkaDiscountInput" placeholder="Discount code" value="${upgradeState.discountCode || ''}">
@@ -328,15 +345,15 @@
                 <div class="safka-form-fields">
                     <div class="safka-field readonly">
                         <label>Name</label>
-                        <input type="text" value="${window.userName || 'User'}" readonly>
+                        <input type="text" value="${escapeHtml(window.userName || 'User')}" readonly>
                     </div>
                     <div class="safka-field readonly">
                         <label>Phone</label>
-                        <input type="text" value="${window.userPhone || '+252 61 234 5678'}" readonly>
+                        <input type="text" value="${escapeHtml(window.userPhone || '+252 61 234 5678')}" readonly>
                     </div>
                     <div class="safka-field">
                         <label>Note (optional)</label>
-                        <textarea id="safkaNote" rows="2" placeholder="Any special request?">${upgradeState.note}</textarea>
+                        <textarea id="safkaNote" rows="2" placeholder="Any special request?">${escapeHtml(upgradeState.note || '')}</textarea>
                     </div>
                 </div>
                 <div class="safka-step-actions">
@@ -347,72 +364,100 @@
         `;
         content.innerHTML = html;
 
-        document.getElementById('safkaApplyDiscount').addEventListener('click', function() {
-            const code = document.getElementById('safkaDiscountInput').value.trim();
-            if (!code) return;
-            fetch('/upgrade/api/validate-discount', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
-                body: JSON.stringify({ code, tier: upgradeState.tier, duration: upgradeState.duration })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.valid) {
-                    upgradeState.discountCode = code;
-                    upgradeState.discountAmount = data.discount_amount || 0;
-                    upgradeState.finalPrice = data.final_price;
-                    document.getElementById('safkaDiscountFeedback').innerHTML = `<span class="valid">✅ ${data.message}</span>`;
-                    document.querySelector('.safka-summary-price').textContent = `$${upgradeState.finalPrice.toFixed(2)}`;
-                    if (upgradeState.discountAmount > 0) {
-                        document.querySelector('.safka-discount-badge').textContent = `-$${upgradeState.discountAmount.toFixed(2)}`;
-                    }
-                } else {
-                    document.getElementById('safkaDiscountFeedback').innerHTML = `<span class="invalid">❌ ${data.message}</span>`;
-                }
-            })
-            .catch(() => {
-                document.getElementById('safkaDiscountFeedback').innerHTML = `<span class="invalid">❌ Network error. Try again.</span>`;
-            });
-        });
+        const applyBtn = document.getElementById('safkaApplyDiscount');
+        if (applyBtn) {
+            applyBtn.addEventListener('click', function() {
+                const code = document.getElementById('safkaDiscountInput').value.trim();
+                if (!code) return;
 
-        document.querySelector('.safka-back-link').addEventListener('click', function() {
-            renderStep2();
-        });
-        document.querySelector('.safka-back-btn').addEventListener('click', function() {
-            renderStep2();
-        });
+                const feedbackEl = document.getElementById('safkaDiscountFeedback');
+                feedbackEl.innerHTML = '<span style="color: var(--text-muted);">Checking…</span>';
 
-        document.getElementById('safkaSubmitRequest').addEventListener('click', function() {
-            const note = document.getElementById('safkaNote').value.trim();
-            upgradeState.note = note;
-            const btn = this;
-            btn.disabled = true;
-            btn.innerHTML = 'Submitting...';
-            fetch('/upgrade/api/request', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
-                body: JSON.stringify({
-                    tier: upgradeState.tier,
-                    duration: upgradeState.duration,
-                    discount_code: upgradeState.discountCode || null,
-                    note: upgradeState.note
+                fetch('/upgrade/api/validate-discount', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrfToken()
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        tier: upgradeState.tier,
+                        duration: upgradeState.duration
+                    })
                 })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    upgradeState.requestId = data.request_id;
-                    renderStep4();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(() => alert('Network error. Please try again.'))
-            .finally(() => {
-                btn.disabled = false;
-                btn.innerHTML = 'Submit Request';
+                .then(res => res.json())
+                .then(data => {
+                    if (data.valid) {
+                        upgradeState.discountCode = code;
+                        upgradeState.discountAmount = data.discount_amount || 0;
+                        upgradeState.finalPrice = data.final_price;
+
+                        feedbackEl.innerHTML = '<span style="color:#10B981;">✅ ' + escapeHtml(data.message || 'Applied!') + '</span>';
+
+                        const priceEl = document.getElementById('safkaSummaryPrice');
+                        if (priceEl) priceEl.textContent = '$' + upgradeState.finalPrice.toFixed(2);
+
+                        const badgeEl = document.getElementById('safkaDiscountBadge');
+                        if (badgeEl) {
+                            badgeEl.textContent = '-$' + upgradeState.discountAmount.toFixed(2);
+                            badgeEl.style.display = '';
+                        }
+                    } else {
+                        feedbackEl.innerHTML = '<span style="color:#EF4444;">❌ ' + escapeHtml(data.message || 'Invalid code') + '</span>';
+                    }
+                })
+                .catch(() => {
+                    feedbackEl.innerHTML = '<span style="color:#EF4444;">❌ Network error. Try again.</span>';
+                });
             });
-        });
+        }
+
+        const backLink = document.querySelector('.safka-back-link');
+        if (backLink) backLink.addEventListener('click', renderStep2);
+        const backBtn = document.querySelector('.safka-back-btn');
+        if (backBtn) backBtn.addEventListener('click', renderStep2);
+
+        const submitBtn = document.getElementById('safkaSubmitRequest');
+        if (submitBtn) {
+            submitBtn.addEventListener('click', function() {
+                const noteEl = document.getElementById('safkaNote');
+                upgradeState.note = noteEl ? noteEl.value.trim() : '';
+
+                const btn = this;
+                btn.disabled = true;
+                btn.innerHTML = 'Submitting…';
+
+                fetch('/upgrade/api/request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrfToken()
+                    },
+                    body: JSON.stringify({
+                        tier: upgradeState.tier,
+                        duration: upgradeState.duration,
+                        discount_code: upgradeState.discountCode || null,
+                        note: upgradeState.note
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        upgradeState.requestId = data.request_id;
+                        renderStep4();
+                    } else {
+                        alert('Error: ' + (data.message || 'Unknown error'));
+                        btn.disabled = false;
+                        btn.innerHTML = 'Submit Request';
+                    }
+                })
+                .catch(() => {
+                    alert('Network error. Please try again.');
+                    btn.disabled = false;
+                    btn.innerHTML = 'Submit Request';
+                });
+            });
+        }
     }
 
     function renderStep4() {
@@ -422,10 +467,15 @@
         const requestId = upgradeState.requestId;
 
         const whatsappMsg = encodeURIComponent(
-            `Hello Admin, I have submitted an upgrade request.\n📌 Request ID: ${requestId}\n👤 Name: ${window.userName || 'User'}\n📞 Phone: ${window.userPhone || '+252 61 234 5678'}\n🏷️ Requested: ${tier.toUpperCase()} — ${duration.charAt(0).toUpperCase() + duration.slice(1)} ($${finalPrice.toFixed(2)})\n🔗 View: ${window.location.origin}/upgrade/admin/upgrade-requests/${requestId}\nPlease review and let me know the payment details. Thank you!`
+            'Hello Admin, I have submitted an upgrade request.\n' +
+            '📌 Request ID: ' + requestId + '\n' +
+            '👤 Name: ' + (window.userName || 'User') + '\n' +
+            '📞 Phone: ' + (window.userPhone || '+252 61 234 5678') + '\n' +
+            '🏷️ Requested: ' + tier.toUpperCase() + ' — ' + (duration.charAt(0).toUpperCase() + duration.slice(1)) + ' ($' + finalPrice.toFixed(2) + ')\n' +
+            'Please review and let me know the payment details. Thank you!'
         );
 
-        let html = `
+        const html = `
             <div class="safka-upgrade-step" data-step="4">
                 <div class="safka-step-header">
                     <h2>✅ Request Submitted!</h2>
@@ -439,14 +489,15 @@
                 <div class="safka-success-icon">
                     <svg viewBox="0 0 24 24" width="64" height="64">
                         <circle cx="12" cy="12" r="10" fill="none" stroke="#10B981" stroke-width="2"/>
-                        <path d="M7 12l3 3 7-7" stroke="#10B981" stroke-width="2" fill="none" stroke-dasharray="20" stroke-dashoffset="20" class="safka-check-path"/>
+                        <path d="M7 12l3 3 7-7" stroke="#10B981" stroke-width="2" fill="none"
+                              stroke-dasharray="20" stroke-dashoffset="20" class="safka-check-path"/>
                     </svg>
                 </div>
                 <div class="safka-success-details">
-                    <p class="safka-request-id">Request ID: <strong>${requestId}</strong></p>
+                    <p class="safka-request-id">Request ID: <strong>${escapeHtml(requestId)}</strong></p>
                     <p class="safka-summary">${tier.toUpperCase()} — ${duration.charAt(0).toUpperCase() + duration.slice(1)} ($${finalPrice.toFixed(2)})</p>
                     <p class="safka-next-step">📱 The admin will contact you via WhatsApp to complete payment.</p>
-                    <a href="https://wa.me/?text=${whatsappMsg}" target="_blank" class="safka-whatsapp-btn">
+                    <a href="https://wa.me/?text=${whatsappMsg}" target="_blank" rel="noopener" class="safka-whatsapp-btn">
                         <i class="fab fa-whatsapp"></i> Contact Admin on WhatsApp
                     </a>
                     <button class="safka-close-btn" onclick="closeSafkaSheet()">✕ Close</button>
@@ -461,7 +512,9 @@
         }, 100);
     }
 
-    // ----- Drag to Dismiss (unchanged) -----
+    // ============================================
+    // Drag to Dismiss
+    // ============================================
     function onDragStart(e) {
         if (!isOpen) return;
         isDragging = true;
@@ -476,11 +529,11 @@
         if (!isDragging) return;
         const delta = e.clientY - dragStartY;
         if (delta > 0) {
-            sheet.style.transform = `translateY(${delta}px)`;
+            sheet.style.transform = 'translateY(' + delta + 'px)';
             sheetOffsetY = delta;
         }
     }
-    function onDragEnd(e) {
+    function onDragEnd() {
         if (!isDragging) return;
         isDragging = false;
         sheet.classList.remove('dragging');
@@ -505,12 +558,12 @@
         const touch = e.touches[0];
         const delta = touch.clientY - dragStartY;
         if (delta > 0) {
-            sheet.style.transform = `translateY(${delta}px)`;
+            sheet.style.transform = 'translateY(' + delta + 'px)';
             sheetOffsetY = delta;
         }
         e.preventDefault();
     }
-    function onDragEndTouch(e) {
+    function onDragEndTouch() {
         if (!isDragging) return;
         isDragging = false;
         sheet.classList.remove('dragging');
@@ -520,6 +573,9 @@
         else sheet.style.transform = 'translateY(0)';
     }
 
+    // ============================================
+    // Helpers
+    // ============================================
     function getCsrfToken() {
         const meta = document.querySelector('meta[name="csrf-token"]');
         if (meta) return meta.content;
@@ -528,6 +584,19 @@
         return '';
     }
 
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // ============================================
+    // Boot
+    // ============================================
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {

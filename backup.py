@@ -17,7 +17,7 @@ import argparse
 import logging
 import fcntl
 import tempfile
-import readline
+#import readline
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
